@@ -12,6 +12,8 @@ extension NativeEmitter {
         typeLowering: LLVMTypeLowering?,
         outThrownPointerType: LLVMCAPIBindings.LLVMTypeRef,
         internalFunctions: [SymbolID: LLVMFunction],
+        internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)],
+        internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
         runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
         usesRuntimeCallbackRawABI: Bool = false,
@@ -1707,26 +1709,13 @@ extension NativeEmitter {
             argumentTypes: [TypeID?],
             appendThrownChannel _: Bool
         ) -> (symbol: SymbolID, function: LLVMFunction)? {
-            var candidates: [(symbol: SymbolID, function: LLVMFunction, parameters: [TypeID])] = []
             // Match by KIR param count (user args only); outThrown is appended by codegen.
-            let expectedParameterCount = argumentCount
-            for declaration in module.arena.declarations {
-                guard case let .function(candidate) = declaration,
-                      candidate.params.count == expectedParameterCount,
-                      let llvmFunction = internalFunctions[candidate.symbol]
-                else {
-                    continue
+            let lookupKey = FunctionLookupKey(name: calleeName, parameterCount: argumentCount)
+            let candidates = internalFunctionsByLookupKey[lookupKey, default: []].compactMap { candidate -> (symbol: SymbolID, function: LLVMFunction, parameters: [TypeID])? in
+                guard let llvmFunction = internalFunctions[candidate.symbol] else {
+                    return nil
                 }
-                let kirName = interner.resolve(candidate.name)
-                let cName = CodegenSymbolSupport.cFunctionSymbol(
-                    for: candidate,
-                    interner: interner,
-                    fileFacadeNamesByFileID: fileFacadeNamesByFileID
-                )
-                guard kirName == calleeName || cName == calleeName else {
-                    continue
-                }
-                candidates.append((candidate.symbol, llvmFunction, candidate.params.map(\.type)))
+                return (candidate.symbol, llvmFunction, candidate.params.map(\.type))
             }
             let exactMatches = candidates.filter { candidate in
                 guard argumentTypes.count == candidate.parameters.count else {
@@ -1752,15 +1741,7 @@ extension NativeEmitter {
             guard let symbol else {
                 return nil
             }
-            for declaration in module.arena.declarations {
-                guard case let .function(candidate) = declaration,
-                      candidate.symbol == symbol
-                else {
-                    continue
-                }
-                return (candidate.params.map(\.type), candidate.returnType)
-            }
-            return nil
+            return internalSignatures[symbol]
         }
 
         func sourceExternalSignature(

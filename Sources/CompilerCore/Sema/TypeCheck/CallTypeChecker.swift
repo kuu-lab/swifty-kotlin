@@ -225,6 +225,7 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
             }
+            sema.bindings.markCollectionHOFLambdaExpr(argumentExprID)
             sema.bindings.markCollectionExpr(id)
             sema.bindings.bindExprType(id, type: refinedReturnType)
             return refinedReturnType
