@@ -250,4 +250,50 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-472: measureTime / measureTimedValue が bundled Kotlin の inline 関数として
+    // 展開され、ラムダ・関数参照・例外伝播のいずれでも正しく動くことを検証する。
+    @Test
+    func testMeasureTimeExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.time.measureTime
+            import kotlin.time.measureTimedValue
+
+            fun work(): Int {
+                var sum = 0
+                for (i in 1..1000) {
+                    sum += i
+                }
+                return sum
+            }
+
+            fun noop() {
+            }
+
+            fun main() {
+                println(measureTime { work() }.inWholeNanoseconds >= 0L)
+                println(measureTime(::noop).inWholeNanoseconds >= 0L)
+
+                val timed = measureTimedValue { work() }
+                println(timed.value)
+                println(timed.duration.inWholeNanoseconds >= 0L)
+
+                try {
+                    measureTime { throw RuntimeException("boom") }
+                } catch (e: RuntimeException) {
+                    println(e.message)
+                }
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            500500
+            true
+            boom
+
+            """
+        )
+    }
 }
