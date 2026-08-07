@@ -55,6 +55,7 @@ struct ArrayLookupNames {
     let kkArrayFlatMapName: InternedString
     let kkListAsSequenceName: InternedString
     let kkArrayAsSequenceName: InternedString
+    let kkArrayOfName: InternedString
     let kkArrayMapIndexedName: InternedString
     let kkArrayFilterIndexedName: InternedString
     let kkArrayMapNotNullName: InternedString
@@ -127,6 +128,7 @@ struct ArrayLookupNames {
         kkArrayFlatMapName = interner.intern("kk_array_flatMap")
         kkListAsSequenceName = interner.intern("kk_list_asSequence")
         kkArrayAsSequenceName = interner.intern("kk_array_asSequence")
+        kkArrayOfName = interner.intern("kk_array_of")
         kkArrayMapIndexedName = interner.intern("kk_array_mapIndexed")
         kkArrayFilterIndexedName = interner.intern("kk_array_filterIndexed")
         kkArrayMapNotNullName = interner.intern("kk_array_mapNotNull")

@@ -1022,4 +1022,47 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// STDLIB-ARTIFACT-021: `Sequence<T>.reduce`'s bundled source body iterated
+    /// its receiver with a direct `for (elem in this)` loop. Through the shared
+    /// stdlib artifact, that loop silently ran zero times (the receiver's
+    /// `Iterator` itable dispatch does not round-trip through the artifact),
+    /// so `reduce` always threw "Empty sequence can't be reduced." even for a
+    /// non-empty sequence. `fold`/`scan` were unaffected because their bodies
+    /// materialize the receiver via `toList()` first. Rewrote `reduce` to do
+    /// the same.
+    func testSequenceReduceSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val seq = generateSequence(1) { if (it < 5) it + 1 else null }
+            println(seq.reduce { acc, v -> acc + v })
+            println(sequenceOf(1, 2, 3).reduce { acc, v -> acc + v })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "15\n6\n")
+        }
+    }
 }

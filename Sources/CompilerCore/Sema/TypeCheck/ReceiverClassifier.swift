@@ -30,10 +30,20 @@ struct ReceiverClassifier {
         } ?? false
         let isCollectionType = isCollectionLikeType(receiverType)
         let isMapReceiver = isMapLikeCollectionType(receiverType)
+        // A receiver whose *static* type is `Iterable<T>` (e.g. a `val x:
+        // Iterable<Int> = setOf(...)` widening) is not a synthetic
+        // object-expression Sequence even though `isCollectionExpr` can be
+        // true here (propagated from the initializer). Without this
+        // exclusion such a receiver was misclassified as a synthetic
+        // Sequence, which made `isSequenceReceiver` true and caused calls
+        // like `reduce`/`fold` to resolve against the bundled
+        // `Sequence<T>` source declaration instead of the real element
+        // type's own (e.g. `Set`'s) implementation.
         let isSyntheticSequenceReceiver = isCollectionExpr
             && !isCollectionType
             && !isMapReceiver
             && !isListFactoryReceiver
+            && !isIterableLikeType(receiverType)
         return ReceiverClassification(
             isArrayReceiver: isArrayLikeType(receiverType),
             isIterableReceiver: isIterableLikeType(receiverType),
