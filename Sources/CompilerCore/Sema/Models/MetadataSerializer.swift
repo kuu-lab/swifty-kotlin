@@ -263,7 +263,12 @@ package final class MetadataEncoder {
                 }
                 // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
                 // These are compiler internals and are always re-injected on every compilation.
+                // Source-backed nominal types that reuse a synthetic shell carry a sourceFileID
+                // but leave declSite nil, so also filter by the tracked source file ID.
                 if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
+                    return false
+                }
+                if let sourceFileID = symbols.sourceFileID(for: symbol.id), excludeSourceFileIDs.contains(sourceFileID.rawValue) {
                     return false
                 }
                 return true
