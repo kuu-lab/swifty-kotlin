@@ -445,7 +445,8 @@ extension CallLowerer {
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_first"
                             : (isLongRange ? "kk_long_range_first" : "kk_range_first")))
-                case "end":
+                // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
+                case "end", "endInclusive":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
