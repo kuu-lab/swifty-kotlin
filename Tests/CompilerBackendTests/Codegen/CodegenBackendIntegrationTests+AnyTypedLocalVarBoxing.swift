@@ -1,46 +1,62 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-/// Keep this regression in its own XCTestCase so SwiftPM does not have to
+/// Keep this regression in its own suite so SwiftPM does not have to
 /// type-check the already-large CodegenBackendIntegrationTests discovery list.
-final class AnyTypedLocalVarBoxingTests: XCTestCase {
-    func testAnyAndNumberTypedLocalsAreBoxedCorrectly() throws {
-        func assertKotlinOutput(
-            _ source: String,
-            moduleName: String,
-            expected: String
-        ) throws {
-            try withTemporaryFile(contents: source) { path in
-                let outputBase = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path
-                let options = CompilerOptions(
-                    moduleName: moduleName,
-                    inputs: [path],
-                    outputPath: outputBase,
-                    emit: .executable,
-                    target: defaultTargetTriple()
-                )
-                let ctx = CompilationContext(
-                    options: options,
-                    sourceManager: SourceManager(),
-                    diagnostics: DiagnosticEngine(),
-                    interner: StringInterner()
-                )
-                try runToKIR(ctx)
-                try LoweringPhase().run(ctx)
-                try CodegenPhase().run(ctx)
-                try LinkPhase().run(ctx)
+@Suite
+struct CodegenBackendAnyTypedLocalVarBoxingTests {
 
-                let result = try CommandRunner.run(executable: outputBase, arguments: [])
-                XCTAssertEqual(
-                    result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
-                    expected
-                )
-            }
+    private func runCodegenPipeline(
+        inputPath: String,
+        moduleName: String,
+        emit: EmitMode,
+        outputPath: String
+    ) throws -> CompilationContext {
+        let options = CompilerOptions(
+            moduleName: moduleName,
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: emit,
+            target: defaultTargetTriple()
+        )
+        let ctx = CompilationContext(
+            options: options,
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: StringInterner()
+        )
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+        try CodegenPhase().run(ctx)
+        return ctx
+    }
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
         }
+    }
 
+    @Test
+    func testAnyAndNumberTypedLocalsAreBoxedCorrectly() throws {
         // Reported bug: `.localDecl` aliased a local's storage directly to its
         // initializer expression's own KIRExprID, so an `Any`-declared local kept
         // the initializer's narrower arena type (e.g. Int) forever. Neither the
@@ -127,3 +143,4 @@ final class AnyTypedLocalVarBoxingTests: XCTestCase {
         )
     }
 }
+#endif
