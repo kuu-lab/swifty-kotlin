@@ -48,7 +48,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenMathExtensionPropertiesLowerToRuntimeHelpers() throws {
+    func testCodegenMathExtensionPropertiesLowerToSourceBackedAccessors() throws {
         let source = """
         import kotlin.math.*
 
@@ -86,14 +86,8 @@ extension CodegenBackendIntegrationTests {
             }
 
             for expected in [
-                "kk_math_abs_int",
-                "kk_math_abs_long",
-                "kk_math_abs_float",
-                "kk_math_abs",
-                "kk_math_sign_int",
-                "kk_math_sign_long",
-                "kk_math_sign_float",
-                "kk_math_sign",
+                "absoluteValue",
+                "sign",
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
@@ -104,14 +98,8 @@ extension CodegenBackendIntegrationTests {
             }
 
             for extensionHelper in [
-                "kk_math_abs_int",
-                "kk_math_abs_long",
-                "kk_math_abs_float",
-                "kk_math_abs",
-                "kk_math_sign_int",
-                "kk_math_sign_long",
-                "kk_math_sign_float",
-                "kk_math_sign",
+                "absoluteValue",
+                "sign",
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
@@ -120,10 +108,26 @@ extension CodegenBackendIntegrationTests {
                     "Extension property helper \(extensionHelper) must not be emitted as a top-level initializer"
                 )
             }
+
+            for removedHelper in [
+                "kk_math_abs_int",
+                "kk_math_abs_long",
+                "kk_math_abs_float",
+                "kk_math_abs",
+                "kk_math_sign_int",
+                "kk_math_sign_long",
+                "kk_math_sign_float",
+                "kk_math_sign",
+            ] {
+                XCTAssertFalse(
+                    calls.contains(where: { $0.0 == removedHelper }),
+                    "\(removedHelper) is Kotlin-source backed and must not be called, got \(calls)"
+                )
+            }
         }
     }
 
-    func testCodegenMathMinMaxOverloadsLowerToRuntimeHelpers() throws {
+    func testCodegenMathMinMaxOverloadsLowerToSourceBackedCalls() throws {
         let source = """
         import kotlin.math.*
 
@@ -163,25 +167,18 @@ extension CodegenBackendIntegrationTests {
                 return (ctx.interner.resolve(callee), arguments.count)
             }
 
-            for expected in [
-                "kk_math_max",
-                "kk_math_max_float",
-                "kk_math_max_int",
-                "kk_math_max_long",
-                "kk_math_max_uint",
-                "kk_math_max_ulong",
-                "kk_math_min",
-                "kk_math_min_float",
-                "kk_math_min_int",
-                "kk_math_min_long",
-                "kk_math_min_uint",
-                "kk_math_min_ulong",
-            ] {
-                XCTAssertTrue(
-                    calls.contains(where: { $0 == expected && $1 == 2 }),
-                    "Expected \(expected) to lower with two arguments, got \(calls)"
+            for expected in ["max", "min"] {
+                XCTAssertEqual(
+                    calls.filter { $0 == expected && $1 == 2 }.count,
+                    6,
+                    "Expected six source-backed \(expected) overload calls, got \(calls)"
                 )
             }
+
+            XCTAssertFalse(
+                calls.contains(where: { $0.0.hasPrefix("kk_math_max") || $0.0.hasPrefix("kk_math_min") }),
+                "min/max are Kotlin-source backed and must not call kk_math_* helpers, got \(calls)"
+            )
         }
     }
 
@@ -294,7 +291,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // PARITY-SEMA-003: kotlin.math.abs(x) called via FQN (no import) must lower identically to the import path.
-    func testCodegenFQNMathCallsLowerToRuntimeHelpers() throws {
+    func testCodegenFQNMathCallsLowerLikeImportedCalls() throws {
         let source = """
         fun sample(i: Int, d: Double) {
             val absI = kotlin.math.abs(i)
@@ -314,8 +311,11 @@ extension CodegenBackendIntegrationTests {
                 return ctx.interner.resolve(callee)
             }
 
-            XCTAssertTrue(callees.contains("kk_math_abs_int"), "FQN abs(Int) must lower to kk_math_abs_int, got \(callees)")
-            XCTAssertTrue(callees.contains("kk_math_abs"), "FQN abs(Double) must lower to kk_math_abs, got \(callees)")
+            XCTAssertEqual(
+                callees.filter { $0 == "abs" }.count,
+                2,
+                "FQN abs(Int)/abs(Double) must lower to the Kotlin-source abs, got \(callees)"
+            )
             XCTAssertTrue(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
         }
     }
