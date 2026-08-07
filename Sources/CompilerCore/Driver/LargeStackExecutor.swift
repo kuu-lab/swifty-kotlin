@@ -12,34 +12,32 @@ import Foundation
 /// The caller blocks until the work completes, so a cooperative-pool thread is
 /// occupied for exactly as long as it would have been running the work inline —
 /// the hop trades no parallelism for the larger stack.
+///
+/// Callers must pass a `@Sendable` escaping closure. Non-`Sendable` inputs can be
+/// wrapped in a private `@unchecked Sendable` work object and invoked from the
+/// closure, which keeps the cross-thread capture explicit and avoids relying on
+/// `withoutActuallyEscaping` for thread hops.
 enum LargeStackExecutor {
     /// Virtual allocation only — pages are committed lazily by the kernel.
     private static let stackSize = 64 << 20
 
     private final class ResultBox<T>: @unchecked Sendable {
-        var body: (() throws -> T)?
         var result: Result<T, any Error>?
     }
 
-    static func run<T>(_ body: () throws -> T) throws -> T {
-        try withoutActuallyEscaping(body) { escapingBody in
-            let box = ResultBox<T>()
-            box.body = escapingBody
-            let done = DispatchSemaphore(value: 0)
-            let thread = Thread {
-                // Drop the body reference before signaling so the caller's
-                // withoutActuallyEscaping check never observes a live capture.
-                if let body = box.body {
-                    box.body = nil
-                    box.result = Result(catching: body)
-                }
-                done.signal()
-            }
-            thread.stackSize = stackSize
-            thread.name = "kswiftk.large-stack"
-            thread.start()
-            done.wait()
-            return try box.result!.get()
+    static func run<T>(
+        _ body: @escaping @Sendable () throws -> T
+    ) throws -> T {
+        let box = ResultBox<T>()
+        let done = DispatchSemaphore(value: 0)
+        let thread = Thread {
+            box.result = Result(catching: body)
+            done.signal()
         }
+        thread.stackSize = stackSize
+        thread.name = "kswiftk.large-stack"
+        thread.start()
+        done.wait()
+        return try box.result!.get()
     }
 }
