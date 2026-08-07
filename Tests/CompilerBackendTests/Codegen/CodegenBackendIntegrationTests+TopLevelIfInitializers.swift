@@ -111,5 +111,41 @@ struct CodegenBackendTopLevelIfInitializersTests {
             expected: "2\neq\n2\n"
         )
     }
+
+    /// Custom delegated `var` top-level properties route writes through a
+    /// setter function, so the global slot must stay a raw string handle
+    /// across the read-bridge roundtrip used for `getValue`.
+    @Test
+    func testCodegenStringDelegatePropertyWritesAndReadsStayValid() throws {
+        let source = """
+        var backing: String = "init"
+
+        fun assignNext(value: String) {
+            backing = value
+        }
+
+        class StringDelegate {
+            operator fun getValue(thisRef: Any?, property: Any?): String = backing
+
+            operator fun setValue(thisRef: Any?, property: Any?, value: String) {
+                assignNext(value)
+            }
+        }
+
+        var message: String by StringDelegate()
+
+        fun main() {
+            println(message)
+            message = "next"
+            println(message)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TopLevelStringDelegateRuntime",
+            expected: "init\nnext\n"
+        )
+    }
 }
 #endif
