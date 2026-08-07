@@ -445,6 +445,9 @@ public func kk_string_equals_flat(
     _ otherByteCount: Int,
     _ otherHash: Int
 ) -> Int {
+    if data == nil || otherData == nil {
+        return (data == nil && otherData == nil) ? 1 : 0
+    }
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
     return source == other ? 1 : 0
