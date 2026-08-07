@@ -86,9 +86,11 @@ final class TestStdlibCache: @unchecked Sendable {
         }
 
         // Another worker may have built the artifact while we waited.
-        if fm.fileExists(atPath: artifactPath) {
+        if fm.fileExists(atPath: artifactPath), !isArtifactStale(at: artifactURL, fm: fm) {
             return artifactPath
         }
+        // Existing artifact is missing or stale (stdlib source changed).
+        try? fm.removeItem(at: artifactURL)
 
         let buildingBase = artifactPath + ".building"
         let buildingArtifactPath = buildingBase + ".kklib"
@@ -118,5 +120,20 @@ final class TestStdlibCache: @unchecked Sendable {
         try fm.moveItem(atPath: buildingArtifactPath, toPath: artifactPath)
 
         return artifactPath
+    }
+
+    private func isArtifactStale(at artifactURL: URL, fm: FileManager) -> Bool {
+        let manifestURL = artifactURL.appendingPathComponent("manifest.json")
+        guard fm.fileExists(atPath: manifestURL.path),
+              let data = try? Data(contentsOf: manifestURL),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let manifest = object as? [String: Any]
+        else {
+            return true
+        }
+        guard let hash = manifest["stdlibManifestHash"] as? String, !hash.isEmpty else {
+            return true
+        }
+        return hash != BundledKotlinStdlib.manifestHash()
     }
 }
