@@ -435,10 +435,6 @@ public extension RuntimeABISpec {
             p("predicateFnPtr", .intptr),
             p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_flow_share_in", parameters: [
-            p("flowHandle", .intptr),
-            p("replay", .intptr),
-        ]),
         abiParitySpec("kk_flow_state_in", parameters: [
             p("flowHandle", .intptr),
             p("initialValue", .intptr),
@@ -725,17 +721,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_mem_scope_enter"),
         abiParitySpec("kk_mem_scope_exit", parameters: [
             p("handle", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_shared_flow_create", parameters: [
-            p("replay", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_shared_flow_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_shared_flow_try_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
         ]),
         abiParitySpec("kk_mutable_state_flow_create", parameters: [
             p("initialValue", .intptr),

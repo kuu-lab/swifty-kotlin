@@ -177,7 +177,13 @@ extension CallLowerer {
                 return true
             }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-               !externalLinkName.isEmpty
+               !externalLinkName.isEmpty,
+               // A suspend callee (e.g. `SharedFlow.collect` imported from a
+               // precompiled stdlib) takes its lambda as one suspend closure;
+               // splitting it into the runtime's (fnPtr, env) pair, as the
+               // `kk_*` collection entry points expect, corrupts the call.
+               !(sema.symbols.symbol(chosenCallee)?.flags.contains(.suspendFunction) == true
+                   && !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema))
             {
                 return true
             }

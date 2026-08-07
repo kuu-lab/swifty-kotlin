@@ -120,7 +120,9 @@ extension DataFlowSemaPhase {
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
-                isMutable: metadataRecord.isMutable
+                isMutable: metadataRecord.isMutable,
+                nominalTypeParametersSignature: metadataRecord.nominalTypeParametersSignature,
+                nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures
             ))
         }
 
@@ -218,8 +220,60 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             typeParameterSymbols: typeParameterSymbols,
-            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+            classTypeParameterCount: importedClassTypeParameterCount(
+                record: record,
+                functionType: functionType,
+                typeParameterSymbols: typeParameterSymbols,
+                symbols: symbols,
+                types: types
+            )
         )
+    }
+
+    /// Number of leading `typeParameterSymbols` entries that belong to the owner
+    /// class rather than to the callable itself.
+    ///
+    /// Source-declared members record this in `MemberHeaderCollection`; imported
+    /// members must recover it from the receiver type, whose arguments are the
+    /// owner's type parameters (`collectTypeParameterSymbols` visits the receiver
+    /// first, so they occupy the front of the list). Extension callables declared
+    /// at package level keep a count of zero even when their receiver is generic.
+    private func importedClassTypeParameterCount(
+        record: ImportedLibrarySymbolRecord,
+        functionType: FunctionType,
+        typeParameterSymbols: [SymbolID],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Int {
+        guard record.kind == .constructor || record.kind == .function,
+              record.fqName.count >= 2,
+              let receiver = functionType.receiver,
+              case let .classType(receiverClass) = types.kind(of: receiver),
+              !receiverClass.args.isEmpty
+        else {
+            return 0
+        }
+        let ownerFQName = Array(record.fqName.dropLast())
+        let ownerIsReceiverClass = symbols.lookupAll(fqName: ownerFQName).contains { candidate in
+            candidate == receiverClass.classSymbol
+        }
+        guard ownerIsReceiverClass else {
+            return 0
+        }
+
+        var count = 0
+        for arg in receiverClass.args {
+            guard case let .invariant(argType) = arg,
+                  case let .typeParam(typeParam) = types.kind(of: argType),
+                  count < typeParameterSymbols.count,
+                  typeParameterSymbols[count] == typeParam.symbol
+            else {
+                break
+            }
+            count += 1
+        }
+        return count
     }
 
     /// Collects the type parameter symbols referenced by a decoded function type

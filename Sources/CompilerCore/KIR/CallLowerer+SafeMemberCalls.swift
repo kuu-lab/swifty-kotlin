@@ -1239,7 +1239,7 @@ extension CallLowerer {
                 )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
-            let hasExternalLink = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }.map { !$0.isEmpty } ?? false
+            let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             if !isSuperCall,
                let chosen,
                !hasExternalLink,
@@ -1276,6 +1276,24 @@ extension CallLowerer {
         }
         instructions.append(.label(endLabel))
         return result
+    }
+
+    /// Whether a callee's external link name denotes a runtime bridge (a `kk_*`
+    /// entry point taking the runtime's argument shape) rather than an ordinary
+    /// Kotlin declaration. A declaration imported from a precompiled library
+    /// also carries a link name — its own mangled definition — so it is only a
+    /// bridge when the original source spelled `@KsSymbolName`, which the
+    /// library metadata preserves as an annotation.
+    func kirIsRuntimeBridgedCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        guard let linkName = sema.symbols.externalLinkName(for: callee), !linkName.isEmpty else {
+            return false
+        }
+        guard sema.symbols.symbol(callee)?.flags.contains(.importedLibrary) == true else {
+            return true
+        }
+        return sema.symbols.annotations(for: callee).contains { annotation in
+            annotation.annotationFQName.hasSuffix("KsSymbolName")
+        }
     }
 
     /// Determine if a callee method requires virtual dispatch.

@@ -175,8 +175,8 @@ extension CallLowerer {
         arguments[2] = sizeExpr
     }
 
-    /// Callees with an externalLinkName (C runtime functions such as
-    /// kk_array_get) are never dispatched virtually.
+    /// Callees bridged to a C runtime function (such as kk_array_get) are
+    /// never dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -190,9 +190,7 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
-        let hasExternalLink = sema.symbols.externalLinkName(for: chosenCallee)
-            .map { !$0.isEmpty } ?? false
-        guard !hasExternalLink else { return nil }
+        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema) else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]
