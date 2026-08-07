@@ -247,7 +247,6 @@ package struct KnownCompilerNames {
     package let main: InternedString
     let with: InternedString
     let run: InternedString
-    let runCatching: InternedString
     let withContext: InternedString
     let withTimeout: InternedString
     let withTimeoutOrNull: InternedString
@@ -440,7 +439,6 @@ package struct KnownCompilerNames {
         main = interner.intern("main")
         with = interner.intern("with")
         run = interner.intern("run")
-        runCatching = interner.intern("runCatching")
         withContext = interner.intern("withContext")
         withTimeout = interner.intern("withTimeout")
         withTimeoutOrNull = interner.intern("withTimeoutOrNull")

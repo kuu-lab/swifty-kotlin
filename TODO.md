@@ -416,7 +416,7 @@
 - [ ] KSP-610: KotlinVersion を Kotlin 化する（kk_* 9 → 残留 `__kk_kotlin_version_current`（ビルド時定数注入）のみ。着手時に runtime 現在値 (2,3,20) と CLAUDE.md の 2.3.10 の食い違いを確認・是正。diff 新規）
 - [ ] KSP-611: Closeable/AutoCloseable/use を Kotlin 化する（実装先 `kotlin/io/Closeable.kt`。残留 `__kk_auto_closeable_create` のみ。use の try-finally インライン特例（`CallLowerer+ScopeFunctionLowering.swift`）は当面維持し、撤去は KSP-601 と同判断）
 - [ ] KSP-612: DeepRecursiveFunction を Kotlin 化する（**Sema 特例整理が主眼**: CallTypeChecker 4箇所（うち1組は重複疑い）+ HOFAdapter/ClosureAdapters の2箇所。ブリッジ4関数は全部 `__kk_` 残留 — トランポリンが存在意義。runtime の fatalError 4箇所の catch 可能化は DEBT-RT 系タスクへ。diff 新規）
-- [ ] KSP-613: runCatching 残存特例を撤去する（KSP-304 完了後も残る名前特例を通常解決へ。着手時 `rg runCatching Sources/CompilerCore --type swift` で全列挙して固定）
+- [x] KSP-613: runCatching 残存特例を撤去する（KSP-304 完了後も残る名前特例を通常解決へ。着手時 `rg runCatching Sources/CompilerCore --type swift` で全列挙して固定）
 
 #### io / system
 
