@@ -1083,6 +1083,12 @@ extension DataFlowSemaPhase {
             return ["kotlin", "Comparable"].map { interner.intern($0) }
         case "__bundled_kotlin/collections/RandomAccess.kt":
             return ["kotlin", "collections", "RandomAccess"].map { interner.intern($0) }
+        case "__bundled_kotlin/collections/MutableIterable.kt":
+            return ["kotlin", "collections", "MutableIterable"].map { interner.intern($0) }
+        case "__bundled_kotlin/collections/AbstractCollection.kt":
+            return ["kotlin", "collections", "AbstractCollection"].map { interner.intern($0) }
+        case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
+            return ["kotlin", "collections", "AbstractMutableCollection"].map { interner.intern($0) }
         case "__bundled_kotlin/Result.kt":
             return ["kotlin", "Result"].map { interner.intern($0) }
         case "__bundled_kotlin/text/StringBuilder.kt":
@@ -1106,6 +1112,30 @@ extension DataFlowSemaPhase {
         default:
             return nil
         }
+    }
+
+    /// KSP-633: type parameters of a synthetic shell that a source-backed declaration
+    /// reuses (see `reusableSyntheticDeclarationSymbol`). Synthetic shells register their
+    /// nominal type parameters directly under the owner FQ name
+    /// (`kotlin.collections.MutableIterable.T`) while source declarations namespace them
+    /// (`...MutableIterable.$class<id>.T`), so this layout identifies a shell
+    /// unambiguously. Reusing the symbols keeps residual synthetic members that were
+    /// typed against them (e.g. `MutableIterable.iterator(): MutableIterator<T>`)
+    /// substitutable through the source-backed declaration.
+    private func reusableSyntheticShellTypeParameters(
+        ownerSymbol: SymbolID,
+        fqName: [InternedString],
+        arity: Int,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [SymbolID]? {
+        let existing = types.nominalTypeParameterSymbols(for: ownerSymbol)
+        guard existing.count == arity else { return nil }
+        let isShellLayout = existing.allSatisfy { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.fqName == fqName + [symbol.name]
+        }
+        return isShellLayout ? existing : nil
     }
 
     /// Registers type parameters for a nominal type (class or interface) as symbols,
@@ -1134,16 +1164,28 @@ extension DataFlowSemaPhase {
             for: ownerSymbol
         )
         let typeParamNamespace = fqName + [interner.intern("\(namespacePrefix)\(ownerSymbol.rawValue)")]
-        for typeParam in typeParams {
-            let typeParamFQName = typeParamNamespace + [typeParam.name]
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParam.name,
-                fqName: typeParamFQName,
-                declSite: declSite,
-                visibility: .private,
-                flags: []
-            )
+        let shellTypeParamSymbols = reusableSyntheticShellTypeParameters(
+            ownerSymbol: ownerSymbol,
+            fqName: fqName,
+            arity: typeParams.count,
+            symbols: symbols,
+            types: types
+        )
+        for (index, typeParam) in typeParams.enumerated() {
+            let typeParamSymbol: SymbolID
+            if let shellTypeParamSymbols {
+                typeParamSymbol = shellTypeParamSymbols[index]
+            } else {
+                let typeParamFQName = typeParamNamespace + [typeParam.name]
+                typeParamSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: typeParam.name,
+                    fqName: typeParamFQName,
+                    declSite: declSite,
+                    visibility: .private,
+                    flags: []
+                )
+            }
             typeParamSymbols.append(typeParamSymbol)
             localTypeParameters[typeParam.name] = typeParamSymbol
         }
