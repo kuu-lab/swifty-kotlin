@@ -1,10 +1,49 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
+@Suite
+struct CodegenBackendKParameterTests {
+
+    @Test
     func testKParameterPropertyAccessCompiles() throws {
         let source = """
         import kotlin.reflect.KParameter
@@ -25,25 +64,14 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KParameterPropertyAccess",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.trimmingCharacters(in: .newlines),
-                "kparameter-codegen-ok"
-            )
-        }
+        try assertTrimmedKotlinOutput(
+            source,
+            moduleName: "KParameterPropertyAccess",
+            expected: "kparameter-codegen-ok"
+        )
     }
 
+    @Test
     func testKParameterPropertyAccessInConditional() throws {
         let source = """
         import kotlin.reflect.KParameter
@@ -61,25 +89,14 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KParameterConditional",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.trimmingCharacters(in: .newlines),
-                "kparameter-conditional-codegen-ok"
-            )
-        }
+        try assertTrimmedKotlinOutput(
+            source,
+            moduleName: "KParameterConditional",
+            expected: "kparameter-conditional-codegen-ok"
+        )
     }
 
+    @Test
     func testKParameterNullableNameAndIsOptionalCompile() throws {
         let source = """
         import kotlin.reflect.KParameter
@@ -95,23 +112,32 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
+        try assertTrimmedKotlinOutput(
+            source,
+            moduleName: "KParameterNullableName",
+            expected: "kparameter-nullable-codegen-ok"
+        )
+    }
+
+    private func assertTrimmedKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "KParameterNullableName",
+                moduleName: moduleName,
                 emit: .executable,
                 outputPath: outputBase
             )
             try LinkPhase().run(ctx)
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.trimmingCharacters(in: .newlines),
-                "kparameter-nullable-codegen-ok"
-            )
+            #expect(result.stdout.trimmingCharacters(in: .newlines) == expected)
         }
     }
 }
-
+#endif

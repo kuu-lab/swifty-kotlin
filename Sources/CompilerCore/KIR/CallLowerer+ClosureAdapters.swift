@@ -607,10 +607,16 @@ extension CallLowerer {
         }
 
         let boxedResult = arena.appendTemporary(type: returnType)
-        emitNonThrowingCall(
-            callee: boxCallee,
-            arg: callResult,
+        emitBoxCallWithValueClassTag(
+            boxCallee: boxCallee,
+            value: callResult,
+            rawSourceKind: sema.types.kind(of: returnType),
             result: boxedResult,
+            resultType: returnType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
             into: &body
         )
         body.append(.returnValue(boxedResult))
@@ -665,8 +671,11 @@ extension CallLowerer {
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
            case let .functionType(nextFT) = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType)),
            let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-               for: sema.types.makeNonNullable(nextFT.returnType),
-               types: sema.types,
+               for: resolveValueClassKind(
+                   sema.types.kind(of: sema.types.makeNonNullable(nextFT.returnType)),
+                   types: sema.types,
+                   symbols: sema.symbols
+               ),
                requireNonNull: true
            )
         {

@@ -5,6 +5,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
+# Retry `swift build` a few times on intermittent crashes observed with the
+# Swift 6.3+ swiftbuild backend on Linux (SIGSEGV/SIGBUS/SIGILL). Normal
+# compile errors are not retried.
+kswiftk_build_with_retry() {
+    local max_attempts=3
+    local attempt=0
+    while true; do
+        attempt=$((attempt + 1))
+        swift build "$@" && return 0
+        local exit_code=$?
+        if [[ $attempt -ge $max_attempts ]]; then
+            echo "build_swift_tests.sh: swift build failed after $attempt attempt(s) (exit $exit_code)" >&2
+            return $exit_code
+        fi
+        case $exit_code in
+            132|138|139)
+                echo "build_swift_tests.sh: swift build crashed with signal $exit_code on attempt $attempt; retrying..." >&2
+                ;;
+            *)
+                return $exit_code
+                ;;
+        esac
+    done
+}
+
 # A single `swift build --build-tests` already builds every test target
 # (CompilerCoreTests, CompilerBackendTests, RuntimeTests, RuntimeTestsParallel,
 # KSwiftKCLITests, LSPServerTests) plus everything they depend on - it's the
@@ -67,7 +92,7 @@ kswiftk_append_compile_cache_flags swift_build_args
 
 if [[ -z "$build_targets" ]]; then
     echo "build_swift_tests.sh: building source and all test targets." >&2
-    swift build --build-tests "${swift_build_args[@]}"
+    kswiftk_build_with_retry --build-tests "${swift_build_args[@]}"
 else
     echo "build_swift_tests.sh: building selected test targets: $build_targets" >&2
     for target in $build_targets; do
@@ -76,6 +101,6 @@ else
             target="${target}-test-runner"
         fi
         echo "build_swift_tests.sh: building --target $target" >&2
-        swift build --target "$target" "${swift_build_args[@]}"
+        kswiftk_build_with_retry --target "$target" "${swift_build_args[@]}"
     done
 fi
