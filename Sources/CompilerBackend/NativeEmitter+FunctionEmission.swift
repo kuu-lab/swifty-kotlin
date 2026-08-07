@@ -3543,12 +3543,6 @@ extension NativeEmitter {
         case "__string_isNullOrEmpty_flat": "kk_string_isNullOrEmpty_flat"
         case "__string_isNullOrBlank_flat": "kk_string_isNullOrBlank_flat"
         case "__string_get_flat": "kk_string_get_flat"
-        case "__testAssertEquals": "kk_test_assertEquals"
-        case "__testAssertEqualsMessage": "kk_test_assertEquals_message"
-        case "__testAssertTrue": "kk_test_assertTrue"
-        case "__testAssertTrueMessage": "kk_test_assertTrue_message"
-        case "__testAssertNull": "kk_test_assertNull"
-        case "__testAssertNullMessage": "kk_test_assertNull_message"
         default: nil
         }
     }
