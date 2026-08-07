@@ -47,7 +47,10 @@ enum CodegenSymbolSupport {
             ""
         }
         let safeName = sanitizeForCSymbol(rawName)
-        let suffix = abs(function.symbol.rawValue)
+        // Synthetic symbols are negative; the `s` marker keeps them from sharing
+        // a C name with a same-named real symbol of equal magnitude.
+        let raw = function.symbol.rawValue
+        let suffix = raw < 0 ? "s\(raw.magnitude)" : "\(raw)"
         return "kk_fn_\(facadePrefix)\(safeName)_\(suffix)"
     }
 
