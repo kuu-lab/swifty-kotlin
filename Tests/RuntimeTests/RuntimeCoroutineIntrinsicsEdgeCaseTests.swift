@@ -275,7 +275,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(kk_is_cancellation_exception(exc) == 1)
 
         // Verify the message is accessible through the throwable API.
-        let msgRaw = kk_throwable_message(exc)
+        let msgRaw = __kk_throwable_message(exc)
         #expect(msgRaw != 0, "CancellationException message handle must be non-zero")
     }
 
@@ -285,7 +285,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let exc = runtimeAllocateCancellationException(message: "cancelled with cause", cause: cause)
         #expect(kk_is_cancellation_exception(exc) == 1)
 
-        let causeRaw = kk_throwable_cause(exc)
+        let causeRaw = __kk_throwable_cause(exc)
         #expect(causeRaw == cause, "CancellationException must preserve its cause reference")
     }
 
@@ -342,8 +342,8 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     /// (same mechanism as all throwable allocations) and respond to throwable APIs.
     @Test func cancellationExceptionIsSubtypeOfThrowable() {
         let exc = runtimeAllocateCancellationException(message: "hierarchy check")
-        // If it is a throwable, kk_throwable_message must return a non-zero handle.
-        let msgRaw = kk_throwable_message(exc)
+        // If it is a throwable, __kk_throwable_message must return a non-zero handle.
+        let msgRaw = __kk_throwable_message(exc)
         #expect(msgRaw != 0, "CancellationException must respond to throwable APIs (is-a RuntimeThrowableBox)")
         // And it must still be identified as a CancellationException.
         #expect(kk_is_cancellation_exception(exc) == 1, "CancellationException must also satisfy is-cancellation check (is-a RuntimeCancellationBox)")
@@ -353,7 +353,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     @Test func regularThrowableIsNotCancellationException() {
         let exc = runtimeAllocateThrowable(message: "not cancelled")
         // It IS a throwable.
-        let msgRaw = kk_throwable_message(exc)
+        let msgRaw = __kk_throwable_message(exc)
         #expect(msgRaw != 0, "Regular throwable must respond to throwable APIs")
         // But NOT a CancellationException.
         #expect(kk_is_cancellation_exception(exc) == 0, "Regular throwable must not be identified as CancellationException")

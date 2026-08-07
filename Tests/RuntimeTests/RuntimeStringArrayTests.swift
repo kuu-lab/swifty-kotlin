@@ -2515,10 +2515,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
         let suppressed2 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed2")))
 
-        _ = kk_throwable_addSuppressed(primary, suppressed1)
-        _ = kk_throwable_addSuppressed(primary, suppressed2)
+        _ = __kk_throwable_appendSuppressed(primary, suppressed1)
+        _ = __kk_throwable_appendSuppressed(primary, suppressed2)
 
-        let suppressed = kk_throwable_getSuppressed(primary)
+        let suppressed = __kk_throwable_suppressedRaw(primary)
         XCTAssertEqual(kk_array_size(suppressed), 2)
 
         var thrown = 0
@@ -2531,37 +2531,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testThrowableAddSuppressedRejectsSelfSuppression() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
-        _ = kk_throwable_addSuppressed(primary, primary)
+        _ = __kk_throwable_appendSuppressed(primary, primary)
 
-        let suppressed = kk_throwable_getSuppressed(primary)
+        let suppressed = __kk_throwable_suppressedRaw(primary)
         XCTAssertEqual(kk_array_size(suppressed), 0)
     }
 
     func testThrowableAddSuppressedIgnoresNullAndInvalidHandles() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
-        _ = kk_throwable_addSuppressed(primary, runtimeNullSentinelInt)
-        _ = kk_throwable_addSuppressed(primary, 0)
-        _ = kk_throwable_addSuppressed(primary, 123456789)
-        _ = kk_throwable_addSuppressed(runtimeNullSentinelInt, primary)
-        _ = kk_throwable_addSuppressed(123456789, primary)
+        _ = __kk_throwable_appendSuppressed(primary, runtimeNullSentinelInt)
+        _ = __kk_throwable_appendSuppressed(primary, 0)
+        _ = __kk_throwable_appendSuppressed(primary, 123456789)
+        _ = __kk_throwable_appendSuppressed(runtimeNullSentinelInt, primary)
+        _ = __kk_throwable_appendSuppressed(123456789, primary)
 
-        let suppressed = kk_throwable_getSuppressed(primary)
+        let suppressed = __kk_throwable_suppressedRaw(primary)
         XCTAssertEqual(kk_array_size(suppressed), 0)
-    }
-
-    func testThrowableSuppressedExceptionsReturnsList() {
-        let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
-        let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
-        let suppressed2 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed2")))
-
-        _ = kk_throwable_addSuppressed(primary, suppressed1)
-        _ = kk_throwable_addSuppressed(primary, suppressed2)
-
-        let suppressed = kk_throwable_suppressedExceptions(primary)
-        XCTAssertEqual(kk_list_size(suppressed), 2)
-        XCTAssertEqual(kk_list_get(suppressed, 0), suppressed1)
-        XCTAssertEqual(kk_list_get(suppressed, 1), suppressed2)
     }
 
     func testThrowablePrintStackTraceWritesRenderedMessageToStandardError() {

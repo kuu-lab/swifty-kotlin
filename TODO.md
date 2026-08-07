@@ -472,7 +472,7 @@
 #### 例外・言語コア表面（(c) 再監査 2026-07-10 で b-reclass 確定分）
 
 - [x] KSP-653: Throwable 本体とコンストラクタ群を Kotlin 化する（クラス階層宣言 + 0/1/2引数 ctor。残留: `__kk_throwable_new(_with_cause)`（GC 確保の1行ブリッジ）。注意: `kk_is_cancellation_exception` は coroutine 側 (c) で対象外）
-- [ ] KSP-654: Throwable メンバを Kotlin 化する（message/cause getter・initCause・addSuppressed/getSuppressed/suppressedExceptions。前提: KSP-653。残留: `__kk_throwable_setCause`/`__kk_throwable_appendSuppressed`/`__kk_throwable_suppressedRaw`）
+- [x] KSP-654: Throwable メンバを Kotlin 化する（message/cause getter・initCause・addSuppressed/getSuppressed/suppressedExceptions。前提: KSP-653。残留: `__kk_throwable_setCause`/`__kk_throwable_appendSuppressed`/`__kk_throwable_suppressedRaw`）
 - [ ] KSP-655: stackTraceToString/printStackTrace を Kotlin 化する（前提: KSP-654 + runtime の renderedMessage を「生フレーム取得（`__kk_throwable_rawStackFrames` 新設）」と「整形（Kotlin 側で cause/suppressed チェーンを辿る）」に分離するリファクタ）
 - [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）
 - [x] KSP-657: Array ファクトリ系を Kotlin 化する（`HeaderHelpers+SyntheticArrayStubs.swift`（(c) 一括計上だった 2043 行）内の b-reclass 第1弾）。`arrayOf` / `emptyArray` / `arrayOfNulls` の合成スタブ登録を削除し、`Stdlib/kotlin/ArrayIntrinsics.kt` に bundled Kotlin intrinsic（`@KsSymbolName` で `kk_array_of` / `kk_empty_array` / `kk_array_of_nulls` にリンク）として再宣言。primitive array factory 群（`intArrayOf` 等）は第2弾以降で対応。
