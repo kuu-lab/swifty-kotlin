@@ -219,7 +219,13 @@ package final class MetadataEncoder {
                 if !includeNonPublic && symbol.visibility != .public {
                     return false
                 }
-                if !includeSynthetic && symbol.flags.contains(.synthetic) {
+                // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
+                // source-backed data class are synthesized symbols, but they are part of
+                // the class's public surface and are compiled into the artifact. Without
+                // them consumers cannot destructure or compare an imported data class.
+                let keepAsDataClassMember = !includeSynthetic
+                    && Self.isSourceBackedDataClassMember(symbol.id, symbols: symbols)
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -239,7 +245,7 @@ package final class MetadataEncoder {
                 // Source-backed declarations (e.g. bundled stdlib functions under a
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
-                if !includeSynthetic, symbol.declSite == nil {
+                if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember {
                     var parentID = symbols.parentSymbol(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -797,6 +803,21 @@ package final class MetadataEncoder {
 
     /// Nominal kinds that carry layout information in metadata.
     private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
+
+    /// True when `symbolID` is (or belongs to) a compiler-generated member of a
+    /// source-backed data class (KSP-626).
+    private static func isSourceBackedDataClassMember(_ symbolID: SymbolID, symbols: SymbolTable) -> Bool {
+        var currentID = symbols.parentSymbol(for: symbolID)
+        while let parentID = currentID, let parent = symbols.symbol(parentID) {
+            if nominalKinds.contains(parent.kind) {
+                return parent.flags.contains(.dataType)
+                    && !parent.flags.contains(.synthetic)
+                    && parent.declSite != nil
+            }
+            currentID = symbols.parentSymbol(for: parentID)
+        }
+        return false
+    }
 
     func metadataAnnotationRecord(for record: MetadataRecord) -> MetadataAnnotationRecord {
         MetadataAnnotationRecord(

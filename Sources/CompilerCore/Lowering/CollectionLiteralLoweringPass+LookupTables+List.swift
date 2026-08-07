@@ -68,11 +68,9 @@ struct ListLookupNames {
     let kkListZipWithNextBridgeName: InternedString
     let kkListZipWithNextTransformBridgeName: InternedString
     let kkListUnzipName: InternedString
-    let kkListWithIndexName: InternedString
     let kkIndexingIterableIteratorName: InternedString
     let kkIndexingIterableHasNextName: InternedString
     let kkIndexingIterableNextName: InternedString
-    let kkListForEachIndexedName: InternedString
     let kkListOnEachName: InternedString
     let kkListOnEachIndexedName: InternedString
     let kkListMapIndexedName: InternedString
@@ -198,11 +196,9 @@ struct ListLookupNames {
         kkListZipWithNextBridgeName = interner.intern("__kk_list_zipWithNext")
         kkListZipWithNextTransformBridgeName = interner.intern("__kk_list_zipWithNextTransform")
         kkListUnzipName = interner.intern("kk_list_unzip")
-        kkListWithIndexName = interner.intern("kk_list_withIndex")
         kkIndexingIterableIteratorName = interner.intern("kk_indexing_iterable_iterator")
         kkIndexingIterableHasNextName = interner.intern("kk_indexing_iterable_hasNext")
         kkIndexingIterableNextName = interner.intern("kk_indexing_iterable_next")
-        kkListForEachIndexedName = interner.intern("kk_list_forEachIndexed")
         kkListOnEachName = interner.intern("kk_list_onEach")
         kkListOnEachIndexedName = interner.intern("kk_list_onEachIndexed")
         kkListMapIndexedName = interner.intern("kk_list_mapIndexed")
