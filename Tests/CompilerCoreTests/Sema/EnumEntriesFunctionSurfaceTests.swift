@@ -18,21 +18,41 @@ struct EnumEntriesFunctionSurfaceTests {
         return try #require(result)
     }
 
-    @Test func testEnumEntriesFunctionIsRegisteredUnderKotlinEnums() throws {
-        let (sema, interner) = try makeSema()
-        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enums"),
-            interner.intern("enumEntries"),
-        ]))
-        #expect(sema.symbols.symbol(enumEntriesSymbol)?.kind == .function)
-        #expect(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enumEntries"),
-        ]) == nil)
+    @Test
+    func testEnumEntriesFunctionSurfaceTestsInventory() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+
+            // === testEnumEntriesFunctionIsRegisteredUnderKotlinEnums ===
+            do {
+
+                let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enums"),
+                    interner.intern("enumEntries"),
+                ]))
+                #expect(sema.symbols.symbol(enumEntriesSymbol)?.kind == .function)
+                #expect(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enumEntries"),
+                ]) == nil)
+            }
+        }
     }
 
-    @Test func testEnumEntriesFunctionIsDefaultImportedFromKotlinEnums() throws {
+    @Test
+    func testEnumEntriesFunctionIsDefaultImportedFromKotlinEnums() throws {
+
         let source = """
         enum class Color { RED, BLUE }
         fun entries() = enumEntries<Color>()
@@ -56,5 +76,6 @@ struct EnumEntriesFunctionSurfaceTests {
             "Unqualified enumEntries<Color>() should bind to kotlin.enums.enumEntries"
         )
     }
+
 }
 #endif

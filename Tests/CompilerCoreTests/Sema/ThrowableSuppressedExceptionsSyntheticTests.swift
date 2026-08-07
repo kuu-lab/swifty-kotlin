@@ -18,48 +18,66 @@ struct ThrowableSuppressedExceptionsSyntheticTests {
     }
 
     @Test
-    func testSuppressedExceptionsRootExtensionPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let kotlinPackage = ["kotlin"].map { interner.intern($0) }
-        let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
+    func testThrowableSuppressedExceptionsSyntheticTestsInventory() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        let throwableSymbol = try #require(sema.symbols.lookup(
-            fqName: kotlinPackage + [interner.intern("Throwable")]
-        ))
-        let listSymbol = try #require(sema.symbols.lookup(
-            fqName: collectionsPackage + [interner.intern("List")]
-        ))
-        let throwableType = sema.types.make(.classType(ClassType(
-            classSymbol: throwableSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let expectedListType = sema.types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(throwableType)],
-            nullability: .nonNull
-        )))
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
 
-        let propertySymbol = try #require(
-            sema.symbols.lookupAll(
-                fqName: kotlinPackage + [interner.intern("suppressedExceptions")]
-            ).first { symbolID in
-                sema.symbols.symbol(symbolID)?.kind == .property
-                    && sema.symbols.extensionPropertyReceiverType(for: symbolID) == throwableType
-            },
-            "Expected kotlin.Throwable.suppressedExceptions root extension property"
-        )
-        let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+            // === testSuppressedExceptionsRootExtensionPropertyIsRegistered ===
+            do {
 
-        #expect(sema.symbols.propertyType(for: propertySymbol) == expectedListType)
-        #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_throwable_suppressedExceptions")
-        #expect(sema.symbols.externalLinkName(for: getterSymbol) == "kk_throwable_suppressedExceptions")
-        #expect(sema.symbols.functionSignature(for: getterSymbol)?.receiverType == throwableType)
-        #expect(sema.symbols.functionSignature(for: getterSymbol)?.returnType == expectedListType)
+                let kotlinPackage = ["kotlin"].map { interner.intern($0) }
+                let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
+
+                let throwableSymbol = try #require(sema.symbols.lookup(
+                    fqName: kotlinPackage + [interner.intern("Throwable")]
+                ))
+                let listSymbol = try #require(sema.symbols.lookup(
+                    fqName: collectionsPackage + [interner.intern("List")]
+                ))
+                let throwableType = sema.types.make(.classType(ClassType(
+                    classSymbol: throwableSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let expectedListType = sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.out(throwableType)],
+                    nullability: .nonNull
+                )))
+
+                let propertySymbol = try #require(
+                    sema.symbols.lookupAll(
+                        fqName: kotlinPackage + [interner.intern("suppressedExceptions")]
+                    ).first { symbolID in
+                        sema.symbols.symbol(symbolID)?.kind == .property
+                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == throwableType
+                    },
+                    "Expected kotlin.Throwable.suppressedExceptions root extension property"
+                )
+                let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+
+                #expect(sema.symbols.propertyType(for: propertySymbol) == expectedListType)
+                #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_throwable_suppressedExceptions")
+                #expect(sema.symbols.externalLinkName(for: getterSymbol) == "kk_throwable_suppressedExceptions")
+                #expect(sema.symbols.functionSignature(for: getterSymbol)?.receiverType == throwableType)
+                #expect(sema.symbols.functionSignature(for: getterSymbol)?.returnType == expectedListType)
+            }
+        }
     }
 
     @Test
     func testSuppressedExceptionsCanBeAssignedToListOfThrowable() throws {
+
         let source = """
         fun sample(e: Throwable) {
             val suppressed: List<Throwable> = e.suppressedExceptions
@@ -73,4 +91,5 @@ struct ThrowableSuppressedExceptionsSyntheticTests {
 
         #expect(sema.symbols.functionSignature(for: sampleSymbol) != nil)
     }
+
 }

@@ -15,56 +15,76 @@ struct PropertyDelegateProviderSyntheticStubTests {
         return try #require(result)
     }
 
-    @Test func testPropertyDelegateProviderSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
-        let providerFQName = propertiesFQName + [interner.intern("PropertyDelegateProvider")]
-        let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }
+    @Test
+    func testPropertyDelegateProviderSyntheticStubTestsInventory() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        let providerSymbol = try #require(sema.symbols.lookup(fqName: providerFQName))
-        let providerInfo = try #require(sema.symbols.symbol(providerSymbol))
-        #expect(providerInfo.kind == .interface)
-        #expect(providerInfo.flags.contains(.funInterface))
-        #expect(providerInfo.flags.contains(.synthetic))
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
 
-        let typeParameters = sema.types.nominalTypeParameterSymbols(for: providerSymbol)
-        #expect(try resolvedNames(typeParameters, sema: sema, interner: interner) == ["T", "D"])
-        #expect(sema.types.nominalTypeParameterVariances(for: providerSymbol) == [.in, .out])
+            // === testPropertyDelegateProviderSurfaceIsRegistered ===
+            do {
 
-        let thisRefType = sema.types.make(.typeParam(TypeParamType(
-            symbol: typeParameters[0],
-            nullability: .nonNull
-        )))
-        let delegateType = sema.types.make(.typeParam(TypeParamType(
-            symbol: typeParameters[1],
-            nullability: .nonNull
-        )))
-        let providerType = sema.types.make(.classType(ClassType(
-            classSymbol: providerSymbol,
-            args: [.invariant(thisRefType), .invariant(delegateType)],
-            nullability: .nonNull
-        )))
-        let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
-        let kPropertyType = sema.types.make(.classType(ClassType(
-            classSymbol: kPropertySymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
+                let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
+                let providerFQName = propertiesFQName + [interner.intern("PropertyDelegateProvider")]
+                let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }
 
-        let provideSymbol = try #require(sema.symbols.lookup(fqName: providerFQName + [interner.intern("provideDelegate")]))
-        let provideInfo = try #require(sema.symbols.symbol(provideSymbol))
-        #expect(provideInfo.kind == .function)
-        #expect(provideInfo.flags.isSuperset(of: [.abstractType, .operatorFunction, .synthetic]))
+                let providerSymbol = try #require(sema.symbols.lookup(fqName: providerFQName))
+                let providerInfo = try #require(sema.symbols.symbol(providerSymbol))
+                #expect(providerInfo.kind == .interface)
+                #expect(providerInfo.flags.contains(.funInterface))
+                #expect(providerInfo.flags.contains(.synthetic))
 
-        let signature = try #require(sema.symbols.functionSignature(for: provideSymbol))
-        #expect(signature.receiverType == providerType)
-        #expect(signature.parameterTypes == [thisRefType, kPropertyType])
-        #expect(signature.returnType == delegateType)
-        #expect(signature.typeParameterSymbols == typeParameters)
-        #expect(signature.classTypeParameterCount == 2)
+                let typeParameters = sema.types.nominalTypeParameterSymbols(for: providerSymbol)
+                #expect(try resolvedNames(typeParameters, sema: sema, interner: interner) == ["T", "D"])
+                #expect(sema.types.nominalTypeParameterVariances(for: providerSymbol) == [.in, .out])
+
+                let thisRefType = sema.types.make(.typeParam(TypeParamType(
+                    symbol: typeParameters[0],
+                    nullability: .nonNull
+                )))
+                let delegateType = sema.types.make(.typeParam(TypeParamType(
+                    symbol: typeParameters[1],
+                    nullability: .nonNull
+                )))
+                let providerType = sema.types.make(.classType(ClassType(
+                    classSymbol: providerSymbol,
+                    args: [.invariant(thisRefType), .invariant(delegateType)],
+                    nullability: .nonNull
+                )))
+                let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
+                let kPropertyType = sema.types.make(.classType(ClassType(
+                    classSymbol: kPropertySymbol,
+                    args: [.star],
+                    nullability: .nonNull
+                )))
+
+                let provideSymbol = try #require(sema.symbols.lookup(fqName: providerFQName + [interner.intern("provideDelegate")]))
+                let provideInfo = try #require(sema.symbols.symbol(provideSymbol))
+                #expect(provideInfo.kind == .function)
+                #expect(provideInfo.flags.isSuperset(of: [.abstractType, .operatorFunction, .synthetic]))
+
+                let signature = try #require(sema.symbols.functionSignature(for: provideSymbol))
+                #expect(signature.receiverType == providerType)
+                #expect(signature.parameterTypes == [thisRefType, kPropertyType])
+                #expect(signature.returnType == delegateType)
+                #expect(signature.typeParameterSymbols == typeParameters)
+                #expect(signature.classTypeParameterCount == 2)
+            }
+        }
     }
 
-    @Test func testProviderReturnTypeFeedsDelegatedPropertyInference() throws {
+    @Test
+    func testProviderReturnTypeFeedsDelegatedPropertyInference() throws {
+
         let source = """
         package sample
 

@@ -25,45 +25,66 @@ struct FileIsRootedTests {
         return try #require(result)
     }
 
-    /// The extension property symbol lives under `kotlin.io.isRooted` with
-    /// `java.io.File` as its receiver type and `Boolean` as its return type.
-    /// The accessor getter must share the same external link name so codegen
-    /// can dispatch the property read through `kk_file_isRooted`.
-    @Test func testFileIsRootedExtensionPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let kotlinIOPkg = ["kotlin", "io"].map { interner.intern($0) }
-        let javaIOPkg = ["java", "io"].map { interner.intern($0) }
-        let fileSymbol = try #require(sema.symbols.lookup(
-            fqName: javaIOPkg + [interner.intern("File")]
-        ))
-        let fileType = sema.types.make(.classType(ClassType(
-            classSymbol: fileSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+    @Test
+    func testFileIsRootedTestsInventory() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        let propertySymbol = try #require(
-            sema.symbols.lookupAll(fqName: kotlinIOPkg + [interner.intern("isRooted")]).first { symbolID in
-                sema.symbols.symbol(symbolID)?.kind == .property
-                    && sema.symbols.extensionPropertyReceiverType(for: symbolID) == fileType
-            },
-            "Expected kotlin.io.File.isRooted extension property"
-        )
-        #expect(sema.symbols.propertyType(for: propertySymbol) == boolType)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+            /// The extension property symbol lives under `kotlin.io.isRooted` with
+            /// `java.io.File` as its receiver type and `Boolean` as its return type.
+            /// The accessor getter must share the same external link name so codegen
+            /// can dispatch the property read through `kk_file_isRooted`.
 
-        let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
-        let signature = try #require(sema.symbols.functionSignature(for: getterSymbol))
-        #expect(signature.receiverType == fileType)
-        #expect(signature.returnType == boolType)
-        #expect(signature.parameterTypes.isEmpty)
+            // === testFileIsRootedExtensionPropertyIsRegistered ===
+            do {
+
+                let kotlinIOPkg = ["kotlin", "io"].map { interner.intern($0) }
+                let javaIOPkg = ["java", "io"].map { interner.intern($0) }
+                let fileSymbol = try #require(sema.symbols.lookup(
+                    fqName: javaIOPkg + [interner.intern("File")]
+                ))
+                let fileType = sema.types.make(.classType(ClassType(
+                    classSymbol: fileSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+
+                let propertySymbol = try #require(
+                    sema.symbols.lookupAll(fqName: kotlinIOPkg + [interner.intern("isRooted")]).first { symbolID in
+                        sema.symbols.symbol(symbolID)?.kind == .property
+                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == fileType
+                    },
+                    "Expected kotlin.io.File.isRooted extension property"
+                )
+                #expect(sema.symbols.propertyType(for: propertySymbol) == boolType)
+
+                let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+                let signature = try #require(sema.symbols.functionSignature(for: getterSymbol))
+                #expect(signature.receiverType == fileType)
+                #expect(signature.returnType == boolType)
+                #expect(signature.parameterTypes.isEmpty)
+            }
+        }
     }
 
-    /// User code that reads `file.isRooted` should type-check without errors
+/// User code that reads `file.isRooted` should type-check without errors
     /// and the surrounding function should still infer `Boolean`. The branch
     /// usage mirrors typical stdlib call sites where `isRooted` gates further
     /// path manipulation.
-    @Test func testFileIsRootedResolvesInSource() throws {
+
+    @Test
+    func testFileIsRootedResolvesInSource() throws {
+
         let source = """
         import java.io.File
 
@@ -93,5 +114,6 @@ struct FileIsRootedTests {
             "useInBranch should still return String once isRooted resolves"
         )
     }
+
 }
 #endif

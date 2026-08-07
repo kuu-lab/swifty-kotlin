@@ -4,74 +4,80 @@ import Testing
 
 @Suite
 struct ReflectKParameterSyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
-    ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KParameter surface to resolve cleanly, got: \(diagnostics)"))
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
 
-    @Test func testKParameterSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
+    @Test
+    func testReflectKParameterSyntheticTestsInventory() throws {
+        let sources: [String] = [
+            """
+            package sample0
+            import kotlin.reflect.KParameter
+            import kotlin.reflect.KType
 
-        let kTypeSymbol = try #require(sema.symbols.lookup(
-            fqName: reflectPackage + [interner.intern("KType")]
-        ))
-        let kParameterSymbol = try #require(sema.symbols.lookup(
-            fqName: reflectPackage + [interner.intern("KParameter")]
-        ))
-
-        let kParameterInfo = try #require(sema.symbols.symbol(kParameterSymbol))
-        #expect(kParameterInfo.kind == .interface)
-        #expect(kParameterInfo.flags.contains(.synthetic))
-
-        let kTypeType = sema.types.make(.classType(ClassType(
-            classSymbol: kTypeSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-        let propertyExpectations: [(name: String, type: TypeID, externalLinkName: String)] = [
-            ("index", sema.types.intType, "__kk_kparameter_get_index"),
-            ("name", nullableStringType, "__kk_kparameter_get_name"),
-            ("type", kTypeType, "__kk_kparameter_get_type"),
-            ("isOptional", sema.types.booleanType, "__kk_kparameter_is_optional"),
-            ("kind", sema.types.intType, "__kk_kparameter_get_kind"),
+            fun inspect(parameter: KParameter): KType {
+                val index: Int = parameter.index
+                val name: String? = parameter.name
+                val optional: Boolean = parameter.isOptional
+                val kind: Int = parameter.kind
+                return parameter.type
+            }
+            """,
         ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        for expectation in propertyExpectations {
-            let propertySymbol = try #require(sema.symbols.lookup(
-                fqName: reflectPackage + [interner.intern("KParameter"), interner.intern(expectation.name)]
-            ))
-            #expect(sema.symbols.parentSymbol(for: propertySymbol) == kParameterSymbol)
-            #expect(sema.symbols.propertyType(for: propertySymbol) == expectation.type)
-            #expect(sema.symbols.externalLinkName(for: propertySymbol) == expectation.externalLinkName)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+
+            // === testKParameterSurfaceIsRegistered ===
+            do {
+
+                let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
+
+                let kTypeSymbol = try #require(sema.symbols.lookup(
+                    fqName: reflectPackage + [interner.intern("KType")]
+                ))
+                let kParameterSymbol = try #require(sema.symbols.lookup(
+                    fqName: reflectPackage + [interner.intern("KParameter")]
+                ))
+
+                let kParameterInfo = try #require(sema.symbols.symbol(kParameterSymbol))
+                #expect(kParameterInfo.kind == .interface)
+                #expect(kParameterInfo.flags.contains(.synthetic))
+
+                let kTypeType = sema.types.make(.classType(ClassType(
+                    classSymbol: kTypeSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+                let propertyExpectations: [(name: String, type: TypeID, externalLinkName: String)] = [
+                    ("index", sema.types.intType, "__kk_kparameter_get_index"),
+                    ("name", nullableStringType, "__kk_kparameter_get_name"),
+                    ("type", kTypeType, "__kk_kparameter_get_type"),
+                    ("isOptional", sema.types.booleanType, "__kk_kparameter_is_optional"),
+                    ("kind", sema.types.intType, "__kk_kparameter_get_kind"),
+                ]
+
+                for expectation in propertyExpectations {
+                    let propertySymbol = try #require(sema.symbols.lookup(
+                        fqName: reflectPackage + [interner.intern("KParameter"), interner.intern(expectation.name)]
+                    ))
+                    #expect(sema.symbols.parentSymbol(for: propertySymbol) == kParameterSymbol)
+                    #expect(sema.symbols.propertyType(for: propertySymbol) == expectation.type)
+                    #expect(sema.symbols.externalLinkName(for: propertySymbol) == expectation.externalLinkName)
+                }
+            }
+
+            // === testKParameterPropertiesResolveInSource ===
+            do {
+                let path0 = paths[0]
+                let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+                #expect(!path0Diagnostics.contains(where: { $0.severity == .error }), "Expected testKParameterPropertiesResolveInSource to resolve cleanly, got: \(path0Diagnostics)")
+            }
         }
     }
 
-    @Test func testKParameterPropertiesResolveInSource() throws {
-        let source = """
-        import kotlin.reflect.KParameter
-        import kotlin.reflect.KType
-
-        fun inspect(parameter: KParameter): KType {
-            val index: Int = parameter.index
-            val name: String? = parameter.name
-            val optional: Boolean = parameter.isOptional
-            val kind: Int = parameter.kind
-            return parameter.type
-        }
-        """
-
-        _ = try makeSema(source: source)
-    }
 }
 #endif
