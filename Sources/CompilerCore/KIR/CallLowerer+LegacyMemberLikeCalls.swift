@@ -389,16 +389,12 @@ extension CallLowerer {
             case "any":
                 if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_array_any")
-                } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_set_any")
                 } else {
                     nil
                 }
             case "none":
                 if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_array_none")
-                } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_set_none")
                 } else {
                     nil
                 }
