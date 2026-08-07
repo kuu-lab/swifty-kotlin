@@ -301,6 +301,12 @@ jobs:
             echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Clean stale self-hosted runner temp
+        if: always()
+        continue-on-error: true
+        env:
+          SELF_HOSTED_TEMP_RETENTION_MINUTES: "360"
+        run: bash Scripts/cleanup_stale_runner_temp.sh
 
   verify-diff:
     name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
