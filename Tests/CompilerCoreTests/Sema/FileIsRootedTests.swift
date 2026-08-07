@@ -8,28 +8,20 @@ import Testing
 /// `kk_file_isRooted` (see `Sources/Runtime/RuntimeFileIO.swift`).
 @Suite
 struct FileIsRootedTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected File.isRooted to resolve cleanly, got: \(diagnostics)"
-            )
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
     @Test
     func testFileIsRootedTestsInventory() throws {
         let sources: [String] = [
             """
-            fun noop() {}
+            package sample0
+            import java.io.File
+
+            fun checkRoot(file: File): Boolean {
+                return file.isRooted
+            }
+
+            fun useInBranch(file: File): String {
+                return if (file.isRooted) "abs" else "rel"
+            }
             """,
         ]
         try withTemporaryFiles(contents: sources) { paths in
@@ -38,7 +30,14 @@ struct FileIsRootedTests {
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = ctx
+
+            let path0 = paths[0]
+            let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+            #expect(
+                !path0Diagnostics.contains(where: { $0.severity == .error }),
+                "Expected File.isRooted to resolve cleanly, got: \(path0Diagnostics)"
+            )
+
             /// The extension property symbol lives under `kotlin.io.isRooted` with
             /// `java.io.File` as its receiver type and `Boolean` as its return type.
             /// The accessor getter must share the same external link name so codegen
@@ -74,46 +73,38 @@ struct FileIsRootedTests {
                 #expect(signature.returnType == boolType)
                 #expect(signature.parameterTypes.isEmpty)
             }
+
+            /// User code that reads `file.isRooted` should type-check without errors
+            /// and the surrounding function should still infer `Boolean`. The branch
+            /// usage mirrors typical stdlib call sites where `isRooted` gates further
+            /// path manipulation.
+
+            // === testFileIsRootedResolvesInSource ===
+            do {
+
+                let checkRootSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern("checkRoot"),
+                ]))
+                let checkSignature = try #require(sema.symbols.functionSignature(for: checkRootSymbol))
+                #expect(
+                    checkSignature.returnType == sema.types.make(.primitive(.boolean, .nonNull)),
+                    "checkRoot should still return Boolean once isRooted resolves"
+                )
+
+                let useInBranchSymbol = try #require(
+                    sema.symbols.lookup(fqName: [
+                        interner.intern("sample0"),
+                        interner.intern("useInBranch"),
+                    ])
+                )
+                let branchSignature = try #require(sema.symbols.functionSignature(for: useInBranchSymbol))
+                #expect(
+                    branchSignature.returnType == sema.types.stringType,
+                    "useInBranch should still return String once isRooted resolves"
+                )
+            }
         }
     }
-
-/// User code that reads `file.isRooted` should type-check without errors
-    /// and the surrounding function should still infer `Boolean`. The branch
-    /// usage mirrors typical stdlib call sites where `isRooted` gates further
-    /// path manipulation.
-
-    @Test
-    func testFileIsRootedResolvesInSource() throws {
-
-        let source = """
-        import java.io.File
-
-        fun checkRoot(file: File): Boolean {
-            return file.isRooted
-        }
-
-        fun useInBranch(file: File): String {
-            return if (file.isRooted) "abs" else "rel"
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
-        let checkRootSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("checkRoot")]))
-        let checkSignature = try #require(sema.symbols.functionSignature(for: checkRootSymbol))
-        #expect(
-            checkSignature.returnType == sema.types.make(.primitive(.boolean, .nonNull)),
-            "checkRoot should still return Boolean once isRooted resolves"
-        )
-
-        let useInBranchSymbol = try #require(
-            sema.symbols.lookup(fqName: [interner.intern("useInBranch")])
-        )
-        let branchSignature = try #require(sema.symbols.functionSignature(for: useInBranchSymbol))
-        #expect(
-            branchSignature.returnType == sema.types.stringType,
-            "useInBranch should still return String once isRooted resolves"
-        )
-    }
-
 }
 #endif
