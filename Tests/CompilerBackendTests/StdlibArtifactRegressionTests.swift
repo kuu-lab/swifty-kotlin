@@ -1022,4 +1022,55 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// STDLIB-ARTIFACT-DEEP-RECURSIVE (KSP-612): `DeepRecursiveFunction<T, R> { ... }`
+    /// resolves and runs when the class comes from a prebuilt stdlib artifact.
+    /// Imported metadata encodes a member's owner type parameters ahead of its
+    /// own, so a constructor read back from `metadata.bin` used to expose
+    /// `classTypeParameterCount == 0` and rejected the explicit `<Int, Int>`
+    /// arguments with `KSWIFTK-SEMA-0002`. Both a non-capturing block (plain
+    /// entry point, `closureRaw == 0`) and a capturing block (closure-aware
+    /// adapter) are exercised because they take different runtime branches.
+    func testDeepRecursiveFunctionThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val depth = DeepRecursiveFunction<Int, Int> { n ->
+                if (n <= 0) 0 else callRecursive(n - 1) + 1
+            }
+            println(depth(200))
+
+            val limit = 3
+            val clamped = DeepRecursiveFunction<Int, Int> { n ->
+                if (n <= 0 || n > limit) n else callRecursive(n - 1) + 1
+            }
+            println(clamped(limit))
+            println(clamped(10))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "200\n3\n10\n")
+        }
+    }
 }

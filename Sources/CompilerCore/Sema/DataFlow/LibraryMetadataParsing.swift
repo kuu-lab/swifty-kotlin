@@ -218,8 +218,57 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             typeParameterSymbols: typeParameterSymbols,
-            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+            classTypeParameterCount: importedClassTypeParameterCount(
+                record: record,
+                functionType: functionType,
+                typeParameterSymbols: typeParameterSymbols,
+                symbols: symbols,
+                types: types
+            )
         )
+    }
+
+    /// Number of leading entries in `typeParameterSymbols` that belong to the
+    /// declaring nominal type rather than to the callable itself.
+    ///
+    /// Metadata encodes a member's `this` as the signature receiver, so the
+    /// owner's type parameters appear first in declaration order. Overload
+    /// resolution relies on this count to map explicit type arguments (a
+    /// constructor's `<Int, Int>` binds the class parameters, a member
+    /// function's binds only its own), so leaving it at zero rejects every
+    /// explicitly parameterised call on an imported generic type.
+    private func importedClassTypeParameterCount(
+        record: ImportedLibrarySymbolRecord,
+        functionType: FunctionType,
+        typeParameterSymbols: [SymbolID],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Int {
+        guard record.fqName.count >= 2,
+              let receiver = functionType.receiver,
+              case let .classType(receiverClass) = types.kind(of: types.makeNonNullable(receiver)),
+              !receiverClass.args.isEmpty,
+              symbols.symbol(receiverClass.classSymbol)?.fqName == Array(record.fqName.dropLast())
+        else {
+            return 0
+        }
+        var ownerTypeParameters: [SymbolID] = []
+        for arg in receiverClass.args {
+            switch arg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                guard case let .typeParam(typeParam) = types.kind(of: inner) else {
+                    return 0
+                }
+                ownerTypeParameters.append(typeParam.symbol)
+            case .star:
+                return 0
+            }
+        }
+        guard typeParameterSymbols.prefix(ownerTypeParameters.count).elementsEqual(ownerTypeParameters) else {
+            return 0
+        }
+        return ownerTypeParameters.count
     }
 
     /// Collects the type parameter symbols referenced by a decoded function type

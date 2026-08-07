@@ -4,7 +4,6 @@ extension CallTypeChecker {
     func tryInferMemberCallEarlyReceiverSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
-        recoveredReceiverType: TypeID?,
         locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -18,7 +17,6 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        let effectiveCallRecursiveReceiverType = recoveredReceiverType ?? receiverType
         if interner.resolve(calleeName) == "execute",
            args.count == 3,
            explicitTypeArgs.count <= 2,
@@ -213,55 +211,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
-        if interner.resolve(calleeName) == "callRecursive",
-           args.count == 1,
-           let (classType, receiverSymbol) = resolveClassTypeSymbol(effectiveCallRecursiveReceiverType, sema: sema),
-           receiverSymbol.fqName.count == 2,
-           interner.resolve(receiverSymbol.fqName[0]) == "kotlin",
-           interner.resolve(receiverSymbol.fqName[1]) == "DeepRecursiveFunction"
-        {
-            let parameterType: TypeID = if let firstArg = classType.args.first {
-                switch firstArg {
-                case let .invariant(type), let .in(type), let .out(type):
-                    type
-                case .star:
-                    sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let returnType: TypeID = if classType.args.count > 1 {
-                switch classType.args[1] {
-                case let .invariant(type), let .in(type), let .out(type):
-                    type
-                case .star:
-                    sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: parameterType)
-            if let memberSymbol = sema.symbols.lookupAll(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("DeepRecursiveScope"),
-                interner.intern("callRecursive"),
-            ]).first(where: { symbolID in
-                sema.symbols.externalLinkName(for: symbolID) == "kk_deep_recursive_function_callRecursive"
-            }) {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: memberSymbol,
-                        substitutedTypeArguments: [parameterType, returnType],
-                        parameterMapping: [0: 0]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(memberSymbol))
-            }
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-
         if let boundContinuationCall = tryContinuationSyntheticMemberCall(
             id,
             calleeName: calleeName,
