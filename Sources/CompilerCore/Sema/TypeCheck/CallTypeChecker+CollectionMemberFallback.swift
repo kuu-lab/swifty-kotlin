@@ -1556,7 +1556,7 @@ extension CallTypeChecker {
 
         let boolReturningMembers: Set = [
             knownNames.isEmpty, interner.intern("contains"), interner.intern("containsAll"),
-            interner.intern("containsKey"),
+            interner.intern("containsKey"), interner.intern("containsValue"),
             interner.intern("add"), interner.intern("addAll"), interner.intern("remove"), interner.intern("removeAll"),
             interner.intern("retainAll"),
         ]
@@ -1756,6 +1756,24 @@ extension CallTypeChecker {
             || memberName == interner.intern("minOfOrNull")
         {
             return sema.types.nullableAnyType
+        }
+
+        // Map.toList() pairs up each entry instead of yielding Map.Entry values.
+        if memberName == interner.intern("toList"), isMapReceiver,
+           let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first
+        {
+            let entryTypes = stdlibSurfaceMapEntryTypes(receiverElementType: receiverElementType, sema: sema)
+            let pairType = sema.types.make(.classType(ClassType(
+                classSymbol: pairSymbol,
+                args: [.invariant(entryTypes.key), .invariant(entryTypes.value)],
+                nullability: .nonNull
+            )))
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: pairType
+            )
         }
 
         if memberName == interner.intern("toList")
