@@ -7,16 +7,32 @@ struct DurationSyntheticStubTests {
 
     @Test
     func testDurationSyntheticStubTestsSurfaceInventory() throws {
-        let source = """
-        fun noop() {}
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+            """
+            package sample0
+            fun main() {
+                val square = { x: Int -> x * x }
+                square(5)
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = ctx
+
+            for path in paths {
+                let pathDiagnostics = diagnosticsForPath(path, in: ctx)
+                #expect(
+                    !pathDiagnostics.contains(where: { $0.severity == .error }),
+                    "Unexpected errors: \(pathDiagnostics)"
+                )
+            }
 
             // === testDurationOperatorBridgesAreRegistered ===
             do {
@@ -128,6 +144,17 @@ struct DurationSyntheticStubTests {
                     #expect(sema.symbols.symbol(sym)?.declSite != nil, "Duration.\(name) should have a declSite (Kotlin source)")
                     #expect(sema.symbols.externalLinkName(for: sym) == nil, "Duration.\(name) should have no C external link name (Kotlin source)")
                 }
+            }
+
+            // === testDurationSourceOperatorsDoNotPoisonLambdaArithmeticFallback ===
+            do {
+
+                let samplePath = paths[1]
+                let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
+                #expect(
+                    !sampleDiagnostics.contains(where: { $0.severity == .error }),
+                    "Duration source extension operators should not block primitive arithmetic fallback: \(sampleDiagnostics)"
+                )
             }
 
             // === testDurationIsoAndParseSurfaceIsRegistered ===
@@ -291,24 +318,6 @@ struct DurationSyntheticStubTests {
                     #expect(sema.symbols.propertyType(for: signature.valueParameterSymbols[0]) == durationUnitType)
                 }
             }
-        }
-    }
-
-    @Test
-    func testDurationSourceOperatorsDoNotPoisonLambdaArithmeticFallback() throws {
-        let source = """
-        fun main() {
-            val square = { x: Int -> x * x }
-            square(5)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Duration source extension operators should not block primitive arithmetic fallback: \(ctx.diagnostics.diagnostics)"
-            )
         }
     }
 
