@@ -4,120 +4,68 @@
 //
 // Split out from `RuntimeCollections.swift`.
 
-// MARK: - ArrayDeque Functions (STDLIB-240)
+// MARK: - ArrayDeque ring-buffer bridges (STDLIB-240 / KSP-625)
+//
+// The public ArrayDeque surface lives in
+// `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayDeque.kt`; only the raw
+// buffer mutation below stays here. Emptiness is validated on the Kotlin side,
+// so these bridges never throw.
 
-@_cdecl("kk_arraydeque_new")
-public func kk_arraydeque_new() -> Int {
+@_cdecl("__kk_arraydeque_new")
+public func __kk_arraydeque_new() -> Int {
     registerRuntimeObject(RuntimeArrayDequeBox(elements: []))
 }
 
-@_cdecl("kk_arraydeque_addFirst")
-public func kk_arraydeque_addFirst(_ dequeRaw: Int, _ element: Int) -> Int {
+@_cdecl("__kk_arraydeque_addFirst")
+public func __kk_arraydeque_addFirst(_ dequeRaw: Int, _ element: Int) -> Int {
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
         return 0
     }
-    deque.elements.insert(element, at: 0)
+    deque.insertRawFirst(element)
     return 0
 }
 
-@_cdecl("kk_arraydeque_addLast")
-public func kk_arraydeque_addLast(_ dequeRaw: Int, _ element: Int) -> Int {
+@_cdecl("__kk_arraydeque_addLast")
+public func __kk_arraydeque_addLast(_ dequeRaw: Int, _ element: Int) -> Int {
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
         return 0
     }
-    deque.elements.append(element)
+    deque.appendRawLast(element)
     return 0
 }
 
-@_cdecl("kk_arraydeque_removeFirst")
-public func kk_arraydeque_removeFirst(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
+@_cdecl("__kk_arraydeque_removeFirst")
+public func __kk_arraydeque_removeFirst(_ dequeRaw: Int) -> Int {
+    guard let deque = runtimeArrayDequeBox(from: dequeRaw), deque.count > 0 else {
         return 0
     }
-    guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
-        return 0
-    }
-    return deque.elements.removeFirst()
+    return deque.removeRawFirst()
 }
 
-@_cdecl("kk_arraydeque_removeLast")
-public func kk_arraydeque_removeLast(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
+@_cdecl("__kk_arraydeque_removeLast")
+public func __kk_arraydeque_removeLast(_ dequeRaw: Int) -> Int {
+    guard let deque = runtimeArrayDequeBox(from: dequeRaw), deque.count > 0 else {
         return 0
     }
-    guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
-        return 0
-    }
-    return deque.elements.removeLast()
+    return deque.removeRawLast()
 }
 
-@_cdecl("kk_arraydeque_first")
-public func kk_arraydeque_first(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
+@_cdecl("__kk_arraydeque_get")
+public func __kk_arraydeque_get(_ dequeRaw: Int, _ index: Int) -> Int {
+    guard let deque = runtimeArrayDequeBox(from: dequeRaw),
+          index >= 0, index < deque.count
+    else {
         return 0
     }
-    guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
-        return 0
-    }
-    return deque.elements[0]
+    return deque.rawElement(at: index)
 }
 
-@_cdecl("kk_arraydeque_last")
-public func kk_arraydeque_last(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
-        return 0
-    }
-    guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
-        return 0
-    }
-    return deque.elements[deque.elements.count - 1]
-}
-
-@_cdecl("kk_arraydeque_size")
-public func kk_arraydeque_size(_ dequeRaw: Int) -> Int {
+@_cdecl("__kk_arraydeque_size")
+public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
         return 0
     }
-    return deque.elements.count
-}
-
-@_cdecl("kk_arraydeque_isEmpty")
-public func kk_arraydeque_isEmpty(_ dequeRaw: Int) -> Int {
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        return kk_box_bool(1)
-    }
-    return kk_box_bool(deque.elements.isEmpty ? 1 : 0)
-}
-
-@_cdecl("kk_arraydeque_toString")
-public func kk_arraydeque_toString(_ dequeRaw: Int) -> UnsafeMutableRawPointer {
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        let str = "[]"
-        let utf8 = Array(str.utf8)
-        return utf8.withUnsafeBufferPointer { buf in
-            kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-        }
-    }
-    let parts = deque.elements.map { elem -> String in
-        runtimeElementToString(elem)
-    }
-    let str = "[" + parts.joined(separator: ", ") + "]"
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
+    return deque.count
 }
 
 // MARK: - Array utility functions (STDLIB-089)

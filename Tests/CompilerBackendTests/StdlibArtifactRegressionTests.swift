@@ -1022,4 +1022,67 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// KSP-625: `ArrayDeque<E>` is bundled Kotlin source, so the shared artifact
+    /// path exercises two imported-library gaps it surfaced: a constructor call
+    /// with explicit type arguments (`ArrayDeque<Int>()`) was rejected because
+    /// imported constructor signatures reported zero class type parameters, and
+    /// `println(deque)` printed `<object 0x...>` because the imported
+    /// `toString()` override was skipped for being flagged synthetic.
+    func testArrayDequeThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val deque = ArrayDeque<Int>()
+            deque.addLast(2)
+            deque.addFirst(1)
+            deque.addLast(3)
+            println(deque.size)
+            println(deque.first())
+            println(deque.last())
+            println(deque[1])
+            println(deque)
+            println(deque.removeFirst())
+            println(deque.removeLast())
+            println(deque.isEmpty())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                3
+                1
+                3
+                2
+                [1, 2, 3]
+                1
+                3
+                false
+
+                """
+            )
+        }
+    }
 }

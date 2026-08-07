@@ -694,7 +694,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             }
             // Skip synthetic stubs (e.g., kotlin.text.StringBuilder.toString),
             // which are already lowered via normal member-call pathways.
-            guard !sym.flags.contains(.synthetic) else {
+            // Members imported from a library artifact are also flagged
+            // synthetic, but they are real compiled overrides and must be
+            // called directly (otherwise `println(x)` prints `<object 0x...>`).
+            guard !sym.flags.contains(.synthetic) || sym.flags.contains(.importedLibrary) else {
                 return false
             }
             let sig = sema.symbols.functionSignature(for: id)

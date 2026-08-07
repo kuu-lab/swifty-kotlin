@@ -208,6 +208,9 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
             valueParameterSymbols.append(paramSymbol)
         }
+        // A constructor's type parameters all come from its class, so explicit
+        // type arguments at the call site (`ArrayDeque<Int>()`) bind against them.
+        let classTypeParameterCount = record.kind == .constructor ? typeParameterSymbols.count : 0
         return FunctionSignature(
             receiverType: functionType.receiver,
             parameterTypes: functionType.params,
@@ -218,7 +221,8 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             typeParameterSymbols: typeParameterSymbols,
-            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+            classTypeParameterCount: classTypeParameterCount
         )
     }
 

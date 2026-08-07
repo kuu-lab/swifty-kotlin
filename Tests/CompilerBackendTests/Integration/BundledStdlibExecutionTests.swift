@@ -250,4 +250,80 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-625: ArrayDeque の公開面は bundled Kotlin (kotlin.collections.ArrayDeque)。
+    // 空チェック・境界チェック・toString は Kotlin 側で実装され、リングバッファ変異のみ
+    // __kk_arraydeque_* ブリッジへ委譲する。
+    @Test
+    func testArrayDequeMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val deque = ArrayDeque<Int>()
+                println(deque.isEmpty())
+                deque.addLast(2)
+                deque.addFirst(1)
+                deque.addLast(3)
+                println(deque.size)
+                println(deque.first())
+                println(deque.last())
+                println(deque[1])
+                println(deque)
+                println(deque.removeFirst())
+                println(deque.removeLast())
+                println(deque)
+                try {
+                    ArrayDeque<Int>().first()
+                } catch (e: NoSuchElementException) {
+                    println(e.message)
+                }
+                try {
+                    deque[5]
+                } catch (e: IndexOutOfBoundsException) {
+                    println(e.message)
+                }
+            }
+            """,
+            expectedOutput: """
+            true
+            3
+            1
+            3
+            2
+            [1, 2, 3]
+            1
+            3
+            [2]
+            ArrayDeque is empty.
+            index: 5, size: 1
+
+            """
+        )
+    }
+
+    // KSP-625 で発見した回帰: 暗黙レシーバの `size` / `isEmpty` 読み出しが、
+    // レシーバ型に関係なく `kk_collection_size` / `kk_collection_isEmpty` へ
+    // lower され、ユーザー定義クラスの同名プロパティが常に 0 / false を返していた。
+    @Test
+    func testImplicitReceiverSizeReadsUserDefinedProperty() throws {
+        try compileAndRunKotlin(
+            """
+            class Box {
+                val size: Int
+                    get() = 5
+                val isEmpty: Boolean
+                    get() = false
+                fun readSize(): Int = size
+                fun readIsEmpty(): Boolean = isEmpty
+            }
+            fun main() {
+                val box = Box()
+                println(box.readSize())
+                println(box.size)
+                println(box.readIsEmpty())
+            }
+            """,
+            expectedOutput: "5\n5\nfalse\n"
+        )
+    }
 }

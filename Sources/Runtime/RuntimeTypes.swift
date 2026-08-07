@@ -532,6 +532,21 @@ final class RuntimeArrayDequeBox {
         }
     }
 
+    var count: Int { storage.count }
+
+    /// Buffer mutations used by the `__kk_arraydeque_*` bridges. They work on
+    /// `storage` directly so a single element operation does not rebuild the
+    /// whole raw-value array through `elements`.
+    func rawElement(at index: Int) -> Int { storage[index].legacyRawValue }
+
+    func insertRawFirst(_ rawValue: Int) { storage.insert(RuntimeValue(raw: rawValue), at: 0) }
+
+    func appendRawLast(_ rawValue: Int) { storage.append(RuntimeValue(raw: rawValue)) }
+
+    func removeRawFirst() -> Int { storage.removeFirst().legacyRawValue }
+
+    func removeRawLast() -> Int { storage.removeLast().legacyRawValue }
+
     init(elements: [Int]) {
         self.storage = elements.map { RuntimeValue(raw: $0) }
     }

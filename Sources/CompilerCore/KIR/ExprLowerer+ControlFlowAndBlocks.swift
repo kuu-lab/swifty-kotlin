@@ -180,8 +180,14 @@ extension ExprLowerer {
                     }
                 }
 
-                // Collection properties: size, isEmpty
-                if memberStr == "size" {
+                // Collection properties: size, isEmpty. Restricted to receivers
+                // that are collections (or of unknown class), so that a user
+                // class declaring its own `size`/`isEmpty` member keeps its
+                // declared accessor / backing field on implicit-receiver reads.
+                let receiverMayBeCollection = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
+                    .map { KnownCompilerNames(interner: interner).isCollectionLikeSymbol($0.symbol) }
+                    ?? true
+                if receiverMayBeCollection, memberStr == "size" {
                     emitNonThrowingCall(
                         callee: interner.intern("kk_collection_size"),
                         arg: receiverExprID,
@@ -190,7 +196,7 @@ extension ExprLowerer {
                     )
                     return result
                 }
-                if memberStr == "isEmpty" {
+                if receiverMayBeCollection, memberStr == "isEmpty" {
                     emitNonThrowingCall(
                         callee: interner.intern("kk_collection_isEmpty"),
                         arg: receiverExprID,

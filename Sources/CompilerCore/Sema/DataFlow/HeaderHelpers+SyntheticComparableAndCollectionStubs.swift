@@ -455,11 +455,6 @@ extension DataFlowSemaPhase {
             skipStats: skipStats
         )
 
-        registerSyntheticArrayDequeStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-
         // Keep collection aliases visible while bundled collection factories
         // are loaded; their declarations reference MutableList/MutableMap
         // symbols during the two-phase stdlib bootstrap.
