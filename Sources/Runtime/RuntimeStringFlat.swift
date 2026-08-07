@@ -1018,6 +1018,9 @@ public func kk_string_equalsIgnoreCase_flat(
     _ otherHash: Int,
     _ ignoreCaseRaw: Int
 ) -> Int {
+    if data == nil || otherData == nil {
+        return (data == nil && otherData == nil) ? 1 : 0
+    }
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
     if ignoreCaseRaw == 0 {
