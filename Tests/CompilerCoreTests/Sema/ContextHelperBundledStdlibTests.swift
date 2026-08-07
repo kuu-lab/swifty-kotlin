@@ -3,15 +3,18 @@
 import Foundation
 import Testing
 
+/// KSP-603: `context` / `contextOf` are bundled Kotlin source declarations
+/// (`Stdlib/kotlin/ContextParameters.kt`), no longer synthetic stubs.
 @Suite
-struct ContextHelperSyntheticStubTests {
+struct ContextHelperBundledStdlibTests {
     @Test func testContextHelperIsRegisteredWithContextFunctionBlock() throws {
         let (sema, interner) = try makeSema()
         let contextSymbol = try #require(lookupSymbol(["kotlin", "context"], sema: sema, interner: interner))
         let symbol = try #require(sema.symbols.symbol(contextSymbol))
         let signature = try #require(sema.symbols.functionSignature(for: contextSymbol))
 
-        #expect(symbol.flags.contains(.synthetic))
+        #expect(!symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(contextSymbol))
         #expect(symbol.flags.contains(.inlineFunction))
         #expect(signature.parameterTypes.count == 2)
         #expect(signature.typeParameterSymbols.count == 2)
@@ -50,13 +53,14 @@ struct ContextHelperSyntheticStubTests {
         let symbol = try #require(sema.symbols.symbol(contextOfSymbol))
         let signature = try #require(sema.symbols.functionSignature(for: contextOfSymbol))
 
-        #expect(symbol.flags.contains(.synthetic))
+        #expect(!symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(contextOfSymbol))
         #expect(symbol.flags.contains(.inlineFunction))
         #expect(signature.parameterTypes == [])
         #expect(signature.typeParameterSymbols.count == 1)
         #expect(signature.returnType == typeParamType(signature.typeParameterSymbols[0], sema: sema))
         #expect(sema.symbols.annotations(for: contextOfSymbol).contains { annotation in
-            annotation.annotationFQName == "kotlin.ExperimentalContextParameters"
+            annotation.annotationFQName.hasSuffix("ExperimentalContextParameters")
         })
     }
 
@@ -135,6 +139,30 @@ struct ContextHelperSyntheticStubTests {
         let callerSymbol = try #require(lookupSymbol(["caller"], sema: sema, interner: interner))
         let signature = try #require(sema.symbols.functionSignature(for: callerSymbol))
         #expect(signature.returnType == sema.types.stringType)
+    }
+
+    /// KSP-603: a user declaration with a matching signature shadows the
+    /// intrinsic handling; `contextOf()` must then resolve to the user function
+    /// instead of being rewritten into a context receiver read.
+    @Test func testUserDeclarationShadowsContextHelpers() throws {
+        let source = """
+        fun contextOf(): String = "user contextOf"
+
+        fun context(a: Int): Int = a * 2
+
+        fun caller(): String = contextOf()
+
+        fun callerContext(): Int = context(5)
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty, "Expected user declarations to shadow the intrinsics, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let callerSymbol = try #require(lookupSymbol(["caller"], sema: sema, interner: interner))
+        #expect(try #require(sema.symbols.functionSignature(for: callerSymbol)).returnType == sema.types.stringType)
+        let callerContextSymbol = try #require(lookupSymbol(["callerContext"], sema: sema, interner: interner))
+        #expect(try #require(sema.symbols.functionSignature(for: callerContextSymbol)).returnType == sema.types.intType)
     }
 
     private func makeSema() throws -> (SemaModule, StringInterner) {
