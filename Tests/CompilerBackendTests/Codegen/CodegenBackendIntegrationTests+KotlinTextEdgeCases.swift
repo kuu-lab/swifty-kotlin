@@ -40,7 +40,7 @@ private func runCodegenPipeline(
     return ctx
 }
 
-@Suite
+@Suite(.serialized)
 struct CodegenBackendKotlinTextEdgeCasesTests {
 
     private func assertKotlinOutput(
