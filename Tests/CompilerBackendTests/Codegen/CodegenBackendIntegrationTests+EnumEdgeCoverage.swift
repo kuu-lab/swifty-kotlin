@@ -42,7 +42,57 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    /// BUG-172: `values()`/`entries` stored each element as a pre-baked name
+    /// BUG-178: `EnumEntries<T>` was registered as a completely empty
+    /// synthetic interface (`HeaderHelpers+SyntheticEnumStubs.swift`'s
+    /// `ensureEnumEntriesInterface`) with no `get` operator, so `entries[i]` /
+    /// `enumEntries<T>()[i]` found no member candidate in Sema and the KIR
+    /// indexed-access lowering (`CallLowerer+Operators.swift`) fell through to
+    /// its generic built-in array-access path, which unconditionally emits
+    /// `kk_array_get` — a `RuntimeArrayBox`-only intrinsic. `entries`'s actual
+    /// runtime representation is a `RuntimeListBox` (`kk_enum_make_entries_list`
+    /// in RuntimeEnum.swift), so this panicked with KSWIFTK-LINK-0003 at
+    /// runtime. `values()`/`enumValues<T>()` (`Array<T>`/`RuntimeArrayBox`) and
+    /// `for (d in entries)` (iterator-based, not indexed) were unaffected,
+    /// which is what made this a narrower bug than "EnumEntries is broken".
+    /// Fixed by registering a `get(index: Int): T` operator on `EnumEntries<T>`
+    /// that reuses the same `__kk_list_get` bridge `List<E>.get` already uses
+    /// (on top of `EnumEntries<T> : List<T>` from DEADCODE-014, which alone
+    /// was not enough to make `[]` itself resolve). Complements
+    /// `testCodegenEnumValuesEntriesElementAccessEqualityAndWhen` (BUG-177,
+    /// which covers `Array.get`/forEach/for-in but not `EnumEntries.get`).
+    func testCodegenEnumEntriesIndexedAccessReturnsRealSingleton() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+
+        fun main() {
+            println(Direction.entries[0])
+            println(Direction.entries[3])
+            println(enumEntries<Direction>()[1])
+            println(Direction.entries[0] == Direction.NORTH)
+            println(Direction.entries[1] == Direction.SOUTH)
+            println(Direction.entries[0] == Direction.SOUTH)
+            println(enumValues<Direction>()[2] == Direction.EAST)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumEntriesIndexedAccess",
+            expected:
+                """
+                NORTH
+                WEST
+                SOUTH
+                true
+                true
+                false
+                true
+                """
+                + "\n"
+        )
+    }
+
+    /// BUG-177: `values()`/`entries` stored each element as a pre-baked name
     /// string instead of a genuinely boxed ordinal (see
     /// `appendEnumOrdinalArrayCreation` /
     /// `CallLowerer+EnumStdlib.lowerEnumEntryCollectionCallExpr`). Printing an
