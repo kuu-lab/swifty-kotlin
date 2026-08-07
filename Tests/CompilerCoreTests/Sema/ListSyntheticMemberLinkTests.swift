@@ -265,7 +265,7 @@ struct ListSyntheticMemberLinkTests {
 
             let linkedHashSetInfo = try #require(sema.symbols.symbol(linkedHashSetSymbol))
             #expect(linkedHashSetInfo.kind == .class)
-            #expect(linkedHashSetInfo.flags.contains(.synthetic))
+            #expect(!linkedHashSetInfo.flags.contains(.synthetic), "LinkedHashSet is declared in bundled Kotlin source (KSP-627)")
             #expect(linkedHashSetInfo.flags.contains(.openType))
             #expect(sema.symbols.directSupertypes(for: linkedHashSetSymbol).contains(mutableSetSymbol))
             #expect(sema.types.nominalTypeParameterVariances(for: linkedHashSetSymbol) == [.invariant])
@@ -274,7 +274,9 @@ struct ListSyntheticMemberLinkTests {
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .public)
-            #expect(sema.symbols.externalLinkName(for: constructorSymbol) == "__kk_emptySet")
+            // CollectionLiteralLoweringPass rewrites the call to the runtime
+            // bridge, so the source constructor carries no external link name.
+            #expect(sema.symbols.externalLinkName(for: constructorSymbol) == nil)
             let signature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
             #expect(signature.parameterTypes.isEmpty)
             #expect(signature.typeParameterSymbols.count == 1)
