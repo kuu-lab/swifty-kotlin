@@ -238,7 +238,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticClockStubs.swift` | 451 | (b) | M8 time source migration. |
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
 | `HeaderHelpers+SyntheticCoercionStubs.swift` | 1349 | (b) | M6 range/coercion source migration; many overloads already source-backed. |
-| `HeaderHelpers+SyntheticCollectionTypeAliases.swift` | 272 | (b) | M3 collection typealias/source migration. |
+| `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 92 | (b) | KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残るのは factory 関数の bootstrap stub のみ。 |
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
