@@ -676,9 +676,21 @@ struct ABIMismatchTests {
         }
     }
 
+    /// KSP-418: `String.format` is a private stdlib bridge, so only `__kk_`-prefixed
+    /// entry points may exist.
+    @Test
+    func kkStringFormatPublicNamesDemoted() {
+        for publicName in ["kk_string_format_flat", "kk_string_format_locale_flat"] {
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == publicName }),
+                "\(publicName) should be demoted to the __kk_ bridge namespace"
+            )
+        }
+    }
+
     @Test
     func kkStringFormatFlatSignatures() throws {
-        let formatSpec = try requireSpec("kk_string_format_flat")
+        let formatSpec = try requireSpec("__kk_string_format_flat")
         #expect(formatSpec.returnType == .nullableUInt8Pointer)
         #expect(formatSpec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
@@ -691,7 +703,7 @@ struct ABIMismatchTests {
             .nullableIntptrPointer,
         ])
 
-        let localeSpec = try requireSpec("kk_string_format_locale_flat")
+        let localeSpec = try requireSpec("__kk_string_format_locale_flat")
         #expect(localeSpec.returnType == .nullableUInt8Pointer)
         #expect(localeSpec.parameters.map(\.type) == [
             .intptr,

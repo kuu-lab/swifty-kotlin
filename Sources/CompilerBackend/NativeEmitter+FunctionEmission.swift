@@ -255,7 +255,7 @@ extension NativeEmitter {
                                            argumentCount == 1,
                                            !appendThrownChannel
             {
-                "__string_struct_get_length"
+                "__kk_string_struct_get_length"
             } else {
                 calleeName
             }
@@ -886,15 +886,15 @@ extension NativeEmitter {
                 // KSP-407: substringBefore/After/BeforeLast/AfterLast and
                 // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
                 // source (StringSearchReplace.kt); no flat emission spec.
-                "kk_string_format_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_format_flat",
+                "__kk_string_format_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_format_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0],
                     canThrow: false
                 ),
-                "kk_string_format_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_format_locale_flat",
+                "__kk_string_format_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_format_locale_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     stringArgumentPositions: [1],
@@ -2617,7 +2617,7 @@ extension NativeEmitter {
                     calleeFunction = nil
                 } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
                     calleeFunction = declareExternalFunction(
-                        named: "__string_struct_get_length",
+                        named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -2920,7 +2920,7 @@ extension NativeEmitter {
                     nil
                 } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
                     declareExternalFunction(
-                        named: "__string_struct_get_length",
+                        named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -3479,7 +3479,7 @@ extension NativeEmitter {
 
     private static func effectiveExternalCalleeNameForArity(_ calleeName: String, argumentCount: Int) -> String {
         if isStringLengthAggregateAccessorName(calleeName), argumentCount == 1 {
-            "__string_struct_get_length"
+            "__kk_string_struct_get_length"
         } else {
             calleeName
         }
@@ -3487,7 +3487,7 @@ extension NativeEmitter {
 
     private static func isStringLengthAggregateAccessorName(_ calleeName: String) -> Bool {
         calleeName == "length"
-            || calleeName == "__string_struct_get_length"
+            || calleeName == "__kk_string_struct_get_length"
             || calleeName == "kk_string_struct_get_length"
     }
 
@@ -3534,15 +3534,6 @@ extension NativeEmitter {
         case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
-        case "__string_compareTo_flat": "kk_string_compareTo_flat"
-        case "__string_concat": "kk_string_concat_flat"
-        case "__string_isEmpty_flat": "kk_string_isEmpty_flat"
-        case "__string_isNotEmpty_flat": "kk_string_isNotEmpty_flat"
-        case "__string_isBlank_flat": "kk_string_isBlank_flat"
-        case "__string_isNotBlank_flat": "kk_string_isNotBlank_flat"
-        case "__string_isNullOrEmpty_flat": "kk_string_isNullOrEmpty_flat"
-        case "__string_isNullOrBlank_flat": "kk_string_isNullOrBlank_flat"
-        case "__string_get_flat": "kk_string_get_flat"
         case "__testAssertEquals": "kk_test_assertEquals"
         case "__testAssertEqualsMessage": "kk_test_assertEquals_message"
         case "__testAssertTrue": "kk_test_assertTrue"
