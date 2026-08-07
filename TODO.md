@@ -387,7 +387,8 @@
 
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 
-- [ ] KSP-501: `BundledKotlinStdlib.kotlinCollectionsSource` を .kt 化する（`count`/`any`/`all`/`none`/`sumOf`/`maxByOrNull`/`minByOrNull` → `collections/ListAggregateHOF.kt` へ移設。live ツリーとの重複なしは 2026-07-01 に確認済み）
+- [x] KSP-501: `BundledKotlinStdlib.kotlinCollectionsSource` を .kt 化する（`count`/`any`/`all`/`none`/`sumOf`/`maxByOrNull`/`minByOrNull` → `collections/ListAggregateHOF.kt` へ移設。live ツリーとの重複なしは 2026-07-01 に確認済み）
+  - 完了（2026-08-06）: `count`/`any`/`all`/`none` は先行して `ListSearchHOF.kt` へ移設済みだったため、残っていた `sumOf`/`maxByOrNull`/`minByOrNull` を `collections/ListAggregateHOF.kt` へ移設し `kotlinCollectionsSource` を空文字列化。回帰は `Tests/CompilerCoreTests/Sema/ListAggregateHOFSourceMigrationTests.swift` と `Scripts/diff_cases/list_sumof_maxby_minby.kt`。`kk_list_sumOf`/`kk_list_maxByOrNull`/`kk_list_minByOrNull` への合成メンバ fallback は移設前と同じで、LLVM IR は master と一致（シンボル連番のみ差分）
 - [x] KSP-502: `kotlinTextSource` を .kt 化する（`repeat`/`reversed`/`padStart`/`padEnd`/`encodeToByteArray`×3/`decodeToString`×4/`indent`×2 → `text/` 配下へ。**注意**: `trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin` は KSP-302 で処理済みのはず — 残っていれば重複させず統合）
   - 完了確認（2026-07-30、KSP-416 完了作業のついでに検証）: `repeat`/`reversed`/`padStart`/`padEnd` は `Stdlib/kotlin/text/StringBasics.kt`、`toByteArray`/`encodeToByteArray`×3/`decodeToString`×4/`Charsets` は `Stdlib/kotlin/text/StringEncoding.kt`、`indent`×2（+ KSP-302 分の `trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）は `Stdlib/kotlin/text/StringIndentFormat.kt` に実ロジックとして存在し、`BundledKotlinStdlib.kotlinTextSource` は空文字列、`excludedBundledStdlibFiles` にも非登録であることを確認済み
 - [ ] KSP-503: `kotlinSequencesSource`/`kotlinTimeSource` を .kt 化し、`BundledKotlinStdlib.swift` と `FrontendPhases.swift` の `residualSources` 注入を削除する
