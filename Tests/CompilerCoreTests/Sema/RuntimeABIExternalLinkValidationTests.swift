@@ -51,17 +51,20 @@ struct RuntimeABIExternalLinkValidationTests {
         let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
         var failures: [String] = []
 
-        for declaration in annotatedDeclarations.sorted(by: { $0.linkName < $1.linkName }) {
-            guard let specs = runtimeABIByName[declaration.linkName], !specs.isEmpty else {
-                failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
+        // Overloads (notably constructors) can share one link name, so a spec is
+        // satisfied as soon as any declaration bound to that name matches it.
+        for (linkName, declarations) in annotatedDeclarations.groupedByLinkName {
+            guard let specs = runtimeABIByName[linkName], !specs.isEmpty else {
+                let paths = declarations.relativePathList
+                failures.append("\(linkName) in \(paths) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedArities = runtimeABIArityCandidates(for: declaration, specs: specs)
+            let expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
             if !specs.contains(where: { expectedArities.contains($0.parameters.count) }) {
                 let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
                 let expected = expectedArities.map(String.init).sorted().joined(separator: ", ")
                 failures.append(
-                    "\(declaration.linkName) in \(declaration.relativePath) has Kotlin arity candidates [\(expected)], RuntimeABI arities [\(arities)]"
+                    "\(linkName) in \(declarations.relativePathList) has Kotlin arity candidates [\(expected)], RuntimeABI arities [\(arities)]"
                 )
             }
         }
@@ -78,31 +81,40 @@ struct RuntimeABIExternalLinkValidationTests {
         let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
         var failures: [String] = []
 
-        for declaration in annotatedDeclarations.sorted(by: { $0.linkName < $1.linkName }) {
-            guard let specs = runtimeABIByName[declaration.linkName], !specs.isEmpty else {
-                failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
+        for (linkName, declarations) in annotatedDeclarations.groupedByLinkName {
+            guard let specs = runtimeABIByName[linkName], !specs.isEmpty else {
+                failures.append("\(linkName) in \(declarations.relativePathList) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedParameterTypes = expectedRuntimeABIParameterTypes(for: declaration)
-            let expectedReturnType = expectedRuntimeABIReturnType(for: declaration)
+            let expectedParameterTypes = declarations.map {
+                canonicalHandleTypes(expectedRuntimeABIParameterTypes(for: $0))
+            }
+            let expectedReturnTypes = Set(declarations.compactMap {
+                expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
+            })
             for spec in specs {
                 let actualParameterTypes = spec.parameterTypeStrings
                 let coreActual: [String]
                 if spec.isThrowing,
                    actualParameterTypes.last == RuntimeABICType.nullableIntptrPointer.rawValue {
-                    coreActual = Array(actualParameterTypes.dropLast())
+                    coreActual = canonicalHandleTypes(actualParameterTypes.dropLast().map { $0 })
                 } else {
-                    coreActual = actualParameterTypes
+                    coreActual = canonicalHandleTypes(actualParameterTypes)
                 }
 
-                if coreActual != expectedParameterTypes {
+                if !expectedParameterTypes.contains(coreActual) {
+                    let expected = expectedParameterTypes
+                        .map { "[\($0.joined(separator: ", "))]" }
+                        .joined(separator: " or ")
                     failures.append(
-                        "\(declaration.linkName) in \(declaration.relativePath) has expected ABI parameter types [\(expectedParameterTypes.joined(separator: ", "))], but RuntimeABI spec has [\(actualParameterTypes.joined(separator: ", "))]"
+                        "\(linkName) in \(declarations.relativePathList) has expected ABI parameter types \(expected), but RuntimeABI spec has [\(actualParameterTypes.joined(separator: ", "))]"
                     )
                 }
-                if let expectedReturnType, expectedReturnType != spec.returnTypeString {
+                if !expectedReturnTypes.isEmpty,
+                   !expectedReturnTypes.contains(canonicalHandleType(spec.returnTypeString)) {
+                    let expected = expectedReturnTypes.sorted().joined(separator: " or ")
                     failures.append(
-                        "\(declaration.linkName) in \(declaration.relativePath) has expected ABI return type \(expectedReturnType), but RuntimeABI spec has \(spec.returnTypeString)"
+                        "\(linkName) in \(declarations.relativePathList) has expected ABI return type \(expected), but RuntimeABI spec has \(spec.returnTypeString)"
                     )
                 }
             }
@@ -189,7 +201,7 @@ struct RuntimeABIExternalLinkValidationTests {
         return names
     }
 
-    private struct BundledKsSymbolNameDeclaration {
+    fileprivate struct BundledKsSymbolNameDeclaration {
         let linkName: String
         let arity: Int
         let functionTypedParameterCount: Int
@@ -266,7 +278,10 @@ struct RuntimeABIExternalLinkValidationTests {
             else {
                 continue
             }
-            let hasReceiver = (pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader)
+            // Constructors are lowered to free allocation entry points, so they
+            // never take a receiver parameter even inside a class body.
+            let hasReceiver = !headerDeclaresConstructor(functionHeader)
+                && ((pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
@@ -310,9 +325,10 @@ struct RuntimeABIExternalLinkValidationTests {
                 break
             }
         }
-        return header.contains(" fun ") || header.trimmingCharacters(in: .whitespaces).hasPrefix("fun ")
-            ? header
-            : nil
+        let trimmed = header.trimmingCharacters(in: .whitespaces)
+        let declaresFunction = header.contains(" fun ") || trimmed.hasPrefix("fun ")
+        let declaresConstructor = header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
+        return declaresFunction || declaresConstructor ? header : nil
     }
 
     private struct FunctionSignatureInfo {
@@ -327,10 +343,15 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
-        guard let funRange = header.range(of: "fun ") else {
+        guard let keywordRange = header.range(of: "fun ") ?? header.range(of: "constructor(", options: .backwards) else {
             return nil
         }
-        let suffix = header[funRange.upperBound...]
+        // A constructor has no declarator between the keyword and its parameter
+        // list, so rewind to the parenthesis the keyword match consumed.
+        let declarationStart = header[keywordRange].hasPrefix("constructor")
+            ? header.index(before: keywordRange.upperBound)
+            : keywordRange.upperBound
+        let suffix = header[declarationStart...]
         guard let openParen = suffix.firstIndex(of: "(") else {
             return nil
         }
@@ -418,6 +439,10 @@ struct RuntimeABIExternalLinkValidationTests {
         }
         parts.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
         return parts.filter { !$0.isEmpty }
+    }
+
+    private func headerDeclaresConstructor(_ header: String) -> Bool {
+        !header.contains(" fun ") && !header.trimmingCharacters(in: .whitespaces).hasPrefix("fun ")
     }
 
     private func functionHeaderHasExtensionReceiver(_ header: String) -> Bool {
@@ -558,6 +583,21 @@ struct RuntimeABIExternalLinkValidationTests {
         return RuntimeABICType.intptr.rawValue
     }
 
+    /// Object handles cross the ABI either as `intptr_t` or as an opaque
+    /// pointer; both spellings describe the same single-word value.
+    private func canonicalHandleTypes(_ types: [String]) -> [String] {
+        types.map(canonicalHandleType)
+    }
+
+    private func canonicalHandleType(_ type: String) -> String {
+        switch type {
+        case RuntimeABICType.opaquePointer.rawValue, RuntimeABICType.nullableOpaquePointer.rawValue:
+            RuntimeABICType.intptr.rawValue
+        default:
+            type
+        }
+    }
+
     private func isFunctionType(_ type: String) -> Bool {
         type.contains("->")
     }
@@ -583,5 +623,17 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         return names
+    }
+}
+
+private extension [RuntimeABIExternalLinkValidationTests.BundledKsSymbolNameDeclaration] {
+    var groupedByLinkName: [(String, Self)] {
+        Dictionary(grouping: self, by: \.linkName)
+            .sorted { $0.key < $1.key }
+            .map { ($0.key, $0.value) }
+    }
+
+    var relativePathList: String {
+        Set(map(\.relativePath)).sorted().joined(separator: ", ")
     }
 }

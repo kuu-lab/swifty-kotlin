@@ -113,6 +113,7 @@ public enum RuntimeABISpec {
         durationFunctions,
         exceptionFunctions,
         fileIOFunctions,
+        fileSystemExceptionFunctions,
         gcFunctions,
         i18nFunctions,
         ioFunctions,
