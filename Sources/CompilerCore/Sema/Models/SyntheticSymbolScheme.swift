@@ -10,6 +10,13 @@ enum SyntheticSymbolScheme {
     /// symbols, `.invalid` (-1), and synthetic type-parameter symbols
     /// (`<= -1_000_000`, see `HeaderHelpers.syntheticTypeParameterBase`).
     ///
+    /// Originals are also allowed to be synthetic themselves — a reified type
+    /// token is derived from a metadata type-parameter symbol, which is already
+    /// negative. Those pairs get the same interleaved layout in a second band
+    /// (`mirrorBandBase`) keyed by the original's magnitude, because negating a
+    /// negative original would produce a *positive* rawValue aliasing a real
+    /// symbol.
+    ///
     /// An additive `offset - original` layout (previously used here) cannot stay
     /// collision-free: each kind's band grows downward with `original`, so two
     /// kinds whose offsets differ by less than the symbol count overlap. In
@@ -17,6 +24,23 @@ enum SyntheticSymbolScheme {
     /// getter accessor once symbol IDs exceeded the getter/setter offset gap.
     private static let bandBase: Int32 = 10000
     private static let kindCount: Int32 = 9
+    /// Exclusive lower end of the band. Values at or below it belong to other
+    /// synthetic families (type parameters, lambda parameters), so an original
+    /// symbol large enough to push its derived symbols past this limit must not
+    /// be encoded silently.
+    private static let bandLimit: Int32 = 1_000_000
+
+    /// Largest original symbol the band can encode. Beyond it the derived
+    /// symbols would leave the band and alias another synthetic family.
+    static let maxOriginalRawValue: Int32 = (bandLimit - bandBase) / kindCount - 1
+
+    /// Band for negative (already synthetic) originals. It starts far below
+    /// every other synthetic family so the two bands cannot meet.
+    private static let mirrorBandBase: Int32 = 1_000_000_000
+
+    /// Largest magnitude a negative original may have before its derived
+    /// symbols would overflow `Int32`.
+    static let maxMirrorOriginalMagnitude: Int32 = (Int32.max - mirrorBandBase) / kindCount - 1
 
     private enum Kind: Int32 {
         case receiver = 0
@@ -38,19 +62,41 @@ enum SyntheticSymbolScheme {
     ]
 
     private static func makeSymbol(kind: Kind, original: SymbolID) -> SymbolID {
-        SymbolID(rawValue: -(bandBase + kindCount * original.rawValue + kind.rawValue))
+        let raw = original.rawValue
+        // Leaving a band would silently alias an unrelated symbol and miscompile
+        // the call it names, so fail where the cause is still visible.
+        if raw >= 0 {
+            precondition(
+                raw <= maxOriginalRawValue,
+                "synthetic symbol band exhausted: original \(raw) exceeds \(maxOriginalRawValue)"
+            )
+            return SymbolID(rawValue: -(bandBase + kindCount * raw + kind.rawValue))
+        }
+        let magnitude = Int64(raw).magnitude
+        precondition(
+            magnitude <= UInt64(maxMirrorOriginalMagnitude),
+            "synthetic symbol mirror band exhausted: original \(raw) exceeds \(maxMirrorOriginalMagnitude)"
+        )
+        return SymbolID(rawValue: -(mirrorBandBase + kindCount * Int32(magnitude) + kind.rawValue))
     }
 
     private static func decode(_ symbol: SymbolID) -> (kind: Kind, original: SymbolID)? {
         let raw = symbol.rawValue
-        guard raw <= -bandBase, raw > -1_000_000 else {
+        let bandDescriptor: (base: Int32, sign: Int32)? = if raw <= -bandBase, raw > -bandLimit {
+            (bandBase, 1)
+        } else if raw <= -mirrorBandBase, raw > Int32.min {
+            (mirrorBandBase, -1)
+        } else {
+            nil
+        }
+        guard let (base, sign) = bandDescriptor else {
             return nil
         }
-        let index = -raw - bandBase
+        let index = -raw - base
         guard let kind = Kind(rawValue: index % kindCount) else {
             return nil
         }
-        return (kind, SymbolID(rawValue: index / kindCount))
+        return (kind, SymbolID(rawValue: sign * (index / kindCount)))
     }
 
     static func defaultStubSymbol(for original: SymbolID) -> SymbolID {
