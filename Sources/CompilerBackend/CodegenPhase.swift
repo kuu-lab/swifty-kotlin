@@ -54,7 +54,8 @@ final class CodegenPhase: CompilerPhase {
                 // LLVM target state is not thread-safe; cross-process locking is
                 // unnecessary because each `kswiftc` process has its own LLVM
                 // context and output path. The link step uses a per-`LinkPhase`
-                // unique autolink stub path, so no cross-process lock is needed.
+                // unique autolink stub path and a separate cross-process toolchain
+                // lock to protect concurrent Linux `swiftc` invocations.
                 try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
                     try backend.emitObject(
                         module: kir,
