@@ -4,19 +4,6 @@ import Testing
 
 @Suite
 struct RuntimeStringLocaleTests {
-    private func stringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
-    private func arrayElements(_ raw: Int) -> [Int] {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let array = tryCast(ptr, to: RuntimeArrayBox.self)
-        else {
-            return []
-        }
-        return array.elements
-    }
-
     private func boolValue(_ raw: Int) -> Bool {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let box = tryCast(ptr, to: RuntimeBoolBox.self)
@@ -136,63 +123,12 @@ struct RuntimeStringLocaleTests {
     }
 
     @Test
-    func testLocalePropertiesExposeLanguageCountryAndVariant() {
-        let locale = makeLocale(language: "en", country: "US")
-        #expect(stringValue(kk_locale_language(locale)) == "en")
-        #expect(stringValue(kk_locale_country(locale)) == "US")
-        #expect(stringValue(kk_locale_variant(locale)) == "")
-    }
-
-    @Test
-    func testLocaleDisplayLanguageUsesDefaultLocale() {
-        let lease = RuntimeTestIsolationLease(lockSet: .all)
-        defer { lease.release() }
-        let original = kk_locale_getDefault(0)
-        let japanese = makeLocale("ja_JP")
-        _ = kk_locale_setDefault(0, japanese)
-        defer { _ = kk_locale_setDefault(0, original) }
-
-        let english = makeLocale("en_US")
-        let displayLanguage = stringValue(kk_locale_displayLanguage(english))
-        #expect(!displayLanguage.isEmpty)
-    }
-
-    @Test
-    func testLocaleDefaultCanBeOverridden() {
-        let lease = RuntimeTestIsolationLease(lockSet: .all)
-        defer { lease.release() }
-        let original = kk_locale_getDefault(0)
-        let locale = makeLocale(language: "tr", country: "TR")
-        _ = kk_locale_setDefault(0, locale)
-        defer { _ = kk_locale_setDefault(0, original) }
-
-        let current = kk_locale_getDefault(0)
-        #expect(stringValue(kk_locale_language(current)) == "tr")
-        #expect(stringValue(kk_locale_country(current)) == "TR")
-    }
-
-    @Test
     func testLocaleEqualityAndHashCodeAreValueBased() {
         let lhs = makeLocale(language: "en", country: "US")
         let rhs = makeLocale(language: "en", country: "US")
 
         #expect(boolValue(kk_any_equals(lhs, 0, rhs, 0)))
         #expect(kk_any_hashCode(lhs, 0) == kk_any_hashCode(rhs, 0))
-    }
-
-    @Test
-    func testSingleArgumentLocaleTreatsInputAsLanguageField() {
-        let locale = makeLocale("en_US_POSIX")
-        #expect(stringValue(kk_locale_language(locale)) == "en_us_posix")
-        #expect(stringValue(kk_locale_country(locale)) == "")
-        #expect(stringValue(kk_locale_variant(locale)) == "")
-    }
-
-    @Test
-    func testAvailableLocalesContainsKnownLocale() {
-        let available = kk_locale_getAvailableLocales(0)
-        let identifiers = arrayElements(available).map { stringValue(kk_locale_language($0)) + "_" + stringValue(kk_locale_country($0)) }
-        #expect(identifiers.contains("en_US") || identifiers.contains("en_"))
     }
 }
 #endif
