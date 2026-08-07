@@ -104,7 +104,7 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests \
             --shard-index "${{ matrix.shard_index }}" --shard-count 3 \
-            -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\.FrontendParallelBenchmarkTests/'
+            -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|SmokeTests)/'
       - name: Run CompilerCore frontend benchmarks separately
         if: matrix.shard_index == 0
         env:
@@ -112,17 +112,6 @@ jobs:
         run: |
           bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             $SWIFT_XSWIFTC_FLAGS
-      - name: Build release kswiftc
-        if: matrix.shard_index == 0
-        run: |
-          swift build -debug-info-format none -c release --product kswiftc \
-            -j "$SWIFT_TEST_BUILD_JOBS"
-      - name: Run minimal end-to-end compiler test
-        if: matrix.shard_index == 0
-        run: |
-          kswiftc_bin="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"
-          "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
-          /tmp/swiftbuild_hello
       - name: Reproduce hints
         if: always()
         run: |
@@ -134,10 +123,67 @@ jobs:
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
-              echo 'swift build -debug-info-format none -c release --product kswiftc -j "\$worker_count"'
-              echo 'KSWIFTC="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
             fi
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/'"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|SmokeTests)/'"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Keep release compiler validation on an independent lane so it does not
+  # extend the longest CompilerCore shard's critical path.
+  verify-core-e2e:
+    name: Verification 1/5 (release compiler E2E)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SWIFT_BUILD_SYSTEM: native
+      SWIFT_ENABLE_COMPILE_CACHE: "1"
+      SWIFT_ENABLE_CACHE_REMARKS: "1"
+      SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
+      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.build/out/ModuleCache.noindex
+      SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare self-hosted runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Setup release SwiftPM build cache
+        uses: ./.github/actions/setup-swiftpm-cache
+        with:
+          swift-version: "6.3"
+          build-variant: release-e2e
+          save: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
+      - name: Configure release build parallelism
+        run: |
+          worker_count="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)"
+          if ! [[ "$worker_count" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Unable to detect a positive logical CPU count: $worker_count" >&2
+            exit 1
+          fi
+          echo "SWIFT_BUILD_JOBS=$worker_count" >> "$GITHUB_ENV"
+          echo "Release build parallelization width: $worker_count"
+      - name: Build release kswiftc
+        run: |
+          swift build -debug-info-format none -c release --product kswiftc \
+            -j "$SWIFT_BUILD_JOBS"
+      - name: Run minimal end-to-end compiler test
+        run: |
+          kswiftc_bin="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"
+          "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
+          /tmp/swiftbuild_hello
+      - name: Reproduce hints
+        if: always()
+        run: |
+          {
+            echo '## Verification 1/5 release E2E reproduce'
+            echo '```bash'
+            echo 'worker_count="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)"'
+            echo 'swift build -debug-info-format none -c release --product kswiftc -j "\$worker_count"'
+            echo 'KSWIFTC="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
