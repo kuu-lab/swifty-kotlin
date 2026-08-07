@@ -1794,12 +1794,14 @@ final class CallLowerer {
             }
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
-        candidates.append(contentsOf: extensionCandidates(
-            named: calleeName,
-            nonNullReceiverType: nonNullReceiverType,
-            argumentCount: argumentExprs.count,
-            sema: sema
-        ))
+        if receiverType != nonNullReceiverType {
+            candidates.append(contentsOf: extensionCandidates(
+                named: calleeName,
+                nonNullReceiverType: nonNullReceiverType,
+                argumentCount: argumentExprs.count,
+                sema: sema
+            ))
+        }
         candidates.sort(by: { $0.rawValue < $1.rawValue })
         guard !candidates.isEmpty else {
             return nil
