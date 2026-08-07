@@ -580,6 +580,41 @@ extension LoweringPassRegressionTests {
         }
     }
 
+    // MARK: - BUG-178: `Direction.entries[i]` / `enumEntries<T>()[i]` must
+    // dispatch to the List `get` runtime. `EnumEntries<T>` is backed by a
+    // `RuntimeListBox` (`kk_enum_make_entries_list`), but while the interface
+    // had no registered `List<T>` supertype the indexing operator fell back to
+    // the array bridge `kk_array_get`, which read the list handle as a
+    // `RuntimeArrayBox`, threw ArrayIndexOutOfBounds and aborted the program
+    // with `KSWIFTK-LINK-0003: Unhandled top-level exception`.
+    @Test
+    func testEnumEntriesIndexAccessUsesListGetNotArrayGet() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+
+        fun main() {
+            println(Direction.entries[0])
+            println(enumEntries<Direction>()[1])
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(!ctx.diagnostics.hasError,
+                    "entries[0]/enumEntries<T>()[1] should compile without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("__kk_list_get"),
+                    "EnumEntries indexing should dispatch to the List get runtime; callees: \(callees)")
+            #expect(!callees.contains("kk_array_get"),
+                    "EnumEntries indexing must not fall back to the array bridge; callees: \(callees)")
+        }
+    }
+
     // MARK: - STDLIB-023-15: `Outer.Direction.values()`, a nested enum class
     // accessed through a class-name-receiver qualifier chain, resolves at Sema
     // time and links to the exact same symbol as the KIR function synthesized
