@@ -577,23 +577,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- kotlin.synchronized (STDLIB-325) ---
-        let synchronizedBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.makeNullable(types.anyType)
-        )))
-        registerSyntheticTopLevelFunction(
-            named: "synchronized",
-            packageFQName: kotlinPkg,
-            parameters: [
-                (name: "lock", type: types.anyType),
-                (name: "block", type: synchronizedBlockType),
-            ],
-            returnType: types.anyType,
-            externalLinkName: "kk_synchronized",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-618: kotlin.synchronized is Kotlin source
+        // (Stdlib/kotlin/Synchronized.kt) over the demoted __kk_synchronized
+        // bridge, so no synthetic stub is registered here.
 
         // --- java.io.File (STDLIB-320) ---
         let javaIOPkg = ensureSyntheticPackageHierarchy(
