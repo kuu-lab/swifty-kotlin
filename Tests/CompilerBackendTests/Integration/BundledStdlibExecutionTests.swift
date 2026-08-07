@@ -250,4 +250,66 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-417: normalize/isNormalized/codePointCount/random は __kk_ 降格済みの
+    // ネイティブブリッジ。`__kk_string_normalize_flat` は flat 戻り値仕様が
+    // NativeEmitter に登録されておらず、out ポインタ無しで呼ばれて SIGSEGV していた。
+    @Test
+    func testUnicodeNormalizationAndCodePointBridgesExecute() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val decomposed = "e\\u0301"
+                val composed = decomposed.normalize(NormalizationForms.NFC)
+                println(composed.length)
+                println(composed == "\\u00e9")
+                println(composed.normalize(NormalizationForms.NFD).length)
+                println("\\ufb01".normalize(NormalizationForms.NFKC))
+                println("\\ufb01".normalize(NormalizationForms.NFKD))
+                println(composed.isNormalized(NormalizationForms.NFC))
+                println(decomposed.isNormalized(NormalizationForms.NFC))
+                println("abc".codePointCount())
+                println("e\\u0301x".codePointCount(1))
+                println("e\\u0301x".codePointCount(0, 2))
+                val picked = "abc".random()
+                println(picked == 'a' || picked == 'b' || picked == 'c')
+            }
+            """,
+            expectedOutput: """
+            1
+            true
+            2
+            fi
+            fi
+            true
+            false
+            3
+            2
+            2
+            true
+
+            """
+        )
+    }
+
+    // ランタイムが返す flat 文字列の `length` は UTF-8 バイト数ではなく Unicode
+    // スカラー数（文字列リテラル側と同じ規約）。非 ASCII で過大になっていた。
+    @Test
+    func testRuntimeProducedFlatStringsReportScalarLength() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println("\\u00c9".length)
+                println("\\u00c9".lowercase().length)
+                println("  \\u00e9\\u00e9  ".trim().length)
+            }
+            """,
+            expectedOutput: """
+            1
+            1
+            2
+
+            """
+        )
+    }
 }

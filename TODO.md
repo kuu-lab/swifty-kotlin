@@ -211,8 +211,11 @@
 - [x] KSP-416: エンコーディング系を `__kk_` 降格する（`toByteArray`, `encodeToByteArray`, `decodeToString`, `Charsets.*`）
   - トランスコードはブリッジ残留。`kk_charset_*` 9 関数と `kk_string_toByteArray*`, `kk_string_encodeToByteArray*`, `kk_bytearray_decodeToString*`, `kk_byteArray_toKString` を `__kk_` へ改名。公開 API 層（オーバーロード分岐・境界検査・例外）は Kotlin 化。インライン `kotlinTextSource` の同 API と統合（KSP-502 と調整）
   - 完了確認（2026-07-30、§13-7 の3点確認③）: `Sources/CompilerCore/Sema/TypeCheck/CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` に残っていた `toByteArray`/`encodeToByteArray`/`decodeToString` の name-string 特例8箇所を削除。stderr計装（`__TRACE_ENTRY`）による実地検証で、Golden全4スイート(15件)・diff_kotlinc全679件・関連diff_cases 13件・手作り境界ケース20+（ジェネリクス境界/CharSequence/smart-cast/safe-call/elvis/配列添字/lambda戻り値）のいずれもこのフォールバック関数へ到達しないことを確認した上で削除（`RuntimeABISpec` 未登録の `kk_string_toByteArray_charset` 系4関数がブリッジとして本当に到達するのとは対照的に、こちらは`kotlin.text`実宣言(StringEncoding.kt)への通常候補解決が常に先に成功するため完全に死んでいた）。削除後も同ゲート（Golden全4スイート・diff_kotlinc 679/679・対象ユニットテスト68件）が green であることを再確認済み
-- [ ] KSP-417: Unicode 正規化・codePoint・random を `__kk_` 降格する
+- [x] KSP-417: Unicode 正規化・codePoint・random を `__kk_` 降格する（改名は PR #4596 で実装済み。本 PR で完了確認と回帰テスト追加、および降格 API の実行時バグ2件を修正）
   - `kk_normalization_form_*` 4 関数, `kk_string_normalize`, `kk_string_isNormalized`, `kk_string_codePointCount*` 3 関数, `kk_string_random(_random)` を `__kk_` へ改名（実装移植はしない）
+  - 完了確認: `git grep` で対象 `kk_*` シンボルの残留参照なし（TODO.md の記述とテスト内コメントのみ）。回帰テストとして KIR 経路（`BuildKIRRegressionTests+StringUnicodeBridges.swift`）・Sema link（`random` 2 オーバーロード）・実行 e2e（`BundledStdlibExecutionTests`）を追加
+  - 追加修正1: `String.normalize` は `NativeEmitter` の flat 戻り値仕様に `__kk_string_normalize_flat` が未登録で、out ポインタ無しの誤ったシグネチャで呼ばれ実行時 SIGSEGV していた（降格以前からの既存バグ）。仕様を登録して解消
+  - 追加修正2: ランタイム生成 flat 文字列（`RuntimeFlatStringStorage`）が `length` に UTF-8 バイト数を入れており、非 ASCII で `.length` が過大になっていた（`normalize`/`lowercase`/`trim` 等 flat 戻り値 API 全般に影響）。文字列リテラル側と同じ Unicode スカラー数へ是正
 - [ ] KSP-418: format を完遂する（`String.format(_locale)` は `__kk_` 降格）
   - 対象: `RuntimeStringFormat.swift` の `kk_string_format`, `kk_string_format_locale`（降格）と残存 `__string_*` 旧ブリッジの命名統一
 
