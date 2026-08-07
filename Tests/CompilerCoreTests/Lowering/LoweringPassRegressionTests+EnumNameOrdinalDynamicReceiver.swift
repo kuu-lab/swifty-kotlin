@@ -36,12 +36,12 @@ extension LoweringPassRegressionTests {
 
             #expect(!callees.contains("name"),
                     "the raw unresolved \"name\" call must be rewritten away; callees: \(callees)")
-            #expect(callees.contains("$enumOrdinalToName"),
-                    "expected a rewrite to $enumOrdinalToName; callees: \(callees)")
+            #expect(callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
+                    "expected a rewrite to $enumOrdinalToName$<id>; callees: \(callees)")
 
             let helperCalls = body.compactMap { instruction -> Int? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "$enumOrdinalToName"
+                      ctx.interner.resolve(callee).hasPrefix("$enumOrdinalToName$")
                 else { return nil }
                 return arguments.count
             }
@@ -107,8 +107,8 @@ extension LoweringPassRegressionTests {
 
             #expect(!allCallees.contains("name"),
                     "the raw unresolved \"name\" call must be rewritten away; callees: \(allCallees)")
-            #expect(allCallees.contains("$enumOrdinalToName"),
-                    "expected a rewrite to $enumOrdinalToName; callees: \(allCallees)")
+            #expect(allCallees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
+                    "expected a rewrite to $enumOrdinalToName$<id>; callees: \(allCallees)")
         }
     }
 
@@ -134,7 +134,7 @@ extension LoweringPassRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(!callees.contains("$enumOrdinalToName"),
+            #expect(!callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
                     "a literal entry receiver should stay on the per-entry helper fast path; callees: \(callees)")
             #expect(!callees.contains("name"), "callees: \(callees)")
             #expect(callees.contains("NORTH$enumName"),

@@ -495,6 +495,11 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             val value = "  alpha\\n  beta"
             val margin = "|alpha\\n|beta"
+            val raw = ""\"
+                alpha
+                beta
+            ""\".trimIndent()
+            println(raw)
             println(value.trimIndent())
             println(margin.trimMargin())
             println(margin.trimMargin("|"))
@@ -505,6 +510,8 @@ extension CodegenBackendIntegrationTests {
             println(margin.replaceIndentByMargin())
             println(margin.replaceIndentByMargin(">"))
             println(margin.replaceIndentByMargin(">", "|"))
+            println(value.indent())
+            println(value.indent(2))
         }
         """
 
@@ -538,6 +545,8 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_default_flat",
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
+                "kk_string_indent",
+                "kk_string_indent_flat",
             ]
             for name in forbiddenNames {
                 XCTAssertFalse(ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
@@ -1919,6 +1928,32 @@ extension CodegenBackendIntegrationTests {
             interner: interner
         )
         XCTAssertTrue(fnName.hasPrefix("kk_fn__1_bad_name_9"))
+    }
+
+    /// A synthetic (negative) symbol must not share its C name with a real
+    /// symbol of the same magnitude and name: duplicate definitions get silently
+    /// renamed by LLVM and calls bind to whichever definition came first.
+    func testCodegenFunctionSymbolDistinguishesSyntheticSymbolsFromRealOnes() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+
+        func name(forSymbolRawValue rawValue: Int32) -> String {
+            CodegenSymbolSupport.cFunctionSymbol(
+                for: KIRFunction(
+                    symbol: SymbolID(rawValue: rawValue),
+                    name: interner.intern("get"),
+                    params: [],
+                    returnType: types.unitType,
+                    body: [.returnUnit],
+                    isSuspend: false,
+                    isInline: false
+                ),
+                interner: interner
+            )
+        }
+
+        XCTAssertEqual(name(forSymbolRawValue: 104_789), "kk_fn_get_104789")
+        XCTAssertEqual(name(forSymbolRawValue: -104_789), "kk_fn_get_s104789")
     }
 
     func testCodegenFunctionSymbolUsesJvmNameAnnotationForFunction() {

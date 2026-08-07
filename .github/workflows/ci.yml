@@ -115,6 +115,17 @@ jobs:
         run: |
           bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             $SWIFT_XSWIFTC_FLAGS
+      - name: Build release kswiftc with swiftbuild
+        if: matrix.shard_index == 0
+        run: |
+          swift build -debug-info-format none --build-system swiftbuild -c release --product kswiftc \
+            -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Run minimal end-to-end compiler test with swiftbuild
+        if: matrix.shard_index == 0
+        run: |
+          kswiftc_bin="$(swift build --build-system swiftbuild -c release --product kswiftc --show-bin-path)/kswiftc"
+          "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
+          /tmp/swiftbuild_hello
       - name: Reproduce hints
         if: always()
         run: |
@@ -126,6 +137,8 @@ jobs:
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
               echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
               echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=0 SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
+              echo "swift build -debug-info-format none --build-system swiftbuild -c release --product kswiftc -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
+              echo 'KSWIFTC="$(swift build --build-system swiftbuild -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
             fi
             echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/'"
             echo '```'
@@ -288,22 +301,18 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify-diff:
-    name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/4)
+    name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 2
       matrix:
         include:
           - shard_index: 0
             shard_label: 1
           - shard_index: 1
             shard_label: 2
-          - shard_index: 2
-            shard_label: 3
-          - shard_index: 3
-            shard_label: 4
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
@@ -337,29 +346,22 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Install Kotlin compiler and coroutines jar
+      - name: Install Kotlin compiler
         run: |
           TOOLS_DIR="${RUNNER_TEMP}/kotlin-tools"
           KOTLIN_DIR="${TOOLS_DIR}/kotlin"
-          mkdir -p "$TOOLS_DIR"
+          mkdir -p "$KOTLIN_DIR"
 
           if [ ! -f "${KOTLIN_DIR}/kotlinc/bin/kotlinc" ]; then
-            curl -sSL -o "${TOOLS_DIR}/kotlin-compiler.zip" \
+            curl -fSL -o "${TOOLS_DIR}/kotlin-compiler.zip" \
               "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"
             unzip -q "${TOOLS_DIR}/kotlin-compiler.zip" -d "$KOTLIN_DIR"
           fi
           echo "${KOTLIN_DIR}/kotlinc/bin" >> "$GITHUB_PATH"
-
-          if [ ! -f "${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" ]; then
-            curl -sSL -o "${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" \
-              "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINX_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINX_COROUTINES_VERSION}.jar"
-          fi
-          echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" >> "$GITHUB_ENV"
       - name: Verify prerequisites
         run: |
           java -version
           kotlinc -version
-          test -f "$KOTLINC_CLASSPATH"
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
@@ -370,11 +372,12 @@ jobs:
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
           KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
+          KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
           KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \
-              --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
+              --shard-index "${{ matrix.shard_index }}" --shard-count 2 \
               --report "$DIFF_REPORT" Scripts/diff_cases
       - name: Summarize kotlinc diff artifacts
         if: always() && steps.diff_kotlinc.outcome != 'cancelled'
@@ -396,75 +399,3 @@ jobs:
             ${{ runner.temp }}/diff_kotlinc_artifacts
           if-no-files-found: ignore
           retention-days: 30
-
-  verify-swiftbuild:
-    name: Verification (swiftbuild)
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    env:
-      SWIFT_BUILD_SYSTEM: swiftbuild
-      KSWIFTK_CI_FAST_BUILD: "1"
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Swift
-        uses: ./.github/actions/setup-swift
-        with:
-          swift-version: "6.3"
-
-      - name: Show toolchain versions
-        run: swift --version
-
-      - name: Setup SwiftPM build cache
-        uses: ./.github/actions/setup-swiftpm-cache
-        with:
-          swift-version: "6.3"
-          build-variant: ${{ env.KSWIFTK_CI_FAST_BUILD == '1' && 'swiftbuild-fast' || 'swiftbuild' }}
-          save: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
-
-      - name: Build compiler and tests with swiftbuild
-        env:
-          SWIFT_TEST_BUILD_JOBS: "4"
-        run: |
-          bash Scripts/build_swift_tests.sh \
-            -j "$SWIFT_TEST_BUILD_JOBS" \
-            -Xswiftc -swift-version -Xswiftc 6 \
-            -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warn-concurrency
-
-      - name: Run smoke tests with swiftbuild
-        env:
-          SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_WORKERS: "4"
-          SWIFT_TEST_BUILD_JOBS: "4"
-        run: |
-          bash Scripts/swift_test.sh --skip-build --filter SmokeTests \
-            -Xswiftc -swift-version -Xswiftc 6 \
-            -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warn-concurrency
-
-      - name: Build release kswiftc with swiftbuild
-        env:
-          SWIFT_BUILD_JOBS: "4"
-        run: |
-          swift build -debug-info-format none --build-system swiftbuild -c release --product kswiftc \
-            -j "$SWIFT_BUILD_JOBS"
-
-      - name: Run minimal end-to-end compiler test
-        run: |
-          kswiftc_bin="$(swift build --build-system swiftbuild -c release --product kswiftc --show-bin-path)/kswiftc"
-          "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
-          /tmp/swiftbuild_hello
-
-      - name: Reproduce hints
-        if: always()
-        run: |
-          {
-            echo '## Swift Build preview reproduce'
-            echo '```bash'
-            echo 'SWIFT_BUILD_SYSTEM=swiftbuild KSWIFTK_CI_FAST_BUILD=1 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/build_swift_tests.sh -j 4 -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
-            echo 'SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
-            echo 'swift build -debug-info-format none --build-system swiftbuild -c release --product kswiftc -j 4'
-            echo 'KSWIFTC="$(swift build --build-system swiftbuild -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
