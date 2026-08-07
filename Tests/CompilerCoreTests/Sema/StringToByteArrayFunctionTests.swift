@@ -5,12 +5,12 @@ import Testing
 /// resolve through Sema and link to the correct runtime entries.
 ///
 /// Overloads covered:
-///  - `toByteArray()` → `kk_string_toByteArray` (returns ByteArray)
-///  - `toByteArray(charset: Charset)` → `kk_string_toByteArray_charset` (returns ByteArray)
+///  - `toByteArray()` → `__kk_string_toByteArray_flat` (returns ByteArray)
+///  - `toByteArray(charset: Charset)` → `__kk_string_toByteArray_charset_flat` (returns ByteArray)
 ///
-/// The synthetic extension functions are registered in
-/// `HeaderHelpers+SyntheticStringStubs.swift` (STDLIB-145/STDLIB-581), and the
-/// runtime implementation lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
+/// Both overloads are Kotlin-sourced extension functions declared in
+/// `Sources/CompilerCore/Stdlib/kotlin/text/StringEncoding.kt`, which delegate to
+/// the `__kk_`-prefixed runtime bridges in `Sources/Runtime/RuntimeStringEncoding.swift`.
 @Suite
 struct StringToByteArrayFunctionTests {
     @Test func testToByteArrayNoArgResolvesInSource() throws {

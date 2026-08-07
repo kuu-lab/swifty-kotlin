@@ -364,6 +364,8 @@ extension CallLowerer {
                 return interner.intern("kk_array_filterNot")
             case "filterNotNull":
                 return interner.intern("kk_array_filterNotNull")
+            case "asSequence":
+                return interner.intern("kk_array_asSequence")
             // NOTE: branches on `hofArity` (source-level arg count), not the raw
             // `argumentCount` parameter above — `argumentCount` can arrive with
             // the receiver already prepended by some call sites (see the
@@ -533,6 +535,23 @@ extension CallLowerer {
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
             || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        // Bare Iterable/Collection/Set interfaces are also matched by
+        // isConcreteCollectionLikeType, so the gate above excludes them. That is
+        // intentional for general HOF routing: Set must fall through to the
+        // isSetLikeType block / CollectionLiteral Set-HOF rewrite (kk_set_*), not
+        // kk_sequence_* (mapNotNull/flatMap/count on a set handle would return empty
+        // or 0). Only joinTo/joinToString lack that set-specific path and would
+        // otherwise stay unresolved — handle those alone.
+        if memberName == "joinTo" || memberName == "joinToString" {
+            let isBareIterableCollectionOrSetInterfaceType =
+                isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            if isBareIterableCollectionOrSetInterfaceType {
+                return interner.intern(
+                    memberName == "joinTo" ? "kk_iterable_joinTo" : "kk_iterable_joinToString"
+                )
+            }
+        }
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
@@ -623,9 +642,9 @@ extension CallLowerer {
                     return nil
                 }
             case joinToName:
-                return interner.intern("kk_sequence_joinTo")
+                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinTo" : "kk_sequence_joinTo")
             case joinToStringName:
-                return interner.intern("kk_sequence_joinToString")
+                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinToString" : "kk_sequence_joinToString")
             case sumOfName:
                 return interner.intern("kk_sequence_sumOf")
             case sumByName:

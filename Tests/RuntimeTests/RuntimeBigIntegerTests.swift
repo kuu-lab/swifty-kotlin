@@ -44,7 +44,7 @@ struct RuntimeBigIntegerTests {
             __kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         #expect(thrown == 0)
-        #expect(stringValue(kk_biginteger_toString(raw)) == "-12345678901234567890")
+        #expect(stringValue(__kk_biginteger_toString(raw)) == "-12345678901234567890")
     }
 
     @Test
@@ -54,7 +54,7 @@ struct RuntimeBigIntegerTests {
             __kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         #expect(thrown == 0)
-        #expect(stringValue(kk_biginteger_toString(raw)) == "12345678901234567890")
+        #expect(stringValue(__kk_biginteger_toString(raw)) == "12345678901234567890")
     }
 
     @Test
@@ -66,7 +66,7 @@ struct RuntimeBigIntegerTests {
         #expect(thrown == 0)
         let rhs = try bigInteger("10")
         let result = kk_biginteger_add(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "12345678901234567900")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "12345678901234567900")
     }
 
     @Test
@@ -82,7 +82,7 @@ struct RuntimeBigIntegerTests {
     func testStringToBigIntegerOrNullAcceptsSignedDigits() {
         let raw = __kk_string_toBigIntegerOrNull(runtimeString("+00012345678901234567890"))
         #expect(raw != runtimeNullSentinelInt)
-        #expect(stringValue(kk_biginteger_toString(raw)) == "12345678901234567890")
+        #expect(stringValue(__kk_biginteger_toString(raw)) == "12345678901234567890")
     }
 
     @Test
@@ -93,11 +93,30 @@ struct RuntimeBigIntegerTests {
     }
 
     @Test
+    func testStringToBigIntegerOrNullFlatAcceptsSignedDigits() {
+        let raw = withFlatString("+00012345678901234567890") { data, length, byteCount, hash in
+            __kk_string_toBigIntegerOrNull_flat(data, length, byteCount, hash)
+        }
+        #expect(raw != runtimeNullSentinelInt)
+        #expect(stringValue(__kk_biginteger_toString(raw)) == "12345678901234567890")
+    }
+
+    @Test
+    func testStringToBigIntegerOrNullFlatRejectsInvalidInput() {
+        for value in ["12.5", "", " 12 "] {
+            let raw = withFlatString(value) { data, length, byteCount, hash in
+                __kk_string_toBigIntegerOrNull_flat(data, length, byteCount, hash)
+            }
+            #expect(raw == runtimeNullSentinelInt, "Expected \(value) to yield null")
+        }
+    }
+
+    @Test
     func testBigIntegerAndHandlesPositiveOperands() throws {
         let lhs = try bigInteger("12")
         let rhs = try bigInteger("10")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "8")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "8")
     }
 
     @Test
@@ -105,7 +124,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("18446744073709551615")
         let rhs = try bigInteger("255")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "255")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "255")
     }
 
     @Test
@@ -113,7 +132,7 @@ struct RuntimeBigIntegerTests {
         let negativeOne = try bigInteger("-1")
         let mask = try bigInteger("255")
         let result = kk_biginteger_and(negativeOne, mask)
-        #expect(stringValue(kk_biginteger_toString(result)) == "255")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "255")
     }
 
     @Test
@@ -121,7 +140,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("-2")
         let rhs = try bigInteger("3")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "2")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "2")
     }
 
     @Test
@@ -129,7 +148,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("0")
         let rhs = try bigInteger("123")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "0")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "0")
     }
 
     @Test
@@ -137,7 +156,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("456")
         let rhs = try bigInteger("0")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "0")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "0")
     }
 
     @Test
@@ -145,7 +164,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("0")
         let rhs = try bigInteger("0")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "0")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "0")
     }
 
     @Test
@@ -156,7 +175,7 @@ struct RuntimeBigIntegerTests {
         // -2 in two's complement: ...11111110
         // -3 in two's complement: ...11111101
         // AND:                 ...11111100 = -4
-        #expect(stringValue(kk_biginteger_toString(result)) == "-4")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-4")
     }
 
     @Test
@@ -164,7 +183,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("123")
         let rhs = try bigInteger("-1")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "123")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "123")
     }
 
     @Test
@@ -172,14 +191,14 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("-1")
         let rhs = try bigInteger("456")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "456")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "456")
     }
 
     @Test
     func testBigIntegerAndSameOperands() throws {
         let value = try bigInteger("789")
         let result = kk_biginteger_and(value, value)
-        #expect(stringValue(kk_biginteger_toString(result)) == "789")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "789")
     }
 
     @Test
@@ -188,7 +207,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("9223372036854775807") // Int64.MAX_VALUE
         let rhs = try bigInteger("1")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "1")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "1")
     }
 
     @Test
@@ -197,7 +216,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("340282366920938463463374607431768211455") // 2^128 - 1
         let rhs = try bigInteger("18446744073709551615") // 2^64 - 1
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "18446744073709551615")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "18446744073709551615")
     }
 
     @Test
@@ -205,7 +224,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("-123")
         let rhs = try bigInteger("0")
         let result = kk_biginteger_and(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "0")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "0")
     }
 
     // MARK: - New BigInteger Function Tests
@@ -215,7 +234,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("12")  // 1100
         let rhs = try bigInteger("10")  // 1010
         let result = kk_biginteger_or(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "14") // 1110
+        #expect(stringValue(__kk_biginteger_toString(result)) == "14") // 1110
     }
 
     @Test
@@ -223,7 +242,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("-1")
         let rhs = try bigInteger("0")
         let result = kk_biginteger_or(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "-1")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-1")
     }
 
     @Test
@@ -231,7 +250,7 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("12")  // 1100
         let rhs = try bigInteger("10")  // 1010
         let result = kk_biginteger_xor(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "6") // 0110
+        #expect(stringValue(__kk_biginteger_toString(result)) == "6") // 0110
     }
 
     @Test
@@ -239,42 +258,42 @@ struct RuntimeBigIntegerTests {
         let lhs = try bigInteger("-1")
         let rhs = try bigInteger("0")
         let result = kk_biginteger_xor(lhs, rhs)
-        #expect(stringValue(kk_biginteger_toString(result)) == "-1")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-1")
     }
 
     @Test
     func testBigIntegerNotHandlesPositive() throws {
         let value = try bigInteger("0")
         let result = kk_biginteger_not(value)
-        #expect(stringValue(kk_biginteger_toString(result)) == "-1")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-1")
     }
 
     @Test
     func testBigIntegerNotHandlesNegative() throws {
         let value = try bigInteger("-1")
         let result = kk_biginteger_not(value)
-        #expect(stringValue(kk_biginteger_toString(result)) == "0")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "0")
     }
 
     @Test
     func testBigIntegerShiftLeft() throws {
         let value = try bigInteger("1")
         let result = kk_biginteger_shiftLeft(value, 3)
-        #expect(stringValue(kk_biginteger_toString(result)) == "8")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "8")
     }
 
     @Test
     func testBigIntegerShiftRight() throws {
         let value = try bigInteger("8")
         let result = kk_biginteger_shiftRight(value, 3)
-        #expect(stringValue(kk_biginteger_toString(result)) == "1")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "1")
     }
 
     @Test
     func testBigIntegerShiftRightNegative() throws {
         let value = try bigInteger("-8")
         let result = kk_biginteger_shiftRight(value, 1)
-        #expect(stringValue(kk_biginteger_toString(result)) == "-4")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-4")
     }
 
     // Regression coverage for a big-endian/little-endian mismatch in the
@@ -287,42 +306,42 @@ struct RuntimeBigIntegerTests {
     func testBigIntegerShiftLeftCrossesByteBoundary() throws {
         let value = try bigInteger("100")
         let result = kk_biginteger_shiftLeft(value, 3)
-        #expect(stringValue(kk_biginteger_toString(result)) == "800")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "800")
     }
 
     @Test
     func testBigIntegerShiftLeftCrossesByteBoundaryNegative() throws {
         let value = try bigInteger("-100")
         let result = kk_biginteger_shiftLeft(value, 3)
-        #expect(stringValue(kk_biginteger_toString(result)) == "-800")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-800")
     }
 
     @Test
     func testBigIntegerShiftRightCrossesByteBoundary() throws {
         let value = try bigInteger("291")
         let result = kk_biginteger_shiftRight(value, 4)
-        #expect(stringValue(kk_biginteger_toString(result)) == "18")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "18")
     }
 
     @Test
     func testBigIntegerShiftRightCrossesByteBoundaryNegative() throws {
         let value = try bigInteger("-291")
         let result = kk_biginteger_shiftRight(value, 4)
-        #expect(stringValue(kk_biginteger_toString(result)) == "-19")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "-19")
     }
 
     @Test
     func testBigIntegerShiftLeftLargeMagnitude() throws {
         let value = try bigInteger("12345678901234567890")
         let result = kk_biginteger_shiftLeft(value, 9)
-        #expect(stringValue(kk_biginteger_toString(result)) == "6320987597432098759680")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "6320987597432098759680")
     }
 
     @Test
     func testBigIntegerShiftRightLargeMagnitude() throws {
         let value = try bigInteger("12345678901234567890")
         let result = kk_biginteger_shiftRight(value, 9)
-        #expect(stringValue(kk_biginteger_toString(result)) == "24112654103973765")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "24112654103973765")
     }
 
     @Test
@@ -332,7 +351,7 @@ struct RuntimeBigIntegerTests {
         var thrown = 0
         let result = kk_biginteger_modInverse(value, modulus, &thrown)
         #expect(thrown == 0)
-        #expect(stringValue(kk_biginteger_toString(result)) == "4") // 3 * 4 ≡ 1 (mod 11)
+        #expect(stringValue(__kk_biginteger_toString(result)) == "4") // 3 * 4 ≡ 1 (mod 11)
     }
 
     @Test
@@ -361,7 +380,7 @@ struct RuntimeBigIntegerTests {
         var thrown = 0
         let result = kk_biginteger_modPow(base, exponent, modulus, &thrown)
         #expect(thrown == 0)
-        #expect(stringValue(kk_biginteger_toString(result)) == "4") // 3^4 = 81 ≡ 4 (mod 7)
+        #expect(stringValue(__kk_biginteger_toString(result)) == "4") // 3^4 = 81 ≡ 4 (mod 7)
     }
 
     @Test
@@ -372,7 +391,7 @@ struct RuntimeBigIntegerTests {
         var thrown = 0
         let result = kk_biginteger_modPow(base, exponent, modulus, &thrown)
         #expect(thrown == 0)
-        #expect(stringValue(kk_biginteger_toString(result)) == "1")
+        #expect(stringValue(__kk_biginteger_toString(result)) == "1")
     }
 
     @Test

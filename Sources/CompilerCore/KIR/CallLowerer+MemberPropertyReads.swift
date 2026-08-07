@@ -450,6 +450,12 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
+        if sema.symbols.propertyHasCustomGetter(for: propertySymbol) {
+            return true
+        }
+        if sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil {
+            return true
+        }
         for rawDecl in ast.arena.decls.indices {
             let declID = DeclID(rawValue: Int32(rawDecl))
             guard sema.bindings.declSymbols[declID] == propertySymbol,
@@ -462,33 +468,6 @@ extension CallLowerer {
                 return getter.body != .unit
             }
             return propertyDecl.delegateExpression != nil
-        }
-        return false
-    }
-
-    /// Mirrors `memberPropertyUsesAccessor` for the write side: true when the
-    /// property has a custom setter body that assignment must route through,
-    /// rather than writing the backing storage directly. Delegated properties
-    /// are deliberately excluded — their write dispatch already goes through
-    /// the existing chosenCallee-based fallback below, which this helper does
-    /// not need to (and should not) alter.
-    func memberPropertyHasCustomSetterBody(
-        _ propertySymbol: SymbolID,
-        ast: ASTModule,
-        sema: SemaModule
-    ) -> Bool {
-        for rawDecl in ast.arena.decls.indices {
-            let declID = DeclID(rawValue: Int32(rawDecl))
-            guard sema.bindings.declSymbols[declID] == propertySymbol,
-                  let decl = ast.arena.decl(declID),
-                  case let .propertyDecl(propertyDecl) = decl
-            else {
-                continue
-            }
-            if let setter = propertyDecl.setter {
-                return setter.body != .unit
-            }
-            return false
         }
         return false
     }

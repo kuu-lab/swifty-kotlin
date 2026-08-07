@@ -1,6 +1,7 @@
 // STDLIB-TEXT-FN-092: End-to-end execution tests for String.toByteArray().
-// toByteArray() is typed as List<Int> by Sema (via kk_string_toByteArray), so
-// .size and [i] use the list accessor path, not the ByteArray/array path.
+// toByteArray() and its charset overload are Kotlin-sourced (kotlin/text/StringEncoding.kt)
+// and return an actual ByteArray/ArrayBox, backed by the __kk_string_toByteArray_flat /
+// __kk_string_toByteArray_charset_flat runtime bridges in RuntimeStringEncoding.swift.
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation

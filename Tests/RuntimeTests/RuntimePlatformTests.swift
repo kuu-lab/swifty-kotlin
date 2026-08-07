@@ -57,9 +57,11 @@ struct RuntimePlatformTests {
 
     @Test
     func testIsDebugBinaryIsTrueInDebugBuilds() {
-        // Tests run under the debug configuration; _isDebugAssertConfiguration() should be true.
+        // This expectation is only valid under debug builds; release builds return 0.
+        #if DEBUG
         let result = kk_platform_isDebugBinary(0)
         #expect(result == 1, "kk_platform_isDebugBinary should return 1 when compiled with debug assertions")
+        #endif
     }
 
     @Test

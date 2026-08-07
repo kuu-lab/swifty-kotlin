@@ -208,6 +208,7 @@ final class ObjectLiteralLowerer {
         appendObjectItableMethodRegistrations(
             objectValue: objectValue,
             nominalSymbol: objectSymbol,
+            driver: driver,
             sema: sema,
             arena: arena,
             interner: interner,

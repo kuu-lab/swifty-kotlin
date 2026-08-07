@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-08-01
+最終更新: 2026-08-02
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -33,7 +33,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節） |
-| DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
+| DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 4 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・`coroutine_exception_handling.kt`・`coroutine_scope_lifecycle.kt`・structured concurrency / Deferred / Supervisor 3 件は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_exception_handling.kt`, `coroutine_scope_lifecycle.kt`, `coroutine_supervisor_job.kt`, `coroutine_structured_concurrency.kt`, `coroutine_deferred.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 7 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離。`file_use_edge_cases.kt` は解除済み |
@@ -65,16 +65,28 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 - `path_basic.kt`(`kotlin.io.path`): 2026-07-09 解除済み。`import kotlin.io.path.Path` が `Path()` ファクトリしか import せず、`createDirectories` / `exists` / `writeText` 等の拡張関数・拡張プロパティが unresolved だったのが真因(`resolve` / `relativize` / `normalize` 等は `java.nio.file.Path` のネイティブメンバなので import 不要で解決していた)。`import kotlin.io.path.*` に変更し、`--force-run-skipped` で reference/candidate 一致を確認した上で通常 diff に復帰した。
 - `uuid_basic.kt`(`kotlin.uuid.Uuid`): 2026-07-09 解除済み。skip 理由は当初「KSwiftK 独自 UUID API」としていたが、実体は標準 `kotlin.uuid.Uuid`(`@OptIn(ExperimentalUuidApi)`)であり、テスト側が `version()`/`variant()`/`nameUUIDFromBytes()`/`toLongs()`/非推奨化前の `LEXICAL_ORDER` など `java.util.UUID` の命名と混同した非標準メンバーを呼んでいたのが真因(`kotlin-stdlib-sources.jar` 同梱の実 API と照合して確認)。これら非標準メンバーの呼び出しを削除し、`fromLongs` を既知の定数値で検証する形に置き換え、実 kotlinc 2.4.0 / kswiftc 双方で出力が完全一致することを確認した上で通常 diff に復帰した。`Stdlib/kotlin/uuid/Uuid.kt` 側の `version()`/`variant()`/`nameUUIDFromBytes()`/`toLongs()`/`LEXICAL_ORDER` 実装自体(削除するか candidate-only 扱いにするか)は本件のスコープ外で未着手。
 
-## DEBT-DIFF-002: script-style cases
+## DEBT-DIFF-002: script-style cases（解消済み、2026-07-29）
 
-| グループ | cases | blocker | 次アクション |
+対象だった7ケースとも `SKIP-DIFF` を解除し、通常の `diff_kotlinc.sh` 経路で green。
+
+| グループ | cases | 解消日 | 根本原因と対応 |
 | --- | --- | --- | --- |
-| timeout-only suspect | `script_imports.kt`, `script_repl_interactive.kt`, `script_repl_patterns.kt` | script mode は `kotlinc -script` の compile + run を `RUN_TIMEOUT` で縛っている | script 専用 timeout を `COMPILE_TIMEOUT` 系へ分離し、再実行して pass なら skip を外す |
-| top-level functions / custom declarations | `script_function_basic.kt`, `script_function_advanced.kt`, `script_toplevel_functions.kt`, `script_import_custom.kt` | KSwiftK 側の top-level script execution と kotlinc script mode の一致未確認 | timeout 分離後に `--force-run-skipped` で実測し、失敗が Sema / lowering 起因なら通常 `.kt` parity case へ分割 |
+| timeout-only suspect | `script_imports.kt`, `script_repl_interactive.kt`, `script_repl_patterns.kt` | 2026-07-09 | script mode (`kotlinc -script`) の JVM 起動 + compile + run を `RUN_TIMEOUT`（デフォルト10s）で縛っていたのが原因。`--script-timeout` を `COMPILE_TIMEOUT` 系へ分離して解決 |
+| top-level functions / custom declarations | `script_function_basic.kt`, `script_function_advanced.kt`, `script_toplevel_functions.kt`, `script_import_custom.kt` | 2026-07-29 | 下記「top-level functions / custom declarations 詳細」を参照 |
 
-既に skip されていない `script_*.kt` が複数あるため、script 全体ではなく上記 7 件だけを再判定する。
+### top-level functions / custom declarations 詳細（2026-07-29）
 
-`script_import_stdlib.kt` は解除済み: `shuffled()` を `shuffled(Random(42)).sorted()` に変更し、出力順序に依存しない決定論的検証にした(`sequence_shuffled.kt` と同じ idiom)。KSwiftK の `Random` は JVM kotlinc と PRNG アルゴリズムが異なる(xorshift64\* 系の自前実装で XorWow ではない、`KSP-466`)ため、seed を固定しても生の並び順は一致しない。なお、ローカル既定の `RUN_TIMEOUT=10s` は `kotlinc -script` の起動コストだけで超過する(`script_import_stdlib.kt` に限らず `script_hello.kt` など他の非 skip ケースでも同様に再現する、この環境固有の傾向)。CI は `DIFF_RUN_TIMEOUT=30` を使用しており、その設定なら安定して pass する — timeout-only suspect グループの再判定でも同じ値を使うとよい。
+症状: candidate (kswiftc) が `KSWIFTK-LINK-0002: No entry point 'main' function found for executable emission.` でコンパイル失敗し続けていた（reference の `kotlinc -script` は成功）。
+
+根本原因: `KotlinParser.parseFile()`（`Sources/CompilerCore/Parser/KotlinParser.swift`）の script 判定が、top-level に `fun` / `class` / `data class` / 拡張関数などの宣言が1つでもあると、たとえ top-level 実行文（`println(...)` 等）が存在してもルート種別を `.script` ではなく `.kotlinFile` に倒す実装だった（`sawNonPropertyDecl` フラグ）。`.kotlinFile` 扱いになると top-level の bare statement は `BuildASTPhase`（`Sources/CompilerCore/Driver/FrontendPhases.swift`）のどの case にもマッチせず黙って破棄され、`main` も合成されないため、link 段階で「エントリポイントが無い」エラーになっていた。実 Kotlin の `.kts` スクリプトは `package` 宣言以外の任意の宣言を top-level 文と自由に混在できるため、この判定は過度に狭かった（この判定は2026-02-17時点で「まず val/var だけ許可する」形で段階的に導入されたもので、fun/class 等への拡張は本チケットまで未着手だった）。
+
+対応:
+1. `sawNonPropertyDecl` を `sawPackageHeader` に置き換え、script 判定条件を「top-level 実行文が存在し、かつ `package` 宣言が無い」まで単純化。
+2. top-level `fun` 宣言は元々 `.funDecl` として通常の top-level `FunDecl` に登録される一方、`isStatementLikeKind`（`Sources/CompilerCore/AST/BuildASTPhase+BodyParsing.swift`）は `.funDecl` も「文」として扱うため、(1) だけでは script root 合成時に同じ関数が合成 `main()` 内のローカル関数宣言としても二重登録されてしまう。`blockExpressions` / `collectBlockStatementGroups` に `excludingTopLevelFunDecls` オプションを追加し、script root からの呼び出し（`FrontendPhases.swift`）でのみ `.funDecl` を除外して二重登録を防いだ。`class` / `interface` / `object` / `typealias` / `enumEntry` は元々 `isStatementLikeKind` に含まれておらず対象外（重複しない）。
+
+回帰確認: 4 ケースを `--force-run-skipped` で green 化した後、既存の非 skip `script_*.kt`（13件）にも回帰がないことを個別確認。`Tests/CompilerCoreTests/Integration/ScriptModeTests.swift` に、top-level 宣言と top-level 文が混在するパターンの root kind 判定・二重登録防止・実際の KIR コンパイルを固定する回帰テストを追加。
+
+`script_import_stdlib.kt` は2026-07-09に解除済み（本チケットの7件には含まれないが同じ調査の過程で解消): `shuffled()` を `shuffled(Random(42)).sorted()` に変更し、出力順序に依存しない決定論的検証にした(`sequence_shuffled.kt` と同じ idiom)。KSwiftK の `Random` は JVM kotlinc と PRNG アルゴリズムが異なる(xorshift64\* 系の自前実装で XorWow ではない、`KSP-466`)ため、seed を固定しても生の並び順は一致しない。なお、ローカル既定の `RUN_TIMEOUT=10s` は `kotlinc -script` の起動コストだけで超過する(`script_import_stdlib.kt` に限らず `script_hello.kt` など他の非 skip ケースでも同様に再現する、この環境固有の傾向)。CI は `DIFF_RUN_TIMEOUT=30` を使用しており、その設定なら安定して pass する。
 
 ## DEBT-DIFF-003: advanced coroutine / channel / Flow
 
@@ -186,7 +198,7 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
 | Sequence source/runtime interop | `flatten_sequence_edge_cases.kt`, `sequence_lazy_eval.kt` | source Sequence object-expression は runtime List/Sequence/RuntimeSequenceBox ハンドルに対する `.iterator()` 仮想ディスパッチが未整備（`sequence {}` builder 含む KSP-447 残留） | KSP-441 後続 / KSP-447 で itable ブリッジを整備後に `--force-run-skipped` で再判定 |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
-| Property delegates | `property_delegate_edge_cases.kt` | delegate lowering 起因と確定（stdlib 側の `Delegates.observable`/`vetoable`/`lazy` 実装・ランタイム ABI は正しい）。クラスメンバの delegate プロパティ初期化で2件のバグを修正済みだが、残り2件（uncommitted, 別 owner）が残るため引き続き skip | 残課題（下記注記）を個別に修正してから通常 diff へ |
+| Property delegates | `property_delegate_edge_cases.kt` | 解消済み（BUG-151）: クラスメンバ初期化、コールバック本文の型チェック、暗黙 `this` の捕捉、Function3 ABI を修正し SKIP-DIFF を解除 | — |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | named group / invalid pattern parity | RuntimeRegex と diagnostic behavior の regression に分割 |
 | ByteArray helpers | `string_tobytearray.kt` | 解消済み（BUG-019 / KSP-660）: `joinToString(sep)` / `contentEquals` は #4671 で合成スタブ化され、SKIP-DIFF 無しで通常 diff を通過。`transform` 付き overload の gap は別課題として BUG-158 に切り出し | — |
 | File/use | `file_use_edge_cases.kt` | 解消済み（2026-07-29）: `Closeable.use` と `java.io.File` surface のgapは解消しており、`--force-run-skipped` の再判定で通常 diff PASS を確認した | — |
@@ -200,16 +212,20 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 
 `experimental_time_edge_cases.kt` は実行速度差で stdout が揺れるため、固定 clock / larger duration / unit test のどれかへ寄せてから diff に戻す。
 
-`property_delegate_edge_cases.kt` の詳細（2026-07-09 調査）: クラスメンバの `val/var x by lazy {...} / Delegates.observable(...)/vetoable(...)` は、トップレベルプロパティ用の実装（`KIRLoweringDriver+ModuleLowering+PropertyDecl.swift`）とは別系統の実装（`MemberLowerer` / `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift`）で lowering されており、そちらは `StdlibDelegateKind`（`lazy`/`observable`/`vetoable`/`notNull`）を想定していなかった。以下4件のバグを確認し、(1)(2) はワークツリーに修正を適用済み（未コミット）:
+`property_delegate_edge_cases.kt` の詳細（2026-07-09 調査）: クラスメンバの `val/var x by lazy {...} / Delegates.observable(...)/vetoable(...)` は、トップレベルプロパティ用の実装（`KIRLoweringDriver+ModuleLowering+PropertyDecl.swift`）とは別系統の実装（`MemberLowerer` / `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift`）で lowering されており、そちらは `StdlibDelegateKind`（`lazy`/`observable`/`vetoable`/`notNull`）を想定していなかった。以下の問題はいずれも修正済み:
 
 1. **[修正済み]** `MemberLowerer+DelegatedAndAccessorLowering.swift` の `lowerDelegateAccessor`: `.custom` 以外（`lazy`/`observable`/`vetoable`/`notNull`）の getter/setter が `kk_lazy_get_value`/`kk_observable_set_value` 等を呼ぶ際、delegate ハンドル（`$delegate_x` の値）を引数に含めていなかった（`arguments: []` / `arguments: [valueExprID]` のみ）。ランタイム ABI（`kk_lazy_get_value(handle)`, `kk_observable_set_value(handle, newValue)` 等、`RuntimeABISpec+Delegate.swift`）は handle 必須のため、実引数0/1個で宣言された LLVM 外部関数型と実体（Swift `@_cdecl` 関数）のシグネチャが食い違い、`handle` が不定値になり `null`/`0` を返し続けていた。
 2. **[修正済み]** `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift` の `emitDelegatePropertyInitializer`: メンバプロパティの delegate 初期化はコンストラクタ内で `propertyDecl.delegateExpression` のみを評価しており、トレーリングラムダ `propertyDecl.delegateBody`（`lazy` の初期化ブロック、`observable`/`vetoable` のコールバック）を一切参照していなかった。`lazy` は `kk_lazy_create` 呼び出し自体が欠落（生のクロージャ参照を直接フィールドへ copy）、`observable`/`vetoable` は `kk_*_create` の初期値のみ渡りコールバック引数が欠落していた。トップレベル実装が持つ `emitLazyDelegateInit`/`emitCallbackDelegateInit`（`lowerDelegateInitialValue`/`lowerDelegateLambdaBody` を使用）と同等のロジックを `StdlibDelegateKind` 判定つきで追加した。
-3. **[未修正・delegate 固有]** パラメータ付きトレーリングラムダ（`Delegates.observable(1) { _, old, new -> println(...) }` のような `_, old, new ->` prefix 付き）の `delegateBody` 抽出（`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` → `blockExpressions`）が、文単位区切りを前提にした汎用パーサーのため、パラメータリスト+アロー構文を正しく扱えず、コールバック本文が `unit` として消えている（`println`/比較式が一切実行されない）。`lazy` のようにパラメータなしの trailing block は正しく抽出できる。
-4. **[未修正・delegate と無関係の一般バグ]** bare-name（暗黙 `this`）の compound assign / inc-dec（`count += 1`, `count++`）がクラスメンバフィールドに対して書き込みを永続化しない。`ExprLowerer+ControlFlowAndBlocks.swift` の `.compoundAssign` 処理は top-level/object-member（親 kind が nil/`.package`/`.object`）と mutable-capture-boxed のケースのみ扱い、`.class`/`.interface` 所有のフィールドは「ephemeral local」フォールバックに落ちて `ctx` 上でのみ更新され実フィールドへの `kk_array_set` を発行しない。`this.count += 1`（明示レシーバ、PR #4633 で修正済みの経路）は正しく動く。`property_delegate_edge_cases.kt` の `lazy { initCount += 1; "ready" }` はこれに該当し、`token` の値自体は (1)(2) 修正で "ready" に直ったが `initCount` は 0 のまま。最小再現: `class C { var n = 0; fun f() { n += 1 } }` で `f()` 後も `n` が 0。
+3. **[修正済み・BUG-151]** パラメータ付きトレーリングラムダ（`Delegates.observable(1) { _, old, new -> println(...) }` のような `_, old, new ->` prefix 付き）の `delegateBody` 抽出（`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` → `blockExpressions`）が、文単位区切りを前提にした汎用パーサーのため、パラメータリスト+アロー構文を正しく扱えず、コールバック本文が `unit` として消えていた（`println`/比較式が一切実行されない）。`lazy` のようにパラメータなしの trailing block は正しく抽出できていた。BUG-151 で block トークン列を `parseLambdaLiteral()` で再パースし、パラメータ名を KIR の synthetic パラメータへ束縛するよう修正。
+4. **[修正済み]** bare-name（暗黙 `this`）の compound assign / inc-dec（`count += 1`, `count++`）がクラスメンバフィールドに対して書き込みを永続化せず、「ephemeral local」へ落ちていた。暗黙 receiver と nominal layout の field offset を使い、実フィールドへ `kk_array_set` するよう修正。
 
-3, 4 はどちらも本ケースの完全な pass に必要だが、4 は property delegate と無関係の独立した一般correctness bugであり、3 も AST パーサー層の変更を要するため、本 SKIP-DIFF 解除作業のスコープ外として別タスクに切り出した。
+5. **[修正済み]** `observable`/`vetoable` の3引数コールバックは、Sema が callback body と引数を型チェックし、KIR が暗黙 receiver を boxed Function3 に捕捉する。Runtime は `kk_function_invoke_3` で raw thunk と boxed closure の両方を呼び分ける。
 
-**2026-07-29 追記（DEBT-KIR-008 修正）**: 上記調査では見落とされていた5件目のバグを発見・修正した。`propertyDecl.delegateBody`（トレーリングラムダ本体）は `delegateExpression` と異なり Sema の型チェック（`identifierSymbols` 束縛）を一切通っておらず、`lazy { label }` のように囲む class member を参照する式は静かに `.unit` に落ちていた（`lazy { "literal" }` のような無参照の本体だけが偶然動いていた）。加えて `$delegate_x`（delegate ハンドルを保持するフィールド）は `nominalLayout` の field offset には登録されるものの、getter/setter/コンストラクタ初期化子が実際には module-global スロットとして読み書きしており、クラスの全インスタンスで共有されていた（DEBT-KIR-008 本体の症状）。`.lazy`（trailing lambda が 0 引数のケースのみ、`kk_function_invoke_0` の boxed-closure dispatch を利用）に限定してこの2件を修正済み。`.observable`/`.vetoable` のコールバック（3引数、`RuntimeDelegates.swift` の raw thunk 前提の `unsafeBitCast` 経由で呼ばれるため boxed closure 化不可）は意図的に対象外のまま。この修正の副作用として、`lazy { initCount += 1; "ready" }` のようにレシーバ経由の compound assign が lazy 本体内にある場合は (4) の症状も解消される（compound assign 自体の一般バグは `this.count += 1` を除き引き続き未修正）。残課題 3・4 は変わらず本ケースの完全な pass をブロックするため `SKIP-DIFF` は継続。
+`property_delegate_edge_cases.kt` は上記の回帰ケースとして SKIP-DIFF を解除し、通常の kotlinc 差分対象へ戻した。
+
+**2026-07-29 追記（DEBT-KIR-008 修正）**: 上記調査では見落とされていた5件目のバグを発見・修正した。`propertyDecl.delegateBody`（トレーリングラムダ本体）は `delegateExpression` と異なり Sema の型チェック（`identifierSymbols` 束縛）を一切通っておらず、`lazy { label }` のように囲む class member を参照する式は静かに `.unit` に落ちていた（`lazy { "literal" }` のような無参照の本体だけが偶然動いていた）。加えて `$delegate_x`（delegate ハンドルを保持するフィールド）は `nominalLayout` の field offset には登録されるものの、getter/setter/コンストラクタ初期化子が実際には module-global スロットとして読み書きしており、クラスの全インスタンスで共有されていた（DEBT-KIR-008 本体の症状）。`.lazy`（trailing lambda が 0 引数のケースのみ、`kk_function_invoke_0` の boxed-closure dispatch を利用）に限定してこの2件を修正した。
+
+**2026-07-30 追記（BUG-151 完了）**: `observable`/`vetoable` の3引数 callback も、Sema の callback body 型チェックと boxed Function3 ABI により暗黙 receiver を捕捉できるようにした。bare-name compound assign の instance-field store も同PRで修正し、`property_delegate_edge_cases.kt` の SKIP-DIFF を解除した。
 
 ## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29）
 

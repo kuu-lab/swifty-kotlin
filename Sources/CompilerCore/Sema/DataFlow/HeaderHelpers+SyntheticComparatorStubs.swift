@@ -316,6 +316,95 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Register single-selector `compareBy`/`compareByDescending` overloads.
+    /// Source-backed definitions in `kotlin.comparisons.Comparators.kt` are
+    /// patched to route through runtime helpers that build a `Comparator`
+    /// without requiring cross-module inline-KIR closure expansion.
+    func registerCompareBySingleSelector(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        comparisonsPkg: [InternedString],
+        comparisonsPackageSymbol: SymbolID,
+        comparatorSymbol: SymbolID
+    ) {
+        let comparatorFQName = symbols.symbol(comparatorSymbol)?.fqName ?? comparisonsPkg
+        let tParamName = interner.intern("T")
+        let tParamFQName = comparatorFQName + [tParamName]
+        guard let tParamSymbol = symbols.lookup(fqName: tParamFQName) else { return }
+        let tParamType = types.make(.typeParam(TypeParamType(
+            symbol: tParamSymbol, nullability: .nonNull
+        )))
+
+        let comparatorType = types.make(.classType(ClassType(
+            classSymbol: comparatorSymbol,
+            args: [.invariant(tParamType)],
+            nullability: .nonNull
+        )))
+        let selectorType = types.make(.functionType(FunctionType(
+            params: [tParamType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        for (name, extLink) in [
+            ("compareBy", "kk_comparator_from_selector"),
+            ("compareByDescending", "kk_comparator_from_selector_descending"),
+        ] {
+            let functionName = interner.intern(name)
+            let functionFQName = comparisonsPkg + [functionName]
+
+            let existing = symbols.lookupAll(fqName: functionFQName).filter { symbolID in
+                guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes.count == 1 && !sig.valueParameterIsVararg.contains(true)
+            }.first
+
+            if let existing {
+                // Only patch imported stdlib artifact symbols with a runtime
+                // bridge; source-backed bundled declarations remain inlineable.
+                if symbols.symbol(existing)?.flags.contains(.importedLibrary) == true {
+                    symbols.setExternalLinkName(extLink, for: existing)
+                }
+                continue
+            }
+
+            let funcSymbol = symbols.define(
+                kind: .function,
+                name: functionName,
+                fqName: functionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(comparisonsPackageSymbol, for: funcSymbol)
+            symbols.setExternalLinkName(extLink, for: funcSymbol)
+
+            let selectorParamSymbol = symbols.define(
+                kind: .valueParameter,
+                name: interner.intern("selector"),
+                fqName: functionFQName + [interner.intern("selector")],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(funcSymbol, for: selectorParamSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [selectorType],
+                    returnType: comparatorType,
+                    isSuspend: false,
+                    valueParameterSymbols: [selectorParamSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [tParamSymbol],
+                    typeParameterUpperBoundsList: [[]]
+                ),
+                for: funcSymbol
+            )
+        }
+    }
+
     private func registerNullsComparators(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -706,6 +795,32 @@ extension DataFlowSemaPhase {
                 typeParameterUpperBoundsList: [[]]
             ),
             for: funcSymbol
+        )
+    }
+
+    /// Replay single-selector `compareBy`/`compareByDescending` registration after
+    /// bundled headers have been collected so existing source-backed definitions
+    /// can be patched with a runtime external link instead of creating duplicate
+    /// synthetic symbols.
+    func registerCompareBySingleSelectorPostBundled(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let comparisonsPkg: [InternedString] = kotlinPkg + [interner.intern("comparisons")]
+        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
+        let comparisonsPackageSymbol = ensureSyntheticPackage(fqName: comparisonsPkg, symbols: symbols)
+        guard let comparatorSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Comparator")]) else {
+            return
+        }
+        registerCompareBySingleSelector(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            comparisonsPkg: comparisonsPkg,
+            comparisonsPackageSymbol: comparisonsPackageSymbol,
+            comparatorSymbol: comparatorSymbol
         )
     }
 }

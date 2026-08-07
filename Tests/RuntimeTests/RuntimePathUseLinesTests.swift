@@ -1,6 +1,7 @@
+#if canImport(Testing)
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PATH-FN-038 lambda thunks for useLines
 //
@@ -41,10 +42,8 @@ private func fnPtrLambda1(_ fn: @convention(c) (Int, Int, UnsafeMutablePointer<I
 ///
 /// Covers kk_path_useLines and kk_path_useLines_default — the runtime entries for
 /// the kotlin.io.path.useLines extension function.
-final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
+struct RuntimePathUseLinesTests {
     // MARK: - Helpers
 
     private func makeRuntimeString(_ value: String) -> Int {
@@ -61,7 +60,7 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - kk_path_useLines_default
 
-    func testUseLinesDefaultInvokesBlockOnceWithAllLines() throws {
+    @Test func testUseLinesDefaultInvokesBlockOnceWithAllLines() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "alpha\nbeta\ngamma".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -72,12 +71,12 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_useLines_default(pathRaw, fnPtrLambda1(useLinesCapture), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_useLinesInvokedCount, 1, "block should be invoked exactly once")
-        XCTAssertEqual(kk_list_size(_useLinesListRaw), 3)
+        #expect(thrown == 0)
+        #expect(_useLinesInvokedCount == 1, "block should be invoked exactly once")
+        #expect(kk_list_size(_useLinesListRaw) == 3)
     }
 
-    func testUseLinesDefaultEmptyFilePassesEmptyList() throws {
+    @Test func testUseLinesDefaultEmptyFilePassesEmptyList() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -88,12 +87,12 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_useLines_default(pathRaw, fnPtrLambda1(useLinesCapture), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_useLinesInvokedCount, 1)
-        XCTAssertEqual(kk_list_size(_useLinesListRaw), 0)
+        #expect(thrown == 0)
+        #expect(_useLinesInvokedCount == 1)
+        #expect(kk_list_size(_useLinesListRaw) == 0)
     }
 
-    func testUseLinesDefaultTrailingNewlineDoesNotProduceEmptyLine() throws {
+    @Test func testUseLinesDefaultTrailingNewlineDoesNotProduceEmptyLine() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "line1\nline2\n".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -103,18 +102,18 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_useLines_default(pathRaw, fnPtrLambda1(useLinesCapture), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_list_size(_useLinesListRaw), 2)
+        #expect(thrown == 0)
+        #expect(kk_list_size(_useLinesListRaw) == 2)
     }
 
-    func testUseLinesDefaultNonExistentFileThrows() {
+    @Test func testUseLinesDefaultNonExistentFileThrows() {
         let pathRaw = runtimeTestPathHandle("/nonexistent/\(UUID().uuidString).txt")
         var thrown = 0
         _ = kk_path_useLines_default(pathRaw, fnPtrLambda1(useLinesCapture), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
-    func testUseLinesDefaultBlockReturnValuePropagates() throws {
+    @Test func testUseLinesDefaultBlockReturnValuePropagates() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "a\nb\nc\nd".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -123,11 +122,11 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let result = kk_path_useLines_default(pathRaw, fnPtrLambda1(useLinesReturnCount), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 4)
+        #expect(thrown == 0)
+        #expect(result == 4)
     }
 
-    func testUseLinesDefaultBlockThrownPropagates() throws {
+    @Test func testUseLinesDefaultBlockThrownPropagates() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "line".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -135,12 +134,12 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
         _ = kk_path_useLines_default(pathRaw, fnPtrLambda1(useLinesAlwaysThrows), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - kk_path_useLines (with charset)
 
-    func testUseLinesWithDefaultCharsetInvokesBlockOnce() throws {
+    @Test func testUseLinesWithDefaultCharsetInvokesBlockOnce() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "one\ntwo\nthree".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -152,12 +151,12 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         // charsetRaw == 0 selects UTF-8 (default)
         _ = kk_path_useLines(pathRaw, 0, fnPtrLambda1(useLinesCapture), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_useLinesInvokedCount, 1)
-        XCTAssertEqual(kk_list_size(_useLinesListRaw), 3)
+        #expect(thrown == 0)
+        #expect(_useLinesInvokedCount == 1)
+        #expect(kk_list_size(_useLinesListRaw) == 3)
     }
 
-    func testUseLinesWithCharsetReturnValuePropagates() throws {
+    @Test func testUseLinesWithCharsetReturnValuePropagates() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "x\ny\nz".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -166,7 +165,8 @@ final class RuntimePathUseLinesTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let result = kk_path_useLines(pathRaw, 0, fnPtrLambda1(useLinesReturnCount), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 3)
+        #expect(thrown == 0)
+        #expect(result == 3)
     }
 }
+#endif

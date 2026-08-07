@@ -1,6 +1,7 @@
 import Dispatch
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-CORO-BUG-01: Resume-once (one-shot) guard tests
 //
@@ -10,10 +11,8 @@ import XCTest
 // (resume(with:)) and the exception path (resume(withException:)), and that
 // concurrent callers on separate threads are correctly serialised.
 
-final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeContinuationOneShotTests {
     // MARK: - Helpers
 
     /// Creates a fresh `RuntimeContinuationState` for testing without kicking
@@ -34,36 +33,38 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
     // MARK: - Basic one-shot guard: success value
 
     /// First `resume(with:)` returns nil (no error).
-    func testFirstResumeWithValueReturnsNil() {
+    @Test
+    func firstResumeWithValueReturnsNil() {
         let state = makeFreshState()
         let result = state.resume(with: 42)
-        XCTAssertNil(result, "First resume(with:) must succeed (return nil)")
+        #expect(result == nil, "First resume(with:) must succeed (return nil)")
     }
 
     /// Second `resume(with:)` returns an IllegalStateException.
-    func testSecondResumeWithValueReturnsIllegalStateException() {
+    @Test
+    func secondResumeWithValueReturnsIllegalStateException() {
         let state = makeFreshState()
         _ = state.resume(with: 42)
         let doubleResumeEx = state.resume(with: 99)
-        XCTAssertNotNil(doubleResumeEx, "Second resume(with:) must return IllegalStateException")
-        XCTAssertTrue(
+        #expect(doubleResumeEx != nil, "Second resume(with:) must return IllegalStateException")
+        #expect(
             isIllegalStateException(doubleResumeEx ?? 0),
             "Double-resume exception must be IllegalStateException"
         )
     }
 
     /// The IllegalStateException message must contain "Already resumed".
-    func testDoubleResumeWithValueExceptionMessage() {
+    @Test
+    func doubleResumeWithValueExceptionMessage() throws {
         let state = makeFreshState()
         _ = state.resume(with: 7)
-        let ex = state.resume(with: 13)!
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: ex),
-              let box = tryCast(ptr, to: RuntimeIllegalStateExceptionBox.self)
-        else {
-            XCTFail("Exception is not an IllegalStateException box")
-            return
-        }
-        XCTAssertTrue(
+        let ex = try #require(state.resume(with: 13))
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: ex))
+        let box = try #require(
+            tryCast(ptr, to: RuntimeIllegalStateExceptionBox.self),
+            "Exception is not an IllegalStateException box"
+        )
+        #expect(
             box.message.contains("Already resumed"),
             "Exception message must contain 'Already resumed', got: \(box.message)"
         )
@@ -72,35 +73,38 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
     // MARK: - Basic one-shot guard: exception value
 
     /// First `resume(withException:)` returns nil (no error).
-    func testFirstResumeWithExceptionReturnsNil() {
+    @Test
+    func firstResumeWithExceptionReturnsNil() {
         let state = makeFreshState()
         let ex = runtimeAllocateThrowable(message: "boom")
         let result = state.resume(withException: ex)
-        XCTAssertNil(result, "First resume(withException:) must succeed (return nil)")
+        #expect(result == nil, "First resume(withException:) must succeed (return nil)")
     }
 
     /// Second `resume(withException:)` (after first success resume) returns ISE.
-    func testSecondResumeWithExceptionAfterSuccessReturnsISE() {
+    @Test
+    func secondResumeWithExceptionAfterSuccessReturnsISE() {
         let state = makeFreshState()
         _ = state.resume(with: 1)
         let ex = runtimeAllocateThrowable(message: "boom2")
         let doubleEx = state.resume(withException: ex)
-        XCTAssertNotNil(doubleEx, "Second resume(withException:) must return IllegalStateException")
-        XCTAssertTrue(
+        #expect(doubleEx != nil, "Second resume(withException:) must return IllegalStateException")
+        #expect(
             isIllegalStateException(doubleEx ?? 0),
             "Double-resume exception must be IllegalStateException"
         )
     }
 
     /// Second `resume(withException:)` after first exception resume also returns ISE.
-    func testSecondResumeWithExceptionAfterExceptionReturnsISE() {
+    @Test
+    func secondResumeWithExceptionAfterExceptionReturnsISE() {
         let state = makeFreshState()
         let ex1 = runtimeAllocateThrowable(message: "first exception")
         _ = state.resume(withException: ex1)
         let ex2 = runtimeAllocateThrowable(message: "second exception")
         let doubleEx = state.resume(withException: ex2)
-        XCTAssertNotNil(doubleEx, "Second resume(withException:) must return IllegalStateException")
-        XCTAssertTrue(
+        #expect(doubleEx != nil, "Second resume(withException:) must return IllegalStateException")
+        #expect(
             isIllegalStateException(doubleEx ?? 0),
             "Double-resume exception must be IllegalStateException"
         )
@@ -109,20 +113,22 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
     // MARK: - resetResumeState resets the guard
 
     /// After `resetResumeState()`, a fresh resume must succeed (no ISE).
-    func testResetResumeStateAllowsSecondResumeToSucceed() {
+    @Test
+    func resetResumeStateAllowsSecondResumeToSucceed() {
         let state = makeFreshState()
         _ = state.resume(with: 1)
         // Simulate the coroutine loop advancing to the next suspend point
         state.resetResumeState()
         let result = state.resume(with: 2)
-        XCTAssertNil(result, "resume(with:) after resetResumeState() must succeed")
+        #expect(result == nil, "resume(with:) after resetResumeState() must succeed")
     }
 
     // MARK: - deliverDoubleResumeException sets thrownException
 
     /// `deliverDoubleResumeException` must overwrite `thrownException` so that
     /// the coroutine body observes the violation when it next reads state.
-    func testDeliverDoubleResumeExceptionSetsThrownException() {
+    @Test
+    func deliverDoubleResumeExceptionSetsThrownException() {
         let state = makeFreshState()
         _ = state.resume(with: 42)
         // Simulate what the C-level entry points do on double-resume.
@@ -130,33 +136,34 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
             message: "Already resumed, but proposed with update 99"
         )
         state.deliverDoubleResumeException(ise)
-        XCTAssertEqual(
-            state.thrownException, ise,
+        #expect(
+            state.thrownException == ise,
             "deliverDoubleResumeException must store the ISE in thrownException"
         )
-        XCTAssertEqual(state.completion, 0, "completion must be reset to 0 on double-resume")
+        #expect(state.completion == 0, "completion must be reset to 0 on double-resume")
     }
 
     // MARK: - C-level entry-point guard (kk_coroutine_continuation_resume)
 
     /// Calling `kk_coroutine_continuation_resume` twice must not crash and must
     /// surface the IllegalStateException via `thrownException` on the second call.
-    func testCLevelResumeGuardSurfacesIllegalStateExceptionViaThrownException() {
+    @Test
+    func cLevelResumeGuardSurfacesIllegalStateExceptionViaThrownException() throws {
         let continuation = kk_coroutine_continuation_new(8001)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
-        guard let state = runtimeContinuationState(from: continuation) else {
-            XCTFail("Could not retrieve RuntimeContinuationState for continuation")
-            return
-        }
+        let state = try #require(
+            runtimeContinuationState(from: continuation),
+            "Could not retrieve RuntimeContinuationState for continuation"
+        )
 
         // First resume: should succeed silently.
         kk_coroutine_continuation_resume(continuation, 42)
-        XCTAssertEqual(state.thrownException, 0, "thrownException must be 0 after first resume")
+        #expect(state.thrownException == 0, "thrownException must be 0 after first resume")
 
         // Second resume: must deliver ISE via thrownException.
         kk_coroutine_continuation_resume(continuation, 99)
-        XCTAssertTrue(
+        #expect(
             isIllegalStateException(state.thrownException),
             "thrownException must be IllegalStateException after double-resume via C-level API"
         )
@@ -164,22 +171,23 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
 
     /// Calling `kk_coroutine_continuation_resume_with_exception` twice must
     /// surface ISE via `thrownException`.
-    func testCLevelResumeWithExceptionGuardSurfacesISE() {
+    @Test
+    func cLevelResumeWithExceptionGuardSurfacesISE() throws {
         let continuation = kk_coroutine_continuation_new(8002)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
-        guard let state = runtimeContinuationState(from: continuation) else {
-            XCTFail("Could not retrieve RuntimeContinuationState")
-            return
-        }
+        let state = try #require(
+            runtimeContinuationState(from: continuation),
+            "Could not retrieve RuntimeContinuationState"
+        )
 
         let ex1 = runtimeAllocateThrowable(message: "first exception")
         kk_coroutine_continuation_resume_with_exception(continuation, ex1)
-        XCTAssertEqual(state.thrownException, ex1, "First resume must store the original exception")
+        #expect(state.thrownException == ex1, "First resume must store the original exception")
 
         let ex2 = runtimeAllocateThrowable(message: "second exception — double resume")
         kk_coroutine_continuation_resume_with_exception(continuation, ex2)
-        XCTAssertTrue(
+        #expect(
             isIllegalStateException(state.thrownException),
             "thrownException must be replaced with IllegalStateException after double resume-with-exception"
         )
@@ -189,7 +197,8 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
 
     /// Only one of two concurrent `resume(with:)` calls must succeed; the other
     /// must return an IllegalStateException.  This exercises the lock path.
-    func testConcurrentDoubleResumeOnlyOneSucceeds() {
+    @Test
+    func concurrentDoubleResumeOnlyOneSucceeds() {
         let iterations = 200
         var successCount = 0
         var failureCount = 0
@@ -226,12 +235,12 @@ final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
             countLock.unlock()
         }
 
-        XCTAssertEqual(
-            successCount, iterations,
+        #expect(
+            successCount == iterations,
             "Exactly one resume per pair must succeed across \(iterations) iterations"
         )
-        XCTAssertEqual(
-            failureCount, iterations,
+        #expect(
+            failureCount == iterations,
             "Exactly one resume per pair must fail across \(iterations) iterations"
         )
     }

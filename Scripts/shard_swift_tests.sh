@@ -89,7 +89,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_swift_test() {
-    bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+    # swiftbuild creates per-test-target products; `swift test` needs to know
+    # which product to load. The target_prefix is the product name.
+    if [[ -n "${target_prefix:-}" ]]; then
+        SWIFT_TEST_PRODUCT="$target_prefix" bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+    else
+        bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+    fi
 }
 
 run_filter_chunks() {
@@ -147,6 +153,15 @@ esac
 # it out across workers).
 
 # ---------------------------------------------------------------------------
+# Enable swiftbuild's integrated compilation cache if requested.
+kswiftk_setup_compile_cache_env
+
+# Select the same build system used by build_swift_tests.sh.
+build_system_arg=()
+if [[ -n "${SWIFT_BUILD_SYSTEM:-}" ]]; then
+    build_system_arg=(--build-system "${SWIFT_BUILD_SYSTEM}")
+fi
+
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
 # ---------------------------------------------------------------------------
 if [[ "$mode" == "dynamic" ]]; then
@@ -154,7 +169,7 @@ if [[ "$mode" == "dynamic" ]]; then
     # `swift test list` does not honor --filter on every SwiftPM version.
     # List everything and apply the requested shard prefix locally.
     mapfile -t all_tests < <(
-        swift test list --skip-build \
+        swift test list --skip-build "${build_system_arg[@]}" \
             | awk -v filter="$list_filter" '$0 ~ filter { print }' \
             | sort
     )

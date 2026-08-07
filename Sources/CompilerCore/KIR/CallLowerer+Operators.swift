@@ -825,8 +825,9 @@ extension CallLowerer {
         } else {
             false
         }
+        let receiverUsesFlatStringABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         if indices.count == 1,
-           sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+           receiverUsesFlatStringABI
            || (receiverIsCharSequence && !receiverLooksLikeArray && boundType == sema.types.charType)
         {
             let indexID = driver.lowerExpr(
@@ -843,7 +844,9 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_get_flat"),
+                callee: interner.intern(
+                    receiverUsesFlatStringABI ? "kk_string_get_flat" : "kk_char_sequence_get"
+                ),
                 arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,
@@ -1065,18 +1068,13 @@ extension CallLowerer {
             interner: interner
         )
         let storedValueID: KIRExprID
-        if assignReceiverIsGenericArray,
-           let valueType = arena.exprType(valueID),
-           let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-               for: valueType,
-               types: sema.types,
-               requireNonNull: false
-           )
-        {
-            storedValueID = emitNonThrowingCall(
-                callee: boxCallee,
-                arg: valueID,
-                resultType: sema.types.anyType,
+        if assignReceiverIsGenericArray, let valueType = arena.exprType(valueID) {
+            storedValueID = boxValueForAnySlot(
+                valueID,
+                sourceType: valueType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
                 arena: arena,
                 into: &instructions
             )

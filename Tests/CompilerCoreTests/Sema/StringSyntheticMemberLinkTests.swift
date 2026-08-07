@@ -106,44 +106,27 @@ struct StringSyntheticMemberLinkTests {
             "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
         )
         #expect(
-            externalLinks(for: "indexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_indexOfAny_chars"),
-            "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars"
+            externalLink(for: "findAnyOf", sema: sema, interner: interner) == nil,
+            "CharSequence.findAnyOf should be source-backed after KSP-408"
         )
         #expect(
-            externalLinks(for: "indexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_indexOfAny_strings"),
-            "CharSequence.indexOfAny(strings, startIndex, ignoreCase) should link to kk_string_indexOfAny_strings"
-        )
-        #expect(
-            externalLinks(for: "lastIndexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_lastIndexOfAny_chars"),
-            "CharSequence.lastIndexOfAny(chars, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_chars"
-        )
-        #expect(
-            externalLinks(for: "lastIndexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_lastIndexOfAny_strings"),
-            "CharSequence.lastIndexOfAny(strings, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_strings"
-        )
-        #expect(
-            externalLink(for: "findAnyOf", sema: sema, interner: interner) == "kk_string_findAnyOf",
-            "CharSequence.findAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findAnyOf"
-        )
-        #expect(
-            externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == "kk_string_findLastAnyOf",
-            "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf"
+            externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == nil,
+            "CharSequence.findLastAnyOf should be source-backed after KSP-408"
         )
         // KSP-407: substringBefore/After/BeforeLast/AfterLast and
         // replaceBefore/After/BeforeLast/AfterLast are now bundled Kotlin source
         // (StringSearchReplace.kt) and carry no runtime link.
+        // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are now
+        // bundled Kotlin source (StringIndexOf.kt) and carry no runtime link.
         for member in [
             "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast",
             "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
+            "indexOfAny", "lastIndexOfAny",
         ] {
             let links = externalLinks(for: member, sema: sema, interner: interner)
             #expect(
                 links.isEmpty,
-                "String.\(member) should be source-backed after KSP-407, got \(links.sorted())"
+                "String.\(member) should be source-backed after KSP-407/KSP-408, got \(links.sorted())"
             )
         }
         // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
@@ -325,21 +308,6 @@ struct StringSyntheticMemberLinkTests {
         #expect(
             externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
         )
-    }
-
-    @Test func testNewSubstringAndSearchStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
-
-        let expected: [String: String] = [
-            "indexOf": "kk_string_indexOf",
-            "lastIndexOf": "kk_string_lastIndexOf",
-        ]
-        for (member, expectedLink) in expected {
-            #expect(
-                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
-                "String.\(member) should link to \(expectedLink)"
-            )
-        }
     }
 
     @Test func testNewTransformStubsHaveCorrectExternalLinks() throws {
@@ -951,210 +919,6 @@ struct StringSyntheticMemberLinkTests {
                 #expect(
                     sema.symbols.externalLinkName(for: chosenCallee) == nil,
                     "Expected windowed(size, step, partialWindows, transform) to have no C external link"
-                )
-            }
-        }
-    }
-
-    @Test func testIndexOfAnyCharsResolvesInCallExpressions() throws {
-        let source = """
-        fun firstAny(value: CharSequence, chars: CharArray): Int {
-            return value.indexOfAny(chars, 1, true)
-        }
-
-        fun stringFirstAny(value: String): Int {
-            return value.indexOfAny(charArrayOf('x'), 0, false)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "indexOfAny"
-            }
-            #expect(callExprs.count == 2)
-            for callExpr in callExprs {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for indexOfAny"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_indexOfAny_chars",
-                    "Expected indexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_chars"
-                )
-            }
-        }
-    }
-
-    @Test func testIndexOfAnyStringsResolvesInCallExpressions() throws {
-        let source = """
-        fun firstAny(value: CharSequence, strings: Collection<String>): Int {
-            return value.indexOfAny(strings, 1, true)
-        }
-
-        fun stringFirstAny(value: String): Int {
-            return value.indexOfAny(listOf("x"), 0, false)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "indexOfAny"
-            }
-            #expect(callExprs.count == 2)
-            for callExpr in callExprs {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for indexOfAny"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_indexOfAny_strings",
-                    "Expected indexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_strings"
-                )
-            }
-        }
-    }
-
-    @Test func testLastIndexOfAnyCharsResolvesInCallExpressions() throws {
-        let source = """
-        fun lastAny(value: CharSequence, chars: CharArray): Int {
-            return value.lastIndexOfAny(chars, 3, true)
-        }
-
-        fun stringLastAny(value: String): Int {
-            return value.lastIndexOfAny(charArrayOf('x'), 2, false)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "lastIndexOfAny"
-            }
-            #expect(callExprs.count == 2)
-            for callExpr in callExprs {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for lastIndexOfAny"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_lastIndexOfAny_chars",
-                    "Expected lastIndexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_chars"
-                )
-            }
-        }
-    }
-
-    @Test func testLastIndexOfAnyStringsResolvesInCallExpressions() throws {
-        let source = """
-        fun lastAny(value: CharSequence, strings: Collection<String>): Int {
-            return value.lastIndexOfAny(strings, 3, true)
-        }
-
-        fun stringLastAny(value: String): Int {
-            return value.lastIndexOfAny(listOf("x"), 2, false)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "lastIndexOfAny"
-            }
-            #expect(callExprs.count == 2)
-            for callExpr in callExprs {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for lastIndexOfAny"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_lastIndexOfAny_strings",
-                    "Expected lastIndexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_strings"
-                )
-            }
-        }
-    }
-
-    @Test func testFindAnyOfStringsResolvesInCallExpressions() throws {
-        let source = """
-        fun findAny(value: CharSequence, strings: Collection<String>): Pair<Int, String>? {
-            return value.findAnyOf(strings, 1, true)
-        }
-
-        fun stringFindAny(value: String): Pair<Int, String>? {
-            return value.findAnyOf(listOf("x"), 0, false)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "findAnyOf"
-            }
-            #expect(callExprs.count == 2)
-            for callExpr in callExprs {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for findAnyOf"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_findAnyOf",
-                    "Expected findAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findAnyOf"
-                )
-            }
-        }
-    }
-
-    @Test func testFindLastAnyOfStringsResolvesInCallExpressions() throws {
-        let source = """
-        fun findLastAny(value: CharSequence, strings: Collection<String>): Pair<Int, String>? {
-            return value.findLastAnyOf(strings, 3, true)
-        }
-
-        fun stringFindLastAny(value: String): Pair<Int, String>? {
-            return value.findLastAnyOf(listOf("x"), 2, false)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "findLastAnyOf"
-            }
-            #expect(callExprs.count == 2)
-            for callExpr in callExprs {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for findLastAnyOf"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_findLastAnyOf",
-                    "Expected findLastAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findLastAnyOf"
                 )
             }
         }

@@ -1022,8 +1022,8 @@ extension CodegenBackendIntegrationTests {
             // lastIndexOf: not found
             println("hello".lastIndexOf("x"))
 
-            // lastIndexOf: empty target (BUG-169: matches kotlinc's default
-            // `startIndex = lastIndex`, i.e. `length - 1`, not `length`)
+            // lastIndexOf: empty target with default startIndex (returns lastIndex,
+            // i.e. length - 1, matching kotlinc's default `startIndex = lastIndex`)
             println("hello".lastIndexOf(""))
 
             // lastIndexOf on empty source

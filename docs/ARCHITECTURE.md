@@ -346,12 +346,10 @@ KIRModule (lowered)
 
 | ジョブ | 内容 |
 |---|---|
-| `jscpd-check` | コード重複検出 (閾値 5%) |
-| `refactoring-metrics` | `Scripts/loc_report.sh` を実行し、RF/GOV 用 TSV を step summary と Artifact (`refactoring-metrics-${run_id}`) に保存 |
-| `smoke-tests` | `SmokeTests` フィルタでスモークテスト実行（`SWIFT_TEST_PARALLEL=0` で順序安定） |
-| `full-swift-tests` | `CompilerCoreTests` / `CompilerBackendTests` / `RuntimeTests` 等をマトリクスで全テスト実行 |
-| `diff-regression-shards` | `Scripts/diff_kotlinc.sh` で kotlinc との出力一致検証（シャード分割で並列実行。失敗時は TSV と `.artifacts` 相当を Artifact に保存、`DIFF_LOG_PASS=0` で PASS 行省略） |
-| `diff-regression` | 全シャードの結果を集約して成否判定 |
+| `verify-todo-ids` | `TODO.md` のタスク ID 重複チェック |
+| `verify-core` | `CompilerCoreTests` / `SmokeTests` のみビルド・実行（LLVM 不要、シャード数 3） |
+| `verify-self-hosted` | `CompilerBackendTests` / `RuntimeTests` / `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` をビルド・実行 |
+| `verify-diff` | `kswiftc` リリースビルド後、`Scripts/diff_kotlinc.sh` で kotlinc 差分検証（シャード数 4） |
 
 セットアップアクション:
 - [`.github/actions/setup-swift`](../.github/actions/setup-swift/action.yml) — Swift のみ（LLVM 不要なジョブ用）
@@ -359,6 +357,27 @@ KIRModule (lowered)
 
 LLVM 不要: `CompilerCoreTests`, `RuntimeTests`, `RuntimeTestsParallel`, `LSPServerTests`
 LLVM 必要: `build`, `smoke-tests`, `CompilerBackendTests`, `KSwiftKCLITests`, `diff-regression`
+
+### 分割ビルド
+
+`Scripts/build_swift_tests.sh` は `SWIFT_TEST_BUILD_TARGETS` 環境変数で指定されたテストターゲットだけを `swift build --target <T>` で 1 つずつビルドする。SwiftPM の `--target` は累積しないため、複数ターゲットはループで処理する。指定が無い場合は従来通り `swift build --build-tests` で全ターゲットをビルドする。
+
+`verify-core` / `verify-self-hosted` では Swift 6.3 の `swiftbuild` ビルドシステムを `SWIFT_BUILD_SYSTEM=swiftbuild` で選択する。`swiftbuild` はテストターゲットごとに独立した `<Target>-test-runner` プロダクトを作るため、レーンが必要なターゲットだけをビルドでき、後続の `swift test --skip-build --test-product <Target>` でそのプロダクトだけを実行できる。`build_swift_tests.sh` は `swiftbuild` 使用時に `SWIFT_TEST_BUILD_TARGETS` の各名前に `-test-runner` を自動で付加する。`swift_test.sh` と `shard_swift_tests.sh` は `SWIFT_TEST_PRODUCT` 環境変数または `--target-prefix` から `--test-product` を自動で付加する。
+
+- `verify-core` では `CompilerCoreTests` のみをビルドし、後続の `SmokeTests` / `CompilerCoreTests` シャード実行と `-Xswiftc` フラグを一致させる。
+- `verify-self-hosted` では `CompilerBackendTests` `RuntimeTests` `RuntimeTestsParallel` `KSwiftKCLITests` `LSPServerTests` のみをビルドする。
+
+### コンパイルキャッシュ
+
+Swift 6.3 の `swiftbuild` ビルドシステムでは、環境変数 `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を設定すると統合コンパイルキャッシュが有効になり、`.build/out/CompilationCache.noindex` / `.build/out/ModuleCache.noindex` に CAS 相当の成果物を蓄える。`Scripts/lib/common.sh` の `kswiftk_setup_compile_cache_env` は `SWIFT_ENABLE_COMPILE_CACHE=1` かつ `SWIFT_BUILD_SYSTEM=swiftbuild` のときこれらの環境変数を自動でエクスポートする。
+
+同時に、従来のドライバー向けフラグとして `-Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <path>` も `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。ビルド時と `swift test --skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、厳密に同一のフラグを共有する。
+
+`SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH` を設定すると、スクリプトが自動でキャッシュフラグを追加する。`verify-core` では `actions/cache@v5` で `.build/out/CompilationCache.noindex` と `.build/out/ModuleCache.noindex` を永続化する（verify-core のみ actions/cache を使用）。`verify-self-hosted` はワークスペースを永続化するため、同じ `.build/out/CompilationCache.noindex` / `.build/out/ModuleCache.noindex` を使用する。
+
+計測例（ローカル Swift 6.3.1、CompilerCoreTests-test-runner）: キャッシュなし初回ビルドは約 170 秒、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` を復元した再ビルドは約 7 秒まで短縮された。これは各モジュールのコンパイル成果物が CAS 的に再利用できていることを示している。
+
+計測用に `SWIFT_ENABLE_CACHE_REMARKS=1` を設定すると `-Rcache-compile-job` が付与され、ビルドログから cache hit/miss の確認ができる。
 
 ### CI 失敗時のデバッグ（短い手順）
 

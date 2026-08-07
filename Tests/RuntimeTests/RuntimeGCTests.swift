@@ -1,5 +1,5 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 private struct FrameMapDescriptorC {
     let rootCount: UInt32
@@ -45,19 +45,18 @@ private func withDummyTypeInfo(_ body: (UnsafeRawPointer) -> Void) {
     }
 }
 
-final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndMetadata }
-    func testGCCollectsUnreachableAllocation() {
+@Suite(.runtimeIsolation(.gcAndMetadata))
+struct RuntimeGCTests {
+    @Test func testGCCollectsUnreachableAllocation() {
         withDummyTypeInfo { ti in
             _ = kk_alloc(16, ti)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
         }
     }
 
-    func testGlobalRootPreventsCollectionUntilCleared() {
+    @Test func testGlobalRootPreventsCollectionUntilCleared() {
         withDummyTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
             slot.initialize(to: kk_alloc(16, ti))
@@ -68,16 +67,16 @@ final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
 
             kk_register_global_root(slot)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
 
             slot.pointee = nil
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
             kk_unregister_global_root(slot)
         }
     }
 
-    func testFrameMapRootsProtectActiveFramePointers() {
+    @Test func testFrameMapRootsProtectActiveFramePointers() {
         var rootOffset: Int32 = 0
         withUnsafePointer(to: &rootOffset) { offsetPtr in
             var descriptor = FrameMapDescriptorC(rootCount: 1, rootOffsets: offsetPtr)
@@ -98,44 +97,44 @@ final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
 
             kk_push_frame(77, UnsafeMutableRawPointer(frameRootSlot))
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
 
             frameRootSlot.pointee = nil
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
             kk_pop_frame()
 
             kk_register_frame_map(77, nil)
         }
     }
 
-    func testCoroutineRootRegistrationPreventsCollection() {
+    @Test func testCoroutineRootRegistrationPreventsCollection() {
         withDummyTypeInfo { ti in
             let object = kk_alloc(12, ti)
             kk_register_coroutine_root(object)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
 
             kk_unregister_coroutine_root(object)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
         }
     }
 
-    func testAllocInitializesObjectHeader() {
+    @Test func testAllocInitializesObjectHeader() {
         withTestTypeInfo(fieldOffsets: []) { typeInfoPtr in
             let object = kk_alloc(32, UnsafeRawPointer(typeInfoPtr))
             let header = object.assumingMemoryBound(to: ObjHeaderProbe.self).pointee
-            XCTAssertEqual(header.size, 32)
-            XCTAssertEqual(
-                UInt(bitPattern: header.typeInfo),
-                UInt(bitPattern: typeInfoPtr)
+            #expect(header.size == 32)
+            #expect(
+                UInt(bitPattern: header.typeInfo)
+                    == UInt(bitPattern: typeInfoPtr)
             )
-            XCTAssertEqual(header.flags, 0)
+            #expect(header.flags == 0)
         }
     }
 
-    func testGCTracesChildReferenceThroughObjectHeaderTypeInfo() {
+    @Test func testGCTracesChildReferenceThroughObjectHeaderTypeInfo() {
         let fieldOffset = UInt32(MemoryLayout<ObjHeaderProbe>.stride)
         let parentSize = UInt32(MemoryLayout<ObjHeaderProbe>.stride + MemoryLayout<UnsafeMutableRawPointer?>.stride)
 
@@ -155,17 +154,17 @@ final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
 
                 kk_register_global_root(rootSlot)
                 kk_gc_collect()
-                XCTAssertEqual(kk_runtime_heap_object_count(), 2)
+                #expect(kk_runtime_heap_object_count() == 2)
 
                 rootSlot.pointee = nil
                 kk_gc_collect()
-                XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+                #expect(kk_runtime_heap_object_count() == 0)
                 kk_unregister_global_root(rootSlot)
             }
         }
     }
 
-    func testGCRemovesPerObjectDispatchMetadataForSweptHeapObject() {
+    @Test func testGCRemovesPerObjectDispatchMetadataForSweptHeapObject() {
         withDummyTypeInfo { ti in
             let object = kk_alloc(16, ti)
             let objectRaw = Int(bitPattern: object)
@@ -178,20 +177,20 @@ final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
             _ = kk_object_register_vtable_method(objectRaw, 4, 0x2000)
 
             runtimeStorage.withMetadataLock { state in
-                XCTAssertEqual(state.objectTypeByPointer[objectKey], 42)
-                XCTAssertEqual(state.objectInterfaceSlots[objectKey]?[7], 2)
-                XCTAssertEqual(state.objectItableMethods[objectKey]?[itableKey], 0x1000)
-                XCTAssertEqual(state.objectVtableMethods[objectKey]?[4], 0x2000)
+                #expect(state.objectTypeByPointer[objectKey] == 42)
+                #expect(state.objectInterfaceSlots[objectKey]?[7] == 2)
+                #expect(state.objectItableMethods[objectKey]?[itableKey] == 0x1000)
+                #expect(state.objectVtableMethods[objectKey]?[4] == 0x2000)
             }
 
             kk_gc_collect()
 
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
             runtimeStorage.withMetadataLock { state in
-                XCTAssertNil(state.objectTypeByPointer[objectKey])
-                XCTAssertNil(state.objectInterfaceSlots[objectKey])
-                XCTAssertNil(state.objectItableMethods[objectKey])
-                XCTAssertNil(state.objectVtableMethods[objectKey])
+                #expect(state.objectTypeByPointer[objectKey] == nil)
+                #expect(state.objectInterfaceSlots[objectKey] == nil)
+                #expect(state.objectItableMethods[objectKey] == nil)
+                #expect(state.objectVtableMethods[objectKey] == nil)
             }
         }
     }

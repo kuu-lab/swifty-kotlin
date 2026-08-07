@@ -77,3 +77,32 @@ detect_workers() {
 
     printf ""
 }
+
+# Append Swift 6.3+ compilation-caching flags to the named bash array when
+# SWIFT_ENABLE_COMPILE_CACHE is set. Both the build step and the test step must
+# pass identical -Xswiftc flags to avoid invalidating SwiftPM's incremental cache.
+kswiftk_append_compile_cache_flags() {
+    local -n __flags_array="$1"
+    if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]]; then
+        local cas_path="${SWIFT_CAS_PATH:-${TMPDIR:-/tmp}/swift-cas}"
+        __flags_array+=(-Xswiftc -cache-compile-job)
+        __flags_array+=(-Xswiftc -cas-path -Xswiftc "$cas_path")
+    fi
+    if [[ "${SWIFT_ENABLE_CACHE_REMARKS:-}" == "1" ]]; then
+        __flags_array+=(-Xswiftc -Rcache-compile-job)
+    fi
+}
+
+# For swiftbuild (the new Swift Build preview engine in Swift 6.3+), enable the
+# integrated Swift/Clang compilation caches by setting the build-system defaults.
+# This is a separate mechanism from the -Xswiftc -cache-compile-job flags used
+# by the legacy native build system and must be set in the environment.
+kswiftk_setup_compile_cache_env() {
+    if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]]; then
+        if [[ "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
+            export EnableSwiftCachingByDefault=true
+            export EnableClangCachingByDefault=true
+            export EnableSwiftExplicitModulesByDefault=true
+        fi
+    fi
+}

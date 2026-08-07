@@ -197,11 +197,13 @@ import Testing
         """)
     }
 
-    @Test func testCompile_charSequence_length_stringBuilder() throws {
+    @Test func testCompile_charSequence_members_stringBuilder() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val cs: CharSequence = StringBuilder("abc")
             println(cs.length)
+            println(cs.get(1))
+            println(cs[2])
         }
         """)
     }

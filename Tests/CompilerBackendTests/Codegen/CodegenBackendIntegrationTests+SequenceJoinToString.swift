@@ -1,9 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
-import XCTest
+import Foundation
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenSequenceJoinToStringUsesRuntimeHelper() throws {
+@Suite
+struct CodegenBackendSequenceJoinToStringTests {
+    @Test func testCodegenSequenceJoinToStringUsesRuntimeHelper() throws {
         let source = """
         fun render(): String {
             return sequenceOf(1, 2, 3).joinToString(separator = ":", prefix = "[", postfix = "]")
@@ -14,11 +17,11 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceJoinToStringKIR", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_sequence_joinToString"))
+            #expect(callees.contains("kk_sequence_joinToString"))
         }
     }
 }
-
+#endif

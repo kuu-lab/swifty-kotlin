@@ -34,7 +34,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface with null-safe comparison support.
+    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface.
     func registerComparableCompareToOperator(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -68,12 +68,6 @@ extension DataFlowSemaPhase {
             for: compareToSymbol
         )
 
-        registerNullSafeComparisonExtensions(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            comparableSymbol: comparableSymbol
-        )
     }
 
     /// Register null-safe comparison extensions for Comparable types.

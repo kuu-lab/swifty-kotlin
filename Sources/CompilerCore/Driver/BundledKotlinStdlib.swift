@@ -5,7 +5,7 @@ import Foundation
 ///
 /// As functions are migrated to `.kt` files (auto-discovered by
 /// `LoadSourcesPhase.injectBundledStdlib`), remove them from here.
-enum BundledKotlinStdlib {
+package enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     ///
@@ -60,10 +60,13 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
 }
 """
 
-    // repeat / reversed / padStart / padEnd are pure Kotlin but not yet in .kt files.
-    // encodeToByteArray / decodeToString delegate to C-bridge primitives (__kk_*).
-    // The case-conversion functions (lowercase, uppercase, capitalize, replaceFirstChar,
-    // locale variants) have been migrated to StringCaseConversion.kt.
+    // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
+    // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
+    // StringEncoding.kt (delegating to the __kk_-prefixed bridges in RuntimeStringEncoding.swift);
+    // kotlinx.cinterop.ByteArray.toKString has been migrated to CInteropExtensions.kt.
+    // indent / trimIndent / trimMargin / prependIndent / replaceIndent(ByMargin) have been
+    // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
+    // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
     static let kotlinTextSource = ""
 
     // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
@@ -175,14 +178,14 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
     /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
     /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
     /// and is used to compute the stdlib manifest hash for incremental builds.
-    static func bundledStdlibSources() -> [(path: String, contents: Data)] {
+    package static func bundledStdlibSources() -> [(path: String, contents: Data)] {
         _bundledStdlibSources
     }
 
     private static let _manifestHash: String = Self.stableFNV1a64Hex(for: _bundledStdlibSources)
 
     /// Returns a stable hash of the bundled stdlib manifest.
-    static func manifestHash() -> String {
+    package static func manifestHash() -> String {
         _manifestHash
     }
 

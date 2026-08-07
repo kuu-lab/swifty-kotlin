@@ -112,13 +112,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        registerArrayIsArrayOfJvmExtension(
-            arraySymbol: arraySymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
@@ -1542,83 +1535,6 @@ extension DataFlowSemaPhase {
         registerOverload([types.stringType, transformType])
         registerOverload([types.stringType, types.stringType, transformType])
         registerOverload([types.stringType, types.stringType, types.stringType, transformType])
-    }
-
-    private func registerArrayIsArrayOfJvmExtension(
-        arraySymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinJvmPkg = ensurePackage(
-            path: ["kotlin", "jvm"],
-            symbols: symbols,
-            interner: interner
-        )
-        let functionName = interner.intern("isArrayOf")
-        let functionFQName = kotlinJvmPkg + [functionName]
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = functionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: typeParamSymbol)
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == types.booleanType
-                && signature.typeParameterSymbols == [typeParamSymbol]
-                && signature.reifiedTypeParameterIndices == [0]
-        }) {
-            symbols.setExternalLinkName("kk_array_isArrayOf", for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinJvmPkg) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName("kk_array_isArrayOf", for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: types.booleanType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: [],
-                typeParameterSymbols: [typeParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[types.anyType]],
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
     }
 
     private func registerSyntheticArrayFactoryFunction(

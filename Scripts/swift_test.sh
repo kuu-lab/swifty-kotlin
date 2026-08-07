@@ -57,6 +57,30 @@ done
 
 declare -a command=(swift test)
 
+# Select the same build system used by build_swift_tests.sh so per-test-target
+# products (swiftbuild) and their compilation cache are reused.
+build_system="${SWIFT_BUILD_SYSTEM:-}"
+if [[ -n "$build_system" ]]; then
+    command+=(--build-system "$build_system")
+fi
+
+# When running a single test target product (required with swiftbuild's
+# per-test-target products), tell `swift test` which product to load. Without
+# this `swift test --skip-build` looks for the all-in-one PackageTests bundle.
+test_product="${SWIFT_TEST_PRODUCT:-}"
+if [[ -n "$test_product" ]]; then
+    command+=(--test-product "$test_product")
+fi
+
+# Enable swiftbuild's integrated compilation cache if requested.
+kswiftk_setup_compile_cache_env
+
+# Append compilation-caching flags if enabled so `swift test --skip-build`
+# uses the same -Xswiftc flags as the preceding build_swift_tests.sh call.
+# Without identical flags SwiftPM may invalidate the incremental cache and
+# rebuild from scratch.
+kswiftk_append_compile_cache_flags command
+
 if [[ "$has_jobs_flag" == false ]]; then
     build_jobs="$build_jobs_override"
     if [[ -z "$build_jobs" ]]; then

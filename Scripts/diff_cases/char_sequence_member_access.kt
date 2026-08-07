@@ -11,4 +11,6 @@ fun main() {
     println(cs.subSequence(1, 3))
     val sb: CharSequence = StringBuilder("abc")
     println(sb.length)
+    println(sb.get(1))
+    println(sb[2])
 }

@@ -268,12 +268,13 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
     // KSP-410: sumBy/sumByDouble/partition/reduceOrNull/reduceRightIndexed/
     // reduceRightIndexedOrNull/reduceRightOrNull are bundled Kotlin source
-    // (StringHOF.kt) and no longer lower to a `kk_string_*_flat` call site;
+    // (StringHOF.kt). Neither lowers to a `kk_string_*_flat` call site anymore;
     // dropped from this table. See StringSyntheticMemberLinkTests for their
     // "carries no C external link" coverage. mapIndexed stays here
-    // (BUG-171: Swift-backed).
+    // (BUG-176: Swift-backed).
     @Test
     func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
         let source = """
@@ -281,8 +282,6 @@ struct BuildKIRCodegenRegressionTests {
             value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
             value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
             value.toCollection(mutableListOf<Char>())
-            value.indexOfFirst { it == 'a' }
-            value.indexOfLast { it == 'b' }
             value.mapIndexed { index, _ -> index }
             value.mapNotNull { ch -> if (ch == 'a') 1 else null }
         }
@@ -300,8 +299,6 @@ struct BuildKIRCodegenRegressionTests {
                 "kk_string_firstNotNullOf_flat",
                 "kk_string_firstNotNullOfOrNull_flat",
                 "kk_string_toCollection_flat",
-                "kk_string_indexOfFirst_flat",
-                "kk_string_indexOfLast_flat",
                 "kk_string_mapIndexed_flat",
                 "kk_string_mapNotNull_flat",
             ]

@@ -67,12 +67,7 @@ private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
 @_cdecl("kk_string_iterator")
 public func kk_string_iterator(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { Int($0) }
-    let box = RuntimeStringIteratorBox(charRaws: charRaws)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    return registerRuntimeObject(RuntimeStringIteratorBox(charRaws: charRaws))
 }
 
 @_cdecl("kk_string_iterator_hasNext")
@@ -450,6 +445,9 @@ public func kk_string_equals_flat(
     _ otherByteCount: Int,
     _ otherHash: Int
 ) -> Int {
+    if data == nil || otherData == nil {
+        return (data == nil && otherData == nil) ? 1 : 0
+    }
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
     return source == other ? 1 : 0

@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - kotlin.native.concurrent API Inventory Coverage (STDLIB-NATIVE-CONCURRENT-001)
 //
@@ -57,67 +57,66 @@ private let workerExecuteJobThunk: @convention(c) (Int, Int, UnsafeMutablePointe
 // MARK: - Worker Tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeWorkerTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeWorkerTests {
 
     // MARK: Worker lifecycle
 
-    func testWorkerNewReturnsNonZeroHandle() {
+    @Test func workerNewReturnsNonZeroHandle() {
         let nameHandle = registerRuntimeObject(RuntimeStringBox("worker-lifecycle"))
         let handle = kk_worker_new(nameHandle)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
     }
 
-    func testWorkerNameRoundTrip() {
+    @Test func workerNameRoundTrip() {
         let nameHandle = registerRuntimeObject(RuntimeStringBox("my-worker"))
         let workerHandle = kk_worker_new(nameHandle)
         let resultHandle = kk_worker_name(workerHandle)
-        XCTAssertNotEqual(resultHandle, 0)
+        #expect(resultHandle != 0)
         // The name round-trips through a RuntimeStringBox; we verify it is non-null.
     }
 
-    func testWorkerAnonymousCreationWhenNameHandleIsZero() {
+    @Test func workerAnonymousCreationWhenNameHandleIsZero() {
         // Passing 0 as the name handle should not crash; an anonymous name is generated.
         let handle = kk_worker_new(0)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
     }
 
     // MARK: Worker termination
 
-    func testWorkerIsNotTerminatedAfterCreation() {
+    @Test func workerIsNotTerminatedAfterCreation() {
         let handle = kk_worker_new(0)
-        XCTAssertEqual(kk_worker_is_terminated(handle), 0)
+        #expect(kk_worker_is_terminated(handle) == 0)
     }
 
-    func testWorkerIsTerminatedAfterRequestTermination() {
+    @Test func workerIsTerminatedAfterRequestTermination() {
         let handle = kk_worker_new(0)
         _ = kk_worker_request_termination(handle, 1) // processScheduled = true
-        XCTAssertEqual(kk_worker_is_terminated(handle), 1)
+        #expect(kk_worker_is_terminated(handle) == 1)
     }
 
-    func testWorkerRequestTerminationWithoutDraining() {
+    @Test func workerRequestTerminationWithoutDraining() {
         let handle = kk_worker_new(0)
         _ = kk_worker_request_termination(handle, 0) // processScheduled = false
-        XCTAssertEqual(kk_worker_is_terminated(handle), 1)
+        #expect(kk_worker_is_terminated(handle) == 1)
     }
 
-    func testWorkerRequestTerminationReturnsCompletedFuture() {
+    @Test func workerRequestTerminationReturnsCompletedFuture() {
         let handle = kk_worker_new(0)
         let futureHandle = kk_worker_request_termination(handle, 1)
-        XCTAssertNotEqual(futureHandle, 0)
-        XCTAssertEqual(kk_future_result(futureHandle), 1)
-        XCTAssertEqual(kk_worker_is_terminated(handle), 1)
+        #expect(futureHandle != 0)
+        #expect(kk_future_result(futureHandle) == 1)
+        #expect(kk_worker_is_terminated(handle) == 1)
     }
 
-    func testWorkerInvalidHandleIsReportedTerminated() {
+    @Test func workerInvalidHandleIsReportedTerminated() {
         // An invalid (zero) handle should be treated as terminated.
-        XCTAssertEqual(kk_worker_is_terminated(0), 1)
+        #expect(kk_worker_is_terminated(0) == 1)
     }
 
     // MARK: Worker.execute
 
-    func testWorkerExecuteReturnsFutureResultWhenActive() {
+    @Test func workerExecuteReturnsFutureResultWhenActive() {
         let workerHandle = kk_worker_new(0)
         defer { _ = kk_worker_request_termination(workerHandle, 1) }
 
@@ -125,35 +124,35 @@ final class RuntimeWorkerTests: IsolatedRuntimeXCTestCase {
         let jobFnPtr = unsafeBitCast(workerExecuteJobThunk, to: Int.self)
         let futureHandle = kk_worker_execute(workerHandle, 0, producerFnPtr, 0, jobFnPtr, 0)
 
-        XCTAssertNotEqual(futureHandle, 0)
+        #expect(futureHandle != 0)
         if futureHandle != 0 {
-            XCTAssertEqual(kk_future_result(futureHandle), 42)
+            #expect(kk_future_result(futureHandle) == 42)
         }
     }
 
-    func testWorkerExecuteDeclinedAfterTermination() {
+    @Test func workerExecuteDeclinedAfterTermination() {
         let workerHandle = kk_worker_new(0)
         _ = kk_worker_request_termination(workerHandle, 1)
         // Submitting with a null function pointer to a terminated worker should return 0.
-        XCTAssertEqual(kk_worker_execute(workerHandle, 0, 0, 0, 0, 0), 0)
+        #expect(kk_worker_execute(workerHandle, 0, 0, 0, 0, 0) == 0)
     }
 
-    func testMultipleDistinctWorkersHaveIndependentTerminationState() {
+    @Test func multipleDistinctWorkersHaveIndependentTerminationState() {
         let workerA = kk_worker_new(0)
         let workerB = kk_worker_new(0)
         _ = kk_worker_request_termination(workerA, 1)
-        XCTAssertEqual(kk_worker_is_terminated(workerA), 1)
-        XCTAssertEqual(kk_worker_is_terminated(workerB), 0,
-                       "Terminating worker A must not affect worker B")
+        #expect(kk_worker_is_terminated(workerA) == 1)
+        #expect(kk_worker_is_terminated(workerB) == 0,
+                "Terminating worker A must not affect worker B")
     }
 
-    func testWorkerConcurrentExecutionOrderPreserved() {
+    @Test func workerConcurrentExecutionOrderPreserved() {
         // Verify the worker's serial queue runs tasks in order by tracking
         // side-effects through a DispatchSemaphore barrier pattern.
         let workerHandle = kk_worker_new(0)
         // Drain any pending work and confirm it terminates cleanly.
         _ = kk_worker_request_termination(workerHandle, 1)
-        XCTAssertEqual(kk_worker_is_terminated(workerHandle), 1)
+        #expect(kk_worker_is_terminated(workerHandle) == 1)
     }
 }
 
@@ -161,51 +160,50 @@ final class RuntimeWorkerTests: IsolatedRuntimeXCTestCase {
 // MARK: - freeze() / isFrozen Tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeFreezeTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeFreezeTests {
 
-    func testFreezeObjectReturnsSameHandle() {
+    @Test func freezeObjectReturnsSameHandle() {
         let handle = makeRawHandleForFreezeTest()
         let result = kk_freeze_object(handle)
-        XCTAssertEqual(result, handle)
+        #expect(result == handle)
     }
 
-    func testIsFrozenReturnsFalseBeforeFreeze() {
+    @Test func isFrozenReturnsFalseBeforeFreeze() {
         let handle = makeRawHandleForFreezeTest()
-        XCTAssertEqual(kk_is_frozen(handle), 0)
+        #expect(kk_is_frozen(handle) == 0)
     }
 
-    func testIsFrozenReturnsTrueAfterFreeze() {
+    @Test func isFrozenReturnsTrueAfterFreeze() {
         let handle = makeRawHandleForFreezeTest()
         kk_freeze_object(handle)
-        XCTAssertEqual(kk_is_frozen(handle), 1)
+        #expect(kk_is_frozen(handle) == 1)
     }
 
-    func testFreezeIsIdempotent() {
+    @Test func freezeIsIdempotent() {
         let handle = makeRawHandleForFreezeTest()
         kk_freeze_object(handle)
         kk_freeze_object(handle) // second call must not crash
-        XCTAssertEqual(kk_is_frozen(handle), 1)
+        #expect(kk_is_frozen(handle) == 1)
     }
 
-    func testFreezeNullHandleIsNoOp() {
+    @Test func freezeNullHandleIsNoOp() {
         // freeze(0) must not crash.
         let result = kk_freeze_object(0)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 
-    func testIsFrozenForNullHandleReturnsFalse() {
-        XCTAssertEqual(kk_is_frozen(0), 0)
+    @Test func isFrozenForNullHandleReturnsFalse() {
+        #expect(kk_is_frozen(0) == 0)
     }
 
-    func testDistinctObjectsHaveIndependentFreezeState() {
+    @Test func distinctObjectsHaveIndependentFreezeState() {
         let handleA = makeRawHandleForFreezeTest()
         let handleB = makeRawHandleForFreezeTest()
         kk_freeze_object(handleA)
-        XCTAssertEqual(kk_is_frozen(handleA), 1)
-        XCTAssertEqual(kk_is_frozen(handleB), 0,
-                       "Freezing object A must not affect object B")
+        #expect(kk_is_frozen(handleA) == 1)
+        #expect(kk_is_frozen(handleB) == 0,
+                "Freezing object A must not affect object B")
     }
 }
 
@@ -213,54 +211,55 @@ final class RuntimeFreezeTests: IsolatedRuntimeXCTestCase {
 // MARK: - AtomicInt compareAndSet semantics (legacy kotlin.native.concurrent.AtomicInt)
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicIntNativeConcurrentTests: XCTestCase {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeAtomicIntNativeConcurrentTests {
 
-    func testCompareAndSetSucceedsWhenExpectMatches() {
+    @Test func compareAndSetSucceedsWhenExpectMatches() {
         let handle = kk_atomic_int_create(10)
         let result = kk_atomic_int_compareAndSet(handle, 10, 20)
-        XCTAssertEqual(result, 1, "compareAndSet must return 1 (true) on success")
-        XCTAssertEqual(kk_atomic_int_load(handle), 20)
+        #expect(result == 1, "compareAndSet must return 1 (true) on success")
+        #expect(kk_atomic_int_load(handle) == 20)
     }
 
-    func testCompareAndSetFailsWhenExpectMismatches() {
+    @Test func compareAndSetFailsWhenExpectMismatches() {
         let handle = kk_atomic_int_create(10)
         let result = kk_atomic_int_compareAndSet(handle, 99, 20)
-        XCTAssertEqual(result, 0, "compareAndSet must return 0 (false) when expected != actual")
-        XCTAssertEqual(kk_atomic_int_load(handle), 10, "Value must not change on failed CAS")
+        #expect(result == 0, "compareAndSet must return 0 (false) when expected != actual")
+        #expect(kk_atomic_int_load(handle) == 10, "Value must not change on failed CAS")
     }
 
-    func testCompareAndExchangeReturnsOldValue() {
+    @Test func compareAndExchangeReturnsOldValue() {
         let handle = kk_atomic_int_create(5)
         let old = kk_atomic_int_compareAndExchange(handle, 5, 15)
-        XCTAssertEqual(old, 5)
-        XCTAssertEqual(kk_atomic_int_load(handle), 15)
+        #expect(old == 5)
+        #expect(kk_atomic_int_load(handle) == 15)
     }
 
-    func testCompareAndExchangeFailureReturnsCurrentValue() {
+    @Test func compareAndExchangeFailureReturnsCurrentValue() {
         let handle = kk_atomic_int_create(5)
         let old = kk_atomic_int_compareAndExchange(handle, 99, 15)
-        XCTAssertEqual(old, 5, "On failure compareAndExchange must return current value")
-        XCTAssertEqual(kk_atomic_int_load(handle), 5)
+        #expect(old == 5, "On failure compareAndExchange must return current value")
+        #expect(kk_atomic_int_load(handle) == 5)
     }
 
-    func testFetchAndAddReturnsOldValue() {
+    @Test func fetchAndAddReturnsOldValue() {
         let handle = kk_atomic_int_create(100)
         let old = kk_atomic_int_fetchAndAdd(handle, 5)
-        XCTAssertEqual(old, 100)
-        XCTAssertEqual(kk_atomic_int_load(handle), 105)
+        #expect(old == 100)
+        #expect(kk_atomic_int_load(handle) == 105)
     }
 
-    func testIncrementDecrement() {
+    @Test func incrementDecrement() {
         let handle = kk_atomic_int_create(0)
         _ = kk_atomic_int_incrementAndFetch(handle)
         _ = kk_atomic_int_incrementAndFetch(handle)
         let afterInc = kk_atomic_int_load(handle)
-        XCTAssertEqual(afterInc, 2)
+        #expect(afterInc == 2)
         let oldBeforeDec = kk_atomic_int_fetchAndDecrement(handle)
-        XCTAssertEqual(oldBeforeDec, 2)
-        XCTAssertEqual(kk_atomic_int_load(handle), 1)
+        #expect(oldBeforeDec == 2)
+        #expect(kk_atomic_int_load(handle) == 1)
         _ = kk_atomic_int_decrementAndFetch(handle)
-        XCTAssertEqual(kk_atomic_int_load(handle), 0)
+        #expect(kk_atomic_int_load(handle) == 0)
     }
 }
 
@@ -268,34 +267,35 @@ final class RuntimeAtomicIntNativeConcurrentTests: XCTestCase {
 // MARK: - AtomicLong compareAndSet semantics (legacy kotlin.native.concurrent.AtomicLong)
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicLongNativeConcurrentTests: XCTestCase {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeAtomicLongNativeConcurrentTests {
 
-    func testCompareAndSetSucceedsWhenExpectMatches() {
+    @Test func compareAndSetSucceedsWhenExpectMatches() {
         let handle = kk_atomic_long_create(100)
         let result = kk_atomic_long_compareAndSet(handle, 100, 200)
-        XCTAssertEqual(result, 1)
-        XCTAssertEqual(kk_atomic_long_load(handle), 200)
+        #expect(result == 1)
+        #expect(kk_atomic_long_load(handle) == 200)
     }
 
-    func testCompareAndSetFailsWhenExpectMismatches() {
+    @Test func compareAndSetFailsWhenExpectMismatches() {
         let handle = kk_atomic_long_create(100)
         let result = kk_atomic_long_compareAndSet(handle, 999, 200)
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(kk_atomic_long_load(handle), 100)
+        #expect(result == 0)
+        #expect(kk_atomic_long_load(handle) == 100)
     }
 
-    func testCompareAndExchangeReturnsOldValue() {
+    @Test func compareAndExchangeReturnsOldValue() {
         let handle = kk_atomic_long_create(50)
         let old = kk_atomic_long_compareAndExchange(handle, 50, 150)
-        XCTAssertEqual(old, 50)
-        XCTAssertEqual(kk_atomic_long_load(handle), 150)
+        #expect(old == 50)
+        #expect(kk_atomic_long_load(handle) == 150)
     }
 
-    func testFetchAndDecrementReturnsOldValue() {
+    @Test func fetchAndDecrementReturnsOldValue() {
         let handle = kk_atomic_long_create(10)
         let old = kk_atomic_long_fetchAndDecrement(handle)
-        XCTAssertEqual(old, 10)
-        XCTAssertEqual(kk_atomic_long_load(handle), 9)
+        #expect(old == 10)
+        #expect(kk_atomic_long_load(handle) == 9)
     }
 }
 
@@ -303,49 +303,50 @@ final class RuntimeAtomicLongNativeConcurrentTests: XCTestCase {
 // MARK: - AtomicReference compareAndSet semantics
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicReferenceNativeConcurrentTests: XCTestCase {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeAtomicReferenceNativeConcurrentTests {
 
-    func testCompareAndSetSucceedsWhenExpectMatches() {
+    @Test func compareAndSetSucceedsWhenExpectMatches() {
         let refA = kk_atomic_int_create(1) // use AtomicInt handle as a stable pointer
         let refB = kk_atomic_int_create(2)
         let atomicRef = kk_atomic_ref_create(refA)
         let result = kk_atomic_ref_compareAndSet(atomicRef, refA, refB)
-        XCTAssertEqual(result, 1)
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), refB)
+        #expect(result == 1)
+        #expect(kk_atomic_ref_load(atomicRef) == refB)
     }
 
-    func testCompareAndSetFailsWhenExpectMismatches() {
+    @Test func compareAndSetFailsWhenExpectMismatches() {
         let refA = kk_atomic_int_create(1)
         let refB = kk_atomic_int_create(2)
         let refC = kk_atomic_int_create(3)
         let atomicRef = kk_atomic_ref_create(refA)
         let result = kk_atomic_ref_compareAndSet(atomicRef, refC, refB)
-        XCTAssertEqual(result, 0, "compareAndSet must fail when expected != actual")
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), refA,
-                       "Value must not change on failed CAS")
+        #expect(result == 0, "compareAndSet must fail when expected != actual")
+        #expect(kk_atomic_ref_load(atomicRef) == refA,
+                "Value must not change on failed CAS")
     }
 
-    func testCompareAndExchangeReturnsOldReference() {
+    @Test func compareAndExchangeReturnsOldReference() {
         let refA = kk_atomic_int_create(10)
         let refB = kk_atomic_int_create(20)
         let atomicRef = kk_atomic_ref_create(refA)
         let old = kk_atomic_ref_compareAndExchange(atomicRef, refA, refB)
-        XCTAssertEqual(old, refA)
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), refB)
+        #expect(old == refA)
+        #expect(kk_atomic_ref_load(atomicRef) == refB)
     }
 
-    func testNullReferenceRoundTrip() {
+    @Test func nullReferenceRoundTrip() {
         let atomicRef = kk_atomic_ref_create(0)
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), 0)
+        #expect(kk_atomic_ref_load(atomicRef) == 0)
     }
 
-    func testExchangeReturnsOldReference() {
+    @Test func exchangeReturnsOldReference() {
         let refA = kk_atomic_int_create(1)
         let refB = kk_atomic_int_create(2)
         let atomicRef = kk_atomic_ref_create(refA)
         let old = kk_atomic_ref_exchange(atomicRef, refB)
-        XCTAssertEqual(old, refA)
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), refB)
+        #expect(old == refA)
+        #expect(kk_atomic_ref_load(atomicRef) == refB)
     }
 }
 
@@ -353,33 +354,32 @@ final class RuntimeAtomicReferenceNativeConcurrentTests: XCTestCase {
 // MARK: - Worker.id Tests (STDLIB-NATIVE-CONCURRENT-ABI-001)
 // ---------------------------------------------------------------------------
 
-final class RuntimeWorkerIDTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeWorkerIDTests {
 
-    func testWorkerIDIsPositive() {
+    @Test func workerIDIsPositive() {
         let handle = kk_worker_new(0)
         let id = kk_worker_id(handle)
-        XCTAssertGreaterThan(id, 0, "Worker IDs must be positive monotonic integers")
+        #expect(id > 0, "Worker IDs must be positive monotonic integers")
     }
 
-    func testWorkerIDsAreMonotonicallyIncreasing() {
+    @Test func workerIDsAreMonotonicallyIncreasing() {
         let h1 = kk_worker_new(0)
         let h2 = kk_worker_new(0)
         let id1 = kk_worker_id(h1)
         let id2 = kk_worker_id(h2)
-        XCTAssertGreaterThan(id2, id1, "Worker IDs must be monotonically increasing")
+        #expect(id2 > id1, "Worker IDs must be monotonically increasing")
     }
 
-    func testWorkerIDIsStable() {
+    @Test func workerIDIsStable() {
         let handle = kk_worker_new(0)
         let id1 = kk_worker_id(handle)
         let id2 = kk_worker_id(handle)
-        XCTAssertEqual(id1, id2, "Worker ID must be stable across multiple calls")
+        #expect(id1 == id2, "Worker ID must be stable across multiple calls")
     }
 
-    func testWorkerIDForInvalidHandleReturnsNegative() {
-        XCTAssertEqual(kk_worker_id(0), -1, "Invalid handle must return -1")
+    @Test func workerIDForInvalidHandleReturnsNegative() {
+        #expect(kk_worker_id(0) == -1, "Invalid handle must return -1")
     }
 }
 
@@ -387,53 +387,52 @@ final class RuntimeWorkerIDTests: IsolatedRuntimeXCTestCase {
 // MARK: - Future<T> Tests (STDLIB-NATIVE-CONCURRENT-ABI-002)
 // ---------------------------------------------------------------------------
 
-final class RuntimeFutureTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeFutureTests {
 
-    func testFutureNewReturnsNonZeroHandle() {
+    @Test func futureNewReturnsNonZeroHandle() {
         let handle = kk_future_new()
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
     }
 
-    func testFutureIsNotReadyBeforeComplete() {
+    @Test func futureIsNotReadyBeforeComplete() {
         let handle = kk_future_new()
-        XCTAssertEqual(kk_future_is_ready(handle), 0)
+        #expect(kk_future_is_ready(handle) == 0)
     }
 
-    func testFutureIsReadyAfterComplete() {
+    @Test func futureIsReadyAfterComplete() {
         let handle = kk_future_new()
         kk_future_complete(handle, 42)
-        XCTAssertEqual(kk_future_is_ready(handle), 1)
+        #expect(kk_future_is_ready(handle) == 1)
     }
 
-    func testFutureResultReturnsCompletedValue() {
+    @Test func futureResultReturnsCompletedValue() {
         let handle = kk_future_new()
         kk_future_complete(handle, 99)
-        XCTAssertEqual(kk_future_result(handle), 99)
+        #expect(kk_future_result(handle) == 99)
     }
 
-    func testFutureResultDoesNotConsumeValue() {
+    @Test func futureResultDoesNotConsumeValue() {
         let handle = kk_future_new()
         kk_future_complete(handle, 7)
         _ = kk_future_result(handle)
-        XCTAssertEqual(kk_future_result(handle), 7, "result() must be idempotent")
+        #expect(kk_future_result(handle) == 7, "result() must be idempotent")
     }
 
-    func testFutureConsumeReturnsValue() {
+    @Test func futureConsumeReturnsValue() {
         let handle = kk_future_new()
         kk_future_complete(handle, 55)
-        XCTAssertEqual(kk_future_consume(handle), 55)
+        #expect(kk_future_consume(handle) == 55)
     }
 
-    func testFutureConsumeSecondCallReturnsZero() {
+    @Test func futureConsumeSecondCallReturnsZero() {
         let handle = kk_future_new()
         kk_future_complete(handle, 100)
         _ = kk_future_consume(handle)
-        XCTAssertEqual(kk_future_consume(handle), 0, "Second consume must return 0")
+        #expect(kk_future_consume(handle) == 0, "Second consume must return 0")
     }
 
-    func testFutureCompletedFromBackgroundThread() {
+    @Test func futureCompletedFromBackgroundThread() {
         let handle = kk_future_new()
         let dispatchGroup = DispatchGroup()
         dispatchGroup.enter()
@@ -443,17 +442,17 @@ final class RuntimeFutureTests: IsolatedRuntimeXCTestCase {
             dispatchGroup.leave()
         }
         let result = kk_future_result(handle)
-        XCTAssertEqual(result, 1234)
+        #expect(result == 1234)
         dispatchGroup.wait()
     }
 
-    func testWorkerExecuteReturnsFutureHandle() {
+    @Test func workerExecuteReturnsFutureHandle() {
         // kk_worker_execute now returns a Future handle, not 1.
         let workerHandle = kk_worker_new(0)
         // Terminate immediately; execute must decline (return 0).
         _ = kk_worker_request_termination(workerHandle, 1)
         let result = kk_worker_execute(workerHandle, 0, 0, 0, 0, 0)
-        XCTAssertEqual(result, 0, "Terminated worker returns 0 (no future)")
+        #expect(result == 0, "Terminated worker returns 0 (no future)")
     }
 }
 
@@ -461,32 +460,31 @@ final class RuntimeFutureTests: IsolatedRuntimeXCTestCase {
 // MARK: - TransferMode Tests (STDLIB-NATIVE-CONCURRENT-ABI-003)
 // ---------------------------------------------------------------------------
 
-final class RuntimeTransferModeTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeTransferModeTests {
 
-    func testTransferSafeModeReturnsSameHandle() {
+    @Test func transferSafeModeReturnsSameHandle() {
         let handle = kk_atomic_int_create(10)
         let result = kk_transfer_object(handle, 0) // SAFE = 0
-        XCTAssertEqual(result, handle)
+        #expect(result == handle)
     }
 
-    func testTransferUnsafeModeReturnsSameHandle() {
+    @Test func transferUnsafeModeReturnsSameHandle() {
         let handle = kk_atomic_int_create(20)
         let result = kk_transfer_object(handle, 1) // UNSAFE = 1
-        XCTAssertEqual(result, handle)
+        #expect(result == handle)
     }
 
-    func testTransferSafeModeFreezesObject() {
+    @Test func transferSafeModeFreezesObject() {
         let handle = kk_atomic_int_create(30)
-        XCTAssertEqual(kk_is_frozen(handle), 0, "Object must not be frozen before transfer")
+        #expect(kk_is_frozen(handle) == 0, "Object must not be frozen before transfer")
         kk_transfer_object(handle, 0) // SAFE transfer
-        XCTAssertEqual(kk_is_frozen(handle), 1, "SAFE transfer must freeze the object")
+        #expect(kk_is_frozen(handle) == 1, "SAFE transfer must freeze the object")
     }
 
-    func testTransferNullHandleIsNoOp() {
+    @Test func transferNullHandleIsNoOp() {
         let result = kk_transfer_object(0, 0)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 }
 
@@ -494,81 +492,80 @@ final class RuntimeTransferModeTests: IsolatedRuntimeXCTestCase {
 // MARK: - FreezableAtomicReference Tests (STDLIB-NATIVE-CONCURRENT-ABI-004)
 // ---------------------------------------------------------------------------
 
-final class RuntimeFreezableAtomicRefTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeFreezableAtomicRefTests {
 
-    func testCreateReturnsNonZeroHandle() {
+    @Test func createReturnsNonZeroHandle() {
         let handle = kk_freezable_atomic_ref_create(0)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
     }
 
-    func testLoadReturnsInitialValue() {
+    @Test func loadReturnsInitialValue() {
         let valueHandle = kk_atomic_int_create(5)
         let refHandle = kk_freezable_atomic_ref_create(valueHandle)
-        XCTAssertEqual(kk_freezable_atomic_ref_load(refHandle), valueHandle)
+        #expect(kk_freezable_atomic_ref_load(refHandle) == valueHandle)
     }
 
-    func testIsNotFrozenInitially() {
+    @Test func isNotFrozenInitially() {
         let refHandle = kk_freezable_atomic_ref_create(0)
-        XCTAssertEqual(kk_freezable_atomic_ref_is_frozen(refHandle), 0)
+        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 0)
     }
 
-    func testFirstStoreSucceedsAndFreezesRef() {
+    @Test func firstStoreSucceedsAndFreezesRef() {
         let refHandle = kk_freezable_atomic_ref_create(0)
         let valueHandle = kk_atomic_int_create(99)
         let result = kk_freezable_atomic_ref_store(refHandle, valueHandle)
-        XCTAssertEqual(result, 1, "First store must succeed")
-        XCTAssertEqual(kk_freezable_atomic_ref_is_frozen(refHandle), 1, "Ref must be frozen after first store")
-        XCTAssertEqual(kk_freezable_atomic_ref_load(refHandle), valueHandle)
+        #expect(result == 1, "First store must succeed")
+        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 1, "Ref must be frozen after first store")
+        #expect(kk_freezable_atomic_ref_load(refHandle) == valueHandle)
     }
 
-    func testSecondStoreWithDifferentValueFails() {
+    @Test func secondStoreWithDifferentValueFails() {
         let refHandle = kk_freezable_atomic_ref_create(0)
         let v1 = kk_atomic_int_create(1)
         let v2 = kk_atomic_int_create(2)
         _ = kk_freezable_atomic_ref_store(refHandle, v1)
         let result = kk_freezable_atomic_ref_store(refHandle, v2)
-        XCTAssertEqual(result, 0, "Mutation after freeze must be rejected")
-        XCTAssertEqual(kk_freezable_atomic_ref_load(refHandle), v1, "Value must be unchanged")
+        #expect(result == 0, "Mutation after freeze must be rejected")
+        #expect(kk_freezable_atomic_ref_load(refHandle) == v1, "Value must be unchanged")
     }
 
-    func testStoreWithSameValueAfterFreezeIsIdempotent() {
+    @Test func storeWithSameValueAfterFreezeIsIdempotent() {
         let refHandle = kk_freezable_atomic_ref_create(0)
         let v = kk_atomic_int_create(7)
         _ = kk_freezable_atomic_ref_store(refHandle, v)
         let result = kk_freezable_atomic_ref_store(refHandle, v)
-        XCTAssertEqual(result, 1, "Storing the same value after freeze must succeed (idempotent)")
+        #expect(result == 1, "Storing the same value after freeze must succeed (idempotent)")
     }
 
-    func testCompareAndSetPublishesAndFreezesValue() {
+    @Test func compareAndSetPublishesAndFreezesValue() {
         let initial = kk_atomic_int_create(1)
         let next = kk_atomic_int_create(2)
         let refHandle = kk_freezable_atomic_ref_create(initial)
         let result = kk_freezable_atomic_ref_compareAndSet(refHandle, initial, next)
-        XCTAssertEqual(result, 1)
-        XCTAssertEqual(kk_freezable_atomic_ref_is_frozen(refHandle), 1)
-        XCTAssertEqual(kk_freezable_atomic_ref_load(refHandle), next)
+        #expect(result == 1)
+        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 1)
+        #expect(kk_freezable_atomic_ref_load(refHandle) == next)
     }
 
-    func testCompareAndSetRejectsExpectedMismatch() {
+    @Test func compareAndSetRejectsExpectedMismatch() {
         let initial = kk_atomic_int_create(1)
         let other = kk_atomic_int_create(2)
         let next = kk_atomic_int_create(3)
         let refHandle = kk_freezable_atomic_ref_create(initial)
         let result = kk_freezable_atomic_ref_compareAndSet(refHandle, other, next)
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(kk_freezable_atomic_ref_is_frozen(refHandle), 0)
-        XCTAssertEqual(kk_freezable_atomic_ref_load(refHandle), initial)
+        #expect(result == 0)
+        #expect(kk_freezable_atomic_ref_is_frozen(refHandle) == 0)
+        #expect(kk_freezable_atomic_ref_load(refHandle) == initial)
     }
 
-    func testCompareAndSwapReturnsOldValue() {
+    @Test func compareAndSwapReturnsOldValue() {
         let initial = kk_atomic_int_create(1)
         let next = kk_atomic_int_create(2)
         let refHandle = kk_freezable_atomic_ref_create(initial)
         let oldValue = kk_freezable_atomic_ref_compareAndSwap(refHandle, initial, next)
-        XCTAssertEqual(oldValue, initial)
-        XCTAssertEqual(kk_freezable_atomic_ref_load(refHandle), next)
+        #expect(oldValue == initial)
+        #expect(kk_freezable_atomic_ref_load(refHandle) == next)
     }
 }
 
@@ -576,28 +573,27 @@ final class RuntimeFreezableAtomicRefTests: IsolatedRuntimeXCTestCase {
 // MARK: - @SharedImmutable Tests (STDLIB-NATIVE-CONCURRENT-ABI-005)
 // ---------------------------------------------------------------------------
 
-final class RuntimeSharedImmutableTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeSharedImmutableTests {
 
-    func testSharedImmutableInitFreezesObject() {
+    @Test func sharedImmutableInitFreezesObject() {
         let handle = kk_atomic_int_create(42)
-        XCTAssertEqual(kk_is_frozen(handle), 0, "Object must not be frozen before init")
+        #expect(kk_is_frozen(handle) == 0, "Object must not be frozen before init")
         let returned = kk_shared_immutable_init(handle)
-        XCTAssertEqual(returned, handle, "kk_shared_immutable_init must return the same handle")
-        XCTAssertEqual(kk_is_frozen(handle), 1, "Object must be frozen after @SharedImmutable init")
+        #expect(returned == handle, "kk_shared_immutable_init must return the same handle")
+        #expect(kk_is_frozen(handle) == 1, "Object must be frozen after @SharedImmutable init")
     }
 
-    func testSharedImmutableInitWithNullHandleIsNoOp() {
+    @Test func sharedImmutableInitWithNullHandleIsNoOp() {
         let result = kk_shared_immutable_init(0)
-        XCTAssertEqual(result, 0, "Null handle must be a no-op")
+        #expect(result == 0, "Null handle must be a no-op")
     }
 
-    func testSharedImmutableInitIsIdempotent() {
+    @Test func sharedImmutableInitIsIdempotent() {
         let handle = kk_atomic_int_create(10)
         kk_shared_immutable_init(handle)
         kk_shared_immutable_init(handle) // second call must not crash
-        XCTAssertEqual(kk_is_frozen(handle), 1)
+        #expect(kk_is_frozen(handle) == 1)
     }
 }
 
@@ -605,26 +601,25 @@ final class RuntimeSharedImmutableTests: IsolatedRuntimeXCTestCase {
 // MARK: - Worker.executeAfter Tests (STDLIB-NATIVE-CONCURRENT-ABI-006)
 // ---------------------------------------------------------------------------
 
-final class RuntimeWorkerExecuteAfterTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
+@Suite(.runtimeIsolation(.gcAndThreadLocal))
+struct RuntimeWorkerExecuteAfterTests {
 
-    func testExecuteAfterReturnsZeroForTerminatedWorker() {
+    @Test func executeAfterReturnsZeroForTerminatedWorker() {
         let handle = kk_worker_new(0)
         _ = kk_worker_request_termination(handle, 1)
         let result = kk_worker_execute_after(handle, 0, 0, 0)
-        XCTAssertEqual(result, 0, "Terminated worker must decline executeAfter")
+        #expect(result == 0, "Terminated worker must decline executeAfter")
     }
 
-    func testExecuteAfterReturnsZeroForInvalidHandle() {
+    @Test func executeAfterReturnsZeroForInvalidHandle() {
         let result = kk_worker_execute_after(0, 0, 0, 0)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 
-    func testExecuteAfterReturnsZeroForNullFnPtr() {
+    @Test func executeAfterReturnsZeroForNullFnPtr() {
         let handle = kk_worker_new(0)
         defer { _ = kk_worker_request_termination(handle, 1) }
         let result = kk_worker_execute_after(handle, 0, 0, 0)
-        XCTAssertEqual(result, 0, "Null function pointer must be rejected")
+        #expect(result == 0, "Null function pointer must be rejected")
     }
 }

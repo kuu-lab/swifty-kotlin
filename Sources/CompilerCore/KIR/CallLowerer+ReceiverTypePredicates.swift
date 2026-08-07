@@ -57,6 +57,22 @@ extension CallLowerer {
         return symbolName == "Iterable" || symbolName == "Collection"
     }
 
+    /// True when the receiver's static type is the bare `Set` interface
+    /// itself (not a concrete `HashSet`/`LinkedHashSet`/etc.). Mirrors
+    /// `isIterableOrCollectionInterfaceType` above but kept separate since
+    /// that helper's other call sites are not verified safe to also match
+    /// `Set`.
+    func isBareSetInterfaceType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "Set"
+    }
+
     func toMutableListRuntimeCalleeForSequenceOrIterableFallback(
         chosenCallee: SymbolID?,
         useIterableFallback: Bool,
