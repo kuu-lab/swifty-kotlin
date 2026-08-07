@@ -925,7 +925,7 @@ extension CallLowerer {
         // to (fnPtr, closureRaw) so runtime can retain both the entry point and
         // the captured environment. Multi-capture lambdas are packed into a
         // closure object, reusing the same adapter strategy as collection HOFs.
-        if externalLinkName == "kk_deep_recursive_function_new", loweredArguments.count == 1 {
+        if externalLinkName == "__kk_deep_recursive_function_new", loweredArguments.count == 1 {
             return makeCollectionHOFExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
