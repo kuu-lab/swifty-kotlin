@@ -35,10 +35,7 @@ final class CallTypeChecker {
            calleeName == interner.intern("contextOf"),
            args.isEmpty,
            locals[calleeName] == nil,
-           !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
-               guard let sym = ctx.cachedSymbol(candidate) else { return false }
-               return !sym.flags.contains(.synthetic)
-           })
+           !hasUserDeclaration(named: calleeName, shadowingContextIntrinsic: ctx, interner: interner)
         {
             let contextOfFQName = [interner.intern("kotlin"), calleeName]
             if let contextOfSymbol = sema.symbols.lookup(fqName: contextOfFQName) {
@@ -345,10 +342,7 @@ final class CallTypeChecker {
         if let calleeName, args.count >= 2, args.count <= 7,
            calleeName == contextHelperName,
            locals[calleeName] == nil,
-           !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
-               guard let sym = ctx.cachedSymbol(candidate) else { return false }
-               return !sym.flags.contains(.synthetic)
-           })
+           !hasUserDeclaration(named: calleeName, shadowingContextIntrinsic: ctx, interner: interner)
         {
             let contextValueArgs = Array(args.dropLast())
             let blockArg = args[args.count - 1]
@@ -378,7 +372,6 @@ final class CallTypeChecker {
             }
             if let contextSymbol = ctx.cachedScopeLookup(calleeName).first(where: { candidate in
                 guard let sym = ctx.cachedSymbol(candidate),
-                      sym.flags.contains(.synthetic),
                       sym.fqName.map({ interner.resolve($0) }) == ["kotlin", "context"],
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count
@@ -3325,6 +3318,26 @@ final class CallTypeChecker {
         }
     }
 
+    /// True when a declaration named `name` that is neither synthetic nor the
+    /// bundled stdlib declaration of a context-parameter intrinsic is in scope.
+    ///
+    /// `kotlin.context` / `kotlin.contextOf` live in bundled Kotlin source
+    /// (Stdlib/kotlin/ContextParameters.kt, KSP-603) but their call sites are
+    /// expanded by the compiler, so only a user declaration disables the
+    /// intrinsic path.
+    private func hasUserDeclaration(
+        named name: InternedString,
+        shadowingContextIntrinsic ctx: TypeInferenceContext,
+        interner: StringInterner
+    ) -> Bool {
+        ctx.cachedScopeLookup(name).contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate), !symbol.flags.contains(.synthetic) else {
+                return false
+            }
+            let fqName = symbol.fqName.map { interner.resolve($0) }
+            return fqName != ["kotlin", interner.resolve(name)]
+        }
+    }
 }
 
 // swiftlint:enable type_body_length

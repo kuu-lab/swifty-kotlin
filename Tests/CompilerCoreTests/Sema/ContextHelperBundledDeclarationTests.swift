@@ -4,14 +4,16 @@ import Foundation
 import Testing
 
 @Suite
-struct ContextHelperSyntheticStubTests {
+struct ContextHelperBundledDeclarationTests {
     @Test func testContextHelperIsRegisteredWithContextFunctionBlock() throws {
         let (sema, interner) = try makeSema()
         let contextSymbol = try #require(lookupSymbol(["kotlin", "context"], sema: sema, interner: interner))
         let symbol = try #require(sema.symbols.symbol(contextSymbol))
         let signature = try #require(sema.symbols.functionSignature(for: contextSymbol))
 
-        #expect(symbol.flags.contains(.synthetic))
+        // KSP-603: declared in bundled Kotlin source, not as a synthetic stub.
+        #expect(!symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(contextSymbol))
         #expect(symbol.flags.contains(.inlineFunction))
         #expect(signature.parameterTypes.count == 2)
         #expect(signature.typeParameterSymbols.count == 2)
@@ -50,13 +52,14 @@ struct ContextHelperSyntheticStubTests {
         let symbol = try #require(sema.symbols.symbol(contextOfSymbol))
         let signature = try #require(sema.symbols.functionSignature(for: contextOfSymbol))
 
-        #expect(symbol.flags.contains(.synthetic))
+        #expect(!symbol.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(contextOfSymbol))
         #expect(symbol.flags.contains(.inlineFunction))
         #expect(signature.parameterTypes == [])
         #expect(signature.typeParameterSymbols.count == 1)
         #expect(signature.returnType == typeParamType(signature.typeParameterSymbols[0], sema: sema))
         #expect(sema.symbols.annotations(for: contextOfSymbol).contains { annotation in
-            annotation.annotationFQName == "kotlin.ExperimentalContextParameters"
+            annotation.annotationFQName.hasSuffix("ExperimentalContextParameters")
         })
     }
 
@@ -118,6 +121,22 @@ struct ContextHelperSyntheticStubTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-CTX-001", in: ctx)
         #expect(diagnostics.count == 1, "Expected missing context receiver diagnostic, got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testUserDeclaredContextFunctionShadowsBundledHelper() throws {
+        let source = """
+        fun context(marker: Int): String = "user-$marker"
+
+        fun caller(): String = context(7)
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty, "Expected the user declaration to win, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let callerSymbol = try #require(lookupSymbol(["caller"], sema: sema, interner: interner))
+        let signature = try #require(sema.symbols.functionSignature(for: callerSymbol))
+        #expect(signature.returnType == sema.types.stringType)
     }
 
     @Test func testContextHelperSixValueOverloadInfersBlockReturnType() throws {
