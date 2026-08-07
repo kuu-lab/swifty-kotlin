@@ -89,18 +89,6 @@ extension CallLowerer {
         return interner.intern(useIterableFallback ? "kk_iterable_toMutableList" : "kk_sequence_toMutableList")
     }
 
-    func isGroupingLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isGroupingSymbol(symbol)
-    }
-
     func isConcreteListLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,

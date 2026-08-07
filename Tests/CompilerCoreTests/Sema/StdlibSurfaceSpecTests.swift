@@ -48,7 +48,6 @@ struct StdlibSurfaceSpecTests {
             list("flatMap", 1),
             list("forEach", 1),
             list("groupBy", 1),
-            list("groupingBy", 1),
             list("associateBy", 1),
             list("associateWith", 1),
             list("associate", 1),

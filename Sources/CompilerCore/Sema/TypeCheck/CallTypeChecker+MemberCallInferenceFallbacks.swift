@@ -363,26 +363,6 @@ extension CallTypeChecker {
         return sema.types.anyType
     }
 
-    func resolvedGroupingKeyType(
-        of type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
-              knownNames.isGroupingSymbol(symbol),
-              classType.args.count >= 2
-        else {
-            return nil
-        }
-        return switch classType.args[1] {
-        case let .invariant(id), let .out(id), let .in(id):
-            id
-        case .star:
-            sema.types.anyType
-        }
-    }
-
 
     /// Extract the inferred return type from a lambda argument.
     /// Checks the lambda body expression first, then falls back to the function
