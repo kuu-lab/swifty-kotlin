@@ -406,6 +406,7 @@ extension DataFlowSemaPhase {
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
+        let constValueLiteral: String?
 
         init(
             kind: SymbolKind,
@@ -449,7 +450,8 @@ extension DataFlowSemaPhase {
             propertyGetterExternalLinkName: String? = nil,
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
-            isMutable: Bool = false
+            isMutable: Bool = false,
+            constValueLiteral: String? = nil
         ) {
             self.kind = kind
             self.mangledName = mangledName
@@ -493,6 +495,7 @@ extension DataFlowSemaPhase {
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
+            self.constValueLiteral = constValueLiteral
         }
     }
 
@@ -753,6 +756,15 @@ extension DataFlowSemaPhase {
             allowPlaceholders: isStdlibArtifact
         )
         symbols.setPropertyType(propertyType, for: symbol)
+
+        // `const val` values are inlined at every use site, so carry the literal
+        // across the library boundary instead of reading the (never initialized)
+        // global slot of a precompiled library.
+        if let constValueLiteral = record.constValueLiteral,
+           let constValue = MetadataConstValueCoder.decode(constValueLiteral, interner: { interner.intern($0) })
+        {
+            symbols.setConstValueExprKind(constValue, for: symbol)
+        }
 
         // Restore extension property accessor(s). Extension properties are
         // compiled as precompiled getter functions in the artifact objects;

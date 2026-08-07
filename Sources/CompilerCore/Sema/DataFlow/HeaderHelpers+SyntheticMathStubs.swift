@@ -13,27 +13,8 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        registerSyntheticMathTopLevelFunction(
-            named: "abs",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.intType,
-            returnType: types.intType,
-            externalLinkName: "kk_math_abs_int",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticMathTopLevelFunction(
-            named: "abs",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.doubleType,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_abs",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-635: abs/sign/min/max and the PI/E constants live in bundled
+        // Kotlin source (Stdlib/kotlin/math/Math.kt).
 
         registerSyntheticMathTopLevelFunction(
             named: "sqrt",
@@ -140,11 +121,9 @@ extension DataFlowSemaPhase {
             ("acos", "kk_math_acos_float"), ("atan", "kk_math_atan_float"),
             ("sqrt", "kk_math_sqrt_float"), ("round", "kk_math_round_float"),
             ("ceil", "kk_math_ceil_float"), ("floor", "kk_math_floor_float"),
-            ("abs", "kk_math_abs_float"),
             ("exp", "kk_math_exp_float"), ("ln", "kk_math_ln_float"),
             ("expm1", "kk_math_expm1_float"), ("ln1p", "kk_math_ln1p_float"),
             ("log2", "kk_math_log2_float"), ("log10", "kk_math_log10_float"),
-            ("sign", "kk_math_sign_float"),
             // STDLIB-MATH-109: Hyperbolic and cbrt Float overloads
             ("sinh", "kk_math_sinh_float"), ("cosh", "kk_math_cosh_float"),
             ("tanh", "kk_math_tanh_float"), ("cbrt", "kk_math_cbrt_float"),
@@ -307,18 +286,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-514: abs(Long), truncate
-
-        registerSyntheticMathTopLevelFunction(
-            named: "abs",
-            packageFQName: kotlinMathPkg,
-            parameterName: "n",
-            parameterType: types.longType,
-            returnType: types.longType,
-            externalLinkName: "kk_math_abs_long",
-            symbols: symbols,
-            interner: interner
-        )
+        // STDLIB-514: truncate
 
         registerSyntheticMathTopLevelFunction(
             named: "truncate",
@@ -577,18 +545,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-432: sign/hypot + PI/E constants
-
-        registerSyntheticMathTopLevelFunction(
-            named: "sign",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.doubleType,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_sign",
-            symbols: symbols,
-            interner: interner
-        )
+        // STDLIB-432: hypot
 
         registerSyntheticMathTopLevelFunction(
             named: "hypot",
@@ -603,64 +560,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-MATH-006: max/min overload matrix.
-        let minMaxOverloads: [(name: String, type: TypeID, linkName: String)] = [
-            ("max", types.doubleType, "kk_math_max"),
-            ("max", floatType, "kk_math_max_float"),
-            ("max", types.intType, "kk_math_max_int"),
-            ("max", types.longType, "kk_math_max_long"),
-            ("max", types.uintType, "kk_math_max_uint"),
-            ("max", types.ulongType, "kk_math_max_ulong"),
-            ("min", types.doubleType, "kk_math_min"),
-            ("min", floatType, "kk_math_min_float"),
-            ("min", types.intType, "kk_math_min_int"),
-            ("min", types.longType, "kk_math_min_long"),
-            ("min", types.uintType, "kk_math_min_uint"),
-            ("min", types.ulongType, "kk_math_min_ulong"),
-        ]
-        for overload in minMaxOverloads {
-            registerSyntheticMathTopLevelFunction(
-                named: overload.name,
-                packageFQName: kotlinMathPkg,
-                parameters: [
-                    (name: "a", type: overload.type),
-                    (name: "b", type: overload.type),
-                ],
-                returnType: overload.type,
-                externalLinkName: overload.linkName,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        registerSyntheticMathTopLevelProperty(
-            named: "PI",
-            packageFQName: kotlinMathPkg,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_PI",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticMathTopLevelProperty(
-            named: "E",
-            packageFQName: kotlinMathPkg,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_E",
-            symbols: symbols,
-            interner: interner
-        )
-
         // STDLIB-MATH-004: official kotlin.math extension property surface.
+        // absoluteValue / sign are Kotlin source (KSP-635).
         for property in [
-            (name: "absoluteValue", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_math_abs"),
-            (name: "absoluteValue", receiverType: floatType, returnType: floatType, linkName: "kk_math_abs_float"),
-            (name: "absoluteValue", receiverType: types.intType, returnType: types.intType, linkName: "kk_math_abs_int"),
-            (name: "absoluteValue", receiverType: types.longType, returnType: types.longType, linkName: "kk_math_abs_long"),
-            (name: "sign", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_math_sign"),
-            (name: "sign", receiverType: floatType, returnType: floatType, linkName: "kk_math_sign_float"),
-            (name: "sign", receiverType: types.intType, returnType: types.intType, linkName: "kk_math_sign_int"),
-            (name: "sign", receiverType: types.longType, returnType: types.intType, linkName: "kk_math_sign_long"),
             (name: "ulp", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_double_ulp"),
             (name: "ulp", receiverType: floatType, returnType: floatType, linkName: "kk_float_ulp"),
         ] {
@@ -742,39 +644,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-    }
-
-    private func registerSyntheticMathTopLevelProperty(
-        named name: String,
-        packageFQName: [InternedString],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = packageFQName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
     }
 
     private func registerSyntheticMathExtensionProperty(

@@ -82,6 +82,10 @@ package struct MetadataRecord {
     let propertyGetterAbiReturnTypeSignature: String?
     /// True for `var` properties/fields.
     package let isMutable: Bool
+    /// Encoded compile-time constant value of a `const val` property, so
+    /// consumers can inline it instead of reading an uninitialized global slot
+    /// (a precompiled library has no `main` to run top-level initializers).
+    let constValueLiteral: String?
 
     init(
         kind: SymbolKind,
@@ -124,7 +128,8 @@ package struct MetadataRecord {
         propertyGetterExternalLinkName: String? = nil,
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
-        isMutable: Bool = false
+        isMutable: Bool = false,
+        constValueLiteral: String? = nil
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -167,6 +172,7 @@ package struct MetadataRecord {
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
+        self.constValueLiteral = constValueLiteral
     }
 }
 
@@ -604,6 +610,7 @@ package final class MetadataEncoder {
         var propertyGetterExternalLinkName: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable = false
+        var constValueLiteral: String?
         if symbol.kind == .property || symbol.kind == .field,
            symbols.propertyType(for: symbol.id) != nil
         {
@@ -647,6 +654,9 @@ package final class MetadataEncoder {
                 }
             }
             isMutable = symbol.flags.contains(.mutable)
+            if !isMutable, let constValue = symbols.constValueExprKind(for: symbol.id) {
+                constValueLiteral = MetadataConstValueCoder.encode(constValue) { interner.resolve($0) }
+            }
         }
 
         if symbol.kind == .typeAlias,
@@ -791,7 +801,8 @@ package final class MetadataEncoder {
             propertyGetterExternalLinkName: propertyGetterExternalLinkName,
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
-            isMutable: isMutable
+            isMutable: isMutable,
+            constValueLiteral: constValueLiteral
         )
     }
 
@@ -866,6 +877,9 @@ package final class MetadataEncoder {
                 }
                 if record.isMutable {
                     fields.append("mutable=1")
+                }
+                if let constValue = record.constValueLiteral, !constValue.isEmpty {
+                    fields.append("const=\(constValue)")
                 }
             }
             if record.kind == .typeAlias {
@@ -1186,7 +1200,8 @@ final class MetadataDecoder {
                 propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
-                isMutable: rec.isMutable
+                isMutable: rec.isMutable,
+                constValueLiteral: rec.constValueLiteral
             ))
         }
         return records
@@ -1235,6 +1250,7 @@ final class MetadataDecoder {
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
+        var constValueLiteral: String?
         var schemaVersion: String?
     }
 
@@ -1318,6 +1334,8 @@ final class MetadataDecoder {
             record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
         case "mutable":
             record.isMutable = value == "1" || value == "true"
+        case "const":
+            record.constValueLiteral = value.isEmpty ? nil : value
         case "abiSig":
             record.abiReturnTypeSignature = value.isEmpty ? nil : value
         case "schema":
