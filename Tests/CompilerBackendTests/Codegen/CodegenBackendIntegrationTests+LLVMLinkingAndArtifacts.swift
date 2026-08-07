@@ -1,9 +1,48 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendLLVMLinkingAndArtifactsTests {
+    @Test
     func testLLVMBackendCanLinkAndRunExecutable() throws {
         let source = "fun main() = 0"
         try withTemporaryFile(contents: source) { path in
@@ -29,12 +68,13 @@ extension CodegenBackendIntegrationTests {
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.exitCode, 0)
+            #expect(result.exitCode == 0)
         }
     }
 
+    @Test
     func testLLVMBackendLowersStringLengthToAggregateFieldExtract() throws {
         let source = """
         fun lengthOf(value: String): Int {
@@ -56,15 +96,16 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertTrue(ir.contains("extractvalue"), "String.length should read the aggregate length field")
-            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            #expect(ir.contains("extractvalue"), "String.length should read the aggregate length field")
+            #expect(!ir.contains("@kk_string_struct_get_length"))
+            #expect(!ir.contains("@__string_struct_get_length"))
         }
     }
 
+    @Test
     func testLLVMBackendLowersStringLengthInLambdasToAggregateFieldExtract() throws {
         let source = """
         fun main() {
@@ -83,15 +124,16 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertTrue(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
-            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            #expect(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
+            #expect(!ir.contains("@kk_string_struct_get_length"))
+            #expect(!ir.contains("@__string_struct_get_length"))
         }
     }
 
+    @Test
     func testLLVMBackendLowersStringLengthRuntimePrimitiveToAggregateFieldExtract() throws {
         let source = """
         import kswiftk.internal.__string_struct_get_length
@@ -115,15 +157,16 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertTrue(ir.contains("extractvalue"), "String length primitive should read the aggregate length field")
-            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            #expect(ir.contains("extractvalue"), "String length primitive should read the aggregate length field")
+            #expect(!ir.contains("@kk_string_struct_get_length"))
+            #expect(!ir.contains("@__string_struct_get_length"))
         }
     }
 
+    @Test
     func testLLVMBackendOmitsStringLengthPrimitiveForLiteralNullSafeCall() throws {
         let source = """
         fun main() {
@@ -143,14 +186,15 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            #expect(!ir.contains("@kk_string_struct_get_length"))
+            #expect(!ir.contains("@__string_struct_get_length"))
         }
     }
 
+    @Test
     func testLLVMBackendBridgesReflectedStringVirtualDispatchReturn() throws {
         let source = """
         interface Face {
@@ -178,24 +222,25 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertTrue(
-                ir.contains("call i64 %lookup_fptr_"),
-                "String virtual dispatch should call reflected implementations with raw callback ABI"
+            #expect(
+                ir.contains("call { i8*, i64, i64, i64 } %lookup_fptr_"),
+                "String virtual dispatch should call reflected implementations with the flat String ABI"
             )
-            XCTAssertTrue(
-                ir.contains("virtual_callback_result"),
-                "Raw String virtual dispatch results should be bridged back to flat String ABI"
+            #expect(
+                !ir.contains("virtual_callback_result"),
+                "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
-            XCTAssertFalse(
-                ir.contains("call { ptr, i64, i64, i64 } %lookup_fptr_"),
-                "Interface dispatch must not expect a flat String return from a raw callback implementation"
+            #expect(
+                ir.contains("@kk_println_string_flat"),
+                "Virtual dispatch String result should be passed to the flat-string println runtime"
             )
         }
     }
 
+    @Test
     func testLLVMBackendBridgesRawAnyStringLengthAfterTypeCheck() throws {
         let source = """
         fun lengthIfString(value: Any): Int {
@@ -222,18 +267,19 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertTrue(ir.contains("@kk_string_to_flat"))
-            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            #expect(ir.contains("@kk_string_to_flat"))
+            #expect(!ir.contains("@kk_string_struct_get_length"))
+            #expect(!ir.contains("@__string_struct_get_length"))
         }
     }
 
     // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
     // bundled Kotlin source (StringPrefixSuffix.kt); the backend must no longer emit
     // any raw or flat runtime call for them.
+    @Test
     func testLLVMBackendKeepsPrefixSuffixSourceBacked() throws {
         let source = """
         fun main() {
@@ -257,7 +303,7 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let removedStems = [
@@ -268,12 +314,13 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_removeSurrounding",
             ]
             for stem in removedStems {
-                XCTAssertFalse(ir.contains("@\(stem)("), "Unexpected raw String call: \(stem)")
-                XCTAssertFalse(ir.contains("@\(stem)_flat"), "Unexpected flat String call: \(stem)_flat")
+                #expect(!ir.contains("@\(stem)("), "Unexpected raw String call: \(stem)")
+                #expect(!ir.contains("@\(stem)_flat"), "Unexpected flat String call: \(stem)_flat")
             }
         }
     }
 
+    @Test
     func testLLVMBackendKeepsReplaceFirstAndRangeEditsSourceBackedForStringOverloads() throws {
         let source = """
         fun main() {
@@ -295,11 +342,11 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
-            XCTAssertFalse(ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
+            #expect(!ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
+            #expect(!ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
 
             // KSP-406: replaceRange / removeRange are bundled Kotlin source and no
             // longer lower to a String-specific runtime helper (raw or flat).
@@ -309,12 +356,13 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_removeRange_range",
             ]
             for stem in removedStems {
-                XCTAssertFalse(ir.contains("@\(stem)("), "Unexpected raw String range call: \(stem)")
-                XCTAssertFalse(ir.contains("@\(stem)_flat"), "Unexpected flat String range call: \(stem)_flat")
+                #expect(!ir.contains("@\(stem)("), "Unexpected raw String range call: \(stem)")
+                #expect(!ir.contains("@\(stem)_flat"), "Unexpected flat String range call: \(stem)_flat")
             }
         }
     }
 
+    @Test
     func testLLVMBackendKeepsReplaceCharIgnoreCaseSourceBackedForStringOverloads() throws {
         let source = """
         fun main() {
@@ -334,7 +382,7 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let sourceBackedNames = [
@@ -343,12 +391,13 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replace_char_ignoreCase",
             ]
             for rawName in sourceBackedNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw source-backed String replace call: \(rawName)")
-                XCTAssertFalse(ir.contains("@\(rawName)_flat"), "Unexpected flat source-backed String replace call: \(rawName)_flat")
+                #expect(!ir.contains("@\(rawName)("), "Unexpected raw source-backed String replace call: \(rawName)")
+                #expect(!ir.contains("@\(rawName)_flat"), "Unexpected flat source-backed String replace call: \(rawName)_flat")
             }
         }
     }
 
+    @Test
     func testLLVMBackendDoesNotEmitLegacyIfBlankEmptyRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
@@ -369,16 +418,17 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
-            XCTAssertFalse(ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
-            XCTAssertFalse(ir.contains("@kk_string_ifBlank_flat"), "Unexpected flat String ifBlank call after KSP-401")
-            XCTAssertFalse(ir.contains("@kk_string_ifEmpty_flat"), "Unexpected flat String ifEmpty call after KSP-401")
+            #expect(!ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
+            #expect(!ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
+            #expect(!ir.contains("@kk_string_ifBlank_flat"), "Unexpected flat String ifBlank call after KSP-401")
+            #expect(!ir.contains("@kk_string_ifEmpty_flat"), "Unexpected flat String ifEmpty call after KSP-401")
         }
     }
 
+    @Test
     func testLLVMBackendDoesNotEmitReplaceFirstCharRuntimeCallForSourceBackedOverload() throws {
         // KSP-412 (#5064) migrated replaceFirstChar to bundled Kotlin source
         // (StringCaseConversion.kt) and removed both the raw and flat runtime
@@ -402,14 +452,15 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar("), "Unexpected raw replaceFirstChar call")
-            XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar_flat"), "Unexpected flat replaceFirstChar call")
+            #expect(!ir.contains("@kk_string_replaceFirstChar("), "Unexpected raw replaceFirstChar call")
+            #expect(!ir.contains("@kk_string_replaceFirstChar_flat"), "Unexpected flat replaceFirstChar call")
         }
     }
 
+    @Test
     func testLLVMBackendDoesNotEmitCommonPrefixSuffixRuntimeCallsForSourceBackedOverloads() throws {
         let source = """
         fun main() {
@@ -430,32 +481,33 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_commonPrefixWith("), "Unexpected raw commonPrefixWith call")
-            XCTAssertFalse(ir.contains("@kk_string_commonSuffixWith("), "Unexpected raw commonSuffixWith call")
-            XCTAssertFalse(
-                ir.contains("@kk_string_commonPrefixWith_ignoreCase("),
+            #expect(!ir.contains("@kk_string_commonPrefixWith("), "Unexpected raw commonPrefixWith call")
+            #expect(!ir.contains("@kk_string_commonSuffixWith("), "Unexpected raw commonSuffixWith call")
+            #expect(
+                !ir.contains("@kk_string_commonPrefixWith_ignoreCase("),
                 "Unexpected raw commonPrefixWith(ignoreCase) call"
             )
-            XCTAssertFalse(
-                ir.contains("@kk_string_commonSuffixWith_ignoreCase("),
+            #expect(
+                !ir.contains("@kk_string_commonSuffixWith_ignoreCase("),
                 "Unexpected raw commonSuffixWith(ignoreCase) call"
             )
-            XCTAssertFalse(ir.contains("@kk_string_commonPrefixWith_flat"), "Unexpected flat commonPrefixWith call")
-            XCTAssertFalse(ir.contains("@kk_string_commonSuffixWith_flat"), "Unexpected flat commonSuffixWith call")
-            XCTAssertFalse(
-                ir.contains("@kk_string_commonPrefixWith_ignoreCase_flat"),
+            #expect(!ir.contains("@kk_string_commonPrefixWith_flat"), "Unexpected flat commonPrefixWith call")
+            #expect(!ir.contains("@kk_string_commonSuffixWith_flat"), "Unexpected flat commonSuffixWith call")
+            #expect(
+                !ir.contains("@kk_string_commonPrefixWith_ignoreCase_flat"),
                 "Unexpected flat commonPrefixWith(ignoreCase) call"
             )
-            XCTAssertFalse(
-                ir.contains("@kk_string_commonSuffixWith_ignoreCase_flat"),
+            #expect(
+                !ir.contains("@kk_string_commonSuffixWith_ignoreCase_flat"),
                 "Unexpected flat commonSuffixWith(ignoreCase) call"
             )
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatFormatRuntimeCallsForStringOverloads() throws {
         let source = """
         import java.util.Locale
@@ -477,16 +529,17 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@__kk_string_format("), "Unexpected raw String format call")
-            XCTAssertFalse(ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
-            XCTAssertTrue(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
-            XCTAssertTrue(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
+            #expect(!ir.contains("@__kk_string_format("), "Unexpected raw String format call")
+            #expect(!ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
+            #expect(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
+            #expect(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
         }
     }
 
+    @Test
     func testLLVMBackendUsesSourceBackedIndentCallsForStringOverloads() throws {
         // trimIndent/trimMargin/prependIndent/replaceIndent/replaceIndentByMargin are compiled
         // through StringIndentFormat.kt. The old public kk_string_* and flat C-bridge calls
@@ -525,7 +578,7 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let forbiddenNames = [
@@ -549,11 +602,12 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_indent_flat",
             ]
             for name in forbiddenNames {
-                XCTAssertFalse(ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
+                #expect(!ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
             }
         }
     }
 
+    @Test
     func testLLVMBackendEmitsKotlinTrimCallsWithoutRuntimeTrimABI() throws {
         let source = """
         fun main() {
@@ -577,7 +631,7 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let rawNames = [
@@ -589,7 +643,7 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_trimEnd_predicate",
             ]
             for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim call: \(rawName)")
+                #expect(!ir.contains("@\(rawName)("), "Unexpected raw String trim call: \(rawName)")
             }
             let flatNames = [
                 "kk_string_trim_flat",
@@ -600,11 +654,12 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_trimEnd_predicate_flat",
             ]
             for flatName in flatNames {
-                XCTAssertFalse(ir.contains("@\(flatName)"), "Unexpected flat String trim call: \(flatName)")
+                #expect(!ir.contains("@\(flatName)"), "Unexpected flat String trim call: \(flatName)")
             }
         }
     }
 
+    @Test
     func testLLVMBackendEmitsRuntimeStringAndCoroutineHelpersInLLVMIR() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -794,73 +849,74 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        XCTAssertFalse(ir.contains("@kk_string_from_utf8"))
-        XCTAssertFalse(ir.contains("@kk_string_concat("))
-        XCTAssertFalse(ir.contains("@kk_string_trim("))
-        XCTAssertFalse(ir.contains("@kk_string_trimStart("))
-        XCTAssertFalse(ir.contains("@kk_string_trimEnd("))
-        XCTAssertFalse(ir.contains("@kk_string_lowercase("))
-        XCTAssertFalse(ir.contains("@kk_string_uppercase("))
-        XCTAssertFalse(ir.contains("@kk_string_reversed("))
-        XCTAssertFalse(ir.contains("@kk_string_substring("))
-        XCTAssertFalse(ir.contains("@kk_string_subSequence("))
-        XCTAssertFalse(ir.contains("@kk_string_take("))
-        XCTAssertFalse(ir.contains("@kk_string_repeat("))
-        XCTAssertFalse(ir.contains("@kk_string_takeLast("))
-        XCTAssertFalse(ir.contains("@kk_string_drop("))
-        XCTAssertFalse(ir.contains("@kk_string_dropLast("))
-        XCTAssertFalse(ir.contains("@kk_string_filter("))
-        XCTAssertFalse(ir.contains("@kk_string_filterIndexed("))
-        XCTAssertFalse(ir.contains("@kk_string_filterNot("))
-        XCTAssertFalse(ir.contains("@kk_string_takeWhile("))
-        XCTAssertFalse(ir.contains("@kk_string_takeLastWhile("))
-        XCTAssertFalse(ir.contains("@kk_string_dropWhile("))
-        XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_trimStart_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_trimEnd_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_lowercase_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_uppercase_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
-        XCTAssertFalse(ir.contains("@kk_string_substring_flat"))
-        XCTAssertFalse(ir.contains("@kk_string_subSequence_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_repeat_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_filter_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_filterIndexed_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_filterNot_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_compareToIgnoreCase_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_compareTo_locale_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_isNullOrEmpty_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_isNullOrBlank_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_contentEquals_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_contentEquals_ignoreCase_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_equals_flat"))
-        XCTAssertFalse(ir.contains("@kk_string_equals("))
-        XCTAssertTrue(ir.contains("@kk_string_equalsIgnoreCase_flat"))
-        XCTAssertTrue(ir.contains("@kk_println_string_flat"))
-        XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
-        XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))
-        XCTAssertTrue(ir.contains("@kk_coroutine_state_set_label"))
-        XCTAssertTrue(ir.contains("@kk_coroutine_state_set_spill"))
-        XCTAssertTrue(ir.contains("@kk_coroutine_state_get_spill"))
-        XCTAssertTrue(ir.contains("@kk_coroutine_state_set_completion"))
-        XCTAssertTrue(ir.contains("@kk_coroutine_state_get_completion"))
-        XCTAssertTrue(ir.contains("@kk_println_any"))
-        XCTAssertTrue(ir.contains("@kk_register_frame_map"))
-        XCTAssertTrue(ir.contains("@kk_push_frame"))
-        XCTAssertTrue(ir.contains("@kk_pop_frame"))
-        XCTAssertTrue(ir.contains("@kk_register_coroutine_root"))
-        XCTAssertTrue(ir.contains("@kk_unregister_coroutine_root"))
-        XCTAssertTrue(ir.contains("coroutine_root_register"))
-        XCTAssertTrue(ir.contains("coroutine_root_unregister"))
+        #expect(!ir.contains("@kk_string_from_utf8"))
+        #expect(!ir.contains("@kk_string_concat("))
+        #expect(!ir.contains("@kk_string_trim("))
+        #expect(!ir.contains("@kk_string_trimStart("))
+        #expect(!ir.contains("@kk_string_trimEnd("))
+        #expect(!ir.contains("@kk_string_lowercase("))
+        #expect(!ir.contains("@kk_string_uppercase("))
+        #expect(!ir.contains("@kk_string_reversed("))
+        #expect(!ir.contains("@kk_string_substring("))
+        #expect(!ir.contains("@kk_string_subSequence("))
+        #expect(!ir.contains("@kk_string_take("))
+        #expect(!ir.contains("@kk_string_repeat("))
+        #expect(!ir.contains("@kk_string_takeLast("))
+        #expect(!ir.contains("@kk_string_drop("))
+        #expect(!ir.contains("@kk_string_dropLast("))
+        #expect(!ir.contains("@kk_string_filter("))
+        #expect(!ir.contains("@kk_string_filterIndexed("))
+        #expect(!ir.contains("@kk_string_filterNot("))
+        #expect(!ir.contains("@kk_string_takeWhile("))
+        #expect(!ir.contains("@kk_string_takeLastWhile("))
+        #expect(!ir.contains("@kk_string_dropWhile("))
+        #expect(ir.contains("@kk_string_concat_flat"))
+        #expect(ir.contains("@kk_string_trim_flat"))
+        #expect(ir.contains("@kk_string_trimStart_flat"))
+        #expect(ir.contains("@kk_string_trimEnd_flat"))
+        #expect(ir.contains("@kk_string_lowercase_flat"))
+        #expect(ir.contains("@kk_string_uppercase_flat"))
+        #expect(ir.contains("@kk_string_reversed_flat"))
+        #expect(!ir.contains("@kk_string_substring_flat"))
+        #expect(!ir.contains("@kk_string_subSequence_flat"))
+        #expect(ir.contains("@kk_string_repeat_flat"))
+        #expect(ir.contains("@kk_string_filter_flat"))
+        #expect(ir.contains("@kk_string_filterIndexed_flat"))
+        #expect(ir.contains("@kk_string_filterNot_flat"))
+        #expect(ir.contains("@kk_string_isBlank_flat"))
+        #expect(ir.contains("@kk_string_compareToIgnoreCase_flat"))
+        #expect(ir.contains("@kk_string_compareTo_locale_flat"))
+        #expect(ir.contains("@kk_string_isNullOrEmpty_flat"))
+        #expect(ir.contains("@kk_string_isNullOrBlank_flat"))
+        #expect(ir.contains("@kk_string_contentEquals_flat"))
+        #expect(ir.contains("@kk_string_contentEquals_ignoreCase_flat"))
+        #expect(ir.contains("@kk_string_equals_flat"))
+        #expect(!ir.contains("@kk_string_equals("))
+        #expect(ir.contains("@kk_string_equalsIgnoreCase_flat"))
+        #expect(ir.contains("@kk_println_string_flat"))
+        #expect(ir.contains("{ i8*, i64, i64, i64 }"))
+        #expect(ir.contains("@kk_coroutine_suspended"))
+        #expect(ir.contains("@kk_coroutine_state_set_label"))
+        #expect(ir.contains("@kk_coroutine_state_set_spill"))
+        #expect(ir.contains("@kk_coroutine_state_get_spill"))
+        #expect(ir.contains("@kk_coroutine_state_set_completion"))
+        #expect(ir.contains("@kk_coroutine_state_get_completion"))
+        #expect(ir.contains("@kk_println_any"))
+        #expect(ir.contains("@kk_register_frame_map"))
+        #expect(ir.contains("@kk_push_frame"))
+        #expect(ir.contains("@kk_pop_frame"))
+        #expect(ir.contains("@kk_register_coroutine_root"))
+        #expect(ir.contains("@kk_unregister_coroutine_root"))
+        #expect(ir.contains("coroutine_root_register"))
+        #expect(ir.contains("coroutine_root_unregister"))
         // select i1 no longer emitted; control flow uses conditional branches instead
         let hasConditionalBranch = ir.contains("br i1") || ir.contains("icmp eq")
-        XCTAssertTrue(hasConditionalBranch)
-        XCTAssertTrue(ir.contains("thrown_slot_"))
-        XCTAssertTrue(ir.contains("@external_throwing"))
+        #expect(hasConditionalBranch)
+        #expect(ir.contains("thrown_slot_"))
+        #expect(ir.contains("@external_throwing"))
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringParsingRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1002,8 +1058,8 @@ extension CodegenBackendIntegrationTests {
             "__kk_string_toBigInteger",
         ]
         for rawName in rawNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String parse call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String parse call: \(rawName)_flat")
         }
         let removedRawHexNames = [
             "Int",
@@ -1017,11 +1073,12 @@ extension CodegenBackendIntegrationTests {
             "UByteArray",
         ].map { "kk_string_hexTo\($0)" }
         for rawName in removedRawHexNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw String hex call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String hex call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw String hex call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String hex call: \(rawName)_flat")
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatRegexStringRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1123,20 +1180,21 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_matches",
         ]
         for rawName in rawNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
         }
 
-        XCTAssertFalse(ir.contains("@kk_string_split_regex("), "Unexpected raw Regex String call: kk_string_split_regex")
-        XCTAssertTrue(ir.contains("@kk_string_split_regex_flat"), "Missing flat Regex String call: kk_string_split_regex_flat")
+        #expect(!ir.contains("@kk_string_split_regex("), "Unexpected raw Regex String call: kk_string_split_regex")
+        #expect(ir.contains("@kk_string_split_regex_flat"), "Missing flat Regex String call: kk_string_split_regex_flat")
 
         let removedRawStringPredicateNames = ["matches", "contains"].map { "kk_string_\($0)_regex" }
         for rawName in removedRawStringPredicateNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw Regex String call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw Regex String call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringBuilderBridgeRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1204,11 +1262,12 @@ extension CodegenBackendIntegrationTests {
             "__kk_string_builder_append_obj",
         ]
         for rawName in rawNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw StringBuilder String call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat StringBuilder String call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw StringBuilder String call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat StringBuilder String call: \(rawName)_flat")
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatLocaleConstructorRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1275,12 +1334,13 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        XCTAssertFalse(ir.contains("@kk_locale_new("), "Unexpected raw Locale constructor call")
-        XCTAssertFalse(ir.contains("@kk_locale_new_language_country("), "Unexpected raw Locale language/country constructor call")
-        XCTAssertTrue(ir.contains("@kk_locale_new_flat"), "Missing flat Locale constructor call")
-        XCTAssertTrue(ir.contains("@kk_locale_new_language_country_flat"), "Missing flat Locale language/country constructor call")
+        #expect(!ir.contains("@kk_locale_new("), "Unexpected raw Locale constructor call")
+        #expect(!ir.contains("@kk_locale_new_language_country("), "Unexpected raw Locale language/country constructor call")
+        #expect(ir.contains("@kk_locale_new_flat"), "Missing flat Locale constructor call")
+        #expect(ir.contains("@kk_locale_new_language_country_flat"), "Missing flat Locale language/country constructor call")
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringCharSelectionRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1368,12 +1428,13 @@ extension CodegenBackendIntegrationTests {
         ]
         for flatName in flatNames {
             let rawName = String(flatName.dropLast("_flat".count))
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String char-selection call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String char-selection call: \(flatName)")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String char-selection call: \(rawName)")
+            #expect(ir.contains("@\(flatName)"), "Missing flat String char-selection call: \(flatName)")
         }
-        XCTAssertTrue(ir.contains("@kk_string_get_flat"), "Missing flat String.get call")
+        #expect(ir.contains("@kk_string_get_flat"), "Missing flat String.get call")
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringPredicateRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1443,11 +1504,12 @@ extension CodegenBackendIntegrationTests {
         ]
         for flatName in flatNames {
             let rawName = String(flatName.dropLast("_flat".count))
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String predicate call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String predicate call: \(flatName)")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String predicate call: \(rawName)")
+            #expect(ir.contains("@\(flatName)"), "Missing flat String predicate call: \(flatName)")
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringCallbackScalarRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1552,8 +1614,8 @@ extension CodegenBackendIntegrationTests {
         ]
         for flatName in flatNames {
             let rawName = String(flatName.dropLast("_flat".count))
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String callback scalar call: \(flatName)")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
+            #expect(ir.contains("@\(flatName)"), "Missing flat String callback scalar call: \(flatName)")
         }
 
     }
@@ -1562,6 +1624,7 @@ extension CodegenBackendIntegrationTests {
     // source (StringIndexOf.kt); their flat runtime bridges and this IR-emission test
     // were removed.
 
+    @Test
     func testLLVMBackendEmitsFlatStringMaterializationRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1639,11 +1702,12 @@ extension CodegenBackendIntegrationTests {
             "kk_string_iterator",
         ]
         for rawName in rawNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String materialization call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String materialization call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String materialization call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String materialization call: \(rawName)_flat")
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringListSequenceRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1761,7 +1825,7 @@ extension CodegenBackendIntegrationTests {
             "kk_string_asSequence_flat",
         ]
         for flatName in flatOnlyNames {
-            XCTAssertTrue(ir.contains("@\(flatName)("), "Missing flat String list/sequence call: \(flatName)")
+            #expect(ir.contains("@\(flatName)("), "Missing flat String list/sequence call: \(flatName)")
         }
 
         let rawNames = [
@@ -1782,11 +1846,12 @@ extension CodegenBackendIntegrationTests {
             "kk_string_zipTransform",
         ]
         for rawName in rawNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String list/sequence call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String list/sequence call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String list/sequence call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String list/sequence call: \(rawName)_flat")
         }
     }
 
+    @Test
     func testLLVMBackendEmitsFlatStringByteArrayRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1866,18 +1931,19 @@ extension CodegenBackendIntegrationTests {
             "kk_string_encodeToByteArray_charset": "__kk_string_encodeToByteArray_charset_flat",
         ]
         for (rawName, flatName) in flatPrefixes {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
+            #expect(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
         }
         let removedRawStringStreamNames = ["", "_charset"].map {
             ["kk", "string", "byteInputStream"].joined(separator: "_") + $0
         }
         for rawName in removedRawStringStreamNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw String stream call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String stream call: \(rawName)_flat")
+            #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw String stream call: \(rawName)")
+            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String stream call: \(rawName)_flat")
         }
     }
 
+    @Test
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
         // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory
@@ -1888,15 +1954,16 @@ extension CodegenBackendIntegrationTests {
         let overridePath = tempURL.path
         let resolvedPath = URL(fileURLWithPath: overridePath).standardized.path
         let paths = LLVMCAPIBindings.candidateLibraryPaths(environment: ["KSWIFTK_LLVM_DYLIB": overridePath])
-        XCTAssertEqual(paths.first, resolvedPath)
-        XCTAssertTrue(paths.contains("libLLVM.dylib"))
+        #expect(paths.first == resolvedPath)
+        #expect(paths.contains("libLLVM.dylib"))
 
         // Non-existent paths are rejected and not added to candidates.
         let missing = "/tmp/does-not-exist-kswiftk-\(UUID().uuidString).dylib"
         let pathsWithMissing = LLVMCAPIBindings.candidateLibraryPaths(environment: ["KSWIFTK_LLVM_DYLIB": missing])
-        XCTAssertFalse(pathsWithMissing.contains(missing))
+        #expect(!pathsWithMissing.contains(missing))
     }
 
+    @Test
     func testLlvmBindingsCandidatePathsIncludeVersionedLibrariesFromLibraryPath() throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1910,9 +1977,10 @@ extension CodegenBackendIntegrationTests {
             "LIBRARY_PATH": tempDirectory.path,
         ])
 
-        XCTAssertTrue(paths.contains(versionedLibrary.standardized.path))
+        #expect(paths.contains(versionedLibrary.standardized.path))
     }
 
+    @Test
     func testCodegenFunctionSymbolSanitizesNames() {
         let interner = StringInterner()
         let fnName = CodegenSymbolSupport.cFunctionSymbol(
@@ -1927,9 +1995,10 @@ extension CodegenBackendIntegrationTests {
             ),
             interner: interner
         )
-        XCTAssertTrue(fnName.hasPrefix("kk_fn__1_bad_name_9"))
+        #expect(fnName.hasPrefix("kk_fn__1_bad_name_9"))
     }
 
+    @Test
     /// A synthetic (negative) symbol must not share its C name with a real
     /// symbol of the same magnitude and name: duplicate definitions get silently
     /// renamed by LLVM and calls bind to whichever definition came first.
@@ -1952,10 +2021,11 @@ extension CodegenBackendIntegrationTests {
             )
         }
 
-        XCTAssertEqual(name(forSymbolRawValue: 104_789), "kk_fn_get_104789")
-        XCTAssertEqual(name(forSymbolRawValue: -104_789), "kk_fn_get_s104789")
+        #expect(name(forSymbolRawValue: 104_789) == "kk_fn_get_104789")
+        #expect(name(forSymbolRawValue: -104_789) == "kk_fn_get_s104789")
     }
 
+    @Test
     func testCodegenFunctionSymbolUsesJvmNameAnnotationForFunction() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -1990,6 +2060,7 @@ extension CodegenBackendIntegrationTests {
             symbols: symbols
         )
 
-        XCTAssertTrue(fnName.hasPrefix("kk_fn_renamedForJava_"))
+        #expect(fnName.hasPrefix("kk_fn_renamedForJava_"))
     }
 }
+#endif
