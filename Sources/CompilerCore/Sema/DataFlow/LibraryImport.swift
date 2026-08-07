@@ -85,6 +85,9 @@ extension DataFlowSemaPhase {
                 if record.isOperator, record.kind == .function {
                     flags.insert(.operatorFunction)
                 }
+                if record.isOverride, record.kind == .function {
+                    flags.insert(.overrideMember)
+                }
                 if record.isDataClass {
                     flags.insert(.dataType)
                 }
@@ -371,6 +374,7 @@ extension DataFlowSemaPhase {
         let isSuspend: Bool
         let isInline: Bool
         let isOperator: Bool
+        let isOverride: Bool
         let valueParameterIsVararg: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         let canThrow: Bool
@@ -415,6 +419,7 @@ extension DataFlowSemaPhase {
             isSuspend: Bool = false,
             isInline: Bool = false,
             isOperator: Bool = false,
+            isOverride: Bool = false,
             valueParameterIsVararg: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             canThrow: Bool = false,
@@ -458,6 +463,7 @@ extension DataFlowSemaPhase {
             self.isSuspend = isSuspend
             self.isInline = isInline
             self.isOperator = isOperator
+            self.isOverride = isOverride
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.canThrow = canThrow
