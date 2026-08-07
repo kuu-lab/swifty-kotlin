@@ -90,7 +90,10 @@ kswiftk_setup_compile_cache_env
 # not invalidated.
 kswiftk_append_compile_cache_flags swift_build_args
 
-if [[ -z "$build_targets" ]]; then
+if [[ -z "$build_targets" || "$build_system" == "native" ]]; then
+    # The legacy native build system produces a single PackageTests bundle.
+    # We must build all test targets together with --build-tests so that
+    # subsequent `swift test --skip-build` invocations can find the bundle.
     echo "build_swift_tests.sh: building source and all test targets." >&2
     kswiftk_build_with_retry --build-tests "${swift_build_args[@]}"
 else
