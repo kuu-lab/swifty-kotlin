@@ -771,6 +771,19 @@ extension NativeEmitter {
             ) ?? state.zeroValue
         case let .externSymbolAddress(symbolName):
             let symbolStr = interner.resolve(symbolName)
+            // A few source-backed stdlib helpers lower a call through a lambda
+            // parameter as an external symbol address. That representation is
+            // intended for inline expansion; when the stdlib artifact also
+            // materializes the inline-only body, resolve the name back to the
+            // function parameter instead of leaving an undefined linker symbol.
+            if let parameterValue = parameterValues.first(where: { parameterID, _ in
+                guard let parameter = symbols?.symbol(parameterID) else {
+                    return false
+                }
+                return interner.resolve(parameter.name) == symbolStr
+            })?.value {
+                return parameterValue
+            }
             if let externFn = declareExternalFunction(symbolStr, 4, false) {
                 return bindings.buildPtrToInt(
                     state.builder,

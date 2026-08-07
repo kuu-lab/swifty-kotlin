@@ -612,6 +612,11 @@ extension OverloadResolver {
                 return false
             }
         }
+        let lhsHasTypeParameter = signatureContainsTypeParameter(lhs.signature, typeSystem: typeSystem)
+        let rhsHasTypeParameter = signatureContainsTypeParameter(rhs.signature, typeSystem: typeSystem)
+        if lhsHasTypeParameter != rhsHasTypeParameter {
+            return !lhsHasTypeParameter
+        }
         let lhsOwnTypeParamCount = lhs.signature.typeParameterSymbols.count - lhs.signature.classTypeParameterCount
         let rhsOwnTypeParamCount = rhs.signature.typeParameterSymbols.count - rhs.signature.classTypeParameterCount
         if lhsOwnTypeParamCount != rhsOwnTypeParamCount {
@@ -621,6 +626,52 @@ extension OverloadResolver {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    /// Returns `true` if `signature` declares any receiver or parameter type
+    /// that contains a type parameter (e.g. `fun <T> T.compareTo(T)`).
+    private func signatureContainsTypeParameter(
+        _ signature: FunctionSignature,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        var typesToCheck: [TypeID] = signature.parameterTypes
+        if let receiver = signature.receiverType {
+            typesToCheck.append(receiver)
+        }
+        return typesToCheck.contains { typeContainsTypeParameter($0, typeSystem: typeSystem) }
+    }
+
+    private func typeContainsTypeParameter(
+        _ type: TypeID,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        switch typeSystem.kind(of: type) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            for arg in classType.args {
+                let argType: TypeID? = switch arg {
+                case let .invariant(t), let .out(t), let .in(t): t
+                case .star: nil
+                }
+                if let argType, typeContainsTypeParameter(argType, typeSystem: typeSystem) {
+                    return true
+                }
+            }
+            return false
+        case let .functionType(functionType):
+            let allTypes = functionType.contextReceivers
+                + (functionType.receiver.map { [$0] } ?? [])
+                + functionType.params
+                + [functionType.returnType]
+            return allTypes.contains { typeContainsTypeParameter($0, typeSystem: typeSystem) }
+        case let .kClassType(kClassType):
+            return typeContainsTypeParameter(kClassType.argument, typeSystem: typeSystem)
+        case let .intersection(parts):
+            return parts.contains { typeContainsTypeParameter($0, typeSystem: typeSystem) }
+        default:
+            return false
+        }
     }
 
     private func isMoreSpecific(

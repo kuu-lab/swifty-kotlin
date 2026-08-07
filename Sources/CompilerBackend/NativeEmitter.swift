@@ -59,6 +59,12 @@ struct NativeEmitter {
     /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
     /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
     let linkOnceODRSymbols: Set<SymbolID>
+    /// Whether the emitter should also materialize compiler-generated inline-only functions.
+    ///
+    /// Normal user libraries intentionally omit these bodies because consumers import their
+    /// inline KIR. A precompiled stdlib must contain the bodies as well: a consumer can reach
+    /// an auto-inline function through a default-argument stub or another non-inlined path.
+    let emitInlineOnlyFunctions: Bool
 
     init(
         target: TargetTriple,
@@ -73,7 +79,8 @@ struct NativeEmitter {
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        linkOnceODRSymbols: Set<SymbolID> = []
+        linkOnceODRSymbols: Set<SymbolID> = [],
+        emitInlineOnlyFunctions: Bool = false
     ) {
         self.target = target
         self.optLevel = optLevel
@@ -88,6 +95,7 @@ struct NativeEmitter {
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
+        self.emitInlineOnlyFunctions = emitInlineOnlyFunctions
     }
 
     private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
@@ -348,6 +356,18 @@ struct NativeEmitter {
         }
     }
 
+    /// Residual synthetic objects (for example `kotlin.system.System`) have no
+    /// object initializer in the precompiled stdlib artifact. Their singleton
+    /// receiver is only an ABI handle, so a consumer may keep an unresolved
+    /// weak root slot instead of requiring a definition that the artifact
+    /// intentionally does not export.
+    private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
+        guard let sym = symbols?.symbol(symbol), sym.kind == .object else {
+            return false
+        }
+        return symbols?.objectInitializerSymbol(for: symbol) == nil
+    }
+
     /// Ensures that any imported-library global referenced by `loadGlobal`,
     /// `storeGlobal`, or `symbolRef` has an LLVM global declaration in the
     /// current module. Without this, the backend silently emits zero for
@@ -389,7 +409,14 @@ struct NativeEmitter {
             }
             let slotName = stableGlobalSlotName(for: symbol)
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
-                bindings.setExternalLinkage(llvmGlobal)
+                if shouldUseWeakImportedGlobalReference(for: symbol) {
+                    bindings.setWeakAnyLinkage(llvmGlobal)
+                    if let zero = bindings.constInt(int64Type, value: 0) {
+                        bindings.setInitializer(llvmGlobal, value: zero)
+                    }
+                } else {
+                    bindings.setExternalLinkage(llvmGlobal)
+                }
                 globalVariables[symbol] = llvmGlobal
             }
         }
@@ -459,7 +486,14 @@ struct NativeEmitter {
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
                     // Imported globals are defined in another object file.
-                    bindings.setExternalLinkage(llvmGlobal)
+                    if shouldUseWeakImportedGlobalReference(for: global.symbol) {
+                        bindings.setWeakAnyLinkage(llvmGlobal)
+                        if let zero = bindings.constInt(int64Type, value: 0) {
+                            bindings.setInitializer(llvmGlobal, value: zero)
+                        }
+                    } else {
+                        bindings.setExternalLinkage(llvmGlobal)
+                    }
                 } else {
                     // Use linkonce_odr so multiple compilation units (e.g. a
                     // precompiled stdlib .kklib and a consuming module) can each
@@ -493,7 +527,7 @@ struct NativeEmitter {
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
-                  !function.isInlineOnly
+                  emitInlineOnlyFunctions || !function.isInlineOnly
             else {
                 continue
             }

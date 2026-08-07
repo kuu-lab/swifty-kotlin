@@ -521,9 +521,51 @@ package final class MetadataEncoder {
         }()
 
         if metadataAnchorOnly {
-            // Synthetic nominal anchors need kind/mangledName/fqName/flags plus
-            // supertype edges to round-trip. Layout is omitted because the
-            // consumer already reconstructs the nominal layout for these anchors.
+            // Synthetic nominal anchors need their declared layout sizes so that
+            // consumer-side interface dispatch can reconstruct the nominal shape.
+            // Slot mappings are filtered by includedSymbolIDs and remain absent
+            // when their referenced methods are not exported.
+            if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
+                let serializedFieldOffsets = serializeFieldOffsets(
+                    layout.fieldOffsets,
+                    symbols: symbols,
+                    interner: interner,
+                    includedSymbolIDs: includedSymbolIDs
+                )
+                let serializedVTableSlots = serializeVTableSlots(
+                    layout.vtableSlots,
+                    symbols: symbols,
+                    interner: interner,
+                    includedSymbolIDs: includedSymbolIDs,
+                    mangler: mangler,
+                    types: types
+                )
+                let serializedITableSlots = serializeITableSlots(
+                    layout.itableSlots,
+                    symbols: symbols,
+                    interner: interner,
+                    includedSymbolIDs: includedSymbolIDs
+                )
+                return MetadataRecord(
+                    kind: symbol.kind,
+                    mangledName: mangled,
+                    fqName: fqName,
+                    declaredFieldCount: layout.instanceFieldCount,
+                    declaredInstanceSizeWords: layout.instanceSizeWords,
+                    declaredVtableSize: layout.vtableSize,
+                    declaredItableSize: layout.itableSize,
+                    superFQName: computedSuperFQName,
+                    fieldOffsets: serializedFieldOffsets.isEmpty ? nil : serializedFieldOffsets,
+                    vtableSlots: serializedVTableSlots.isEmpty || serializedVTableSlots == "v2:" ? nil : serializedVTableSlots,
+                    itableSlots: serializedITableSlots.isEmpty ? nil : serializedITableSlots,
+                    isDataClass: symbol.flags.contains(.dataType),
+                    isSealedClass: symbol.flags.contains(.sealedType),
+                    isFunInterface: symbol.flags.contains(.funInterface),
+                    isValueClass: symbol.flags.contains(.valueType),
+                    isExpect: symbol.flags.contains(.expectDeclaration),
+                    isActual: symbol.flags.contains(.actualDeclaration)
+                )
+            }
             return MetadataRecord(
                 kind: symbol.kind,
                 mangledName: mangled,
@@ -1017,6 +1059,9 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -1069,6 +1114,9 @@ package final class MetadataEncoder {
             }
             // ITable slot layout is part of the nominal type shape and must round-trip
             // completely, even for synthetic or non-public interface supertypes.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil

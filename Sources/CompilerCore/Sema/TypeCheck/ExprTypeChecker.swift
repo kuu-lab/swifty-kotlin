@@ -795,6 +795,56 @@ final class ExprTypeChecker {
             }
         }
 
+        // Imported library extension operators are deliberately omitted from
+        // file scopes, just like other imported extensions. Recover them by
+        // short name when scoped lookup produced no receiver-compatible
+        // candidate; the receiver check above remains the source of truth.
+        if candidates.isEmpty {
+            for name in names {
+                for candidate in sema.symbols.lookupByShortName(name) {
+                    guard seen.insert(candidate).inserted,
+                          let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.flags.contains(.synthetic),
+                          symbol.flags.contains(.operatorFunction),
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let signatureReceiverType = signature.receiverType,
+                          receiverType != sema.types.errorType,
+                          driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                              callSiteReceiver: receiverType,
+                              declaredReceiver: signatureReceiverType,
+                              sema: sema
+                          )
+                    else {
+                        continue
+                    }
+                    candidates.append(candidate)
+                }
+            }
+        }
+
+        // A precompiled extension can provide a concrete operator for the
+        // receiver while the synthetic Comparable<T> interface contributes a
+        // generic fallback. Prefer the exact nominal receiver in that case;
+        // otherwise both candidates are indistinguishable to the overload
+        // solver even though Kotlin selects the concrete extension.
+        if candidates.count > 1,
+           case let .classType(actualClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        {
+            let exactReceiverCandidates = candidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiver = signature.receiverType,
+                      case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiver))
+                else {
+                    return false
+                }
+                return receiverClassType.classSymbol == actualClassType.classSymbol
+            }
+            if !exactReceiverCandidates.isEmpty {
+                return exactReceiverCandidates
+            }
+        }
+
         return candidates
     }
 

@@ -160,7 +160,8 @@ final class CodegenPhase: CompilerPhase {
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
             reflectionMetadataRecords: reflectionMetadataRecords,
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-            linkOnceODRSymbols: bundledSymbolIDs
+            linkOnceODRSymbols: bundledSymbolIDs,
+            emitInlineOnlyFunctions: ctx.options.stdlibOnly
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
@@ -447,7 +448,6 @@ final class CodegenPhase: CompilerPhase {
             typeSystem: ctx.sema?.types,
             symbols: ctx.sema?.symbols
         )
-
         var objectInitializerLinkNames: [SymbolID: String] = [:]
         var companionInitializerLinkNames: [SymbolID: String] = [:]
         var enumStaticInitLinkNames: [SymbolID: String] = [:]
@@ -557,7 +557,6 @@ final class CodegenPhase: CompilerPhase {
         guard parts.count >= 2, let ownerID = parts.first else { return nil }
         return Int32(ownerID)
     }
-
     /// Returns the owner enum class symbol for a synthetic enum static
     /// initializer (`__enum_static_init_<ClassName>`) by looking up the
     /// function's parent FQ name in `sema.symbols`.
