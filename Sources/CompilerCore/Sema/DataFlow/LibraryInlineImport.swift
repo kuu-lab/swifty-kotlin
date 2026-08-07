@@ -378,17 +378,29 @@ extension DataFlowSemaPhase {
             let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
             let isSuperCall = isSuperCallRaw == "1" || isSuperCallRaw == "true"
+            // `linkB64` carries the callee's link name as resolved in the
+            // library. When the consumer knows a symbol with that external link
+            // name, bind to it so the consumer's own mangling applies. Otherwise
+            // the name is the library's already-mangled definition (a member
+            // accessor such as `kk_fn_get_54434` for `Pair.first`) and the
+            // library object exports it verbatim, so call it by that name — the
+            // serialized `calleeB64` is the pre-mangling spelling (`get`) and
+            // would link against nothing in the consumer.
             var callSymbol: SymbolID? = nil
+            var resolvedCallee = calleeName
             if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
-               !linkName.isEmpty,
-               let consumerSymbol = externalLinkNameToSymbol[linkName]
+               !linkName.isEmpty
             {
-                callSymbol = consumerSymbol
+                if let consumerSymbol = externalLinkNameToSymbol[linkName] {
+                    callSymbol = consumerSymbol
+                } else {
+                    resolvedCallee = linkName
+                }
             }
             return .call(
                 symbol: callSymbol,
-                callee: interner.intern(calleeName),
+                callee: interner.intern(resolvedCallee),
                 arguments: args,
                 result: result,
                 canThrow: canThrow,

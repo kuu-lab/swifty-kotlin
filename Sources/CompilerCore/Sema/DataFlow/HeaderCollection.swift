@@ -1064,7 +1064,9 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> SymbolID? {
         guard kind == .class || kind == .interface else { return nil }
-        guard reusableSyntheticSourceDeclarationKey(for: file, sourceManager: sourceManager, interner: interner) == fqName else {
+        guard reusableSyntheticSourceDeclarationKeys(
+            for: file, sourceManager: sourceManager, interner: interner
+        ).contains(fqName) else {
             return nil
         }
         return symbols.lookupAll(fqName: fqName).first { symbolID in
@@ -1073,38 +1075,46 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func reusableSyntheticSourceDeclarationKey(
+    /// The fully-qualified names a bundled source file is allowed to claim from
+    /// an earlier synthetic registration. A file may declare more than one such
+    /// nominal (`Tuples.kt` declares both `Pair` and `Triple`).
+    private func reusableSyntheticSourceDeclarationKeys(
         for file: ASTFile,
         sourceManager: SourceManager,
         interner: StringInterner
-    ) -> [InternedString]? {
+    ) -> [[InternedString]] {
         switch sourceManager.path(of: file.fileID) {
         case "__bundled_kotlin/Comparable.kt":
-            return ["kotlin", "Comparable"].map { interner.intern($0) }
+            return [["kotlin", "Comparable"].map { interner.intern($0) }]
         case "__bundled_kotlin/collections/RandomAccess.kt":
-            return ["kotlin", "collections", "RandomAccess"].map { interner.intern($0) }
+            return [["kotlin", "collections", "RandomAccess"].map { interner.intern($0) }]
         case "__bundled_kotlin/Result.kt":
-            return ["kotlin", "Result"].map { interner.intern($0) }
+            return [["kotlin", "Result"].map { interner.intern($0) }]
         case "__bundled_kotlin/text/StringBuilder.kt":
-            return ["kotlin", "text", "StringBuilder"].map { interner.intern($0) }
+            return [["kotlin", "text", "StringBuilder"].map { interner.intern($0) }]
         case "__bundled_kotlin/uuid/Uuid.kt":
-            return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+            return [["kotlin", "uuid", "Uuid"].map { interner.intern($0) }]
         case "__bundled_java/math/BigDecimal.kt":
-            return ["java", "math", "BigDecimal"].map { interner.intern($0) }
+            return [["java", "math", "BigDecimal"].map { interner.intern($0) }]
         case "__bundled_java/math/BigInteger.kt":
-            return ["java", "math", "BigInteger"].map { interner.intern($0) }
+            return [["java", "math", "BigInteger"].map { interner.intern($0) }]
         case "__bundled_kotlin/random/Random.kt":
-            return ["kotlin", "random", "Random"].map { interner.intern($0) }
+            return [["kotlin", "random", "Random"].map { interner.intern($0) }]
         case "__bundled_kotlin/random/JavaUtilRandom.kt":
-            return ["java", "util", "Random"].map { interner.intern($0) }
+            return [["java", "util", "Random"].map { interner.intern($0) }]
         case "__bundled_kotlin/text/StringEncoding.kt":
-            return ["kotlin", "text", "Charset"].map { interner.intern($0) }
+            return [["kotlin", "text", "Charset"].map { interner.intern($0) }]
         case "__bundled_kotlin/Throwable.kt":
-            return ["kotlin", "Throwable"].map { interner.intern($0) }
+            return [["kotlin", "Throwable"].map { interner.intern($0) }]
         case "__bundled_kotlin/sequences/Sequence.kt":
-            return ["kotlin", "sequences", "Sequence"].map { interner.intern($0) }
+            return [["kotlin", "sequences", "Sequence"].map { interner.intern($0) }]
+        case "__bundled_kotlin/Tuples.kt":
+            return [
+                ["kotlin", "Pair"].map { interner.intern($0) },
+                ["kotlin", "Triple"].map { interner.intern($0) },
+            ]
         default:
-            return nil
+            return []
         }
     }
 

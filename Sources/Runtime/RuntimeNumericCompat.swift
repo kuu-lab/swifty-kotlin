@@ -204,6 +204,21 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    // Tagged Pair/Triple boxes hash structurally, matching both
+    // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
+    // RuntimePairBox is internal runtime state and keeps the pointer hash.
+    if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    {
+        return 31 &* kk_any_hashCode(pairBox.first, 0) &+ kk_any_hashCode(pairBox.second, 0)
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
+       let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
+    {
+        var hash = kk_any_hashCode(tripleBox.first, 0)
+        hash = 31 &* hash &+ kk_any_hashCode(tripleBox.second, 0)
+        return 31 &* hash &+ kk_any_hashCode(tripleBox.third, 0)
+    }
     // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
     // and other user-defined objects reached via Any.hashCode() — must stay
     // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural

@@ -36,7 +36,16 @@ extension DeclTypeChecker {
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        let classType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        // The implicit receiver of a generic class is `C<T1, ..., Tn>`, not the
+        // raw `C`: property accessors resolve member types through it, and an
+        // argument-less receiver leaves the members' type parameters
+        // unsubstituted (`val first: A get() = ...` then fails to type-check).
+        let classTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map { typeParamSymbol in
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: typeParamSymbol))))
+        }
+        let classType = sema.types.make(.classType(ClassType(
+            classSymbol: symbol, args: classTypeArgs, nullability: .nonNull
+        )))
         let classScope = buildClassMemberScope(
             ownerSymbol: symbol,
             ownerType: classType,

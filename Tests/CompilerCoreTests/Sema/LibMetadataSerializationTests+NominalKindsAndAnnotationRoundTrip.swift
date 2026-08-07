@@ -520,5 +520,44 @@ extension LibMetadataSerializationTests {
             #expect(annotations[0].arguments == ["markerClass = ext.ExperimentalApi::class"])
         }
     }
+
+    /// KSP-608: a nominal declaration's type parameters must survive the
+    /// metadata round-trip. Member property types are serialized unsubstituted
+    /// (`sig=T4926`), so a consumer can only project a receiver's type
+    /// arguments onto them when it knows the owner's declaration-order
+    /// parameters and their variances.
+    @Test func testMetadataRoundTripForNominalTypeParameters() {
+        let record = MetadataRecord(
+            kind: .class,
+            mangledName: "_kk_demo_Pair",
+            fqName: "demo.Pair",
+            declaredFieldCount: 2,
+            declaredInstanceSizeWords: 4,
+            nominalTypeParameters: "out:4926,out:4927"
+        )
+        let encoder = MetadataEncoder()
+        let serialized = encoder.serialize([record])
+        #expect(serialized.contains("typeParams=out:4926,out:4927"))
+
+        let decoder = MetadataDecoder()
+        let decoded = decoder.decode(serialized)
+        #expect(decoded.count == 1)
+        #expect(decoded[0].nominalTypeParameters == "out:4926,out:4927")
+    }
+
+    /// A nominal record without type parameters must not emit the key at all,
+    /// keeping metadata for non-generic declarations unchanged.
+    @Test func testMetadataOmitsTypeParametersForNonGenericNominal() {
+        let record = MetadataRecord(
+            kind: .class,
+            mangledName: "_kk_demo_Plain",
+            fqName: "demo.Plain",
+            declaredFieldCount: 0,
+            declaredInstanceSizeWords: 1
+        )
+        let serialized = MetadataEncoder().serialize([record])
+        #expect(!serialized.contains("typeParams="))
+        #expect(MetadataDecoder().decode(serialized)[0].nominalTypeParameters == nil)
+    }
 }
 #endif
