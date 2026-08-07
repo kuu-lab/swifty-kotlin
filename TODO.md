@@ -41,7 +41,7 @@
 
 ### CompilerCore: 参照ゼロの独立シンボル
 
-- [~] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）。2026-07-17: 削除完了（宣言のみ・呼び出し箇所0を`rg`で確認、ファイル全体がこの関数のみだったためファイルごと削除。使用先ヘルパー`isStringBuilderLikeType`/`isThrowingStringBuilderRuntimeFunction`は他ファイルで存続）。`swift build` green、StringBuilder関連 Sema/Lowering テスト4スイート69件 green（serial）。`diff_kotlinc.sh` はCI側のfull gate結果待ち — 完了ゲート未達につき`[x]`は見送り
+- [x] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）。2026-07-17: 削除完了（宣言のみ・呼び出し箇所0を`rg`で確認、ファイル全体がこの関数のみだったためファイルごと削除。使用先ヘルパー`isStringBuilderLikeType`は他ファイルで存続）— PR #4855 (ceaf7c915), merged。2026-08-06: HEAD 再確認で `tryLowerStringBuilderMemberCall` の参照ゼロ・当該ファイル不在を確認、`swift build` green、`swift_test.sh --filter StringBuilder` 8 スイート 21 件 green
 - [x] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869, merged
 - [x] DEADCODE-CORE-045: [R0/local] `CoroutineLoweringPass+FlowInstructionRewrite.swift:51` の local `isFlowTransformEmitCall(_:_:)` を削除する。`CoroutineLoweringPass+Flow.swift` の同名 local は live
 
