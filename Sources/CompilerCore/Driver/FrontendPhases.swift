@@ -82,13 +82,17 @@ final class LoadSourcesPhase: CompilerPhase {
     init() {}
 
     func run(_ ctx: CompilationContext) throws {
-        if ctx.options.inputs.isEmpty {
+        if ctx.options.inputs.isEmpty && !ctx.options.stdlibOnly {
             ctx.diagnostics.error(
                 "KSWIFTK-SOURCE-0001",
                 "No input files were specified.",
                 range: nil
             )
             throw CompilerPipelineError.loadError
+        }
+
+        if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
+            try validateStdlibLibraryPath(stdlibLibraryPath, ctx: ctx)
         }
 
         if ctx.options.includeStdlib {
@@ -138,6 +142,28 @@ final class LoadSourcesPhase: CompilerPhase {
                     range: nil
                 )
             }
+            throw CompilerPipelineError.loadError
+        }
+    }
+
+    private func validateStdlibLibraryPath(_ path: String, ctx: CompilationContext) throws {
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            ctx.diagnostics.error(
+                "KSWIFTK-SOURCE-0103",
+                "Stdlib library path does not exist or is not a directory: \(path)",
+                range: nil
+            )
+            throw CompilerPipelineError.loadError
+        }
+        let manifestPath = (path as NSString).appendingPathComponent("manifest.json")
+        guard fm.fileExists(atPath: manifestPath) else {
+            ctx.diagnostics.error(
+                "KSWIFTK-SOURCE-0103",
+                "Stdlib library is missing manifest.json: \(path)",
+                range: nil
+            )
             throw CompilerPipelineError.loadError
         }
     }
@@ -442,7 +468,8 @@ final class BuildASTPhase: CompilerPhase {
                 from: root,
                 in: cst,
                 interner: interner,
-                astArena: arena
+                astArena: arena,
+                excludingTopLevelFunDecls: true
             )
             scriptBody = scriptExprs
 

@@ -131,10 +131,19 @@ extension KIRLoweringDriver {
                             in: objectSymbol,
                             sema: sema
                         ) ?? methodSymbol
+                        let bridgeSymbol = itableBridgeSymbolForMethod(
+                            interfaceMethod: methodSymbol,
+                            implementation: implementationSymbol,
+                            nominalSymbol: objectSymbol,
+                            driver: self,
+                            arena: arena,
+                            sema: sema,
+                            interner: interner
+                        )
                         let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
                         body.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
-                        let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
-                        body.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
+                        let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
+                        body.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
                         let registerMethodResult = arena.appendTemporary(type: intType)
                         body.append(.call(
                             symbol: nil,
@@ -146,6 +155,15 @@ extension KIRLoweringDriver {
                         ))
                     }
                 }
+                // BUG-141: register interface property getters into the itable.
+                appendObjectItablePropertyGetterRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &body.instructions
+                )
             }
             appendObjectVtableMethodRegistrations(
                 objectValue: allocatedObj,

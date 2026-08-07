@@ -387,7 +387,12 @@ extension ExprTypeChecker {
                 fqName: [objectDecl.name, functionDecl.name],
                 declSite: functionDecl.range,
                 visibility: objectLiteralVisibility(from: functionDecl.modifiers),
-                flags: objectLiteralFunctionFlags(from: functionDecl)
+                flags: objectLiteralFunctionFlags(
+                    from: functionDecl,
+                    objectSymbol: objectSymbol,
+                    sema: sema,
+                    interner: interner
+                )
             )
             sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
             sema.symbols.setParentSymbol(objectSymbol, for: memberSymbol)
@@ -471,7 +476,12 @@ extension ExprTypeChecker {
         return .public
     }
 
-    private func objectLiteralFunctionFlags(from functionDecl: FunDecl) -> SymbolFlags {
+    private func objectLiteralFunctionFlags(
+        from functionDecl: FunDecl,
+        objectSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolFlags {
         var flags: SymbolFlags = [.synthetic]
         if functionDecl.isSuspend { flags.insert(.suspendFunction) }
         if functionDecl.isInline { flags.insert(.inlineFunction) }
@@ -480,6 +490,50 @@ extension ExprTypeChecker {
         if functionDecl.modifiers.contains(.abstract) { flags.insert(.abstractType) }
         if functionDecl.modifiers.contains(.open) { flags.insert(.openType) }
         if functionDecl.modifiers.contains(.final) { flags.insert(.finalMember) }
+
+        // KSP-441: Object literal overrides of operator functions (e.g. Sequence.iterator,
+        // Iterator.hasNext/next) must carry the operator flag so for-in lowering can
+        // resolve them without an explicit `operator` keyword on the override.
+        if !flags.contains(.operatorFunction),
+           flags.contains(.overrideMember),
+           functionHasOperatorBase(
+               name: functionDecl.name,
+               parameterCount: functionDecl.valueParams.count,
+               ownerSymbol: objectSymbol,
+               sema: sema,
+               interner: interner
+           )
+        {
+            flags.insert(.operatorFunction)
+        }
         return flags
+    }
+
+    private func functionHasOperatorBase(
+        name: InternedString,
+        parameterCount: Int,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        var stack = sema.symbols.directSupertypes(for: ownerSymbol)
+        var visited: Set<SymbolID> = []
+        while let current = stack.popLast() {
+            guard visited.insert(current).inserted else { continue }
+            guard let currentSymbol = sema.symbols.symbol(current) else { continue }
+            let candidateFQName = currentSymbol.fqName + [name]
+            for candidate in sema.symbols.lookupAll(fqName: candidateFQName) {
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == parameterCount,
+                      sema.symbols.parentSymbol(for: candidate) == current
+                else { continue }
+                return true
+            }
+            stack.append(contentsOf: sema.symbols.directSupertypes(for: current))
+        }
+        return false
     }
 }

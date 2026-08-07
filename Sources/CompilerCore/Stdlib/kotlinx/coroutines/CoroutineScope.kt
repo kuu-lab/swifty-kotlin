@@ -52,3 +52,16 @@ public suspend fun supervisorScope(block: suspend () -> Any): Any {
     kkCoroutineScopeWait(scope)
     return result
 }
+
+// A direct index loop (rather than `deferreds.map { it.await() }`) avoids
+// routing the suspend `.await()` call through the non-suspend collection-HOF
+// callable-value adapter.
+public suspend fun awaitAll(vararg deferreds: Deferred): List<Any> {
+    val result = mutableListOf<Any>()
+    var i = 0
+    while (i < deferreds.size) {
+        result.add(deferreds[i].await())
+        i += 1
+    }
+    return result
+}

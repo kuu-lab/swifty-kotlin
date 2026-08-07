@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import RuntimeABI
 import CompilerCore
 extension NativeEmitter {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
@@ -11,6 +12,8 @@ extension NativeEmitter {
         typeLowering: LLVMTypeLowering?,
         outThrownPointerType: LLVMCAPIBindings.LLVMTypeRef,
         internalFunctions: [SymbolID: LLVMFunction],
+        internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)],
+        internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
         runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
         usesRuntimeCallbackRawABI: Bool = false,
@@ -798,24 +801,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_filter_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_filter_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_filterIndexed_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_filterIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_filterNot_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_filterNot_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
+                // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
+                // source (StringHOF.kt); no flat emission spec.
                 "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_ifBlank_flat",
                     stringArgumentCount: 1,
@@ -860,37 +847,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceRange_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceRange_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: true
-                ),
-                "kk_string_removeRange_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeRange_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_removeRange_range_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeRange_range_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_substring_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substring_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3,
-                    canThrow: true
-                ),
-                "kk_string_subSequence_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_subSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
+                // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
+                // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
                 "kk_string_padStart_default_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_padStart_default_flat",
                     stringArgumentCount: 1,
@@ -925,110 +883,9 @@ extension NativeEmitter {
                 // (StringTakeDrop.kt); no flat emission spec.
                 // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
                 // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
-                "kk_string_substringBefore_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBefore_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringBefore_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBefore_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_substringBeforeLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBeforeLast_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringBeforeLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBeforeLast_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_substringAfter_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfter_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringAfter_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfter_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_substringAfterLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfterLast_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringAfterLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfterLast_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_replaceAfter_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfter_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceAfter_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfter_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
-                "kk_string_replaceAfterLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfterLast_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceAfterLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfterLast_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
-                "kk_string_replaceBefore_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBefore_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceBefore_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBefore_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
-                "kk_string_replaceBeforeLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBeforeLast_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceBeforeLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBeforeLast_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
+                // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+                // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
+                // source (StringSearchReplace.kt); no flat emission spec.
                 "kk_string_format_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_format_flat",
                     stringArgumentCount: 1,
@@ -1297,83 +1154,21 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
+                "__kk_string_builder_toString": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_builder_toString",
+                    stringArgumentCount: 0,
+                    extraArgumentCount: 1
+                ),
+                "__kk_bignum_toString": FlatScalarReturnCallSpec(
+                    flatName: "__kk_bignum_toString",
+                    stringArgumentCount: 0,
+                    extraArgumentCount: 1
+                ),
                 // KSP-404: startsWith/endsWith are bundled Kotlin source
                 // (StringPrefixSuffix.kt); no flat emission spec.
-                "kk_string_contains_str_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contains_str_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_contains_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contains_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_indexOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_indexOf_from_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_from_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_lastIndexOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOf_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_indexOf_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_indexOf_char_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_char_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_lastIndexOf_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOf_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_lastIndexOf_char_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOf_char_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_indexOfAny_chars_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfAny_chars_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_indexOfAny_strings_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfAny_strings_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_lastIndexOfAny_chars_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOfAny_chars_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_lastIndexOfAny_strings_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOfAny_strings_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_findAnyOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_findAnyOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_findLastAnyOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_findLastAnyOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
+                // KSP-408: contains/indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/
+                // findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt);
+                // no flat emission spec.
                 "kk_string_compareToIgnoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareToIgnoreCase_flat",
                     stringArgumentCount: 2,
@@ -1488,69 +1283,10 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_count_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_count_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_any_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_any_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_all_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_all_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_none_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_none_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_indexOfFirst_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfFirst_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_indexOfLast_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfLast_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_find_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_find_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_findLast_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_findLast_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_partition_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_partition_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
+                // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
+                // (StringIndexOf.kt); no flat emission spec.
+                // KSP-410: count/any/all/none/find/findLast/partition are bundled
+                // Kotlin source (StringHOF.kt); no flat emission spec.
                 "kk_string_map_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_map_flat",
                     stringArgumentCount: 1,
@@ -1586,48 +1322,9 @@ extension NativeEmitter {
                     canThrow: true,
                     defaultMissingClosureRaw: true
                 ),
-                "kk_string_reduceOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_reduceRightIndexed_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceRightIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_reduceRightIndexedOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceRightIndexedOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_reduceRightOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceRightOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_sumBy_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_sumBy_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_sumByDouble_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_sumByDouble_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
+                // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
+                // reduceRightIndexedOrNull/reduceRightOrNull are bundled
+                // Kotlin source (StringHOF.kt); no flat emission spec.
                 "kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toBoolean_flat",
                     stringArgumentCount: 1,
@@ -1758,21 +1455,11 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "__kk_string_toBigDecimalOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigDecimalOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toBigInteger_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
-                ),
-                "__kk_string_toBigIntegerOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigIntegerOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
                 ),
                 "__kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toByteArray_flat",
@@ -2022,26 +1709,13 @@ extension NativeEmitter {
             argumentTypes: [TypeID?],
             appendThrownChannel _: Bool
         ) -> (symbol: SymbolID, function: LLVMFunction)? {
-            var candidates: [(symbol: SymbolID, function: LLVMFunction, parameters: [TypeID])] = []
             // Match by KIR param count (user args only); outThrown is appended by codegen.
-            let expectedParameterCount = argumentCount
-            for declaration in module.arena.declarations {
-                guard case let .function(candidate) = declaration,
-                      candidate.params.count == expectedParameterCount,
-                      let llvmFunction = internalFunctions[candidate.symbol]
-                else {
-                    continue
+            let lookupKey = FunctionLookupKey(name: calleeName, parameterCount: argumentCount)
+            let candidates = internalFunctionsByLookupKey[lookupKey, default: []].compactMap { candidate -> (symbol: SymbolID, function: LLVMFunction, parameters: [TypeID])? in
+                guard let llvmFunction = internalFunctions[candidate.symbol] else {
+                    return nil
                 }
-                let kirName = interner.resolve(candidate.name)
-                let cName = CodegenSymbolSupport.cFunctionSymbol(
-                    for: candidate,
-                    interner: interner,
-                    fileFacadeNamesByFileID: fileFacadeNamesByFileID
-                )
-                guard kirName == calleeName || cName == calleeName else {
-                    continue
-                }
-                candidates.append((candidate.symbol, llvmFunction, candidate.params.map(\.type)))
+                return (candidate.symbol, llvmFunction, candidate.params.map(\.type))
             }
             let exactMatches = candidates.filter { candidate in
                 guard argumentTypes.count == candidate.parameters.count else {
@@ -2067,26 +1741,19 @@ extension NativeEmitter {
             guard let symbol else {
                 return nil
             }
-            for declaration in module.arena.declarations {
-                guard case let .function(candidate) = declaration,
-                      candidate.symbol == symbol
-                else {
-                    continue
-                }
-                return (candidate.params.map(\.type), candidate.returnType)
-            }
-            return nil
+            return internalSignatures[symbol]
         }
 
         func sourceExternalSignature(
             for symbol: SymbolID?,
-            calleeName: String,
             argumentCount: Int
         ) -> (parameters: [TypeID], returnType: TypeID)? {
-            guard calleeName.hasPrefix("kk_fn_"),
-                  let symbol,
+            guard let symbol,
                   let symbols,
-                  let signature = symbols.functionSignature(for: symbol)
+                  let typeSystem,
+                  let signature = symbols.functionSignature(for: symbol),
+                  let externalLinkName = symbols.externalLinkName(for: symbol),
+                  !externalLinkName.isEmpty
             else {
                 return nil
             }
@@ -2094,7 +1761,45 @@ extension NativeEmitter {
             guard parameters.count == argumentCount else {
                 return nil
             }
-            return (parameters, signature.returnType)
+
+            func isHandleLike(_ type: RuntimeABICType) -> Bool {
+                switch type {
+                case .intptr, .opaquePointer, .nullableOpaquePointer:
+                    return true
+                default:
+                    return false
+                }
+            }
+
+            let resolvedParameters: [TypeID]
+            let resolvedReturnType: TypeID
+            if let spec = NativeEmitter.runtimeABIFunctionByName[externalLinkName] {
+                // Runtime callees that throw carry a trailing `outThrown` channel
+                // that is not part of the Kotlin parameter list, so exclude it
+                // when matching against the source-level signature.
+                let abiValueParameters = spec.parameters.filter { parameter in
+                    !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
+                }
+                if abiValueParameters.count == parameters.count {
+                    resolvedParameters = zip(parameters, abiValueParameters).map { kotlinType, abiParam in
+                        if isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
+                            return typeSystem.intType
+                        }
+                        return kotlinType
+                    }
+                } else {
+                    resolvedParameters = parameters
+                }
+                if isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
+                    resolvedReturnType = typeSystem.intType
+                } else {
+                    resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
+                }
+            } else {
+                resolvedParameters = parameters
+                resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
+            }
+            return (resolvedParameters, resolvedReturnType)
         }
 
         func loweredLLVMTypes(for types: [TypeID]) -> [LLVMCAPIBindings.LLVMTypeRef?] {
@@ -2893,10 +2598,10 @@ extension NativeEmitter {
                 let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
                 let calleeFunction: LLVMFunction?
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
+                let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
                 let sourceExternalCallSignature = !isInternalCall
                     ? sourceExternalSignature(
                         for: effectiveSymbol,
-                        calleeName: externalCalleeName,
                         argumentCount: argumentValues.count
                     )
                     : nil
@@ -2922,7 +2627,7 @@ extension NativeEmitter {
                         parameterTypes.append(outThrownPointerType)
                     }
                     calleeFunction = declareExternalFunction(
-                        named: externalCalleeName,
+                        named: effectiveExternalName,
                         parameterTypes: parameterTypes,
                         returnType: loweredLLVMType(
                             for: sourceExternalCallSignature.returnType,
@@ -3232,6 +2937,7 @@ extension NativeEmitter {
                     continue
                 }
 
+                let calleeKIRFunction = effectiveSymbol.flatMap { module.arena.function(for: $0) }
                 let isRuntimeCallbackRawABIVirtualCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall && typeLowering != nil
@@ -3257,6 +2963,26 @@ extension NativeEmitter {
                             argumentValue,
                             suffix: "\(instructionIndex)_virtual_arg\(index)"
                         ) ?? argumentValue
+                    }
+                } else if isInternalCall,
+                          let calleeKIRFunction
+                {
+                    // Interface dispatch through a KIR-declared function may see a
+                    // String aggregate at the call site while the erased interface
+                    // parameter is a raw pointer (or vice-versa). Convert across the
+                    // boundary so the looked-up function pointer receives/returns the
+                    // ABI expected by its KIR signature.
+                    virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
+                        let (argumentValue, argumentType) = pair
+                        let paramType = index < calleeKIRFunction.params.count
+                            ? calleeKIRFunction.params[index].type
+                            : nil
+                        return coerceStringValueForType(
+                            argumentValue,
+                            from: argumentType,
+                            to: paramType,
+                            suffix: "\(instructionIndex)_virtual_internal_arg\(index)"
+                        )
                     }
                 }
 
@@ -3400,6 +3126,18 @@ extension NativeEmitter {
                         vCallValue,
                         suffix: "\(instructionIndex)_virtual_result"
                     ) ?? vCallValue
+                } else if isInternalCall,
+                          let result,
+                          let resultExprType = module.arena.exprType(result),
+                          let vCallValue,
+                          let calleeKIRFunction
+                {
+                    mergedValue = coerceStringValueForType(
+                        vCallValue,
+                        from: calleeKIRFunction.returnType,
+                        to: resultExprType,
+                        suffix: "\(instructionIndex)_virtual_internal_result"
+                    )
                 } else {
                     mergedValue = vCallValue ?? zeroValue
                 }

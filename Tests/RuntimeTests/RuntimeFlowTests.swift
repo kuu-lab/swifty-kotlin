@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private typealias RuntimeFlowEmitterEntry = @convention(c) (UnsafeMutablePointer<Int>?) -> Int
 /// Non-suspend collector ABI: (closureRaw, value, outThrown)
@@ -311,15 +311,12 @@ func runtime_test_flow_flat_map_to_pair_flow(_: Int, _ value: Int, _ outThrown: 
     return runtimeFlowOf([value, value + 10])
 }
 
-final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndFlow }
-    override func resetIsolatedRuntimeTestState() {
-        runtimeFlowTestState.reset()
-        runtimeFlowErrorTestState.reset()
-    }
-
-    func testChainedTakeAppliesAllTakeStepsAndResetsPerCollect() {
+@Suite(.runtimeIsolation(.gcAndFlow, resetAdditionalState: {
+    runtimeFlowTestState.reset()
+    runtimeFlowErrorTestState.reset()
+}))
+struct RuntimeFlowTests {
+    @Test func testChainedTakeAppliesAllTakeStepsAndResetsPerCollect() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -329,18 +326,18 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         _ = kk_flow_collect(chainedTake, collectorPtr, 0, 0)
         let snapshot1 = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot1.values, [1, 2], "Both take steps should be applied in a chain.")
+        #expect(snapshot1.values == [1, 2], "Both take steps should be applied in a chain.")
         // Emitter should stop after take(2) terminates: 2 delivered + 1 that sees sentinel = 3.
-        XCTAssertLessThanOrEqual(snapshot1.emitCalls, 3, "Emitter should stop early after chained take exhaustion.")
+        #expect(snapshot1.emitCalls <= 3, "Emitter should stop early after chained take exhaustion.")
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(chainedTake, collectorPtr, 0, 0)
         let snapshot2 = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot2.values, [1, 2], "take counters should reset on each collect.")
-        XCTAssertLessThanOrEqual(snapshot2.emitCalls, 3, "Emitter should stop early on re-collect too.")
+        #expect(snapshot2.values == [1, 2], "take counters should reset on each collect.")
+        #expect(snapshot2.emitCalls <= 3, "Emitter should stop early on re-collect too.")
     }
 
-    func testMapThrowTerminatesFlowAndSkipsSubsequentEmits() {
+    @Test func testMapThrowTerminatesFlowAndSkipsSubsequentEmits() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let mapPtr = unsafeBitCast(runtime_test_flow_map_throw_on_two as RuntimeFlowUnaryEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
@@ -350,15 +347,15 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(mapped, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [1], "Values after a thrown map step must not reach collector.")
-        XCTAssertEqual(snapshot.mapCalls, 2, "Map should run for values 1 and 2, then terminate.")
-        XCTAssertEqual(snapshot.collectorCalls, 1)
+        #expect(snapshot.values == [1], "Values after a thrown map step must not reach collector.")
+        #expect(snapshot.mapCalls == 2, "Map should run for values 1 and 2, then terminate.")
+        #expect(snapshot.collectorCalls == 1)
         // Emitter should stop early: value 1 ok, value 2 throws -> terminated.
         // Value 3 emitted -> sees stop sentinel and breaks. So emitCalls <= 3.
-        XCTAssertLessThanOrEqual(snapshot.emitCalls, 3, "Emitter should stop early after map throw terminates pipeline.")
+        #expect(snapshot.emitCalls <= 3, "Emitter should stop early after map throw terminates pipeline.")
     }
 
-    func testFilterMapTakePipelinePreservesOrderAndStopsAfterTake() {
+    @Test func testFilterMapTakePipelinePreservesOrderAndStopsAfterTake() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let filterPtr = unsafeBitCast(runtime_test_flow_filter_even as RuntimeFlowUnaryEntry, to: Int.self)
         let mapPtr = unsafeBitCast(runtime_test_flow_map_double as RuntimeFlowUnaryEntry, to: Int.self)
@@ -372,19 +369,19 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(taken, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [4], "filter/map/take pipeline should keep order and stop after one element.")
+        #expect(snapshot.values == [4], "filter/map/take pipeline should keep order and stop after one element.")
         // Lazy per-element semantics: only values 1 and 2 are processed (1 is
         // filtered out, 2 passes filter+map and take(1) stops further processing).
-        XCTAssertEqual(snapshot.filterCalls, 2, "Filter runs lazily per element; stops after take(1) is satisfied.")
-        XCTAssertEqual(snapshot.mapCalls, 1, "Map runs only for the single element that passed filter before take exhausted.")
-        XCTAssertEqual(snapshot.collectorCalls, 1)
+        #expect(snapshot.filterCalls == 2, "Filter runs lazily per element; stops after take(1) is satisfied.")
+        #expect(snapshot.mapCalls == 1, "Map runs only for the single element that passed filter before take exhausted.")
+        #expect(snapshot.collectorCalls == 1)
         // Verify the *source emitter* stops early rather than iterating all 4 elements.
         // Element 1 emitted -> filtered out. Element 2 emitted -> passes filter, map, take(1) delivers and terminates.
         // Element 3 emitted -> sees stop sentinel, emitter breaks. So emitCalls <= 3.
-        XCTAssertLessThanOrEqual(snapshot.emitCalls, 3, "Emitter should stop early once take(1) terminates the pipeline.")
+        #expect(snapshot.emitCalls <= 3, "Emitter should stop early once take(1) terminates the pipeline.")
     }
 
-    func testCollectorThrowTerminatesFlowAfterFirstCollectedValue() {
+    @Test func testCollectorThrowTerminatesFlowAfterFirstCollectedValue() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let throwingCollectorPtr = unsafeBitCast(runtime_test_flow_collect_throw_on_first as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -392,14 +389,14 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(flowHandle, throwingCollectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [1], "Collector throw should stop subsequent emissions.")
-        XCTAssertEqual(snapshot.collectorCalls, 1)
+        #expect(snapshot.values == [1], "Collector throw should stop subsequent emissions.")
+        #expect(snapshot.collectorCalls == 1)
         // Emitter should stop early: value 1 delivered -> collector throws -> terminated.
         // Value 2 emitted -> sees stop sentinel and breaks. So emitCalls <= 2.
-        XCTAssertLessThanOrEqual(snapshot.emitCalls, 2, "Emitter should stop early after collector throw terminates pipeline.")
+        #expect(snapshot.emitCalls <= 2, "Emitter should stop early after collector throw terminates pipeline.")
     }
 
-    func testTakeFollowedByRejectAllFilterTerminatesOverLargeSource() {
+    @Test func testTakeFollowedByRejectAllFilterTerminatesOverLargeSource() {
         // Regression: .take(n) followed by a filter that drops everything must still
         // terminate promptly -- the take counter exhaustion must propagate even when
         // downstream ops drop the element via early return.
@@ -416,41 +413,41 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let snapshot = runtimeFlowTestState.snapshot()
         // The filter rejects everything so nothing reaches the collector.
-        XCTAssertEqual(snapshot.values, [], "No elements should pass the reject-all filter.")
+        #expect(snapshot.values == [], "No elements should pass the reject-all filter.")
         // take(3) allows exactly 3 elements through before terminating.
         // The filter runs on each of those 3 elements but rejects them all.
-        XCTAssertEqual(snapshot.filterCalls, 3, "Filter should run exactly take(n) times, then pipeline terminates.")
-        XCTAssertEqual(snapshot.collectorCalls, 0, "Collector should never be called when filter rejects all.")
+        #expect(snapshot.filterCalls == 3, "Filter should run exactly take(n) times, then pipeline terminates.")
+        #expect(snapshot.collectorCalls == 0, "Collector should never be called when filter rejects all.")
         // The emitter should stop after take(3) terminates the pipeline, NOT iterate
         // all 10,000 elements. We allow take(n)+1 emits because the (n+1)th emit is
         // where the emitter observes the stop sentinel.
-        XCTAssertLessThanOrEqual(snapshot.emitCalls, 4, "Emitter should stop around take(n) rather than iterating the whole 10,000-element source.")
+        #expect(snapshot.emitCalls <= 4, "Emitter should stop around take(n) rather than iterating the whole 10,000-element source.")
     }
 
-    func testFlowRetainReleaseKeepsHandleAliveUntilLastRelease() {
+    @Test func testFlowRetainReleaseKeepsHandleAliveUntilLastRelease() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let retained = kk_flow_retain(flowHandle)
-        XCTAssertEqual(retained, flowHandle)
+        #expect(retained == flowHandle)
 
         _ = kk_flow_release(flowHandle)
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(retained, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3, 4])
+        #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3, 4])
 
         _ = kk_flow_release(retained)
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(retained, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [])
+        #expect(runtimeFlowTestState.snapshot().values == [])
     }
 
     // MARK: - Cold stream semantics tests (STDLIB-088)
 
-    func testColdStreamReExecutesEmitterOnEachCollect() {
+    @Test func testColdStreamReExecutesEmitterOnEachCollect() {
         // Verify emitter runs fresh for every collect call by using a
         // counting emitter that increments a global counter on each invocation.
         runtimeFlowEmitterCallCounter.reset()
@@ -459,21 +456,21 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
 
-        XCTAssertEqual(runtimeFlowEmitterCallCounter.count, 0, "Emitter should not run before collect.")
+        #expect(runtimeFlowEmitterCallCounter.count == 0, "Emitter should not run before collect.")
 
         _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         let firstCollect = runtimeFlowTestState.snapshot().values
-        XCTAssertEqual(firstCollect, [1, 2, 3, 4])
-        XCTAssertEqual(runtimeFlowEmitterCallCounter.count, 1, "Emitter should run exactly once after first collect.")
+        #expect(firstCollect == [1, 2, 3, 4])
+        #expect(runtimeFlowEmitterCallCounter.count == 1, "Emitter should run exactly once after first collect.")
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         let secondCollect = runtimeFlowTestState.snapshot().values
-        XCTAssertEqual(secondCollect, [1, 2, 3, 4], "Cold stream should re-emit on each collect.")
-        XCTAssertEqual(runtimeFlowEmitterCallCounter.count, 2, "Emitter should run again on second collect (cold stream).")
+        #expect(secondCollect == [1, 2, 3, 4], "Cold stream should re-emit on each collect.")
+        #expect(runtimeFlowEmitterCallCounter.count == 2, "Emitter should run again on second collect (cold stream).")
     }
 
-    func testLazyMapOnlyProcessesNeededElements() {
+    @Test func testLazyMapOnlyProcessesNeededElements() {
         // With take(2), map should only run for the first 2 source elements.
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let mapPtr = unsafeBitCast(runtime_test_flow_map_double as RuntimeFlowUnaryEntry, to: Int.self)
@@ -486,11 +483,11 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(taken, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [2, 4], "take(2) after map should yield first 2 mapped values.")
-        XCTAssertEqual(snapshot.mapCalls, 2, "Lazy: map should only run for the 2 elements before take exhausted.")
+        #expect(snapshot.values == [2, 4], "take(2) after map should yield first 2 mapped values.")
+        #expect(snapshot.mapCalls == 2, "Lazy: map should only run for the 2 elements before take exhausted.")
     }
 
-    func testOnEachDoesNotTransformValues() {
+    @Test func testOnEachDoesNotTransformValues() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let onEachPtr = unsafeBitCast(runtime_test_flow_map_double as RuntimeFlowUnaryEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
@@ -502,11 +499,11 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let snapshot = runtimeFlowTestState.snapshot()
         // onEach runs the action but does not change the value.
-        XCTAssertEqual(snapshot.values, [1, 2, 3, 4], "onEach should not transform values.")
-        XCTAssertEqual(snapshot.mapCalls, 4, "onEach action should run for all elements.")
+        #expect(snapshot.values == [1, 2, 3, 4], "onEach should not transform values.")
+        #expect(snapshot.mapCalls == 4, "onEach action should run for all elements.")
     }
 
-    func testDistinctUntilChangedFiltersConsecutiveDuplicates() {
+    @Test func testDistinctUntilChangedFiltersConsecutiveDuplicates() {
         // Emit: 1, 1, 2, 2, 3, 1
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_with_dupes as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
@@ -517,7 +514,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(distinct, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [1, 2, 3, 1], "distinctUntilChanged should remove consecutive duplicates.")
+        #expect(snapshot.values == [1, 2, 3, 1], "distinctUntilChanged should remove consecutive duplicates.")
     }
 
     // KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed. flowOf /
@@ -528,41 +525,41 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
     // backed them is still exercised via runtimeFlowOf(...) below and the
     // zip/merge/combine/share_in tests.
 
-    func testFlowFirst() {
+    @Test func testFlowFirst() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let result = kk_flow_first(flowHandle, 0)
-        XCTAssertEqual(result, 1, "first() should return the first emitted value.")
+        #expect(result == 1, "first() should return the first emitted value.")
     }
 
-    func testFlowFirstWithFilter() {
+    @Test func testFlowFirstWithFilter() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let filterPtr = unsafeBitCast(runtime_test_flow_filter_even as RuntimeFlowUnaryEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let filtered = kk_flow_emit(flowHandle, filterPtr, RuntimeFlowTag.filter.rawValue)
         let result = kk_flow_first(filtered, 0)
-        XCTAssertEqual(result, 2, "first() after filter(even) should return 2.")
+        #expect(result == 2, "first() after filter(even) should return 2.")
     }
 
-    func testFlowCount() {
+    @Test func testFlowCount() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let result = kk_flow_count(flowHandle, 0)
-        XCTAssertEqual(result, 4, "count() should return number of emitted elements.")
+        #expect(result == 4, "count() should return number of emitted elements.")
     }
 
-    func testFlowCountWithFilter() {
+    @Test func testFlowCountWithFilter() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let filterPtr = unsafeBitCast(runtime_test_flow_filter_even as RuntimeFlowUnaryEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let filtered = kk_flow_emit(flowHandle, filterPtr, RuntimeFlowTag.filter.rawValue)
         let result = kk_flow_count(filtered, 0)
-        XCTAssertEqual(result, 2, "count() after filter(even) on [1,2,3,4] should return 2.")
+        #expect(result == 2, "count() after filter(even) on [1,2,3,4] should return 2.")
     }
 
-    func testFlowToList() {
+    @Test func testFlowToList() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let mapPtr = unsafeBitCast(runtime_test_flow_map_double as RuntimeFlowUnaryEntry, to: Int.self)
 
@@ -571,32 +568,32 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let listHandle = kk_flow_to_list(mapped, 0)
 
         let size = kk_list_size(listHandle)
-        XCTAssertEqual(size, 4)
-        XCTAssertEqual(kk_list_get(listHandle, 0), 2)
-        XCTAssertEqual(kk_list_get(listHandle, 1), 4)
-        XCTAssertEqual(kk_list_get(listHandle, 2), 6)
-        XCTAssertEqual(kk_list_get(listHandle, 3), 8)
+        #expect(size == 4)
+        #expect(kk_list_get(listHandle, 0) == 2)
+        #expect(kk_list_get(listHandle, 1) == 4)
+        #expect(kk_list_get(listHandle, 2) == 6)
+        #expect(kk_list_get(listHandle, 3) == 8)
     }
 
-    func testFlowFold() {
+    @Test func testFlowFold() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let foldOpPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let result = kk_flow_fold(flowHandle, 0, foldOpPtr, 0)
-        XCTAssertEqual(result, 10, "fold with + and initial 0 on [1,2,3,4] should yield 10.")
+        #expect(result == 10, "fold with + and initial 0 on [1,2,3,4] should yield 10.")
     }
 
-    func testFlowReduce() {
+    @Test func testFlowReduce() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let reduceOpPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let result = kk_flow_reduce(flowHandle, reduceOpPtr, 0)
-        XCTAssertEqual(result, 10, "reduce with + on [1,2,3,4] should yield 10.")
+        #expect(result == 10, "reduce with + on [1,2,3,4] should yield 10.")
     }
 
-    func testTakeZeroEmitsNothing() {
+    @Test func testTakeZeroEmitsNothing() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -604,10 +601,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let taken = kk_flow_emit(flowHandle, 0, RuntimeFlowTag.take.rawValue)
 
         _ = kk_flow_collect(taken, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [], "take(0) should emit nothing.")
+        #expect(runtimeFlowTestState.snapshot().values == [], "take(0) should emit nothing.")
     }
 
-    func testDebounceKeepsLatestValueInBurst() {
+    @Test func testDebounceKeepsLatestValueInBurst() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_burst_1_2_3 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -615,10 +612,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let debounced = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.debounce.rawValue)
 
         _ = kk_flow_collect(debounced, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [3], "debounce should keep only the last value in a tight burst.")
+        #expect(runtimeFlowTestState.snapshot().values == [3], "debounce should keep only the last value in a tight burst.")
     }
 
-    func testSamplePicksLatestValuePerTick() {
+    @Test func testSamplePicksLatestValuePerTick() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_spaced_1_2_3 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -626,10 +623,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let sampled = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.sample.rawValue)
 
         _ = kk_flow_collect(sampled, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3], "sample should emit the latest value available at each sampling tick.")
+        #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3], "sample should emit the latest value available at each sampling tick.")
     }
 
-    func testConflateCollapsesSameTimestampBurst() {
+    @Test func testConflateCollapsesSameTimestampBurst() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_burst_1_2_3 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -637,10 +634,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let conflated = kk_flow_emit(flowHandle, 0, RuntimeFlowTag.conflate.rawValue)
 
         _ = kk_flow_collect(conflated, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [3], "conflate should keep the latest value from a same-timestamp burst.")
+        #expect(runtimeFlowTestState.snapshot().values == [3], "conflate should keep the latest value from a same-timestamp burst.")
     }
 
-    func testDelayEachDelaysDeliveryButPreservesValues() {
+    @Test func testDelayEachDelaysDeliveryButPreservesValues() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_burst_1_2_3 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -651,11 +648,11 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(delayed, collectorPtr, 0, 0)
         let elapsedMs = Date().timeIntervalSince(startedAt) * 1_000.0
 
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3], "delayEach should preserve values.")
-        XCTAssertGreaterThanOrEqual(elapsedMs, 1.0, "delayEach should delay collection by at least the requested interval.")
+        #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3], "delayEach should preserve values.")
+        #expect(elapsedMs >= 1.0, "delayEach should delay collection by at least the requested interval.")
     }
 
-    func testMutableSharedFlowRetainsReplayCacheAndCollectsSnapshot() {
+    @Test func testMutableSharedFlowRetainsReplayCacheAndCollectsSnapshot() {
         let flowHandle = kk_mutable_shared_flow_create(2)
         _ = kk_mutable_shared_flow_emit(flowHandle, 10)
         _ = kk_mutable_shared_flow_emit(flowHandle, 20)
@@ -663,42 +660,42 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let replayHandle = kk_shared_flow_replay_cache(flowHandle)
         let replay = runtimeListBox(from: replayHandle)?.elements ?? []
-        XCTAssertEqual(replay, [20, 30])
+        #expect(replay == [20, 30])
 
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
         _ = kk_shared_flow_collect(flowHandle, collectorPtr, 0, nil)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [20, 30])
+        #expect(snapshot.values == [20, 30])
     }
 
-    func testMutableStateFlowTracksLatestValueAndCollectsCurrentSnapshot() {
+    @Test func testMutableStateFlowTracksLatestValueAndCollectsCurrentSnapshot() {
         let stateHandle = kk_mutable_state_flow_create(7)
-        XCTAssertEqual(kk_state_flow_value(stateHandle), 7)
+        #expect(kk_state_flow_value(stateHandle) == 7)
 
         _ = kk_mutable_state_flow_emit(stateHandle, 11)
-        XCTAssertEqual(kk_state_flow_value(stateHandle), 11)
+        #expect(kk_state_flow_value(stateHandle) == 11)
 
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
         _ = kk_shared_flow_collect(stateHandle, collectorPtr, 0, nil)
 
         let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [11])
+        #expect(snapshot.values == [11])
     }
 
-    func testShareInAndStateInMaterializeFromColdFlowSource() {
+    @Test func testShareInAndStateInMaterializeFromColdFlowSource() {
         let coldFlow = runtimeFlowOf([1, 2, 3])
 
         let sharedHandle = kk_flow_share_in(coldFlow, 2)
         let replayHandle = kk_shared_flow_replay_cache(sharedHandle)
         let replay = runtimeListBox(from: replayHandle)?.elements ?? []
-        XCTAssertEqual(replay, [2, 3])
+        #expect(replay == [2, 3])
 
         let stateHandle = kk_flow_state_in(coldFlow, 0)
-        XCTAssertEqual(kk_state_flow_value(stateHandle), 3)
+        #expect(kk_state_flow_value(stateHandle) == 3)
     }
 
-    func testCatchConsumesUpstreamFailure() {
+    @Test func testCatchConsumesUpstreamFailure() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let mapPtr = unsafeBitCast(runtime_test_flow_map_throw_on_two as RuntimeFlowUnaryEntry, to: Int.self)
         let catchPtr = unsafeBitCast(runtime_test_flow_catch_record as RuntimeFlowUnaryEntry, to: Int.self)
@@ -710,11 +707,11 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         _ = kk_flow_collect(caught, collectorPtr, 0, 0)
 
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1])
-        XCTAssertEqual(runtimeFlowErrorTestState.snapshot().catchCalls, 1)
+        #expect(runtimeFlowTestState.snapshot().values == [1])
+        #expect(runtimeFlowErrorTestState.snapshot().catchCalls == 1)
     }
 
-    func testRetryRetriesUpstreamAndEventuallySucceeds() {
+    @Test func testRetryRetriesUpstreamAndEventuallySucceeds() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_retry_emitter_fail_once as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -723,11 +720,11 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         _ = kk_flow_collect(retried, collectorPtr, 0, 0)
 
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 1, 2])
-        XCTAssertEqual(runtimeFlowErrorTestState.snapshot().retryEmitterInvocations, 2)
+        #expect(runtimeFlowTestState.snapshot().values == [1, 1, 2])
+        #expect(runtimeFlowErrorTestState.snapshot().retryEmitterInvocations == 2)
     }
 
-    func testRetryWhenStopsWhenPredicateReturnsFalse() {
+    @Test func testRetryWhenStopsWhenPredicateReturnsFalse() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_retry_emitter_always_fail as RuntimeFlowEmitterEntry, to: Int.self)
         let retryWhenPtr = unsafeBitCast(runtime_test_flow_retry_when_allow_once as @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
@@ -738,12 +735,12 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_collect(retried, collectorPtr, 0, 0)
 
         let errorSnapshot = runtimeFlowErrorTestState.snapshot()
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [7, 7])
-        XCTAssertEqual(errorSnapshot.alwaysFailEmitterInvocations, 2)
-        XCTAssertEqual(errorSnapshot.retryWhenAttempts, [0, 1])
+        #expect(runtimeFlowTestState.snapshot().values == [7, 7])
+        #expect(errorSnapshot.alwaysFailEmitterInvocations == 2)
+        #expect(errorSnapshot.retryWhenAttempts == [0, 1])
     }
 
-    func testOnErrorReturnEmitsFallbackValue() {
+    @Test func testOnErrorReturnEmitsFallbackValue() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_fail_for_fallback as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -752,10 +749,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         _ = kk_flow_collect(recovered, collectorPtr, 0, 0)
 
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [5, 99])
+        #expect(runtimeFlowTestState.snapshot().values == [5, 99])
     }
 
-    func testOnErrorResumeSwitchesToFallbackFlow() {
+    @Test func testOnErrorResumeSwitchesToFallbackFlow() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_fail_for_fallback as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
@@ -766,12 +763,12 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         _ = kk_flow_collect(resumed, collectorPtr, 0, 0)
 
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [5, 42, 43])
+        #expect(runtimeFlowTestState.snapshot().values == [5, 42, 43])
     }
 
     // MARK: - TEST-CORO-003: advanced coroutine flow sources
 
-    func testAdvancedFlowZipCombinesMatchingPairsAndStopsAtShorterInput() {
+    @Test func testAdvancedFlowZipCombinesMatchingPairsAndStopsAtShorterInput() {
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
         let combinerPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
 
@@ -780,10 +777,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let zipped = kk_flow_zip(leftFlow, rightFlow, combinerPtr, 0)
 
         _ = kk_flow_collect(zipped, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 22], "zip should stop at the shorter source and combine pairwise")
+        #expect(runtimeFlowTestState.snapshot().values == [11, 22], "zip should stop at the shorter source and combine pairwise")
     }
 
-    func testAdvancedFlowCombineRepeatsLatestValuesWhenLengthsDiffer() {
+    @Test func testAdvancedFlowCombineRepeatsLatestValuesWhenLengthsDiffer() {
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
         let combinerPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
 
@@ -792,10 +789,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let combined = kk_flow_combine(leftFlow, rightFlow, combinerPtr, 0)
 
         _ = kk_flow_collect(combined, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 22, 32], "combine should repeat the latest value from the shorter source")
+        #expect(runtimeFlowTestState.snapshot().values == [11, 22, 32], "combine should repeat the latest value from the shorter source")
     }
 
-    func testAdvancedFlowMergeConcatenatesInputFlowsInOrder() {
+    @Test func testAdvancedFlowMergeConcatenatesInputFlowsInOrder() {
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
         let flowArray = kk_array_new(3)
@@ -809,10 +806,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let merged = kk_flow_merge(flowArray, 3, 0)
 
         _ = kk_flow_collect(merged, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3, 4, 5], "merge should concatenate flows in the provided order")
+        #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3, 4, 5], "merge should concatenate flows in the provided order")
     }
 
-    func testAdvancedFlowFlatMapVariantsUseConcatMergeAndLatestSemantics() {
+    @Test func testAdvancedFlowFlatMapVariantsUseConcatMergeAndLatestSemantics() {
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
         let mapperPtr = unsafeBitCast(runtime_test_flow_flat_map_to_pair_flow as RuntimeFlowUnaryEntry, to: Int.self)
 
@@ -820,17 +817,17 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let concat = kk_flow_flat_map_concat(source, mapperPtr, 0)
         _ = kk_flow_collect(concat, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 11, 2, 12], "flatMapConcat should append each inner flow in source order")
+        #expect(runtimeFlowTestState.snapshot().values == [1, 11, 2, 12], "flatMapConcat should append each inner flow in source order")
 
         runtimeFlowTestState.reset()
         let merge = kk_flow_flat_map_merge(source, mapperPtr, 0)
         _ = kk_flow_collect(merge, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 11, 2, 12], "flatMapMerge should match concat in the synchronous runtime")
+        #expect(runtimeFlowTestState.snapshot().values == [1, 11, 2, 12], "flatMapMerge should match concat in the synchronous runtime")
 
         runtimeFlowTestState.reset()
         let latest = kk_flow_flat_map_latest(source, mapperPtr, 0)
         _ = kk_flow_collect(latest, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [2, 12], "flatMapLatest should keep only the last mapped flow")
+        #expect(runtimeFlowTestState.snapshot().values == [2, 12], "flatMapLatest should keep only the last mapped flow")
     }
 }
 

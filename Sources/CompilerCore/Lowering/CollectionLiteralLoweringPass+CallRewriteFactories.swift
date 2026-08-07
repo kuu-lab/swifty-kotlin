@@ -484,7 +484,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Rewrite sequenceOf → kk_sequence_of (STDLIB-097) ---
-        if callee == lookup.sequenceOfName {
+        if callee == lookup.sequenceOfName, !isSourceBacked(symbol: symbol, ctx: ctx) {
             let count = arguments.count
             if count == 0 {
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -529,17 +529,24 @@ extension CollectionLiteralConstructionLoweringPass {
                        let boxCallee = primitiveBoxCalleeName(
                            for: argType,
                            types: types,
+                           symbols: ctx.sema?.symbols,
                            interner: ctx.interner
                        )
                     {
-                        let boxedArg = emitNonThrowingCall(
-                            callee: boxCallee,
-                            arg: arg,
+                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                        emitBoxCallWithValueClassTag(
+                            boxCallee: boxCallee,
+                            value: arg,
+                            rawSourceKind: types.kind(of: argType),
+                            result: boxedResult,
                             resultType: types.anyType,
+                            types: types,
+                            symbols: ctx.sema?.symbols,
+                            interner: ctx.interner,
                             arena: module.arena,
                             into: &loweredBody
                         )
-                        storedArg = boxedArg
+                        storedArg = boxedResult
                     } else {
                         storedArg = arg
                     }
@@ -571,6 +578,7 @@ extension CollectionLiteralConstructionLoweringPass {
         if callee == lookup.generateSequenceName,
            arguments.count == 2 || arguments.count == 3
         {
+            if !isSourceBacked(symbol: symbol, ctx: ctx) {
             // KSP-500: box the seed so it carries its concrete type at runtime,
             // matching how sequenceOf(...) boxes every element. Without this the
             // seed is stored as a bare primitive and later `is`/filterIsInstance
@@ -588,16 +596,24 @@ extension CollectionLiteralConstructionLoweringPass {
                let boxCallee = primitiveBoxCalleeName(
                    for: seedType,
                    types: sema.types,
+                   symbols: sema.symbols,
                    interner: ctx.interner
                )
             {
-                boxedArguments[0] = emitNonThrowingCall(
-                    callee: boxCallee,
-                    arg: arguments[0],
+                let boxedSeed = module.arena.appendTemporary(type: sema.types.anyType)
+                emitBoxCallWithValueClassTag(
+                    boxCallee: boxCallee,
+                    value: arguments[0],
+                    rawSourceKind: sema.types.kind(of: seedType),
+                    result: boxedSeed,
                     resultType: sema.types.anyType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: ctx.interner,
                     arena: module.arena,
                     into: &loweredBody
                 )
+                boxedArguments[0] = boxedSeed
             }
             loweredBody.append(.call(
                 symbol: nil,
@@ -610,11 +626,14 @@ extension CollectionLiteralConstructionLoweringPass {
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         }
+        return false
+    }
 
         // --- STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction) → kk_sequence_generate_noarg ---
         // arguments.count == 1: just the function value; the ABILoweringPass will expand to (fnPtr, closureRaw).
         if callee == lookup.generateSequenceName,
-           arguments.count == 1
+           arguments.count == 1,
+           !isSourceBacked(symbol: symbol, ctx: ctx)
         {
             loweredBody.append(.call(
                 symbol: nil,
@@ -732,9 +751,9 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     private func isSourceBackedBundledFunction(symbol: SymbolID?, ctx: KIRContext) -> Bool {
-        guard let symbol, let sema = ctx.sema, let semanticSymbol = sema.symbols.symbol(symbol) else {
+        guard let symbol, let sema = ctx.sema, sema.symbols.symbol(symbol) != nil else {
             return false
         }
-        return semanticSymbol.declSite != nil && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        return sema.symbols.isSourceBackedSymbol(symbol)
     }
 }

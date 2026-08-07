@@ -42,26 +42,13 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    func collectHeader(
-        declID: DeclID,
-        file: ASTFile,
-        ast: ASTModule,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        bindings: BindingTable,
-        scope: Scope,
-        sourceManager: SourceManager,
-        diagnostics: DiagnosticEngine,
-        interner: StringInterner,
-        ctx: CompilationContext
-    ) {
-        guard let decl = ast.arena.decl(declID) else { return }
-        let package = file.packageFQName
-        let anyType = types.anyType
-        let unitType = types.unitType
-
-        let declaration: (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)?
+    /// Describes the symbol a top-level declaration introduces, without touching
+    /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
+    /// so both agree on kind/visibility/flags.
+    private func topLevelDeclarationDescriptor(
+        for decl: Decl,
+        diagnostics: DiagnosticEngine?
+    ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
         switch decl {
         case let .classDecl(classDecl):
             var classFlags = flags(from: classDecl.modifiers)
@@ -72,14 +59,14 @@ extension DataFlowSemaPhase {
 
             // STDLIB-CLASS-010: Check for conflicting modifiers
             if classDecl.modifiers.contains(.abstract) && classDecl.modifiers.contains(.final) {
-                diagnostics.error(
+                diagnostics?.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Class cannot be both 'abstract' and 'final'.",
                     range: classDecl.range
                 )
             }
             if classDecl.modifiers.contains(.sealed) && classDecl.modifiers.contains(.final) {
-                diagnostics.error(
+                diagnostics?.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Class cannot be both 'sealed' and 'final'.",
                     range: classDecl.range
@@ -95,7 +82,7 @@ extension DataFlowSemaPhase {
                 classFlags.insert(.abstractType)
                 classFlags.insert(.openType)
             }
-            declaration = (
+            return (
                 kind: classSymbolKind(for: classDecl),
                 name: classDecl.name,
                 range: classDecl.range,
@@ -107,7 +94,7 @@ extension DataFlowSemaPhase {
             if interfaceDecl.isFunInterface {
                 interfaceFlags.insert(.funInterface)
             }
-            declaration = (
+            return (
                 kind: .interface,
                 name: interfaceDecl.name,
                 range: interfaceDecl.range,
@@ -115,7 +102,7 @@ extension DataFlowSemaPhase {
                 flags: interfaceFlags
             )
         case let .objectDecl(objectDecl):
-            declaration = (
+            return (
                 kind: .object,
                 name: objectDecl.name,
                 range: objectDecl.range,
@@ -123,7 +110,7 @@ extension DataFlowSemaPhase {
                 flags: flags(from: objectDecl.modifiers)
             )
         case let .funDecl(funDecl):
-            declaration = (
+            return (
                 kind: .function,
                 name: funDecl.name,
                 range: funDecl.range,
@@ -135,7 +122,7 @@ extension DataFlowSemaPhase {
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
             }
-            declaration = (
+            return (
                 kind: .property,
                 name: propertyDecl.name,
                 range: propertyDecl.range,
@@ -143,7 +130,7 @@ extension DataFlowSemaPhase {
                 flags: propertyFlags
             )
         case let .typeAliasDecl(typeAliasDecl):
-            declaration = (
+            return (
                 kind: .typeAlias,
                 name: typeAliasDecl.name,
                 range: typeAliasDecl.range,
@@ -151,7 +138,7 @@ extension DataFlowSemaPhase {
                 flags: flags(from: typeAliasDecl.modifiers)
             )
         case let .enumEntryDecl(entry):
-            declaration = (
+            return (
                 kind: .field,
                 name: entry.name,
                 range: entry.range,
@@ -159,9 +146,19 @@ extension DataFlowSemaPhase {
                 flags: []
             )
         }
+    }
 
-        guard let declaration else { return }
-        let fqName = package + [declaration.name]
+    private func defineTopLevelSymbol(
+        declaration: (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags),
+        decl: Decl,
+        file: ASTFile,
+        symbols: SymbolTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) -> SymbolID {
+        let fqName = file.packageFQName + [declaration.name]
         let scopeExisting = scope.lookup(declaration.name).compactMap { symbolID -> SemanticSymbol? in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.fqName == fqName
@@ -213,6 +210,83 @@ extension DataFlowSemaPhase {
         }
         symbols.setSourceFileID(file.fileID, for: symbol)
         scope.insert(symbol)
+        return symbol
+    }
+
+    /// BUG-143: Registers the symbols of top-level nominal type declarations
+    /// (class/interface/object/typealias) before any signature type annotation is
+    /// resolved, so declarations can reference types declared further down in the
+    /// same file. Returns the pre-registered symbols keyed by declaration so that
+    /// `collectHeader` reuses them instead of defining a second symbol.
+    func predeclareNominalTypeHeaders(
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        for declID in file.topLevelDecls {
+            guard let decl = ast.arena.decl(declID) else { continue }
+            switch decl {
+            case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                break
+            case .funDecl, .propertyDecl, .enumEntryDecl:
+                continue
+            }
+            guard let declaration = topLevelDeclarationDescriptor(for: decl, diagnostics: nil) else {
+                continue
+            }
+            predeclared[declID] = defineTopLevelSymbol(
+                declaration: declaration,
+                decl: decl,
+                file: file,
+                symbols: symbols,
+                scope: scope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    func collectHeader(
+        declID: DeclID,
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        ctx: CompilationContext,
+        predeclaredSymbol: SymbolID? = nil
+    ) {
+        guard let decl = ast.arena.decl(declID) else { return }
+        let package = file.packageFQName
+        let anyType = types.anyType
+        let unitType = types.unitType
+
+        guard let declaration = topLevelDeclarationDescriptor(
+            for: decl,
+            diagnostics: diagnostics
+        ) else { return }
+        let fqName = package + [declaration.name]
+        let symbol = predeclaredSymbol ?? defineTopLevelSymbol(
+            declaration: declaration,
+            decl: decl,
+            file: file,
+            symbols: symbols,
+            scope: scope,
+            sourceManager: sourceManager,
+            diagnostics: diagnostics,
+            interner: interner
+        )
         bindings.bindDecl(declID, symbol: symbol)
 
         if case let .funDecl(funDecl) = decl {
@@ -455,6 +529,15 @@ extension DataFlowSemaPhase {
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    enumType: classType,
                     symbols: symbols,
                     types: types,
                     scope: classScope,
@@ -820,6 +903,10 @@ extension DataFlowSemaPhase {
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: symbol)
 
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                symbols.setPropertyHasCustomGetter(true, for: symbol)
+            }
+
             if let receiverType = resolveTypeRef(
                 propertyDecl.receiverType,
                 ast: ast,
@@ -1014,6 +1101,8 @@ extension DataFlowSemaPhase {
             return ["kotlin", "text", "Charset"].map { interner.intern($0) }
         case "__bundled_kotlin/Throwable.kt":
             return ["kotlin", "Throwable"].map { interner.intern($0) }
+        case "__bundled_kotlin/sequences/Sequence.kt":
+            return ["kotlin", "sequences", "Sequence"].map { interner.intern($0) }
         default:
             return nil
         }
@@ -1079,6 +1168,7 @@ extension DataFlowSemaPhase {
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
 

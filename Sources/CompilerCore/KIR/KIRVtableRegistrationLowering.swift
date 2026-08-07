@@ -78,22 +78,153 @@ func appendObjectVtableMethodRegistrations(
     }
 }
 
+/// Returns a bridge symbol for `implementation` when its ABI (String aggregate
+/// vs raw pointer) does not match the erased interface method signature used by
+/// itable dispatch. The bridge has the interface ABI, forwards to the
+/// implementation, and relies on the backend's String bridging in `.call` and
+/// `returnValue` to convert across the boundary.
+func itableBridgeSymbolForMethod(
+    interfaceMethod: SymbolID,
+    implementation: SymbolID,
+    nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
+    arena: KIRArena,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID {
+    guard implementation != interfaceMethod,
+          implementation.rawValue >= 0,
+          let implementationFn = arena.function(for: implementation),
+          let interfaceSig = sema.symbols.functionSignature(for: interfaceMethod),
+          let implSig = sema.symbols.functionSignature(for: implementation)
+    else {
+        return implementation
+    }
+
+    func isStringAggregate(_ type: TypeID?) -> Bool {
+        guard let type else { return false }
+        if case .stringStruct = sema.types.kind(of: type) {
+            return true
+        }
+        return false
+    }
+
+    let interfaceReceiver = interfaceSig.receiverType
+    let interfaceParamTypes = [interfaceReceiver].compactMap { $0 } + interfaceSig.parameterTypes
+    let implementationParamTypes = implementationFn.params.map(\.type)
+
+    guard implementationParamTypes.count == interfaceParamTypes.count else {
+        return implementation
+    }
+
+    var needsBridge = false
+    if isStringAggregate(implementationFn.returnType) != isStringAggregate(interfaceSig.returnType) {
+        needsBridge = true
+    }
+    if !needsBridge {
+        for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
+            if isStringAggregate(implType) != isStringAggregate(ifaceType) {
+                needsBridge = true
+                break
+            }
+        }
+    }
+    guard needsBridge else {
+        return implementation
+    }
+
+    let cacheKey = "\(interfaceMethod.rawValue)|\(implementation.rawValue)"
+    if let cached = driver.ctx.itableBridgeSymbolsByKey[cacheKey] {
+        return cached
+    }
+
+    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+    driver.ctx.itableBridgeSymbolsByKey[cacheKey] = bridgeSymbol
+
+    let bridgeName = interner.intern("kk_itable_bridge_\(interfaceMethod.rawValue)_\(implementation.rawValue)_\(bridgeSymbol.rawValue)")
+
+    var bridgeParams: [KIRParameter] = []
+    if let receiverType = interfaceSig.receiverType {
+        let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        bridgeParams.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
+    }
+    for paramType in interfaceSig.parameterTypes {
+        let paramSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        bridgeParams.append(KIRParameter(symbol: paramSymbol, type: paramType))
+    }
+
+    var body: [KIRInstruction] = [.beginBlock]
+    var bridgeParamExprs: [KIRExprID] = []
+    for param in bridgeParams {
+        let expr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+        body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
+        bridgeParamExprs.append(expr)
+    }
+
+    let callResult = arena.appendTemporary(type: implementationFn.returnType)
+    let thrownResult: KIRExprID? = implSig.canThrow
+        ? arena.appendTemporary(type: sema.types.nullableAnyType)
+        : nil
+
+    let implName = interner.intern("__itable_impl_\(implementation.rawValue)")
+
+    body.append(.call(
+        symbol: implementation,
+        callee: implName,
+        arguments: bridgeParamExprs,
+        result: callResult,
+        canThrow: implSig.canThrow,
+        thrownResult: thrownResult
+    ))
+
+    if let thrownResult {
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+        body.append(.jump(continueLabel))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrownResult))
+        body.append(.label(continueLabel))
+    }
+
+    body.append(.returnValue(callResult))
+    body.append(.endBlock)
+
+    let bridgeDecl = arena.appendDecl(
+        .function(
+            KIRFunction(
+                symbol: bridgeSymbol,
+                name: bridgeName,
+                params: bridgeParams,
+                returnType: interfaceSig.returnType,
+                body: body,
+                isSuspend: false,
+                isInline: false
+            )
+        )
+    )
+    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+
+    return bridgeSymbol
+}
+
 func appendObjectItableMethodRegistrations(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout [KIRInstruction]
 ) {
-    guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
+    guard let _ = sema.symbols.symbol(nominalSymbol),
+          let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol)
+    else {
         return
     }
 
     let intType = sema.types.intType
-    let interfaceSupertypes = sema.symbols.directSupertypes(for: nominalSymbol).filter { superSymbol in
-        sema.symbols.symbol(superSymbol)?.kind == .interface
-    }
+    let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
     for interfaceSymbol in interfaceSupertypes {
         guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else {
             continue
@@ -121,18 +252,38 @@ func appendObjectItableMethodRegistrations(
             thrownResult: nil
         ))
 
-        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
+        // Sorted by slot number for deterministic codegen: vtableSlots is a
+        // Dictionary, whose iteration order is unspecified and can vary
+        // between process invocations (or even between two compilations in
+        // the same process, depending on insertion history) even for the
+        // same key set. Iterating it directly here previously went
+        // unnoticed because so few nominals reached this registration path
+        // with more than one interface method — StringBuilder's Appendable
+        // conformance (BUG-166) was the first to make it visible, as two
+        // otherwise-identical compilations of the same source emitted their
+        // three kk_object_register_itable_method calls in different orders.
+        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots.sorted(by: { $0.value < $1.value }) {
             let implementationSymbol = kirFindOverrideMethod(
                 for: methodSymbol,
                 in: nominalSymbol,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) ?? methodSymbol
+            let bridgeSymbol = itableBridgeSymbolForMethod(
+                interfaceMethod: methodSymbol,
+                implementation: implementationSymbol,
+                nominalSymbol: nominalSymbol,
+                driver: driver,
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
             let methodSlot = Int64(methodSlotInt)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
             instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
 
-            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
-            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
 
             let registerMethodResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
@@ -145,30 +296,144 @@ func appendObjectItableMethodRegistrations(
             ))
         }
     }
+
+    // BUG-141: also register interface property getters into the itable.
+    appendObjectItablePropertyGetterRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
 }
 
+/// Interfaces reachable from `nominalSymbol` through the whole supertype
+/// closure, including those implemented by base classes rather than by the
+/// nominal itself. The itable layout assigns slots for exactly this set
+/// (`LayoutSynthesis.collectInterfaceSupertypes`), so instances must register
+/// every one of them to be dispatchable through an interface static type.
+func kirTransitiveInterfaceSupertypes(
+    of nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> [SymbolID] {
+    var stack = sema.symbols.directSupertypes(for: nominalSymbol)
+    var visited: Set<SymbolID> = []
+    var interfaces: [SymbolID] = []
+
+    while let current = stack.popLast() {
+        guard visited.insert(current).inserted else {
+            continue
+        }
+        if sema.symbols.symbol(current)?.kind == .interface {
+            interfaces.append(current)
+        }
+        stack.append(contentsOf: sema.symbols.directSupertypes(for: current))
+    }
+
+    return interfaces.sorted { $0.rawValue < $1.rawValue }
+}
+
+/// Resolves the implementation an instance of `nominalSymbol` must expose for
+/// `interfaceMethod`. The override may live on the nominal itself or on any of
+/// its base classes (`class IntBox : AbstractBox<Int>()` inheriting
+/// `AbstractBox.get`), so the class chain is walked most-derived first.
 func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
-    sema: SemaModule
+    sema: SemaModule,
+    interner: StringInterner
 ) -> SymbolID? {
-    guard let methodSym = sema.symbols.symbol(interfaceMethod),
-          let ownerSym = sema.symbols.symbol(nominalSymbol)
-    else {
+    guard let methodSym = sema.symbols.symbol(interfaceMethod) else {
         return nil
     }
 
-    let overrideFQName = ownerSym.fqName + [methodSym.name]
-    for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
-        guard let candidateSym = sema.symbols.symbol(candidate),
-              candidateSym.kind == .function,
-              sema.symbols.parentSymbol(for: candidate) == nominalSymbol
-        else {
-            continue
+    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
+    let interfaceParamCount = interfaceParameterTypes?.count
+
+    var visited: Set<SymbolID> = []
+    var current: SymbolID? = nominalSymbol
+    while let nominal = current, visited.insert(nominal).inserted {
+        if let ownerSym = sema.symbols.symbol(nominal) {
+            let children = sema.symbols.children(ofFQName: ownerSym.fqName)
+            var firstCandidate: SymbolID?
+            var arityMatch: SymbolID?
+            for candidate in children {
+                guard let candidateSym = sema.symbols.symbol(candidate),
+                      candidateSym.kind == .function,
+                      candidateSym.name == methodSym.name,
+                      sema.symbols.parentSymbol(for: candidate) == nominal
+                else {
+                    continue
+                }
+                if firstCandidate == nil {
+                    firstCandidate = candidate
+                }
+                let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+                // Prefer a full parameter-type match so same-arity overloads
+                // (e.g. StringBuilder.append(Char) vs append(String)) land in
+                // the correct itable slot. Type parameters are wildcards.
+                if let interfaceParameterTypes,
+                   kirOverrideParameterTypesMatch(
+                       candidateParameterTypes: candidateParams,
+                       interfaceParameterTypes: interfaceParameterTypes,
+                       types: sema.types
+                   )
+                {
+                    return candidate
+                }
+                // BUG-166: fall back to arity matching when type IDs don't
+                // line up (e.g. untracked signatures), then to first name match.
+                if arityMatch == nil,
+                   let interfaceParamCount,
+                   candidateParams.count == interfaceParamCount
+                {
+                    arityMatch = candidate
+                }
+            }
+            if let arityMatch {
+                return arityMatch
+            }
+            if let firstCandidate {
+                return firstCandidate
+            }
         }
-        return candidate
+        current = kirSuperclass(of: nominal, sema: sema)
     }
     return nil
+}
+
+/// A class implementing an interface can declare several overloads sharing
+/// the interface method's name (StringBuilder has multiple `append`
+/// overloads for one `Appendable.append` per arity) — `lookupAll(fqName:)`
+/// returns all of them, so `kirFindOverrideMethod` must pick the one whose
+/// signature actually matches `interfaceMethod`, not just the first
+/// same-named function on the class. Type parameters are treated as
+/// wildcards on either side since a generic interface method's parameter
+/// type may not be reified the same way on the implementing side.
+private func kirOverrideParameterTypesMatch(
+    candidateParameterTypes: [TypeID],
+    interfaceParameterTypes: [TypeID],
+    types: TypeSystem
+) -> Bool {
+    guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
+    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
+        if case .typeParam = types.kind(of: candidateType) { continue }
+        if case .typeParam = types.kind(of: interfaceType) { continue }
+        if candidateType != interfaceType { return false }
+    }
+    return true
+}
+
+private func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+    sema.symbols.directSupertypes(for: nominalSymbol).first { superSymbol in
+        switch sema.symbols.symbol(superSymbol)?.kind {
+        case .class, .enumClass, .object:
+            true
+        default:
+            false
+        }
+    }
 }
 
 private func kirNominalDistance(

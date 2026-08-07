@@ -138,6 +138,48 @@ struct BuildKIRRegressionTests {
         }
     }
 
+    /// BUG-145: `substring(...)` called with an implicit receiver inside a
+    /// `String` extension must pass the same arguments (receiver first) as the
+    /// explicit `this.substring(...)` form. `String.substring` is source-backed
+    /// after the KSP-406 migration, so the call targets the bundled Kotlin
+    /// declaration instead of `kk_string_substring_flat`.
+    @Test func testBuildKIRLowersImplicitReceiverSubstringWithReceiverArgument() throws {
+        let source = """
+        fun String.implicitOneArg(n: Int): String = substring(n)
+        fun String.implicitTwoArgs(a: Int, b: Int): String = substring(a, b)
+        fun String.explicitOneArg(n: Int): String = this.substring(n)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try #require(ctx.kir)
+
+            let expectedArgumentCounts = [
+                "implicitOneArg": 2,
+                "implicitTwoArgs": 3,
+                "explicitOneArg": 2,
+            ]
+            for (functionName, expectedArgumentCount) in expectedArgumentCounts {
+                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_string_substring_flat"))
+
+                let substringCall = try #require(body.compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "substring"
+                    else {
+                        return nil
+                    }
+                    return arguments
+                }.first, "\(functionName) should lower to a source-backed substring call")
+
+                #expect(
+                    substringCall.count == expectedArgumentCount,
+                    "\(functionName) should pass \(expectedArgumentCount) arguments, got \(substringCall.count)"
+                )
+            }
+        }
+    }
+
     @Test func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
         let source = """
         fun main(): Int {

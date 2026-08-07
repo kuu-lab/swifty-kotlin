@@ -1,11 +1,27 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 // Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
 
-final class VirtualDispatchCodegenTests: XCTestCase {
+private func isLLVMBackendAvailable() -> Bool {
+    do {
+        _ = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        return true
+    } catch {
+        return false
+    }
+}
+
+@Suite
+struct VirtualDispatchCodegenTests {
     // MARK: - Helpers
 
     private func makeVtableFixture() -> (
@@ -262,6 +278,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
     // MARK: - Tests
 
+    @Test
     func testABILoweringUnboxesReturnForVirtualCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -341,11 +358,12 @@ final class VirtualDispatchCodegenTests: XCTestCase {
                 return nil
             }
         }
-        XCTAssertTrue(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing after virtualCall, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing after virtualCall, got: \(callees)")
     }
 
     // MARK: - 4. virtualCall preserved through lowering (not converted to .call)
 
+    @Test
     func testVirtualCallSurvivesLoweringPhase() throws {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
@@ -371,11 +389,12 @@ final class VirtualDispatchCodegenTests: XCTestCase {
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertTrue(hasVirtualCall, "virtualCall should survive all lowering passes and not be downgraded to .call")
+        #expect(hasVirtualCall, "virtualCall should survive all lowering passes and not be downgraded to .call")
     }
 
     // MARK: - 5. virtualCall dispatch kind preservation
 
+    @Test
     func testVirtualCallPreservesVtableDispatchKind() throws {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
@@ -402,12 +421,13 @@ final class VirtualDispatchCodegenTests: XCTestCase {
             return false
         }
         guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
-            XCTFail("Expected virtualCall instruction after lowering")
+            Issue.record("Expected virtualCall instruction after lowering")
             return
         }
-        XCTAssertEqual(dispatch, .vtable(slot: 0), "Dispatch kind should be preserved as vtable(slot: 0)")
+        #expect(dispatch == .vtable(slot: 0), "Dispatch kind should be preserved as vtable(slot: 0)")
     }
 
+    @Test
     func testVirtualCallPreservesItableDispatchKind() throws {
         let fixture = makeItableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
@@ -434,14 +454,15 @@ final class VirtualDispatchCodegenTests: XCTestCase {
             return false
         }
         guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
-            XCTFail("Expected virtualCall instruction after lowering")
+            Issue.record("Expected virtualCall instruction after lowering")
             return
         }
-        XCTAssertEqual(dispatch, .itable(interfaceSlot: 0, methodSlot: 0), "Dispatch kind should be preserved as itable(interfaceSlot: 0, methodSlot: 0)")
+        #expect(dispatch == .itable(interfaceSlot: 0, methodSlot: 0), "Dispatch kind should be preserved as itable(interfaceSlot: 0, methodSlot: 0)")
     }
 
     // MARK: - 6. Receiver is NOT duplicated in virtualCall arguments after lowering
 
+    @Test
     func testVirtualCallReceiverNotInArgumentsAfterLowering() throws {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
@@ -468,35 +489,38 @@ final class VirtualDispatchCodegenTests: XCTestCase {
             return false
         }
         guard case let .virtualCall(_, _, receiver, arguments, _, _, _, _) = vcInstruction else {
-            XCTFail("Expected virtualCall instruction after lowering")
+            Issue.record("Expected virtualCall instruction after lowering")
             return
         }
         // The speak method has no value parameters, so arguments should be empty.
         // The receiver should be separate.
-        XCTAssertEqual(arguments.count, 0, "virtualCall arguments should not contain the receiver (speak has 0 value params)")
+        #expect(arguments.count == 0, "virtualCall arguments should not contain the receiver (speak has 0 value params)")
         // Verify receiver is a valid expression
-        XCTAssertNotEqual(receiver.rawValue, -1, "Receiver should be a valid expression ID")
+        #expect(receiver.rawValue != -1, "Receiver should be a valid expression ID")
     }
 
     // MARK: - 7. KIR dump contains vtable/itable dispatch info
 
+    @Test
     func testKIRDumpContainsVtableLookupDispatchInfo() {
         let fixture = makeVtableFixture()
         let dump = fixture.module.dump(interner: fixture.interner, symbols: fixture.symbols)
-        XCTAssertTrue(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction")
-        XCTAssertTrue(dump.contains("dispatch=vtable[0]"), "KIR dump should contain dispatch=vtable[0]")
-        XCTAssertTrue(dump.contains("receiver="), "KIR dump should contain receiver field")
+        #expect(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction")
+        #expect(dump.contains("dispatch=vtable[0]"), "KIR dump should contain dispatch=vtable[0]")
+        #expect(dump.contains("receiver="), "KIR dump should contain receiver field")
     }
 
+    @Test
     func testKIRDumpContainsItableLookupDispatchInfo() {
         let fixture = makeItableFixture()
         let dump = fixture.module.dump(interner: fixture.interner, symbols: fixture.symbols)
-        XCTAssertTrue(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction")
-        XCTAssertTrue(dump.contains("dispatch=itable[0:0]"), "KIR dump should contain dispatch=itable[0:0]")
+        #expect(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction")
+        #expect(dump.contains("dispatch=itable[0:0]"), "KIR dump should contain dispatch=itable[0:0]")
     }
 
     // MARK: - 8. Receiver serialization via KIR dump
 
+    @Test
     func testVirtualCallReceiverAppearsInKIRDump() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -552,14 +576,15 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
         // Verify via KIR dump that the receiver is separate from arguments
         let dump = module.dump(interner: interner, symbols: symbols)
-        XCTAssertTrue(dump.contains("virtualCall"), "Dump should contain virtualCall")
+        #expect(dump.contains("virtualCall"), "Dump should contain virtualCall")
         // The receiver and arguments should be separate fields in the dump
-        XCTAssertTrue(dump.contains("receiver="), "Dump should have receiver= field")
-        XCTAssertTrue(dump.contains("dispatch=vtable[0]"), "Dump should have dispatch info")
+        #expect(dump.contains("receiver="), "Dump should have receiver= field")
+        #expect(dump.contains("dispatch=vtable[0]"), "Dump should have dispatch info")
     }
 
     // MARK: - 9. LLVM backend via emitObject: virtualCall compiles without error
 
+    @Test(.enabled(if: isLLVMBackendAvailable()))
     func testLLVMBackendCompilesVirtualCallWithoutError() throws {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
@@ -580,40 +605,38 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
         try LoweringPhase().run(ctx)
 
-        let backend: LLVMBackend
-        do {
-            backend = try LLVMBackend(
-                target: defaultTargetTriple(),
-                optLevel: .O0,
-                debugInfo: false,
-                diagnostics: DiagnosticEngine()
-            )
-        } catch {
-            throw XCTSkip("LLVM backend is unavailable in this environment: \(error)")
-        }
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
         let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
         try backend.emitLLVMIR(module: fixture.module, outputIRPath: irPath, interner: fixture.interner)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
-        XCTAssertTrue(ir.contains("kk_vtable_lookup") || ir.contains("kk_fn_"), "IR should contain vtable dispatch or emitted functions")
+        #expect(ir.contains("kk_vtable_lookup") || ir.contains("kk_fn_"), "IR should contain vtable dispatch or emitted functions")
     }
 
     // MARK: - 10. Codegen serialization of virtualCall
 
+    @Test
     func testCodegenSerializesVirtualCallWithVtableDispatch() {
         let fixture = makeVtableFixture()
 
         let dump = fixture.module.dump(interner: fixture.interner, symbols: fixture.symbols)
 
-        XCTAssertTrue(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction, got:\n\(dump)")
-        XCTAssertTrue(dump.contains("dispatch=vtable[0]"), "KIR dump should contain dispatch=vtable[0], got:\n\(dump)")
+        #expect(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction, got:\n\(dump)")
+        #expect(dump.contains("dispatch=vtable[0]"), "KIR dump should contain dispatch=vtable[0], got:\n\(dump)")
     }
 
+    @Test
     func testCodegenSerializesVirtualCallWithItableDispatch() {
         let fixture = makeItableFixture()
 
         let dump = fixture.module.dump(interner: fixture.interner, symbols: fixture.symbols)
 
-        XCTAssertTrue(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction, got:\n\(dump)")
-        XCTAssertTrue(dump.contains("dispatch=itable[0:0]"), "KIR dump should contain dispatch=itable[0:0], got:\n\(dump)")
+        #expect(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction, got:\n\(dump)")
+        #expect(dump.contains("dispatch=itable[0:0]"), "KIR dump should contain dispatch=itable[0:0], got:\n\(dump)")
     }
 }
+#endif

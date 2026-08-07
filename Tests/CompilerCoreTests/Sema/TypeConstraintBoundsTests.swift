@@ -1,8 +1,17 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class TypeConstraintBoundsTests: XCTestCase {
-    func testWhereClauseAndMultipleUpperBoundsArePreservedInAST() throws {
+private struct MissingFunctionDeclaration: Error, CustomStringConvertible {
+    let name: String
+
+    var description: String {
+        "Missing function declaration: \(name)"
+    }
+}
+
+@Suite
+struct TypeConstraintBoundsTests {
+    @Test func whereClauseAndMultipleUpperBoundsArePreservedInAST() throws {
         let source = """
         class Animal
 
@@ -20,8 +29,8 @@ final class TypeConstraintBoundsTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let file = try XCTUnwrap(ast.files.first)
+        let ast = try requireTestValue(ctx.ast, "Missing AST")
+        let file = try requireTestValue(ast.files.first, "Missing file")
 
         func function(named targetName: String) throws -> FunDecl {
             for declID in file.topLevelDecls {
@@ -33,20 +42,20 @@ final class TypeConstraintBoundsTests: XCTestCase {
                 }
                 return fun
             }
-            throw XCTSkip("Missing function declaration: \(targetName)")
+            throw MissingFunctionDeclaration(name: targetName)
         }
 
         let clamp = try function(named: "clamp")
-        XCTAssertEqual(clamp.typeParams.first?.upperBounds.count, 1)
+        #expect(clamp.typeParams.first?.upperBounds.count == 1)
 
         let maxItem = try function(named: "maxItem")
-        XCTAssertEqual(maxItem.typeParams.first?.upperBounds.count, 1)
+        #expect(maxItem.typeParams.first?.upperBounds.count == 1)
 
         let processItem = try function(named: "processItem")
-        XCTAssertEqual(processItem.typeParams.first?.upperBounds.count, 2)
+        #expect(processItem.typeParams.first?.upperBounds.count == 2)
     }
 
-    func testUpperBoundViolationEmitsBoundDiagnostic() {
+    @Test func upperBoundViolationEmitsBoundDiagnostic() {
         let source = """
         class Plain
 
@@ -59,22 +68,97 @@ final class TypeConstraintBoundsTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-BOUND", in: ctx)
     }
 
-    // KNOWN GAP (DEBT-SEMA-002, migrated from Scripts/diff_cases/error_type_inference.kt / DEBT-DIFF-006):
+    // DEBT-SEMA-002 (migrated from Scripts/diff_cases/error_type_inference.kt / DEBT-DIFF-006):
     // `where T : Int, T : String` combines two mutually exclusive class bounds. kotlinc 2.4.0 rejects the
     // declaration itself:
     //   error: upper bounds of 'T' have an empty intersection.
     //   error: type parameter 'T' ... has inconsistent bounds: Int, String.
     //   error: only one of the upper bounds can be a class.
-    // kswiftc only validates bound satisfaction at call sites (see testUpperBoundViolationEmitsBoundDiagnostic
-    // above) and does not yet check bound consistency at the declaration site. This pins the current
-    // (incorrect) silent acceptance so it fails once DEBT-SEMA-002 is fixed.
-    func testConflictingClassUpperBoundsAreNotYetDetected() {
+    // kswiftc validates bound satisfaction at call sites (see upperBoundViolationEmitsBoundDiagnostic
+    // above) and, as of this fix, also rejects an unsatisfiable declaration-site combination via
+    // KSWIFTK-SEMA-0305.
+    @Test func conflictingClassUpperBoundsEmitsDiagnostic() {
         let source = """
         fun <T> conflicting(a: T, b: T): T where T : Int, T : String = a
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+        assertHasDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
+    }
+
+    // Same check, but for two unrelated user-declared classes rather than builtin primitives —
+    // exercises the `.classType` (as opposed to `.primitive`/`.stringStruct`) branch.
+    @Test func conflictingUserClassUpperBoundsEmitsDiagnostic() {
+        let source = """
+        class Foo
+        class Bar
+
+        fun <T> conflicting(x: T): T where T : Foo, T : Bar = x
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
+    }
+
+    // The same check applies to a class's own type parameters (registerNominalTypeParameters),
+    // not just function type parameters (collectFunctionTypeParameters).
+    @Test func conflictingUpperBoundsOnClassTypeParameterEmitsDiagnostic() {
+        let source = """
+        class Box<T> where T : Int, T : String
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
+    }
+
+    // Guard against false positives: an interface bound plus the trivial `Any` bound (as in
+    // whereClauseAndMultipleUpperBoundsArePreservedInAST's `processItem`) must not be
+    // flagged — `Any` is satisfied by every type, and `Comparable<T>` is an interface, so there
+    // is at most one class-kind bound here.
+    @Test func interfaceAndAnyUpperBoundsEmitNoDiagnostic() {
+        let source = """
+        fun <T> processItem(v: T): String where T : Comparable<T>, T : Any = v.toString()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
+    }
+
+    // Scope boundary, intentionally not flagged: DEBT-SEMA-002 targets bounds with an empty
+    // intersection (no type can satisfy both). When one class-kind bound is a subtype of the
+    // other, the combination is redundant but not unsatisfiable, so it is out of scope here —
+    // unlike kswiftc, real kotlinc still rejects this via a separate, stricter rule ("only one
+    // of the upper bounds can be a class") that this fix does not attempt to replicate.
+    @Test func subtypeRelatedClassUpperBoundsEmitNoDiagnostic() {
+        let source = """
+        open class Base
+        class Derived : Base()
+
+        fun <T> f(x: T): T where T : Base, T : Derived = x
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
+    }
+
+    // Regression pin for a pass-ordering bug: header collection (which resolves a type
+    // parameter's bounds and is where this check used to fire immediately) runs before
+    // `bindInheritanceEdges` (which links `Derived`'s supertype to `Base`). Checking eagerly
+    // saw the two classes as unrelated in either direction and misfired here. The check is
+    // now deferred to run after inheritance edges are bound (see
+    // HeaderHelpers+TypeParameterBoundValidation.swift). Same scenario as
+    // subtypeRelatedClassUpperBoundsEmitNoDiagnostic above, but through a class's own type
+    // parameters (registerNominalTypeParameters) rather than a function's.
+    @Test func subtypeRelatedClassUpperBoundsOnClassTypeParameterEmitNoDiagnostic() {
+        let source = """
+        open class Base
+        class Derived : Base()
+
+        class Box<T> where T : Base, T : Derived
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {

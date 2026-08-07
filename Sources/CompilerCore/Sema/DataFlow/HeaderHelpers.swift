@@ -1073,6 +1073,7 @@ extension DataFlowSemaPhase {
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
         if !reifiedIndices.isEmpty, !isInline {

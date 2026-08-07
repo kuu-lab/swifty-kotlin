@@ -273,8 +273,17 @@ final class RuntimeTripleBox {
 final class RuntimeIntBox {
     let value: Int
 
-    init(_ value: Int) {
+    /// Set when this box represents a Kotlin enum ordinal (an element of
+    /// `values()`/`entries`) round-tripped through an Any-erased array slot.
+    /// Generic Any-printing paths (kk_println_any, runtimeRenderAnyForPrint,
+    /// runtimeElementToString) check this to show the entry name instead of
+    /// the raw ordinal once the static enum type has been erased. See
+    /// kk_enum_box_ordinal.
+    let enumEntryName: String?
+
+    init(_ value: Int, enumEntryName: String? = nil) {
         self.value = value
+        self.enumEntryName = enumEntryName
     }
 }
 

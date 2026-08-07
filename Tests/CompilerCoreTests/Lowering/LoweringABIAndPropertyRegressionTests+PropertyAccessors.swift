@@ -57,7 +57,7 @@ extension LoweringABIAndPropertyRegressionTests {
             return
         }
 
-        let expectedGetterSymbol = SymbolID(rawValue: -12000 - propertySym.rawValue)
+        let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
@@ -121,7 +121,7 @@ extension LoweringABIAndPropertyRegressionTests {
             return
         }
 
-        let expectedSetterSymbol = SymbolID(rawValue: -13000 - propertySym.rawValue)
+        let expectedSetterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
@@ -217,7 +217,7 @@ extension LoweringABIAndPropertyRegressionTests {
         // with a call to a function that doesn't exist. So the rewrite target
         // needs a genuine (receiver, value) -> Unit setter accessor present
         // in the module, matching the shape lowerAccessorBody synthesizes.
-        let expectedSetterSymbol = SymbolID(rawValue: -13000 - propertySym.rawValue)
+        let expectedSetterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
         let setterReceiverSym = SymbolID(rawValue: 90)
         let setterValueSym = SymbolID(rawValue: 91)
         let setterFn = KIRFunction(
@@ -328,7 +328,7 @@ extension LoweringABIAndPropertyRegressionTests {
         )
         symbols.setBackingFieldSymbol(backingFieldSym, for: propertySym)
 
-        let expectedSetterSymbol = SymbolID(rawValue: -13000 - propertySym.rawValue)
+        let expectedSetterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
         let setterFn = KIRFunction(
             symbol: expectedSetterSymbol,
             name: interner.intern("set"),
@@ -591,7 +591,7 @@ extension LoweringABIAndPropertyRegressionTests {
         // Emit a getter accessor function so PropertyLoweringPass recognises
         // this property as a computed property (it checks that the getter
         // function actually exists in the KIR module).
-        let getterSymbol = SymbolID(rawValue: -12000 - propertySym.rawValue)
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
         let getterRetExpr = arena.appendExpr(.stringLiteral(interner.intern("hello")), type: types.anyType)
         let getterFn = KIRFunction(
             symbol: getterSymbol,
@@ -634,7 +634,7 @@ extension LoweringABIAndPropertyRegressionTests {
             return
         }
 
-        let expectedGetterSymbol = SymbolID(rawValue: -12000 - propertySym.rawValue)
+        let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
@@ -778,7 +778,7 @@ extension LoweringABIAndPropertyRegressionTests {
             "computed property symbol not found in sema"
         )
 
-        let expectedGetterSymbol = SymbolID(rawValue: -12000 - computedPropertySymbol.id.rawValue)
+        let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: computedPropertySymbol.id)
         let getterSymbols = findAllKIRFunctions(in: module).compactMap { kirFunc -> SymbolID? in
             guard interner.resolve(kirFunc.name) == "get" else { return nil }
             return kirFunc.symbol

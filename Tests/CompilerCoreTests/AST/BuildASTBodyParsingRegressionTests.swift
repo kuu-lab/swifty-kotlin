@@ -2,7 +2,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import XCTest
 
 // MARK: - BuildAST BodyParsing Regression Tests
 
@@ -489,6 +488,7 @@ struct BuildASTBodyParsingRegressionTests {
         }
     }
 
+    @Test
     func testAnnotationAfterBodylessExternalFunctionStartsNextDeclaration() throws {
         let source = """
         package anno.ast
@@ -504,8 +504,9 @@ struct BuildASTBodyParsingRegressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let file = try XCTUnwrap(ast.sortedFiles.first)
+            let ast = try #require(ctx.ast)
+            // Skip bundled stdlib file — user file is last
+            let file = try #require(ast.sortedFiles.last)
             let functions = file.topLevelDecls.compactMap { declID -> FunDecl? in
                 guard let decl = ast.arena.decl(declID),
                       case let .funDecl(function) = decl
@@ -515,10 +516,10 @@ struct BuildASTBodyParsingRegressionTests {
                 return function
             }
 
-            XCTAssertEqual(functions.count, 2)
-            XCTAssertEqual(functions.map { ctx.interner.resolve($0.name) }, ["first", "second"])
-            XCTAssertEqual(functions.map { $0.annotations.first?.name }, ["RuntimeName", "RuntimeName"])
-            XCTAssertEqual(functions.map { $0.annotations.first?.arguments.first }, ["\"\"first\"\"", "\"\"second\"\""])
+            #expect(functions.count == 2)
+            #expect(functions.map { ctx.interner.resolve($0.name) } == ["first", "second"])
+            #expect(functions.map { $0.annotations.first?.name } == ["RuntimeName", "RuntimeName"])
+            #expect(functions.map { $0.annotations.first?.arguments.first } == ["\"\"first\"\"", "\"\"second\"\""])
         }
     }
 }

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "error_visibility.kt",
+      "range": {
+        "start": { "line": 13, "character": 12 },
+        "end": { "line": 13, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0040",
+      "source": "kswiftk",
+      "message": "Cannot access 'secret': it is private.",
+      "codeActions": [{ "title": "Change visibility to 'internal'", "kind": "quickfix" }]
+    },
+    {
+      "file": "error_visibility.kt",
+      "range": {
+        "start": { "line": 16, "character": 12 },
+        "end": { "line": 16, "character": 26 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0041",
+      "source": "kswiftk",
+      "message": "Cannot access 'protectedVal': it is protected.",
+      "codeActions": [{ "title": "Change visibility to 'public'", "kind": "quickfix" }]
+    },
+    {
+      "file": "error_visibility.kt",
+      "range": {
+        "start": { "line": 22, "character": 32 },
+        "end": { "line": 22, "character": 46 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0040",
+      "source": "kswiftk",
+      "message": "Cannot access 'InternalImpl': it is private.",
+      "codeActions": [{ "title": "Change visibility to 'internal'", "kind": "quickfix" }]
+    },
+    {
+      "file": "error_visibility.kt",
+      "range": {
+        "start": { "line": 31, "character": 10 },
+        "end": { "line": 31, "character": 25 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0040",
+      "source": "kswiftk",
+      "message": "Cannot access 'SingletonLike': it is private.",
+      "codeActions": [{ "title": "Change visibility to 'internal'", "kind": "quickfix" }]
+    }
+  ]
+}

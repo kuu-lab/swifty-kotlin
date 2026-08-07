@@ -332,6 +332,7 @@ final class CallSupportLowerer {
                     intType: intType,
                     anyType: sema.types.anyType,
                     types: sema.types,
+                    symbols: sema.symbols,
                     instructions: &instructions
                 )
             }
@@ -342,14 +343,12 @@ final class CallSupportLowerer {
             let countExpr: KIRExprID
             if hasAnySpread {
                 countExpr = arena.appendTemporary(type: intType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("kk_array_size"),
-                    arguments: [packedArray],
+                    arg: packedArray,
                     result: countExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             } else {
                 countExpr = arena.appendExpr(.intLiteral(Int64(argIndices.count)), type: intType)
                 instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(argIndices.count))))
@@ -386,6 +385,7 @@ final class CallSupportLowerer {
                         intType: intType,
                         anyType: sema.types.anyType,
                         types: sema.types,
+                        symbols: sema.symbols,
                         instructions: &instructions
                     )
                     normalized.append(packed)
@@ -461,19 +461,15 @@ final class CallSupportLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let argType = arena.exprType(argID),
-              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                  for: argType,
-                  types: sema.types,
-                  requireNonNull: false
-              )
-        else {
+        guard let argType = arena.exprType(argID) else {
             return argID
         }
-        return emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argID,
-            resultType: sema.types.anyType,
+        return boxValueForAnySlot(
+            argID,
+            sourceType: argType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
             arena: arena,
             into: &instructions
         )
@@ -512,6 +508,7 @@ final class CallSupportLowerer {
         intType: TypeID,
         anyType: TypeID,
         types: TypeSystem,
+        symbols: SymbolTable? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let hasAnySpread = argIndices.contains { idx in
@@ -568,6 +565,7 @@ final class CallSupportLowerer {
                     : boxVarargElementIfNeeded(
                         providedArguments[idx],
                         types: types,
+                        symbols: symbols,
                         arena: arena,
                         interner: interner,
                         anyType: anyType,
@@ -623,6 +621,7 @@ final class CallSupportLowerer {
                 ? boxVarargElementIfNeeded(
                     providedArguments[argIndex],
                     types: types,
+                    symbols: symbols,
                     arena: arena,
                     interner: interner,
                     anyType: anyType,
@@ -661,25 +660,23 @@ final class CallSupportLowerer {
     private func boxVarargElementIfNeeded(
         _ argID: KIRExprID,
         types: TypeSystem,
+        symbols: SymbolTable?,
         arena: KIRArena,
         interner: StringInterner,
         anyType: TypeID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let argType = arena.exprType(argID),
-              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                  for: argType,
-                  types: types,
-                  requireNonNull: false
-              )
-        else {
+        guard let argType = arena.exprType(argID) else {
             return argID
         }
-        return emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argID,
-            resultType: anyType,
+        return boxValueForAnySlot(
+            argID,
+            sourceType: argType,
+            types: types,
+            symbols: symbols,
+            interner: interner,
             arena: arena,
+            resultType: anyType,
             into: &instructions
         )
     }
@@ -692,14 +689,12 @@ final class CallSupportLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let listID = arena.appendTemporary(type: anyType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_toList"),
-            arguments: [arrayID],
+            arg: arrayID,
             result: listID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return listID
     }
 
@@ -714,14 +709,12 @@ final class CallSupportLowerer {
         let countExpr = arena.appendExpr(.intLiteral(Int64(count)), type: intType)
         instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
         let arrayID = arena.appendTemporary(type: anyType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_new"),
-            arguments: [countExpr],
+            arg: countExpr,
             result: arrayID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return arrayID
     }
 }

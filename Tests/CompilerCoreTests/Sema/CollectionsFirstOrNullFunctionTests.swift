@@ -5,9 +5,11 @@ import Testing
 /// STDLIB-COL-FN-074: Validates that `firstOrNull` resolves through Sema for the
 /// collection receivers wired through the standard aggregate / HOF infrastructure
 /// — `List<T>` / `Set<T>` (no-arg), source-backed `List<T>` (predicate HOF),
-/// and `Range` (no-arg and predicate overloads).
+/// `Range` (no-arg and predicate overloads), and `Array<T>` (no-arg and
+/// predicate overloads, via the Array HOF gap fix).
 /// Runtime link names involved: `kk_list_firstOrNull`, `kk_list_find`, `kk_set_firstOrNull`,
-/// `kk_range_firstOrNull`, `kk_range_firstOrNull_predicate`.
+/// `kk_range_firstOrNull`, `kk_range_firstOrNull_predicate`, `kk_array_firstOrNull`,
+/// `kk_array_find`.
 @Suite
 struct CollectionsFirstOrNullFunctionTests {
     @Test func testFirstOrNullFunctionResolvesInSource() throws {
@@ -30,6 +32,14 @@ struct CollectionsFirstOrNullFunctionTests {
 
         fun maybeFirstRangeMatching(): Int? {
             return (1..10).firstOrNull { it > 5 }
+        }
+
+        fun maybeFirstArray(xs: Array<Int>): Int? {
+            return xs.firstOrNull()
+        }
+
+        fun maybeFirstArrayMatching(xs: Array<Int>): Int? {
+            return xs.firstOrNull { it > 5 }
         }
         """)
         try runSema(ctx)

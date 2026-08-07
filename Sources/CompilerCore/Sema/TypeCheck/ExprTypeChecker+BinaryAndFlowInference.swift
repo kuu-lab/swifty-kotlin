@@ -116,7 +116,12 @@ extension ExprTypeChecker {
         } else {
             []
         }
-        if op == .add, sema.types.isString(lhs) || sema.types.isString(rhs) {
+        // Kotlin's `+` resolves against the LHS (receiver) type: `String.plus(Any?)`
+        // accepts any RHS, but non-String receivers don't get string concatenation
+        // just because the RHS happens to be a String (e.g. `1 + "x"` is not valid
+        // Kotlin, and `listOf("x") + "y"` must resolve via the List plus fallback
+        // below, not collapse to `String`).
+        if op == .add, sema.types.isString(lhs) {
             sema.bindings.bindExprType(id, type: stringType)
             return stringType
         }

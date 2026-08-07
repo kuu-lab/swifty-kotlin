@@ -59,8 +59,7 @@ extension LoweringPassRegressionTests {
             for: mainSymbol
         )
 
-        // Type token symbols use a negative offset to avoid collision with real symbol IDs
-        let hiddenTokenSymbol = SymbolID(rawValue: Int32(typeTokenSymbolOffset) - typeParameterSymbol.rawValue)
+        let hiddenTokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
         let inlineTokenExpr = arena.appendExpr(.temporary(0), type: intType)
         let callerTokenExpr = arena.appendExpr(.intLiteral(321), type: intType)
         let callerResultExpr = arena.appendExpr(.temporary(1), type: intType)

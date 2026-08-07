@@ -1,458 +1,461 @@
+#if canImport(Testing)
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeMathTests: XCTestCase {
+@Suite
+struct RuntimeMathTests {
     // MARK: - Int
 
-    func testAbsInt() {
-        XCTAssertEqual(kk_math_abs_int(-12), 12)
-        XCTAssertEqual(kk_math_abs_int(12), 12)
-        XCTAssertEqual(kk_math_abs_int(Int.min), Int.min)
+    @Test func testAbsInt() {
+        #expect(kk_math_abs_int(-12) == 12)
+        #expect(kk_math_abs_int(12) == 12)
+        #expect(kk_math_abs_int(Int.min) == Int.min)
     }
 
     // MARK: - Double
 
-    func testAbsDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_abs(doubleToBits(-3.5))), 3.5)
-        XCTAssertTrue(doubleFromBits(kk_math_abs(doubleToBits(Double.nan))).isNaN)
+    @Test func testAbsDouble() {
+        #expect(doubleFromBits(kk_math_abs(doubleToBits(-3.5))) == 3.5)
+        #expect(doubleFromBits(kk_math_abs(doubleToBits(Double.nan))).isNaN)
     }
 
-    func testSqrtDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_sqrt(doubleToBits(4.0))), 2.0)
+    @Test func testSqrtDouble() {
+        #expect(doubleFromBits(kk_math_sqrt(doubleToBits(4.0))) == 2.0)
     }
 
-    func testPowDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_pow(doubleToBits(2.0), doubleToBits(3.0))), 8.0)
+    @Test func testPowDouble() {
+        #expect(doubleFromBits(kk_math_pow(doubleToBits(2.0), doubleToBits(3.0))) == 8.0)
     }
 
-    func testExpm1Double() {
-        XCTAssertEqual(doubleFromBits(kk_math_expm1(doubleToBits(0.0))), 0.0, accuracy: 1e-12)
-        XCTAssertEqual(doubleFromBits(kk_math_expm1(doubleToBits(1.0))), expm1(1.0), accuracy: 1e-12)
+    @Test func testExpm1Double() {
+        #expect(abs(doubleFromBits(kk_math_expm1(doubleToBits(0.0))) - 0.0) <= 1e-12)
+        #expect(abs(doubleFromBits(kk_math_expm1(doubleToBits(1.0))) - expm1(1.0)) <= 1e-12)
     }
 
-    func testLn1pDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_ln1p(doubleToBits(0.0))), 0.0, accuracy: 1e-12)
-        XCTAssertEqual(doubleFromBits(kk_math_ln1p(doubleToBits(1.0))), log1p(1.0), accuracy: 1e-12)
+    @Test func testLn1pDouble() {
+        #expect(abs(doubleFromBits(kk_math_ln1p(doubleToBits(0.0))) - 0.0) <= 1e-12)
+        #expect(abs(doubleFromBits(kk_math_ln1p(doubleToBits(1.0))) - log1p(1.0)) <= 1e-12)
     }
 
-    func testCeilDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_ceil(doubleToBits(2.3))), 3.0)
-        XCTAssertEqual(doubleFromBits(kk_math_ceil(doubleToBits(-2.3))), -2.0)
+    @Test func testCeilDouble() {
+        #expect(doubleFromBits(kk_math_ceil(doubleToBits(2.3))) == 3.0)
+        #expect(doubleFromBits(kk_math_ceil(doubleToBits(-2.3))) == -2.0)
     }
 
-    func testFloorDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_floor(doubleToBits(2.3))), 2.0)
-        XCTAssertEqual(doubleFromBits(kk_math_floor(doubleToBits(-2.3))), -3.0)
+    @Test func testFloorDouble() {
+        #expect(doubleFromBits(kk_math_floor(doubleToBits(2.3))) == 2.0)
+        #expect(doubleFromBits(kk_math_floor(doubleToBits(-2.3))) == -3.0)
     }
 
-    func testRoundDouble() {
+    @Test func testRoundDouble() {
         // kotlin.math.round uses half-to-even (banker's rounding)
-        XCTAssertEqual(doubleFromBits(kk_math_round(doubleToBits(2.3))), 2.0)
-        XCTAssertEqual(doubleFromBits(kk_math_round(doubleToBits(2.5))), 2.0)  // half-to-even: rounds to 2
-        XCTAssertEqual(doubleFromBits(kk_math_round(doubleToBits(3.5))), 4.0)  // half-to-even: rounds to 4
-        XCTAssertEqual(doubleFromBits(kk_math_round(doubleToBits(-0.5))), 0.0) // half-to-even: rounds to 0 (not -1)
-        XCTAssertTrue(doubleFromBits(kk_math_round(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(kk_math_round(doubleToBits(2.3))) == 2.0)
+        #expect(doubleFromBits(kk_math_round(doubleToBits(2.5))) == 2.0)  // half-to-even: rounds to 2
+        #expect(doubleFromBits(kk_math_round(doubleToBits(3.5))) == 4.0)  // half-to-even: rounds to 4
+        #expect(doubleFromBits(kk_math_round(doubleToBits(-0.5))) == 0.0) // half-to-even: rounds to 0 (not -1)
+        #expect(doubleFromBits(kk_math_round(doubleToBits(Double.nan))).isNaN)
     }
 
-    func testRoundFloat() {
+    @Test func testRoundFloat() {
         // kotlin.math.round(Float) also uses half-to-even
-        XCTAssertEqual(floatFromBits(kk_math_round_float(floatToBits(2.3))), Float(2.0))
-        XCTAssertEqual(floatFromBits(kk_math_round_float(floatToBits(2.5))), Float(2.0))
-        XCTAssertEqual(floatFromBits(kk_math_round_float(floatToBits(3.5))), Float(4.0))
-        XCTAssertEqual(floatFromBits(kk_math_round_float(floatToBits(-0.5))), Float(0.0))
-        XCTAssertTrue(floatFromBits(kk_math_round_float(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(kk_math_round_float(floatToBits(2.3))) == Float(2.0))
+        #expect(floatFromBits(kk_math_round_float(floatToBits(2.5))) == Float(2.0))
+        #expect(floatFromBits(kk_math_round_float(floatToBits(3.5))) == Float(4.0))
+        #expect(floatFromBits(kk_math_round_float(floatToBits(-0.5))) == Float(0.0))
+        #expect(floatFromBits(kk_math_round_float(floatToBits(Float.nan))).isNaN)
     }
 
     // MARK: - roundToInt / roundToLong edge cases
 
-    func testFloatRoundToIntEdgeCases() {
+    @Test func testFloatRoundToIntEdgeCases() {
         var thrown = 0
         // NaN -> throws IllegalArgumentException (Kotlin contract)
         _ = kk_float_roundToInt(floatToBits(Float.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToInt(NaN) must throw IllegalArgumentException")
+        #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
         // +Infinity saturates to Int32.max (no throw)
         thrown = 0
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(Float.infinity), &thrown), Int(Int32.max))
-        XCTAssertEqual(thrown, 0, "roundToInt(+Inf) must saturate, not throw")
+        #expect(kk_float_roundToInt(floatToBits(Float.infinity), &thrown) == Int(Int32.max))
+        #expect(thrown == 0, "roundToInt(+Inf) must saturate, not throw")
         // -Infinity saturates to Int32.min
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(-Float.infinity), nil), Int(Int32.min))
+        #expect(kk_float_roundToInt(floatToBits(-Float.infinity), nil) == Int(Int32.min))
         // Negative tie: -1.5 rounds to -1 (toward +inf), not -2
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(-1.5), nil), -1)
+        #expect(kk_float_roundToInt(floatToBits(-1.5), nil) == -1)
         // Negative tie: -0.5 rounds to 0 (toward +inf), not -1
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(-0.5), nil), 0)
+        #expect(kk_float_roundToInt(floatToBits(-0.5), nil) == 0)
         // Positive tie: 0.5 rounds to 1
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(0.5), nil), 1)
+        #expect(kk_float_roundToInt(floatToBits(0.5), nil) == 1)
         // Positive tie: 1.5 rounds to 2
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(1.5), nil), 2)
+        #expect(kk_float_roundToInt(floatToBits(1.5), nil) == 2)
         // Normal values
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(2.3), nil), 2)
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(-2.3), nil), -2)
+        #expect(kk_float_roundToInt(floatToBits(2.3), nil) == 2)
+        #expect(kk_float_roundToInt(floatToBits(-2.3), nil) == -2)
         // Saturation beyond Int32 bounds
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(Float(3e9)), nil), Int(Int32.max))
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(Float(-3e9)), nil), Int(Int32.min))
+        #expect(kk_float_roundToInt(floatToBits(Float(3e9)), nil) == Int(Int32.max))
+        #expect(kk_float_roundToInt(floatToBits(Float(-3e9)), nil) == Int(Int32.min))
     }
 
-    func testDoubleRoundToIntEdgeCases() {
+    @Test func testDoubleRoundToIntEdgeCases() {
         var thrown = 0
         // NaN -> throws IllegalArgumentException (Kotlin contract)
         _ = kk_double_roundToInt(doubleToBits(Double.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToInt(NaN) must throw IllegalArgumentException")
+        #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
         // +Infinity saturates to Int32.max (no throw)
         thrown = 0
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(Double.infinity), &thrown), Int(Int32.max))
-        XCTAssertEqual(thrown, 0, "roundToInt(+Inf) must saturate, not throw")
+        #expect(kk_double_roundToInt(doubleToBits(Double.infinity), &thrown) == Int(Int32.max))
+        #expect(thrown == 0, "roundToInt(+Inf) must saturate, not throw")
         // -Infinity saturates to Int32.min
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(-Double.infinity), nil), Int(Int32.min))
+        #expect(kk_double_roundToInt(doubleToBits(-Double.infinity), nil) == Int(Int32.min))
         // Negative tie: -1.5 rounds to -1
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(-1.5), nil), -1)
+        #expect(kk_double_roundToInt(doubleToBits(-1.5), nil) == -1)
         // Negative tie: -0.5 rounds to 0
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(-0.5), nil), 0)
+        #expect(kk_double_roundToInt(doubleToBits(-0.5), nil) == 0)
         // Positive tie: 0.5 rounds to 1
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(0.5), nil), 1)
+        #expect(kk_double_roundToInt(doubleToBits(0.5), nil) == 1)
         // nextDown(0.5) should round to 0 (not 1)
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(0.49999999999999994), nil), 0)
+        #expect(kk_double_roundToInt(doubleToBits(0.49999999999999994), nil) == 0)
         // Saturation beyond Int32 bounds
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(3e9), nil), Int(Int32.max))
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(-3e9), nil), Int(Int32.min))
+        #expect(kk_double_roundToInt(doubleToBits(3e9), nil) == Int(Int32.max))
+        #expect(kk_double_roundToInt(doubleToBits(-3e9), nil) == Int(Int32.min))
     }
 
-    func testFloatRoundToLongEdgeCases() {
+    @Test func testFloatRoundToLongEdgeCases() {
         var thrown = 0
         _ = kk_float_roundToLong(floatToBits(Float.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToLong(NaN) must throw IllegalArgumentException")
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(Float.infinity), nil), Int(Int64.max))
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(-Float.infinity), nil), Int(Int64.min))
+        #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
+        #expect(kk_float_roundToLong(floatToBits(Float.infinity), nil) == Int(Int64.max))
+        #expect(kk_float_roundToLong(floatToBits(-Float.infinity), nil) == Int(Int64.min))
         let rawMin = kk_float_roundToLong(floatToBits(-Float.infinity), nil)
-        XCTAssertEqual(kk_unbox_long(rawMin), Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(-1.5), nil), -1)
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(-0.5), nil), 0)
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(0.5), nil), 1)
+        #expect(kk_unbox_long(rawMin) == Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
+        #expect(kk_float_roundToLong(floatToBits(-1.5), nil) == -1)
+        #expect(kk_float_roundToLong(floatToBits(-0.5), nil) == 0)
+        #expect(kk_float_roundToLong(floatToBits(0.5), nil) == 1)
         // Saturation beyond Int64 bounds
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(Float(1e19)), nil), Int(Int64.max))
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(Float(-1e19)), nil), Int(Int64.min))
+        #expect(kk_float_roundToLong(floatToBits(Float(1e19)), nil) == Int(Int64.max))
+        #expect(kk_float_roundToLong(floatToBits(Float(-1e19)), nil) == Int(Int64.min))
     }
 
-    func testDoubleRoundToLongEdgeCases() {
+    @Test func testDoubleRoundToLongEdgeCases() {
         var thrown = 0
         _ = kk_double_roundToLong(doubleToBits(Double.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToLong(NaN) must throw IllegalArgumentException")
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(Double.infinity), nil), Int(Int64.max))
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(-Double.infinity), nil), Int(Int64.min))
+        #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
+        #expect(kk_double_roundToLong(doubleToBits(Double.infinity), nil) == Int(Int64.max))
+        #expect(kk_double_roundToLong(doubleToBits(-Double.infinity), nil) == Int(Int64.min))
         // Int.min == runtimeNullSentinelInt: verify the raw return passes through
         // kk_unbox_long without being misread as null (regression for Long.MIN_VALUE bug).
         let rawMin = kk_double_roundToLong(doubleToBits(-Double.infinity), nil)
-        XCTAssertEqual(kk_unbox_long(rawMin), Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(-1.5), nil), -1)
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(-0.5), nil), 0)
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(0.5), nil), 1)
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(0.49999999999999994), nil), 0)
+        #expect(kk_unbox_long(rawMin) == Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
+        #expect(kk_double_roundToLong(doubleToBits(-1.5), nil) == -1)
+        #expect(kk_double_roundToLong(doubleToBits(-0.5), nil) == 0)
+        #expect(kk_double_roundToLong(doubleToBits(0.5), nil) == 1)
+        #expect(kk_double_roundToLong(doubleToBits(0.49999999999999994), nil) == 0)
         // Saturation beyond Int64 bounds
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(1e19), nil), Int(Int64.max))
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(-1e19), nil), Int(Int64.min))
+        #expect(kk_double_roundToLong(doubleToBits(1e19), nil) == Int(Int64.max))
+        #expect(kk_double_roundToLong(doubleToBits(-1e19), nil) == Int(Int64.min))
     }
 
     // MARK: - Float trig / rounding (STDLIB-500..509)
 
-    func testSinFloat() {
+    @Test func testSinFloat() {
         let result = floatFromBits(kk_math_sin_float(floatToBits(0.0)))
-        XCTAssertEqual(result, 0.0, accuracy: 1e-6)
+        #expect(abs(result - 0.0) <= 1e-6)
     }
 
-    func testCosFloat() {
+    @Test func testCosFloat() {
         let result = floatFromBits(kk_math_cos_float(floatToBits(0.0)))
-        XCTAssertEqual(result, 1.0, accuracy: 1e-6)
+        #expect(abs(result - 1.0) <= 1e-6)
     }
 
-    func testTanFloat() {
+    @Test func testTanFloat() {
         let result = floatFromBits(kk_math_tan_float(floatToBits(0.0)))
-        XCTAssertEqual(result, 0.0, accuracy: 1e-6)
+        #expect(abs(result - 0.0) <= 1e-6)
     }
 
-    func testAsinFloat() {
+    @Test func testAsinFloat() {
         let result = floatFromBits(kk_math_asin_float(floatToBits(1.0)))
-        XCTAssertEqual(result, Float.pi / 2, accuracy: 1e-6)
+        #expect(abs(result - Float.pi / 2) <= 1e-6)
     }
 
-    func testAcosFloat() {
+    @Test func testAcosFloat() {
         let result = floatFromBits(kk_math_acos_float(floatToBits(1.0)))
-        XCTAssertEqual(result, 0.0, accuracy: 1e-6)
+        #expect(abs(result - 0.0) <= 1e-6)
     }
 
-    func testAtanFloat() {
+    @Test func testAtanFloat() {
         let result = floatFromBits(kk_math_atan_float(floatToBits(0.0)))
-        XCTAssertEqual(result, 0.0, accuracy: 1e-6)
+        #expect(abs(result - 0.0) <= 1e-6)
     }
 
-    func testAtan2Float() {
+    @Test func testAtan2Float() {
         let result = floatFromBits(kk_math_atan2_float(floatToBits(1.0), floatToBits(1.0)))
-        XCTAssertEqual(result, Float.pi / 4, accuracy: 1e-6)
+        #expect(abs(result - Float.pi / 4) <= 1e-6)
     }
 
-    func testSqrtFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_sqrt_float(floatToBits(4.0))), 2.0)
+    @Test func testSqrtFloat() {
+        #expect(floatFromBits(kk_math_sqrt_float(floatToBits(4.0))) == 2.0)
     }
 
-    func testCeilFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_ceil_float(floatToBits(2.3))), 3.0)
-        XCTAssertEqual(floatFromBits(kk_math_ceil_float(floatToBits(-2.3))), -2.0)
+    @Test func testCeilFloat() {
+        #expect(floatFromBits(kk_math_ceil_float(floatToBits(2.3))) == 3.0)
+        #expect(floatFromBits(kk_math_ceil_float(floatToBits(-2.3))) == -2.0)
     }
 
-    func testFloorFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_floor_float(floatToBits(2.3))), 2.0)
-        XCTAssertEqual(floatFromBits(kk_math_floor_float(floatToBits(-2.3))), -3.0)
+    @Test func testFloorFloat() {
+        #expect(floatFromBits(kk_math_floor_float(floatToBits(2.3))) == 2.0)
+        #expect(floatFromBits(kk_math_floor_float(floatToBits(-2.3))) == -3.0)
     }
 
     // MARK: - Float abs / exp / ln / log / sign / hypot (STDLIB-430)
 
-    func testAbsFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_abs_float(floatToBits(-3.14))), Float(3.14), accuracy: 1e-5)
-        XCTAssertTrue(floatFromBits(kk_math_abs_float(floatToBits(Float.nan))).isNaN)
+    @Test func testAbsFloat() {
+        #expect(abs(floatFromBits(kk_math_abs_float(floatToBits(-3.14))) - Float(3.14)) <= 1e-5)
+        #expect(floatFromBits(kk_math_abs_float(floatToBits(Float.nan))).isNaN)
     }
 
-    func testExpFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_exp_float(floatToBits(0.0))), 1.0, accuracy: 1e-6)
-        XCTAssertEqual(floatFromBits(kk_math_exp_float(floatToBits(1.0))), Float(M_E), accuracy: 1e-5)
+    @Test func testExpFloat() {
+        #expect(abs(floatFromBits(kk_math_exp_float(floatToBits(0.0))) - 1.0) <= 1e-6)
+        #expect(abs(floatFromBits(kk_math_exp_float(floatToBits(1.0))) - Float(M_E)) <= 1e-5)
     }
 
-    func testExpm1Float() {
-        XCTAssertEqual(floatFromBits(kk_math_expm1_float(floatToBits(0.0))), 0.0, accuracy: 1e-6)
-        XCTAssertEqual(floatFromBits(kk_math_expm1_float(floatToBits(1.0))), expm1f(1.0), accuracy: 1e-5)
+    @Test func testExpm1Float() {
+        #expect(abs(floatFromBits(kk_math_expm1_float(floatToBits(0.0))) - 0.0) <= 1e-6)
+        #expect(abs(floatFromBits(kk_math_expm1_float(floatToBits(1.0))) - expm1f(1.0)) <= 1e-5)
     }
 
-    func testLnFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_ln_float(floatToBits(1.0))), 0.0, accuracy: 1e-6)
-        XCTAssertEqual(floatFromBits(kk_math_ln_float(floatToBits(Float(M_E)))), 1.0, accuracy: 1e-5)
+    @Test func testLnFloat() {
+        #expect(abs(floatFromBits(kk_math_ln_float(floatToBits(1.0))) - 0.0) <= 1e-6)
+        #expect(abs(floatFromBits(kk_math_ln_float(floatToBits(Float(M_E)))) - 1.0) <= 1e-5)
     }
 
-    func testLn1pFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_ln1p_float(floatToBits(0.0))), 0.0, accuracy: 1e-6)
-        XCTAssertEqual(floatFromBits(kk_math_ln1p_float(floatToBits(1.0))), log1pf(1.0), accuracy: 1e-6)
+    @Test func testLn1pFloat() {
+        #expect(abs(floatFromBits(kk_math_ln1p_float(floatToBits(0.0))) - 0.0) <= 1e-6)
+        #expect(abs(floatFromBits(kk_math_ln1p_float(floatToBits(1.0))) - log1pf(1.0)) <= 1e-6)
     }
 
-    func testLog2Float() {
-        XCTAssertEqual(floatFromBits(kk_math_log2_float(floatToBits(8.0))), 3.0, accuracy: 1e-6)
+    @Test func testLog2Float() {
+        #expect(abs(floatFromBits(kk_math_log2_float(floatToBits(8.0))) - 3.0) <= 1e-6)
     }
 
-    func testLog10Float() {
-        XCTAssertEqual(floatFromBits(kk_math_log10_float(floatToBits(100.0))), 2.0, accuracy: 1e-6)
+    @Test func testLog10Float() {
+        #expect(abs(floatFromBits(kk_math_log10_float(floatToBits(100.0))) - 2.0) <= 1e-6)
     }
 
-    func testLogFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_log_float(floatToBits(8.0), floatToBits(2.0))), 3.0, accuracy: 1e-5)
+    @Test func testLogFloat() {
+        #expect(abs(floatFromBits(kk_math_log_float(floatToBits(8.0), floatToBits(2.0))) - 3.0) <= 1e-5)
     }
 
-    func testSignFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_sign_float(floatToBits(-5.0))), -1.0)
-        XCTAssertEqual(floatFromBits(kk_math_sign_float(floatToBits(5.0))), 1.0)
-        XCTAssertEqual(floatFromBits(kk_math_sign_float(floatToBits(0.0))), 0.0)
-        XCTAssertTrue(floatFromBits(kk_math_sign_float(floatToBits(Float.nan))).isNaN)
+    @Test func testSignFloat() {
+        #expect(floatFromBits(kk_math_sign_float(floatToBits(-5.0))) == -1.0)
+        #expect(floatFromBits(kk_math_sign_float(floatToBits(5.0))) == 1.0)
+        #expect(floatFromBits(kk_math_sign_float(floatToBits(0.0))) == 0.0)
+        #expect(floatFromBits(kk_math_sign_float(floatToBits(Float.nan))).isNaN)
     }
 
-    func testIntegralSignProperties() {
-        XCTAssertEqual(kk_math_sign_int(-5), -1)
-        XCTAssertEqual(kk_math_sign_int(0), 0)
-        XCTAssertEqual(kk_math_sign_int(5), 1)
-        XCTAssertEqual(kk_math_sign_long(-5), -1)
-        XCTAssertEqual(kk_math_sign_long(0), 0)
-        XCTAssertEqual(kk_math_sign_long(5), 1)
+    @Test func testIntegralSignProperties() {
+        #expect(kk_math_sign_int(-5) == -1)
+        #expect(kk_math_sign_int(0) == 0)
+        #expect(kk_math_sign_int(5) == 1)
+        #expect(kk_math_sign_long(-5) == -1)
+        #expect(kk_math_sign_long(0) == 0)
+        #expect(kk_math_sign_long(5) == 1)
     }
 
-    func testHypotFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_hypot_float(floatToBits(3.0), floatToBits(4.0))), 5.0, accuracy: 1e-6)
+    @Test func testHypotFloat() {
+        #expect(abs(floatFromBits(kk_math_hypot_float(floatToBits(3.0), floatToBits(4.0))) - 5.0) <= 1e-6)
     }
 
-    func testMinMaxDouble() {
-        XCTAssertEqual(doubleFromBits(kk_math_max(doubleToBits(2.0), doubleToBits(3.0))), 3.0)
-        XCTAssertEqual(doubleFromBits(kk_math_min(doubleToBits(2.0), doubleToBits(3.0))), 2.0)
-        XCTAssertTrue(doubleFromBits(kk_math_max(doubleToBits(Double.nan), doubleToBits(1.0))).isNaN)
-        XCTAssertTrue(doubleFromBits(kk_math_min(doubleToBits(1.0), doubleToBits(Double.nan))).isNaN)
-        XCTAssertEqual(kk_math_max(doubleToBits(-0.0), doubleToBits(0.0)), doubleToBits(0.0))
-        XCTAssertEqual(kk_math_min(doubleToBits(0.0), doubleToBits(-0.0)), doubleToBits(-0.0))
+    @Test func testMinMaxDouble() {
+        #expect(doubleFromBits(kk_math_max(doubleToBits(2.0), doubleToBits(3.0))) == 3.0)
+        #expect(doubleFromBits(kk_math_min(doubleToBits(2.0), doubleToBits(3.0))) == 2.0)
+        #expect(doubleFromBits(kk_math_max(doubleToBits(Double.nan), doubleToBits(1.0))).isNaN)
+        #expect(doubleFromBits(kk_math_min(doubleToBits(1.0), doubleToBits(Double.nan))).isNaN)
+        #expect(kk_math_max(doubleToBits(-0.0), doubleToBits(0.0)) == doubleToBits(0.0))
+        #expect(kk_math_min(doubleToBits(0.0), doubleToBits(-0.0)) == doubleToBits(-0.0))
     }
 
-    func testMinMaxFloat() {
-        XCTAssertEqual(floatFromBits(kk_math_max_float(floatToBits(2.0), floatToBits(3.0))), 3.0)
-        XCTAssertEqual(floatFromBits(kk_math_min_float(floatToBits(2.0), floatToBits(3.0))), 2.0)
-        XCTAssertTrue(floatFromBits(kk_math_max_float(floatToBits(Float.nan), floatToBits(1.0))).isNaN)
-        XCTAssertTrue(floatFromBits(kk_math_min_float(floatToBits(1.0), floatToBits(Float.nan))).isNaN)
-        XCTAssertEqual(kk_math_max_float(floatToBits(-0.0), floatToBits(0.0)), floatToBits(0.0))
-        XCTAssertEqual(kk_math_min_float(floatToBits(0.0), floatToBits(-0.0)), floatToBits(-0.0))
+    @Test func testMinMaxFloat() {
+        #expect(floatFromBits(kk_math_max_float(floatToBits(2.0), floatToBits(3.0))) == 3.0)
+        #expect(floatFromBits(kk_math_min_float(floatToBits(2.0), floatToBits(3.0))) == 2.0)
+        #expect(floatFromBits(kk_math_max_float(floatToBits(Float.nan), floatToBits(1.0))).isNaN)
+        #expect(floatFromBits(kk_math_min_float(floatToBits(1.0), floatToBits(Float.nan))).isNaN)
+        #expect(kk_math_max_float(floatToBits(-0.0), floatToBits(0.0)) == floatToBits(0.0))
+        #expect(kk_math_min_float(floatToBits(0.0), floatToBits(-0.0)) == floatToBits(-0.0))
     }
 
-    func testMinMaxIntegral() {
-        XCTAssertEqual(kk_math_max_int(-2, 3), 3)
-        XCTAssertEqual(kk_math_min_int(-2, 3), -2)
-        XCTAssertEqual(kk_math_max_long(Int(Int64.min), Int(Int64.max)), Int(Int64.max))
-        XCTAssertEqual(kk_math_min_long(Int(Int64.min), Int(Int64.max)), Int(Int64.min))
+    @Test func testMinMaxIntegral() {
+        #expect(kk_math_max_int(-2, 3) == 3)
+        #expect(kk_math_min_int(-2, 3) == -2)
+        #expect(kk_math_max_long(Int(Int64.min), Int(Int64.max)) == Int(Int64.max))
+        #expect(kk_math_min_long(Int(Int64.min), Int(Int64.max)) == Int(Int64.min))
     }
 
-    func testMinMaxUnsigned() {
+    @Test func testMinMaxUnsigned() {
         let low = 7
         let high = Int(bitPattern: UInt.max)
-        XCTAssertEqual(kk_math_max_uint(low, high), high)
-        XCTAssertEqual(kk_math_min_uint(low, high), low)
-        XCTAssertEqual(kk_math_max_ulong(low, high), high)
-        XCTAssertEqual(kk_math_min_ulong(low, high), low)
+        #expect(kk_math_max_uint(low, high) == high)
+        #expect(kk_math_min_uint(low, high) == low)
+        #expect(kk_math_max_ulong(low, high) == high)
+        #expect(kk_math_min_ulong(low, high) == low)
     }
 
-    func testPiConstant() {
-        XCTAssertEqual(doubleFromBits(kk_math_PI()), Double.pi, accuracy: 1e-12)
+    @Test func testPiConstant() {
+        #expect(abs(doubleFromBits(kk_math_PI()) - Double.pi) <= 1e-12)
     }
 
-    func testEConstant() {
-        XCTAssertEqual(doubleFromBits(kk_math_E()), Double(M_E), accuracy: 1e-12)
+    @Test func testEConstant() {
+        #expect(abs(doubleFromBits(kk_math_E()) - Double(M_E)) <= 1e-12)
     }
 
     // MARK: - STDLIB-MATH-112: numeric constants
 
-    func testDoublePositiveInfinity() {
-        XCTAssertTrue(doubleFromBits(kk_double_positive_infinity()).isInfinite)
-        XCTAssertGreaterThan(doubleFromBits(kk_double_positive_infinity()), 0)
+    @Test func testDoublePositiveInfinity() {
+        #expect(doubleFromBits(kk_double_positive_infinity()).isInfinite)
+        #expect(doubleFromBits(kk_double_positive_infinity()) > 0)
     }
 
-    func testDoubleNegativeInfinity() {
-        XCTAssertTrue(doubleFromBits(kk_double_negative_infinity()).isInfinite)
-        XCTAssertLessThan(doubleFromBits(kk_double_negative_infinity()), 0)
+    @Test func testDoubleNegativeInfinity() {
+        #expect(doubleFromBits(kk_double_negative_infinity()).isInfinite)
+        #expect(doubleFromBits(kk_double_negative_infinity()) < 0)
     }
 
-    func testDoubleNaN() {
-        XCTAssertTrue(doubleFromBits(kk_double_nan()).isNaN)
+    @Test func testDoubleNaN() {
+        #expect(doubleFromBits(kk_double_nan()).isNaN)
     }
 
-    func testDoubleMaxValue() {
-        XCTAssertEqual(doubleFromBits(kk_double_max_value()), Double.greatestFiniteMagnitude)
+    @Test func testDoubleMaxValue() {
+        #expect(doubleFromBits(kk_double_max_value()) == Double.greatestFiniteMagnitude)
     }
 
-    func testDoubleMinValue() {
-        XCTAssertEqual(doubleFromBits(kk_double_min_value()), Double.leastNonzeroMagnitude)
+    @Test func testDoubleMinValue() {
+        #expect(doubleFromBits(kk_double_min_value()) == Double.leastNonzeroMagnitude)
     }
 
-    func testFloatPositiveInfinity() {
-        XCTAssertTrue(floatFromBits(kk_float_positive_infinity()).isInfinite)
-        XCTAssertGreaterThan(floatFromBits(kk_float_positive_infinity()), 0)
+    @Test func testFloatPositiveInfinity() {
+        #expect(floatFromBits(kk_float_positive_infinity()).isInfinite)
+        #expect(floatFromBits(kk_float_positive_infinity()) > 0)
     }
 
-    func testFloatNegativeInfinity() {
-        XCTAssertTrue(floatFromBits(kk_float_negative_infinity()).isInfinite)
-        XCTAssertLessThan(floatFromBits(kk_float_negative_infinity()), 0)
+    @Test func testFloatNegativeInfinity() {
+        #expect(floatFromBits(kk_float_negative_infinity()).isInfinite)
+        #expect(floatFromBits(kk_float_negative_infinity()) < 0)
     }
 
-    func testFloatNaN() {
-        XCTAssertTrue(floatFromBits(kk_float_nan()).isNaN)
+    @Test func testFloatNaN() {
+        #expect(floatFromBits(kk_float_nan()).isNaN)
     }
 
-    func testFloatMaxValue() {
-        XCTAssertEqual(floatFromBits(kk_float_max_value()), Float.greatestFiniteMagnitude)
+    @Test func testFloatMaxValue() {
+        #expect(floatFromBits(kk_float_max_value()) == Float.greatestFiniteMagnitude)
     }
 
-    func testFloatMinValue() {
-        XCTAssertEqual(floatFromBits(kk_float_min_value()), Float.leastNonzeroMagnitude)
+    @Test func testFloatMinValue() {
+        #expect(floatFromBits(kk_float_min_value()) == Float.leastNonzeroMagnitude)
     }
 
-    func testIntMaxValue() {
-        XCTAssertEqual(kk_int_max_value(), Int(Int32.max))
+    @Test func testIntMaxValue() {
+        #expect(kk_int_max_value() == Int(Int32.max))
     }
 
-    func testIntMinValue() {
-        XCTAssertEqual(kk_int_min_value(), Int(Int32.min))
+    @Test func testIntMinValue() {
+        #expect(kk_int_min_value() == Int(Int32.min))
     }
 
-    func testLongMaxValue() {
-        XCTAssertEqual(kk_long_max_value(), Int(Int64.max))
+    @Test func testLongMaxValue() {
+        #expect(kk_long_max_value() == Int(Int64.max))
     }
 
-    func testLongMinValue() {
-        XCTAssertEqual(kk_long_min_value(), Int(truncatingIfNeeded: Int64.min))
+    @Test func testLongMinValue() {
+        #expect(kk_long_min_value() == Int(truncatingIfNeeded: Int64.min))
     }
 
     // MARK: - roundToInt / roundToLong (STDLIB-510..511)
 
-    func testFloatRoundToInt() {
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(2.5), nil), 3)
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(3.5), nil), 4)
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(-1.5), nil), -1)
-        XCTAssertEqual(kk_float_roundToInt(floatToBits(-2.5), nil), -2)
+    @Test func testFloatRoundToInt() {
+        #expect(kk_float_roundToInt(floatToBits(2.5), nil) == 3)
+        #expect(kk_float_roundToInt(floatToBits(3.5), nil) == 4)
+        #expect(kk_float_roundToInt(floatToBits(-1.5), nil) == -1)
+        #expect(kk_float_roundToInt(floatToBits(-2.5), nil) == -2)
         var thrown = 0
         _ = kk_float_roundToInt(floatToBits(Float.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToInt(NaN) must throw IllegalArgumentException")
+        #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
     }
 
-    func testDoubleRoundToInt() {
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(2.5), nil), 3)
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(3.5), nil), 4)
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(-1.5), nil), -1)
-        XCTAssertEqual(kk_double_roundToInt(doubleToBits(-2.5), nil), -2)
+    @Test func testDoubleRoundToInt() {
+        #expect(kk_double_roundToInt(doubleToBits(2.5), nil) == 3)
+        #expect(kk_double_roundToInt(doubleToBits(3.5), nil) == 4)
+        #expect(kk_double_roundToInt(doubleToBits(-1.5), nil) == -1)
+        #expect(kk_double_roundToInt(doubleToBits(-2.5), nil) == -2)
         var thrown = 0
         _ = kk_double_roundToInt(doubleToBits(Double.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToInt(NaN) must throw IllegalArgumentException")
+        #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
     }
 
-    func testFloatRoundToLong() {
-        XCTAssertEqual(kk_float_roundToLong(floatToBits(2.5), nil), 3)
+    @Test func testFloatRoundToLong() {
+        #expect(kk_float_roundToLong(floatToBits(2.5), nil) == 3)
         var thrown = 0
         _ = kk_float_roundToLong(floatToBits(Float.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToLong(NaN) must throw IllegalArgumentException")
+        #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
     }
 
-    func testDoubleRoundToLong() {
-        XCTAssertEqual(kk_double_roundToLong(doubleToBits(2.5), nil), 3)
+    @Test func testDoubleRoundToLong() {
+        #expect(kk_double_roundToLong(doubleToBits(2.5), nil) == 3)
         var thrown = 0
         _ = kk_double_roundToLong(doubleToBits(Double.nan), &thrown)
-        XCTAssertNotEqual(thrown, 0, "roundToLong(NaN) must throw IllegalArgumentException")
+        #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
     }
 
     // MARK: - ulp / nextUp / nextDown (STDLIB-512..513)
 
-    func testDoubleUlp() {
+    @Test func testDoubleUlp() {
         let result = doubleFromBits(kk_double_ulp(doubleToBits(1.0)))
-        XCTAssertEqual(result, Double(1.0).ulp)
+        #expect(result == Double(1.0).ulp)
     }
 
-    func testDoubleNextUp() {
+    @Test func testDoubleNextUp() {
         let result = doubleFromBits(kk_double_nextUp(doubleToBits(1.0)))
-        XCTAssertEqual(result, Double(1.0).nextUp)
+        #expect(result == Double(1.0).nextUp)
     }
 
-    func testDoubleNextDown() {
+    @Test func testDoubleNextDown() {
         let result = doubleFromBits(kk_double_nextDown(doubleToBits(1.0)))
-        XCTAssertEqual(result, Double(1.0).nextDown)
+        #expect(result == Double(1.0).nextDown)
     }
 
-    func testFloatUlp() {
+    @Test func testFloatUlp() {
         let result = floatFromBits(kk_float_ulp(floatToBits(1.0)))
-        XCTAssertEqual(result, Float(1.0).ulp)
+        #expect(result == Float(1.0).ulp)
     }
 
-    func testFloatNextUp() {
+    @Test func testFloatNextUp() {
         let result = floatFromBits(kk_float_nextUp(floatToBits(1.0)))
-        XCTAssertEqual(result, Float(1.0).nextUp)
+        #expect(result == Float(1.0).nextUp)
     }
 
-    func testFloatNextDown() {
+    @Test func testFloatNextDown() {
         let result = floatFromBits(kk_float_nextDown(floatToBits(1.0)))
-        XCTAssertEqual(result, Float(1.0).nextDown)
+        #expect(result == Float(1.0).nextDown)
     }
 
     // MARK: - Conversions
 
-    func testIntToFloatConversion() {
-        XCTAssertEqual(floatFromBits(kk_int_to_float(0)), 0.0)
-        XCTAssertEqual(floatFromBits(kk_int_to_float(42)), 42.0)
-        XCTAssertEqual(floatFromBits(kk_int_to_float(-17)), -17.0)
+    @Test func testIntToFloatConversion() {
+        #expect(floatFromBits(kk_int_to_float(0)) == 0.0)
+        #expect(floatFromBits(kk_int_to_float(42)) == 42.0)
+        #expect(floatFromBits(kk_int_to_float(-17)) == -17.0)
     }
 
-    func testIntToByteConversion() {
-        XCTAssertEqual(kk_int_to_byte(42), 42)
-        XCTAssertEqual(kk_int_to_byte(127), 127)
-        XCTAssertEqual(kk_int_to_byte(300), 44)
-        XCTAssertEqual(kk_int_to_byte(-129), 127)
+    @Test func testIntToByteConversion() {
+        #expect(kk_int_to_byte(42) == 42)
+        #expect(kk_int_to_byte(127) == 127)
+        #expect(kk_int_to_byte(300) == 44)
+        #expect(kk_int_to_byte(-129) == 127)
     }
 
-    func testIntToShortConversion() {
-        XCTAssertEqual(kk_int_to_short(42), 42)
-        XCTAssertEqual(kk_int_to_short(32767), 32767)
-        XCTAssertEqual(kk_int_to_short(32768), -32768)
-        XCTAssertEqual(kk_int_to_short(70000), 4464)
+    @Test func testIntToShortConversion() {
+        #expect(kk_int_to_short(42) == 42)
+        #expect(kk_int_to_short(32767) == 32767)
+        #expect(kk_int_to_short(32768) == -32768)
+        #expect(kk_int_to_short(70000) == 4464)
     }
 
     private func doubleToBits(_ value: Double) -> Int {
@@ -471,3 +474,4 @@ final class RuntimeMathTests: XCTestCase {
         Float(bitPattern: UInt32(truncatingIfNeeded: raw))
     }
 }
+#endif

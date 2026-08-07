@@ -6,17 +6,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        registerSyntheticNativeBitSetStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerSyntheticCInteropStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticNativeVector128Stubs(
             symbols: symbols,
             types: types,
             interner: interner
@@ -37,11 +27,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticNativeByteArrayAccessorStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticNativeImmutableBlobStubs(
             symbols: symbols,
             types: types,
             interner: interner

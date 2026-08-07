@@ -233,6 +233,185 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // MARK: - DEBT-KIR-008: class-member `by lazy` per-instance storage/capture
+
+    // A class member's `by lazy { ... }` body used to lower into a standalone
+    // function with no way to reach the enclosing instance, so any reference
+    // to an instance member inside the block (here, the primary-constructor
+    // property `label`) silently resolved to nothing instead of the captured
+    // value.
+    func testMemberLazyDelegateCapturesEnclosingInstanceProperty() throws {
+        let source = """
+        class Foo(val label: String) {
+            val x by lazy { label }
+        }
+        fun main() {
+            val a = Foo("a")
+            println(a.x)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegateCapturesLabel",
+            expected:
+                """
+                a
+                """ + "\n"
+        )
+    }
+
+    // The delegate handle (`$delegate_x`, holding the `Lazy` instance) used to
+    // be stored in a single module-global slot shared by every instance of the
+    // class, so constructing a second `Foo` clobbered the first instance's
+    // delegate — both `a.x` and `b.x` observed whichever instance was
+    // constructed last instead of their own captured `label`.
+    func testMemberLazyDelegateUsesPerInstanceStorage() throws {
+        let source = """
+        class Foo(val label: String) {
+            val x by lazy { label }
+        }
+        fun main() {
+            val a = Foo("a")
+            val b = Foo("b")
+            println(a.x)
+            println(b.x)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegatePerInstanceStorage",
+            expected:
+                """
+                a
+                b
+                """ + "\n"
+        )
+    }
+
+    // MARK: - BUG-146: local delegate with a provideDelegate operator
+
+    // `val x by Factory()` where `Factory` exposes `provideDelegate` used to
+    // bind `x` to the `Factory()` instance itself: no provideDelegate call was
+    // emitted and getValue resolved against the wrong receiver, so `println(x)`
+    // printed the factory's raw object handle. The effective delegate is
+    // provideDelegate's return value (same rule as member/top-level delegated
+    // properties in KIRLoweringDriver+ProvideDelegate.swift).
+
+    func testCodegenLocalProvideDelegateReturnsString() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val v: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = v
+        }
+        class StrFactory(private val v: String) {
+            operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): StrDelegate = StrDelegate(v.uppercase())
+        }
+        fun main() {
+            val name by StrFactory("hello")
+            println(name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalProvideDelegateString",
+            expected:
+                """
+                HELLO
+                """ + "\n"
+        )
+    }
+
+    func testCodegenLocalProvideDelegateVarSetValueRoundTrips() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class IntBox(private var stored: Int) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): Int = stored
+            operator fun setValue(thisRef: Any?, property: KProperty<*>, newValue: Int) { stored = newValue }
+        }
+        class IntBoxFactory(private val initial: Int) {
+            operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): IntBox = IntBox(initial)
+        }
+        fun main() {
+            var counter by IntBoxFactory(10)
+            println(counter)
+            counter = 42
+            println(counter)
+            counter = counter + 1
+            println(counter)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalProvideDelegateVarSetValue",
+            expected:
+                """
+                10
+                42
+                43
+                """ + "\n"
+        )
+    }
+
+    func testCodegenTopLevelProvideDelegateStillWorks() throws {
+        // Regression guard: top-level provideDelegate already worked through
+        // KIRLoweringDriver+ProvideDelegate.swift and must be unaffected by the
+        // new local-declaration path.
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val v: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = v
+        }
+        class StrFactory(private val v: String) {
+            operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): StrDelegate = StrDelegate(v.uppercase())
+        }
+        val topName by StrFactory("hi")
+        fun main() {
+            println(topName)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TopLevelProvideDelegateStillWorks",
+            expected:
+                """
+                HI
+                """ + "\n"
+        )
+    }
+
+    func testCodegenMemberProvideDelegateUsesResolvedOperator() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val value: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = value
+        }
+        class StrFactory(private val value: String) {
+            operator fun provideDelegate(thisRef: Any?, property: KProperty<*>): StrDelegate =
+                StrDelegate(value.uppercase())
+        }
+        class Holder {
+            val name by StrFactory("member")
+        }
+        fun main() {
+            println(Holder().name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberProvideDelegateResolvedOperator",
+            expected:
+                """
+                MEMBER
+                """ + "\n"
+        )
+    }
+
     func testCodegenMemberCustomDelegatePrimitiveStillWorks() throws {
         // Regression guard: member-property custom delegates already worked
         // before this fix and share DeclTypeChecker+PropertyHelpers.swift's
@@ -258,6 +437,236 @@ extension CodegenBackendIntegrationTests {
                 """
                 42
                 43
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: a stdlib delegate's callback lambda declared with a parameter
+    // list (`{ property, old, new -> ... }`) lost its whole body, because the
+    // parameter list and arrow form their own CST statement node that the
+    // block-statement parser could not turn into an expression. The callback
+    // also never observed a value change, because assignment through an
+    // explicit receiver wrote the (unused) backing field slot directly instead
+    // of dispatching to the property's setter accessor.
+    func testCodegenMemberObservableDelegateReportsChanges() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class User {
+            var name: String by Delegates.observable("initial") { _, old, new ->
+                println("changed from $old to $new")
+            }
+        }
+
+        fun main() {
+            val u = User()
+            u.name = "hello"
+            println(u.name)
+            u.name = "world"
+            println(u.name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberObservableDelegate",
+            expected:
+                """
+                changed from initial to hello
+                hello
+                changed from hello to world
+                world
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: an `Int`-typed observable callback interpolating its value
+    // parameters used to concatenate the raw values as if they were string
+    // handles, because the synthetic callback parameters were all typed `Any`
+    // and Sema never binds a type to the (unvisited) callback body.
+    func testCodegenMemberObservableDelegateFormatsIntValues() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Counter {
+            var value: Int by Delegates.observable(1) { _, old, new ->
+                println("obs:$old->$new")
+            }
+        }
+
+        fun main() {
+            val c = Counter()
+            c.value = 2
+            c.value = 5
+            println(c.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberObservableDelegateIntValues",
+            expected:
+                """
+                obs:1->2
+                obs:2->5
+                5
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: the vetoable callback returns a Kotlin `Boolean`, which reaches
+    // the runtime boxed; a boxed `false` is a non-zero handle, so every change
+    // was accepted. Also covers compound assignment, which used to bypass the
+    // delegate entirely by reading and writing the backing field slot.
+    func testCodegenMemberVetoableDelegateRejectsChanges() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Counter {
+            var value: Int by Delegates.vetoable(0) { _, _, new -> new >= 0 }
+        }
+
+        fun main() {
+            val c = Counter()
+            c.value = 5
+            println(c.value)
+            c.value = -1
+            println(c.value)
+            c.value += 3
+            println(c.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberVetoableDelegate",
+            expected:
+                """
+                5
+                5
+                8
+                """ + "\n"
+        )
+    }
+
+    // BUG-169: member observable/vetoable callbacks need a boxed Function3
+    // value so the enclosing instance can travel with the three callback
+    // arguments. A raw top-level thunk has no way to resolve implicit member
+    // reads or writes in the callback body.
+    func testCodegenMemberDelegateCallbacksCaptureEnclosingInstance() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Counter(val label: String, val minimum: Int) {
+            var callbackCount: Int = 0
+            var observed: Int by Delegates.observable(1) { _, old, new ->
+                callbackCount += 1
+                println("$label:$old->$new:$callbackCount")
+            }
+            var guarded: Int by Delegates.vetoable(0) { _, _, new ->
+                println("$label:check:$new")
+                new >= minimum
+            }
+        }
+
+        fun main() {
+            val a = Counter("a", 2)
+            val b = Counter("b", 5)
+            a.observed = 3
+            b.observed = 4
+            println(a.callbackCount)
+            println(b.callbackCount)
+            a.guarded = 1
+            a.guarded = 2
+            println(a.guarded)
+            b.guarded = 4
+            b.guarded = 5
+            println(b.guarded)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberDelegateCallbackCapture",
+            expected:
+                """
+                a:1->3:1
+                b:1->4:1
+                1
+                1
+                a:check:1
+                a:check:2
+                2
+                b:check:4
+                b:check:5
+                5
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: `Delegates.notNull()` reads crashed with
+    // "Property delegate must be assigned before being accessed" even after a
+    // write, because the write never reached `kk_notNull_set_value`.
+    func testCodegenMemberNotNullDelegateRoundTrips() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Box {
+            var value: String by Delegates.notNull()
+        }
+
+        fun main() {
+            val b = Box()
+            b.value = "abc"
+            println(b.value)
+            b.value = "def"
+            println(b.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberNotNullDelegate",
+            expected:
+                """
+                abc
+                def
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: the same callback-body loss affected top-level delegated
+    // properties, which lower through a separate initializer path.
+    func testCodegenTopLevelObservableAndVetoableDelegates() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        var topName: String by Delegates.observable("t0") { _, old, new -> println("top $old->$new") }
+        var topCount: Int by Delegates.vetoable(1) { _, _, new -> new > 0 }
+        var topLate: Int by Delegates.notNull()
+
+        fun main() {
+            topName = "t1"
+            println(topName)
+            topCount = 9
+            println(topCount)
+            topCount = -5
+            println(topCount)
+            topLate = 3
+            println(topLate)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TopLevelStdlibDelegates",
+            expected:
+                """
+                top t0->t1
+                t1
+                9
+                9
+                3
                 """ + "\n"
         )
     }

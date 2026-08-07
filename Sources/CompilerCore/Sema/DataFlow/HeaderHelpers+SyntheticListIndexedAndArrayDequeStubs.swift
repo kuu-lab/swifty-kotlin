@@ -501,17 +501,20 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let name = interner.intern("IndexedValue")
         let fqName = kotlinCollectionsPkg + [name]
-        if let existing = symbols.lookup(fqName: fqName) {
-            return existing
+        // STDLIB-SHARED-014: IndexedValue may have been imported as a synthetic
+        // nominal anchor; its members are not serialized and must be re-registered.
+        let symbol: SymbolID = if let existing = symbols.lookup(fqName: fqName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .class,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .dataType]
+            )
         }
-        let symbol = symbols.define(
-            kind: .class,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .dataType]
-        )
         let tName = interner.intern("T")
         let tFQName = fqName + [tName]
         let tSymbol = symbols.define(
@@ -535,6 +538,7 @@ extension DataFlowSemaPhase {
         func registerComponent(name: String, ret: TypeID, externalLinkName: String) {
             let mName = interner.intern(name)
             let mFQName = fqName + [mName]
+            guard symbols.lookup(fqName: mFQName) == nil else { return }
             let mSymbol = symbols.define(
                 kind: .function,
                 name: mName,
@@ -560,6 +564,7 @@ extension DataFlowSemaPhase {
         func registerPropertyGetter(name: String, ret: TypeID, externalLinkName: String) {
             let mName = interner.intern(name)
             let mFQName = fqName + [mName]
+            guard symbols.lookup(fqName: mFQName) == nil else { return }
             let mSymbol = symbols.define(
                 kind: .property,
                 name: mName,
@@ -577,6 +582,32 @@ extension DataFlowSemaPhase {
         registerComponent(name: "component2", ret: tType, externalLinkName: "kk_pair_second")
         registerPropertyGetter(name: "index", ret: types.intType, externalLinkName: "kk_pair_first")
         registerPropertyGetter(name: "value", ret: tType, externalLinkName: "kk_pair_second")
+
+        // Constructor: IndexedValue(index, value) → kk_indexed_value_new (STDLIB-563)
+        let initName = interner.intern("<init>")
+        let initFQName = fqName + [initName]
+        if symbols.lookup(fqName: initFQName) == nil {
+            let initSymbol = symbols.define(
+                kind: .constructor,
+                name: initName,
+                fqName: initFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(symbol, for: initSymbol)
+            symbols.setExternalLinkName("kk_indexed_value_new", for: initSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [types.intType, tType],
+                    returnType: receiverType,
+                    typeParameterSymbols: [tSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: initSymbol
+            )
+        }
 
         return symbol
     }

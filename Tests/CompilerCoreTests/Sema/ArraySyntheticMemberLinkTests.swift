@@ -31,6 +31,160 @@ struct ArraySyntheticMemberLinkTests {
         #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
     }
 
+    // MARK: - Array HOF gap fix (mapIndexed/filterIndexed/mapNotNull/filterNot/
+    // filterNotNull/reduceIndexed/first/firstOrNull/last/lastOrNull)
+    //
+    // These previously failed `tryArrayMemberFallback`'s `isSupportedArrayMember`
+    // allowlist check outright (KSWIFTK-SEMA-0024 "Unresolved member function"),
+    // despite the identically named List members already resolving correctly.
+    // See CallTypeChecker+ArrayMemberFallback.swift.
+
+    @Test func testArrayMapIndexedFallbackMarksResultAsCollection() throws {
+        // NOTE: like the pre-existing `map`/`filter` Array fallback, mapIndexed's
+        // static result type is erased to `Any` (not `List<R>`) at the Sema
+        // layer — see `arrayMemberResultType`'s default case in
+        // CallTypeChecker+ArrayMemberFallback.swift. `isCollectionExpr` is the
+        // out-of-band signal downstream KIR/runtime dispatch relies on instead.
+        // Declaring `sample()`'s return type as `List<Int>` here would make this
+        // a negative (type-mismatch) test instead, so the result is simply
+        // used via a local `val`, not returned under a narrower type.
+        let source = """
+        fun sample() {
+            val values = arrayOf(1, 2, 3)
+            val result = values.mapIndexed { index, value -> index + value }
+            println(result)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Array.mapIndexed to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "mapIndexed"
+        }, "Expected Array.mapIndexed member call")
+
+        #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.mapIndexed result to be marked as a collection (List) expression")
+    }
+
+    @Test func testArrayFilterNotNullFallbackAcceptsZeroArgumentsAndMarksCollection() throws {
+        // See the mapIndexed test above: the Array fallback's result type is
+        // erased to `Any`, so this uses a local `val` rather than a `List<Int>`
+        // return type to avoid asserting a stronger type guarantee than the
+        // fallback actually provides.
+        let source = """
+        fun sample() {
+            val values: Array<Int?> = arrayOf(1, null, 2)
+            val result = values.filterNotNull()
+            println(result)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Array.filterNotNull to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "filterNotNull"
+        }, "Expected Array.filterNotNull member call")
+
+        #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.filterNotNull result to be marked as a collection (List) expression")
+    }
+
+    @Test func testArrayFirstOrNullFallbackInfersNullableElementType() throws {
+        let source = """
+        fun sample(): Int? {
+            val values = arrayOf(1, 2, 3)
+            return values.firstOrNull()
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Array.firstOrNull to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "firstOrNull"
+        }, "Expected Array.firstOrNull member call")
+
+        let resultType = try #require(sema.bindings.exprType(for: callExpr))
+        #expect(sema.types.nullability(of: resultType) == .nullable, "Expected Array.firstOrNull() to infer a nullable result type")
+        #expect(sema.types.makeNonNullable(resultType) == sema.types.intType)
+    }
+
+    @Test func testArrayFirstFallbackInfersNonNullElementType() throws {
+        let source = """
+        fun sample(): Int {
+            val values = arrayOf(1, 2, 3)
+            return values.first()
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Array.first to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "first"
+        }, "Expected Array.first member call")
+
+        #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
+    }
+
+    @Test func testArrayReduceIndexedFallbackInfersElementType() throws {
+        let source = """
+        fun sample(): Int {
+            val values = arrayOf(1, 2, 3)
+            return values.reduceIndexed { index, acc, value -> acc + value + index }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Array.reduceIndexed to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "reduceIndexed"
+        }, "Expected Array.reduceIndexed member call")
+
+        #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
+    }
+
     @Test func testArrayOfNullsTopLevelFactoryUsesRuntimeExternalLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

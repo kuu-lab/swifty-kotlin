@@ -274,7 +274,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendKeepsReplaceFirstSourceBackedAndEmitsFlatRangeRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendKeepsReplaceFirstAndRangeEditsSourceBackedForStringOverloads() throws {
         let source = """
         fun main() {
             val value = "abcabc"
@@ -301,14 +301,16 @@ extension CodegenBackendIntegrationTests {
             XCTAssertFalse(ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
             XCTAssertFalse(ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
 
-            let flatNames = [
+            // KSP-406: replaceRange / removeRange are bundled Kotlin source and no
+            // longer lower to a String-specific runtime helper (raw or flat).
+            let removedStems = [
                 "kk_string_replaceRange",
                 "kk_string_removeRange",
                 "kk_string_removeRange_range",
             ]
-            for rawName in flatNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String range call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String range call: \(rawName)_flat")
+            for stem in removedStems {
+                XCTAssertFalse(ir.contains("@\(stem)("), "Unexpected raw String range call: \(stem)")
+                XCTAssertFalse(ir.contains("@\(stem)_flat"), "Unexpected flat String range call: \(stem)_flat")
             }
         }
     }
@@ -377,7 +379,13 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatReplaceFirstCharRuntimeCallForStringOverload() throws {
+    func testLLVMBackendDoesNotEmitReplaceFirstCharRuntimeCallForSourceBackedOverload() throws {
+        // KSP-412 (#5064) migrated replaceFirstChar to bundled Kotlin source
+        // (StringCaseConversion.kt) and removed both the raw and flat runtime
+        // bridges; ABIMismatchTests.testKKStringReplaceFirstCharABIRemoved
+        // asserts their absence from RuntimeABISpec. This test used to assert
+        // the opposite (that the flat call was emitted) and was never updated
+        // by that migration.
         let source = """
         fun main() {
             println("alpha".replaceFirstChar { 'A' })
@@ -398,7 +406,7 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar("), "Unexpected raw replaceFirstChar call")
-            XCTAssertTrue(ir.contains("@kk_string_replaceFirstChar_flat"), "Missing flat replaceFirstChar call")
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar_flat"), "Unexpected flat replaceFirstChar call")
         }
     }
 
@@ -487,6 +495,11 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             val value = "  alpha\\n  beta"
             val margin = "|alpha\\n|beta"
+            val raw = ""\"
+                alpha
+                beta
+            ""\".trimIndent()
+            println(raw)
             println(value.trimIndent())
             println(margin.trimMargin())
             println(margin.trimMargin("|"))
@@ -497,6 +510,8 @@ extension CodegenBackendIntegrationTests {
             println(margin.replaceIndentByMargin())
             println(margin.replaceIndentByMargin(">"))
             println(margin.replaceIndentByMargin(">", "|"))
+            println(value.indent())
+            println(value.indent(2))
         }
         """
 
@@ -530,6 +545,8 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_default_flat",
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
+                "kk_string_indent",
+                "kk_string_indent_flat",
             ]
             for name in forbiddenNames {
                 XCTAssertFalse(ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
@@ -611,13 +628,6 @@ extension CodegenBackendIntegrationTests {
         let reversedResult = arena.appendExpr(.temporary(33), type: types.stringType)
         let repeatResult = arena.appendExpr(.temporary(43), type: types.stringType)
         let repeatThrown = arena.appendExpr(.temporary(44), type: types.intType)
-        let substringStart = arena.appendExpr(.intLiteral(1), type: types.intType)
-        let substringEnd = arena.appendExpr(.intLiteral(3), type: types.intType)
-        let substringHasEnd = arena.appendExpr(.intLiteral(1), type: types.intType)
-        let substringResult = arena.appendExpr(.temporary(34), type: types.stringType)
-        let substringThrown = arena.appendExpr(.temporary(35), type: types.intType)
-        let subSequenceResult = arena.appendExpr(.temporary(45), type: types.stringType)
-        let subSequenceThrown = arena.appendExpr(.temporary(46), type: types.intType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let hofFnPtr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let hofClosureRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
@@ -628,17 +638,11 @@ extension CodegenBackendIntegrationTests {
         let filterNotResult = arena.appendExpr(.temporary(51), type: types.stringType)
         let filterNotThrown = arena.appendExpr(.temporary(52), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
-        let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
-        let indexOfResult = arena.appendExpr(.temporary(17), type: types.intType)
         let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
         let ignoreCaseTrue = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
-        let charNeedle = arena.appendExpr(.charLiteral(UInt32(UnicodeScalar("d").value)), type: types.charType)
         let compareIgnoreCaseResult = arena.appendExpr(.temporary(19), type: types.intType)
         let compareLocaleResult = arena.appendExpr(.temporary(30), type: types.intType)
         let localeRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
-        let lastIndexIgnoreCaseResult = arena.appendExpr(.temporary(20), type: types.intType)
-        let indexOfCharResult = arena.appendExpr(.temporary(21), type: types.intType)
-        let lastIndexOfCharResult = arena.appendExpr(.temporary(22), type: types.intType)
         let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
         let isNullOrEmptyResult = arena.appendExpr(.temporary(23), type: types.booleanType)
         let isNullOrBlankResult = arena.appendExpr(.temporary(24), type: types.booleanType)
@@ -677,25 +681,6 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_lowercase_flat"), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_uppercase_flat"), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_reversed_flat"), arguments: [paddedExpr], result: reversedResult, canThrow: false, thrownResult: nil),
-                .constValue(result: substringStart, value: .intLiteral(1)),
-                .constValue(result: substringEnd, value: .intLiteral(3)),
-                .constValue(result: substringHasEnd, value: .intLiteral(1)),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_substring_flat"),
-                    arguments: [trimResult, substringStart, substringEnd, substringHasEnd],
-                    result: substringResult,
-                    canThrow: true,
-                    thrownResult: substringThrown
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_subSequence_flat"),
-                    arguments: [trimResult, substringStart, substringEnd],
-                    result: subSequenceResult,
-                    canThrow: true,
-                    thrownResult: subSequenceThrown
-                ),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_repeat_flat"), arguments: [trimResult, takeCount], result: repeatResult, canThrow: true, thrownResult: repeatThrown),
                 .constValue(result: hofFnPtr, value: .intLiteral(0)),
@@ -704,17 +689,11 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_filterIndexed_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterIndexedResult, canThrow: true, thrownResult: filterIndexedThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_filterNot_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterNotResult, canThrow: true, thrownResult: filterNotThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
-                .call(symbol: nil, callee: interner.intern("kk_string_contains_str_flat"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_indexOf_flat"), arguments: [trimResult, needleExpr], result: indexOfResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isBlank_flat"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
                 .constValue(result: ignoreCaseTrue, value: .boolLiteral(true)),
-                .constValue(result: charNeedle, value: .charLiteral(UInt32(UnicodeScalar("d").value))),
                 .call(symbol: nil, callee: interner.intern("kk_string_compareToIgnoreCase_flat"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: compareIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .constValue(result: localeRaw, value: .intLiteral(0)),
                 .call(symbol: nil, callee: interner.intern("kk_string_compareTo_locale_flat"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_ignoreCase_flat"), arguments: [trimResult, needleExpr, takeCount, ignoreCaseTrue], result: lastIndexIgnoreCaseResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_indexOf_char_flat"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: indexOfCharResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_char_flat"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: lastIndexOfCharResult, canThrow: false, thrownResult: nil),
                 .constValue(result: nullStringExpr, value: .null),
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty_flat"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
@@ -836,8 +815,6 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_takeWhile("))
         XCTAssertFalse(ir.contains("@kk_string_takeLastWhile("))
         XCTAssertFalse(ir.contains("@kk_string_dropWhile("))
-        XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
-        XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))
         XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trimStart_flat"))
@@ -845,20 +822,15 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_lowercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_uppercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_substring_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_subSequence_flat"))
+        XCTAssertFalse(ir.contains("@kk_string_substring_flat"))
+        XCTAssertFalse(ir.contains("@kk_string_subSequence_flat"))
         XCTAssertTrue(ir.contains("@kk_string_repeat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filter_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filterIndexed_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filterNot_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
         XCTAssertTrue(ir.contains("@kk_string_compareToIgnoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_compareTo_locale_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_ignoreCase_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_indexOf_char_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_char_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isNullOrEmpty_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isNullOrBlank_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contentEquals_flat"))
@@ -1515,8 +1487,6 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_any_flat", resultType: types.booleanType)
         appendCallbackCall("kk_string_all_flat", resultType: types.booleanType)
         appendCallbackCall("kk_string_none_flat", resultType: types.booleanType)
-        appendCallbackCall("kk_string_indexOfFirst_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_indexOfLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
@@ -1565,8 +1535,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_any_flat",
             "kk_string_all_flat",
             "kk_string_none_flat",
-            "kk_string_indexOfFirst_flat",
-            "kk_string_indexOfLast_flat",
             "kk_string_find_flat",
             "kk_string_findLast_flat",
             "kk_string_partition_flat",
@@ -1590,92 +1558,9 @@ extension CodegenBackendIntegrationTests {
 
     }
 
-    func testLLVMBackendEmitsFlatStringIndexOfAnyRuntimeCalls() throws {
-        let interner = StringInterner()
-        let types = TypeSystem()
-        let arena = KIRArena()
-
-        let text = interner.intern("aBcabc")
-        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
-        let charsRawExpr = arena.appendExpr(.intLiteral(101), type: types.intType)
-        let stringsRawExpr = arena.appendExpr(.intLiteral(102), type: types.intType)
-        let startExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
-        let ignoreCaseExpr = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
-
-        var nextTemp: Int32 = 400
-        func temporary(_ type: TypeID) -> KIRExprID {
-            nextTemp += 1
-            return arena.appendExpr(.temporary(nextTemp), type: type)
-        }
-
-        var body: [KIRInstruction] = [
-            .constValue(result: textExpr, value: .stringLiteral(text)),
-            .constValue(result: charsRawExpr, value: .intLiteral(101)),
-            .constValue(result: stringsRawExpr, value: .intLiteral(102)),
-            .constValue(result: startExpr, value: .intLiteral(0)),
-            .constValue(result: ignoreCaseExpr, value: .boolLiteral(true)),
-        ]
-
-        func appendSearchCall(_ calleeName: String, targetRaw: KIRExprID) {
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern(calleeName),
-                arguments: [textExpr, targetRaw, startExpr, ignoreCaseExpr],
-                result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
-
-        appendSearchCall("kk_string_indexOfAny_chars_flat", targetRaw: charsRawExpr)
-        appendSearchCall("kk_string_indexOfAny_strings_flat", targetRaw: stringsRawExpr)
-        appendSearchCall("kk_string_lastIndexOfAny_chars_flat", targetRaw: charsRawExpr)
-        appendSearchCall("kk_string_lastIndexOfAny_strings_flat", targetRaw: stringsRawExpr)
-        appendSearchCall("kk_string_findAnyOf_flat", targetRaw: stringsRawExpr)
-        appendSearchCall("kk_string_findLastAnyOf_flat", targetRaw: stringsRawExpr)
-        body.append(.returnUnit)
-
-        let main = KIRFunction(
-            symbol: SymbolID(rawValue: 1204),
-            name: interner.intern("main"),
-            params: [],
-            returnType: types.unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-
-        let mainID = arena.appendDecl(.function(main))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
-            arena: arena
-        )
-
-        let backend = try LLVMBackend(
-            target: defaultTargetTriple(),
-            optLevel: .O0,
-            debugInfo: false,
-            diagnostics: DiagnosticEngine()
-        )
-        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
-
-        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
-        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
-
-        let flatNames = [
-            "kk_string_indexOfAny_chars_flat",
-            "kk_string_indexOfAny_strings_flat",
-            "kk_string_lastIndexOfAny_chars_flat",
-            "kk_string_lastIndexOfAny_strings_flat",
-            "kk_string_findAnyOf_flat",
-            "kk_string_findLastAnyOf_flat",
-        ]
-        for flatName in flatNames {
-            let rawName = String(flatName.dropLast("_flat".count))
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indexOfAny call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String indexOfAny call: \(flatName)")
-        }
-    }
+    // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are bundled Kotlin
+    // source (StringIndexOf.kt); their flat runtime bridges and this IR-emission test
+    // were removed.
 
     func testLLVMBackendEmitsFlatStringMaterializationRuntimeCalls() throws {
         let interner = StringInterner()
@@ -2043,6 +1928,32 @@ extension CodegenBackendIntegrationTests {
             interner: interner
         )
         XCTAssertTrue(fnName.hasPrefix("kk_fn__1_bad_name_9"))
+    }
+
+    /// A synthetic (negative) symbol must not share its C name with a real
+    /// symbol of the same magnitude and name: duplicate definitions get silently
+    /// renamed by LLVM and calls bind to whichever definition came first.
+    func testCodegenFunctionSymbolDistinguishesSyntheticSymbolsFromRealOnes() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+
+        func name(forSymbolRawValue rawValue: Int32) -> String {
+            CodegenSymbolSupport.cFunctionSymbol(
+                for: KIRFunction(
+                    symbol: SymbolID(rawValue: rawValue),
+                    name: interner.intern("get"),
+                    params: [],
+                    returnType: types.unitType,
+                    body: [.returnUnit],
+                    isSuspend: false,
+                    isInline: false
+                ),
+                interner: interner
+            )
+        }
+
+        XCTAssertEqual(name(forSymbolRawValue: 104_789), "kk_fn_get_104789")
+        XCTAssertEqual(name(forSymbolRawValue: -104_789), "kk_fn_get_s104789")
     }
 
     func testCodegenFunctionSymbolUsesJvmNameAnnotationForFunction() {

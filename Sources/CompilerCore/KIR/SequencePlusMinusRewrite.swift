@@ -50,14 +50,12 @@ func emitSequencePlusMinusRewrite(
             // Keep kk_sequence_plus ABI inputs unambiguous by passing a
             // collection handle even for single-element plus.
             let wrappedArgument = arena.appendTemporary(type: nil)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: callees.ofSingle,
-                arguments: [argument],
+                arg: argument,
                 result: wrappedArgument,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             effectiveArgument = wrappedArgument
         }
         instructions.append(.call(

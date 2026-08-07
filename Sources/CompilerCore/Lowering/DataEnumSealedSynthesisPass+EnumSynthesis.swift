@@ -46,16 +46,48 @@ extension DataEnumSealedSynthesisPass {
 
         body.append(.returnValue(listExpr))
 
-        appendSyntheticFunctionIfNeeded(
-            name: name,
-            owner: owner,
-            module: module,
-            sema: sema,
-            signature: signature,
-            params: [],
-            body: body,
-            existingFunctionSymbols: existingFunctionSymbols
-        )
+        // Use the existing stub symbol when Sema already registered `values`
+        // directly on the enum class (collectSyntheticEnumValuesMember). Sema
+        // resolves `Direction.values()` call sites to that symbol's ID during
+        // type-checking, before this Lowering pass ever runs; calling
+        // `appendSyntheticFunctionIfNeeded` unconditionally would re-invoke
+        // `SymbolTable.define`, which mints a *second*, disconnected SymbolID
+        // for the same (fqName, .function) pair (functions are allowed to
+        // coexist as overloads), silently orphaning the already-resolved call
+        // sites from the KIR body generated here. Mirrors how
+        // `appendSyntheticEnumValueOfIfNeeded` reuses the companion's
+        // Sema-registered `valueOf` stub below.
+        let fqName = owner.fqName + [name]
+        let existingValues = sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let sym = sema.symbols.symbol(candidate),
+                  sym.kind == .function,
+                  sym.flags.contains(.synthetic),
+                  sema.symbols.parentSymbol(for: candidate) == owner.id
+            else { return false }
+            return true
+        }
+        if let existingSymbol = existingValues, !existingFunctionSymbols.contains(existingSymbol) {
+            appendSyntheticFunctionWithSymbol(
+                functionSymbol: existingSymbol,
+                name: name,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: [],
+                body: body
+            )
+        } else {
+            appendSyntheticFunctionIfNeeded(
+                name: name,
+                owner: owner,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: [],
+                body: body,
+                existingFunctionSymbols: existingFunctionSymbols
+            )
+        }
     }
 
     /// Synthesizes the `entries` getter on the companion object.
@@ -138,22 +170,29 @@ extension DataEnumSealedSynthesisPass {
         ))
 
         let stringType = sema.types.stringType
+        let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
         for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(ordinal))))
 
-            // Call the synthesized `<EntryName>$enumName()` helper (already emitted above)
-            // so println(entries) shows "NORTH" not "0".
-            let entryNameStr = interner.resolve(entry.name)
-            let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
-            let entryRef = module.arena.appendTemporary(type: stringType
-            )
+            let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
+            body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
+
+            // Box the ordinal (tagged with its declared name, see
+            // kk_enum_box_ordinal) instead of storing a pre-baked name
+            // string. Every other enum value is a raw ordinal Int, so an
+            // element read back out of values()/entries must round-trip
+            // through the same boxing/unboxing pair to behave correctly for
+            // println, equality, and `when` -- storing the name string
+            // outright broke all three (it only happened to look right when
+            // the whole collection was printed generically).
+            let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
-                callee: enumNameCallee,
-                arguments: [],
-                result: entryRef,
+                callee: boxOrdinalCallee,
+                arguments: [indexExpr, nameExpr],
+                result: boxedEntry,
                 canThrow: false,
                 thrownResult: nil
             ))
@@ -161,7 +200,7 @@ extension DataEnumSealedSynthesisPass {
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
-                arguments: [arrayExpr, indexExpr, entryRef],
+                arguments: [arrayExpr, indexExpr, boxedEntry],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil
@@ -171,8 +210,16 @@ extension DataEnumSealedSynthesisPass {
         return (arrayExpr, countExpr)
     }
 
-    /// Synthesizes `$enumOrdinalToName(ordinal: Int): String` for (valueOf result).name.
+    /// Synthesizes `$enumOrdinalToName$<id>(ordinal: Int): String` for (valueOf result).name.
     /// Switches on ordinal and returns the entry name via the per-entry $enumName helpers.
+    ///
+    /// The bare name is suffixed with the enum class's own `SymbolID` (`<id>`)
+    /// so it stays globally unique across every enum class in the module —
+    /// `emitEnumOrdinalBoxCall` (KIRCallEmissionHelpers.swift) calls this
+    /// helper by bare name (`symbol: nil`) from lowering passes that run
+    /// *before* this one, when there is no Sema symbol yet to call by ID, and
+    /// relies on that uniqueness for codegen's by-name resolution
+    /// (`resolveUnnamedInternalFunction`) to land on the right class's helper.
     func appendSyntheticEnumOrdinalToNameIfNeeded(
         owner: SemanticSymbol,
         entries: [SemanticSymbol],
@@ -183,7 +230,7 @@ extension DataEnumSealedSynthesisPass {
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        let name = interner.intern("$enumOrdinalToName")
+        let name = interner.intern("$enumOrdinalToName$\(owner.id.rawValue)")
         let fqName = owner.fqName + [name]
         let paramName = interner.intern("$ordinal")
         let paramSymbol = sema.symbols.define(

@@ -46,5 +46,20 @@ import Testing
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: ctx)
     }
+
+    @Test func testGenericInterfaceOverrideWithSameTypeParameterIsAccepted() throws {
+        let source = """
+        interface Seq<out T> {
+            operator fun iterator(): Iterator<T>
+        }
+        class MySeq<T>(val it: Iterator<T>) : Seq<T> {
+            override fun iterator(): Iterator<T> = it
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
 }
 #endif

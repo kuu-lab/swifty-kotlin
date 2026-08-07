@@ -216,8 +216,8 @@ struct BundledDeclarationIndexTests {
                 sema.symbols.externalLinkName(for: $0) == "kk_iterable_joinToString"
         }
         #expect(
-            iterableJoinDefaults.isEmpty,
-            "Expected bundled List.joinToString alias to suppress Iterable.joinToString synthetic default stub"
+            !iterableJoinDefaults.isEmpty,
+            "Expected Iterable.joinToString synthetic default stub to be retained for non-List Iterable receivers"
         )
 
         let listJoinTransforms = matchingFunctions(

@@ -17,8 +17,7 @@ extension BuildKIRRegressionTests {
             function.symbol == mainSymbol
         })
 
-        // Type token symbols use a negative offset to avoid collision with real symbol IDs
-        let expectedTokenSymbol = SymbolID(rawValue: Int32(typeTokenSymbolOffset) - typeParameterSymbol.rawValue)
+        let expectedTokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
         #expect(pickFunction.params.count == 2)
         #expect(pickFunction.params.last?.symbol == expectedTokenSymbol)
 

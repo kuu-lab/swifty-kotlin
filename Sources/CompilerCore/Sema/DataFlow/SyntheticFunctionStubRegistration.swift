@@ -182,6 +182,14 @@ func registerSyntheticFunctionStub(
         ),
         for: functionSymbol
     )
+    if let types,
+       returnType == types.stringType,
+       !externalLinkName.isEmpty,
+       !externalLinkName.hasSuffix("_flat"),
+       !externalLinkName.hasPrefix("kk_fn_")
+    {
+        symbols.setFunctionABIReturnType(types.intType, for: functionSymbol)
+    }
     return functionSymbol
 }
 

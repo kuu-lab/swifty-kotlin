@@ -34,6 +34,15 @@ struct BundledDeclarationIndex: Sendable {
         self = BundledDeclarationIndex(keys: keys.union([key]))
     }
 
+    mutating func insertImportedStdlibSymbols(
+        keys: Set<BundledMemberKey>,
+        interner: StringInterner
+    ) {
+        var merged = self.keys.union(keys)
+        Self.addListIterableAliases(to: &merged, interner: interner)
+        self = BundledDeclarationIndex(keys: merged)
+    }
+
     /// Build from AST bundled sources before SymbolTable header collection.
     /// AST scanning preserves the current phase order while supplying
     /// `(owner, name, arity)` keys to synthetic stub registration.
@@ -107,6 +116,7 @@ struct BundledDeclarationIndex: Sendable {
         var reported: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() {
             guard symbol.flags.contains(.synthetic) else { continue }
+            guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
             guard let key = Self.memberKey(
                 for: symbol,
@@ -180,8 +190,8 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
-        if isRuntimeBackedAtomicSyntheticRetainedOverlap(key, ownerFQName: ownerFQName, interner: interner) {
-            return true
+        if ownerFQName == ["kotlin", "comparisons"] {
+            return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }
         if ownerFQName == ["kotlin", "random", "Random"] {
             return isRuntimeBackedRandomSyntheticRetainedOverlap(key, interner: interner)
@@ -229,56 +239,6 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    private static func isRuntimeBackedAtomicSyntheticRetainedOverlap(
-        _ key: BundledMemberKey,
-        ownerFQName: [String],
-        interner: StringInterner
-    ) -> Bool {
-        // AtomicMigration.kt carries compatibility aliases as bundled Kotlin
-        // extension functions in kotlin.concurrent, but current member-call
-        // resolution still needs the receiver-owned synthetic bridge when users
-        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference/
-        // AtomicBoolean directly. Retain these runtime-backed aliases until the
-        // bundled source path is visible to ordinary member-call lookup.
-        switch ownerFQName {
-        case ["kotlin", "concurrent", "atomics", "AtomicInt"],
-             ["kotlin", "concurrent", "AtomicInt"],
-             ["kotlin", "concurrent", "atomics", "AtomicLong"],
-             ["kotlin", "concurrent", "AtomicLong"]:
-            switch interner.resolve(key.name) {
-            // KSP-671: fetchAndIncrement/fetchAndDecrement join get/incrementAndGet/
-            // decrementAndGet as arity-0 bundled delegations whose bridge is
-            // retained (also shared with java.util.concurrent.atomic.AtomicInteger).
-            case "get", "incrementAndGet", "decrementAndGet",
-                 "fetchAndIncrement", "fetchAndDecrement":
-                return key.arity == 0
-            // KSP-671: fetchAndAdd joins set/getAndSet/addAndGet as arity-1.
-            case "set", "getAndSet", "addAndGet", "fetchAndAdd":
-                return key.arity == 1
-            // KSP-671: compareAndSet delegates to the retained compareAndExchange
-            // CAS-instruction bridge.
-            case "compareAndSet":
-                return key.arity == 2
-            default:
-                return false
-            }
-        case ["kotlin", "concurrent", "atomics", "AtomicReference"],
-             ["kotlin", "concurrent", "AtomicReference"],
-             ["kotlin", "concurrent", "atomics", "AtomicBoolean"],
-             ["kotlin", "concurrent", "AtomicBoolean"]:
-            switch interner.resolve(key.name) {
-            case "get":
-                return key.arity == 0
-            case "set", "getAndSet":
-                return key.arity == 1
-            default:
-                return false
-            }
-        default:
-            return false
-        }
-    }
-
     private static func isRuntimeBackedListSyntheticRetainedOverlap(
         _ key: BundledMemberKey,
         interner: StringInterner
@@ -305,8 +265,8 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // List.filter / aggregate HOFs are bundled as Kotlin source, but those
-        // implementations are only valid for concrete List receivers. Keep the
+        // List.filter / aggregate HOFs / joinToString are bundled as Kotlin source, but
+        // those implementations are only valid for concrete List receivers. Keep the
         // runtime bridge for nominal Iterable<T> receivers until Iterable has
         // its own Kotlin source (KSP-435).
         switch interner.resolve(key.name) {
@@ -314,6 +274,12 @@ struct BundledDeclarationIndex: Sendable {
              "reduce", "reduceIndexed",
              "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
             return key.arity == 1
+        case "joinToString":
+            // List.joinToString is source-backed, but non-List Iterable receivers
+            // still need the runtime bridge. The bundled index aliases the List
+            // source key to Iterable, so treat this as an intentional retained
+            // overlap keyed only by arity (signatures differ by receiver type).
+            return key.arity == 3
         default:
             return false
         }
@@ -323,37 +289,24 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // Sequence aggregate HOFs are bundled as migration targets, but call sites
-        // still route through kk_sequence_* ABI stubs until RF-STDLIB wiring
-        // removes the compatibility bridge.
+        // KSP-441〜447: Sequence/Iterator パイプラインを Kotlin source 化するため、
+        // Sequence 上の合成スタブは source 実装に委譲する。合成外部リンクは残留しない。
+        return false
+    }
+
+    private static func isRuntimeBackedComparisonsSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // Bundled Comparators.kt provides compareBy(selector) and
+        // compareBy(comparator, selector), while the synthetic multi-selector
+        // overloads (2/3 selectors and vararg) remain runtime-backed bridges.
+        // The bundled index only tracks arity, so the multi-selector and vararg
+        // overloads collide with the source arities; mark them as intentional
+        // retained overloads.
         switch interner.resolve(key.name) {
-        case "map", "mapIndexed", "mapNotNull", "mapIndexedNotNull",
-             "filter", "filterNot", "filterIndexed",
-             "flatMap", "flatMapIndexed",
-             "onEach", "onEachIndexed":
-            return key.arity == 1
-        case "fold", "scan":
-            return key.arity == 2
-        case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
-            return key.arity == 1
-        case "filterNotNull", "filterIsInstance", "requireNoNulls", "withIndex":
-            return key.arity == 0
-        case "associate", "associateBy", "associateWith",
-             "groupBy":
-            // MIGRATION-SEQ-004: Sequence aggregate HOFs are partially migrated to
-            // Kotlin source, but the runtime-backed ABI stubs are still the
-            // member-call resolution path. Retain them until source-backed
-            // lowering takes over.
-            return key.arity == 1
-        case "toList", "toSet", "toMutableList":
-            // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
-            // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
-            // dispatches Sequence.toList/toSet/toMutableList to the kk_sequence_*
-            // ABI stubs (see CollectionLiteralLoweringPass+CallRewriteSequenceTerminals
-            // and CallLowerer+ReceiverTypePredicates.toMutableListRuntimeCalleeFor...).
-            // Retain the synthetic stub's externalLinkName so Sema-level symbol
-            // lookups stay consistent with that lowering path.
-            return key.arity == 0
+        case "compareBy":
+            return key.arity == 1 || key.arity == 2 || key.arity == 3
         default:
             return false
         }

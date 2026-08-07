@@ -104,6 +104,14 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
 
+            if matches(.symbol(.plusPlus)) || matches(.symbol(.minusMinus)) {
+                guard let mutation = tryParseIncrementDecrement(operand: expr) else {
+                    break
+                }
+                expr = mutation
+                continue
+            }
+
             if matches(.symbol(.bangBang)) {
                 guard let bangBang = consume() else { break }
                 let range = mergeRanges(astArena.exprRange(expr), bangBang.range, fallback: bangBang.range)

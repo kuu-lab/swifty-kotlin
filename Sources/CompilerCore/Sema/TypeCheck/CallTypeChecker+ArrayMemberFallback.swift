@@ -90,37 +90,54 @@ extension CallTypeChecker {
             "map", "filter", "forEach", "any", "all", "none",
             "find", "findLast",
             "fold", "foldIndexed",
-            "reduce", "reduceOrNull",
+            "reduce", "reduceOrNull", "reduceIndexed",
             "count",
             "copyOf", "copyOfRange", "fill",
             "size", "get", "contains", "isEmpty",
             "concatToString",
+            // Array HOF members that already work identically on List but were
+            // missing from this Sema-level allowlist, so they were rejected as
+            // "Unresolved member function" before ever reaching the KIR/runtime
+            // dispatch that (partially) already existed for them. See
+            // CollectionLiteralLoweringPass+VirtualCallRewrite+Array.swift,
+            // CallLowerer+UnresolvedMemberCalls.swift, and
+            // RuntimeCollectionHOFArray.swift for the matching KIR/runtime
+            // wiring. KSP-433 (TODO.md) tracks eventually migrating all Array
+            // HOF members (this set included) to bundled Kotlin source, as was
+            // already done for List; until then this ad hoc fallback is the
+            // established mechanism for Array member resolution.
+            "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "filterNotNull",
+            "first", "firstOrNull", "last", "lastOrNull",
         ]
         return arrayMembers.contains(memberName)
     }
 
     private func isValidArrayMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "toList", "toMutableList", "size", "isEmpty", "concatToString":
+        case "toList", "toMutableList", "size", "isEmpty", "concatToString", "filterNotNull":
             argCount == 0
         case "copyOf":
             (0...2).contains(argCount)
-        case "map", "filter", "forEach", "any", "all", "none", "fill", "get", "contains",
-             "find", "findLast", "reduce", "reduceOrNull":
+        case "map", "filter", "forEach", "all", "fill", "get", "contains",
+             "find", "findLast", "reduce", "reduceOrNull",
+             "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "reduceIndexed":
             argCount == 1
         case "fold", "foldIndexed":
             argCount == 2
-        case "count":
+        case "count", "any", "none":
             (0...1).contains(argCount)
         case "copyOfRange":
             argCount == 2
+        case "first", "firstOrNull", "last", "lastOrNull":
+            (0...1).contains(argCount)
         default:
             true
         }
     }
 
     private func isArrayMemberReturningCollection(_ memberName: String) -> Bool {
-        ["toList", "toMutableList", "map", "filter", "copyOf", "copyOfRange"].contains(memberName)
+        ["toList", "toMutableList", "map", "filter", "copyOf", "copyOfRange",
+         "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "filterNotNull"].contains(memberName)
     }
 
     private func arrayMemberResultType(
@@ -141,7 +158,11 @@ extension CallTypeChecker {
             return sema.types.intType
         case "find", "findLast":
             return sema.types.makeNullable(elementType)
-        case "reduce":
+        case "firstOrNull", "lastOrNull":
+            return sema.types.makeNullable(elementType)
+        case "first", "last":
+            return elementType
+        case "reduce", "reduceIndexed":
             return elementType
         case "reduceOrNull":
             return sema.types.makeNullable(elementType)
@@ -185,8 +206,14 @@ extension CallTypeChecker {
         receiverElementType: TypeID,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
-        let boolPredicateMembers: Set = ["filter", "any", "all", "none", "find", "findLast", "count"]
-        let oneParamMembers: Set = ["map", "filter", "forEach", "any", "all", "none", "find", "findLast", "count"]
+        let boolPredicateMembers: Set = [
+            "filter", "filterNot", "any", "all", "none", "find", "findLast", "count",
+            "first", "last", "firstOrNull", "lastOrNull",
+        ]
+        let oneParamMembers: Set = [
+            "map", "filter", "filterNot", "forEach", "any", "all", "none", "find", "findLast", "count",
+            "first", "last", "firstOrNull", "lastOrNull",
+        ]
         if memberName == "copyOf", argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType],
@@ -199,6 +226,15 @@ extension CallTypeChecker {
         if (memberName == "reduce" || memberName == "reduceOrNull"), argCount == 1 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [receiverElementType, receiverElementType],
+                returnType: receiverElementType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+        if memberName == "reduceIndexed", argCount == 1 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [sema.types.intType, receiverElementType, receiverElementType],
                 returnType: receiverElementType,
                 isSuspend: false,
                 nullability: .nonNull
@@ -222,6 +258,33 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             return (argumentIndex: 1, expectedType: expectedType)
+        }
+        if memberName == "mapIndexed", argCount == 1 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [sema.types.intType, receiverElementType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+        if memberName == "filterIndexed", argCount == 1 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [sema.types.intType, receiverElementType],
+                returnType: sema.types.booleanType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+        if memberName == "mapNotNull", argCount == 1 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: sema.types.makeNullable(sema.types.anyType),
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
         }
         guard oneParamMembers.contains(memberName), argCount == 1 else {
             return nil
@@ -267,8 +330,25 @@ extension CallTypeChecker {
             }
         }
 
-        // Primitive arrays have a fixed element type.
-        // Note: Byte/Short map to intType (same as builtinType resolution).
+        return primitiveArrayElementType(
+            className: symbol.name,
+            sema: sema,
+            interner: interner
+        ) ?? sema.types.anyType
+    }
+
+    /// Element type of a primitive array class (`IntArray`, `DoubleArray`, ...),
+    /// or `nil` when the class is not a primitive array.
+    ///
+    /// Primitive arrays carry no type argument, so their element type has to be
+    /// recovered from the class name.
+    /// Note: Byte/Short map to intType (same as builtinType resolution).
+    func primitiveArrayElementType(
+        className: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         let primitiveMapping: [(InternedString, TypeID)] = [
             (knownNames.intArray, sema.types.intType),
             (knownNames.longArray, sema.types.longType),
@@ -283,14 +363,7 @@ extension CallTypeChecker {
             (knownNames.booleanArray, sema.types.booleanType),
             (knownNames.charArray, sema.types.charType),
         ]
-        for (name, elementType) in primitiveMapping {
-            // swiftlint:disable:next for_where
-            if symbol.name == name {
-                return elementType
-            }
-        }
-
-        return sema.types.anyType
+        return primitiveMapping.first { $0.0 == className }?.1
     }
 
     // MARK: - KFunction member call fallback (STDLIB-REFLECT-063)

@@ -24,14 +24,19 @@ struct SequenceAssociateBySyntheticTests {
                 Comment(rawValue: "Expected Sequence.associateBy surface to resolve cleanly, got: \(diagnosticSummary)")
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "associateBy"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
+            let callExprID = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "associateBy"
+            }, "Expected associateBy member call")
+            let binding = try #require(sema.bindings.callBinding(for: callExprID))
+            let chosenCallee = try #require(binding.chosenCallee)
+            #expect(
+                sema.symbols.symbol(chosenCallee)?.declSite != nil,
+                "Expected Sequence.associateBy call to resolve to the source-backed extension"
             )
-            #expect(links.contains("kk_sequence_associateBy"))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 }

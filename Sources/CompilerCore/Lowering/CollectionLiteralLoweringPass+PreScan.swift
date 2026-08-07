@@ -198,10 +198,11 @@ extension CollectionLiteralLoweringSupport {
                     fileExprIDs: &fileExprIDs,
                     pathExprIDs: &pathExprIDs
                 )
-            case let .virtualCall(_, callee, receiver, _, result, _, _, _):
+            case let .virtualCall(symbol, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
-                    callee: callee, receiver: receiver, result: result,
-                    lookup: lookup, listExprIDs: &listExprIDs,
+                    symbol: symbol, callee: callee, receiver: receiver, result: result,
+                    lookup: lookup, sema: sema,
+                    listExprIDs: &listExprIDs,
                     mapExprIDs: &mapExprIDs,
                     sequenceExprIDs: &sequenceExprIDs,
                     rangeExprIDs: &rangeExprIDs,
@@ -282,16 +283,22 @@ extension CollectionLiteralLoweringSupport {
                 ulongRangeExprIDs.insert(result.rawValue)
             }
         }
-        // Classify sequence factory calls (STDLIB-097, STDLIB-317)
-        if let result,
-           callee == lookup.sequenceOfName || callee == lookup.generateSequenceName
-            || callee == lookup.kkStringAsSequenceName
-        {
-            sequenceExprIDs.insert(result.rawValue)
-        }
+        // KSP-441〜447: Sequence ファクトリは source 化済み。runtime sequence handle として追跡しない。
+        // if let result,
+        //    callee == lookup.sequenceOfName || callee == lookup.generateSequenceName
+        //     || callee == lookup.kkStringAsSequenceName
+        // {
+        //     sequenceExprIDs.insert(result.rawValue)
+        // }
         // STDLIB-189: Classify string-producing calls
         if let result, lookup.stringProducingCallees.contains(callee) {
             stringExprIDs.insert(result.rawValue)
+        }
+        // KSP-441: Sequence factories whose source body is just a bridge to a
+        // runtime __kk_* / kk_* entry return a RuntimeSequenceBox handle.  Track
+        // those results so source Sequence HOFs route to the runtime helpers.
+        if let result, lookup.sequenceRuntimeBridgeReturningNames.contains(callee) {
+            sequenceExprIDs.insert(result.rawValue)
         }
         propagateCollectionOperation(
             callee: callee, arguments: arguments, result: result, lookup: lookup,
@@ -363,38 +370,9 @@ extension CollectionLiteralLoweringSupport {
     ) {
         guard let result, !arguments.isEmpty else { return }
         let src = arguments[0].rawValue
-        if callee == lookup.asSequenceName
-            || callee == lookup.kkListAsSequenceName
-            || callee == lookup.kkArrayAsSequenceName
-            || callee == lookup.kkStringAsSequenceName
-        {
-            sequenceExprIDs.insert(result.rawValue)
-        } else if callee == lookup.toListName, sequenceExprIDs.contains(src) {
-            listExprIDs.insert(result.rawValue)
-        } else if callee == lookup.toMapName, sequenceExprIDs.contains(src) {
-            mapExprIDs.insert(result.rawValue)
-        } else if callee == lookup.groupByName, sequenceExprIDs.contains(src) {
-            mapExprIDs.insert(result.rawValue)
-        } else if callee == lookup.flattenName, sequenceExprIDs.contains(src) {
-            sequenceExprIDs.insert(result.rawValue)
-        } else if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.takeName
-            || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.dropName
-            || callee == lookup.distinctName || callee == lookup.zipName,
-            sequenceExprIDs.contains(src)
-        {
-            sequenceExprIDs.insert(result.rawValue)
-        } else if callee == lookup.kkSequenceMapName || callee == lookup.kkSequenceFilterName
-            || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceFlatMapName
-            || callee == lookup.kkSequenceFlatMapIndexedName
-            || callee == lookup.kkSequenceDropName || callee == lookup.kkSequenceDistinctName
-            || callee == lookup.kkSequenceZipName
-            || callee == lookup.kkSequenceShuffledName || callee == lookup.kkSequenceShuffledRandomName
-        {
-            // The KIR builder's sequence HOF handler may emit kk_sequence_*
-            // directly.  Track these results as sequence expressions so that
-            // downstream toList/filter rewrites fire correctly.
-            sequenceExprIDs.insert(result.rawValue)
-        } else if callee == lookup.kkArrayMapName || callee == lookup.kkArrayFilterName {
+        // KSP-441〜447: Sequence パイプラインは source 化済み。runtime sequence handle の追跡は不要。
+        _ = sequenceExprIDs
+        if callee == lookup.kkArrayMapName || callee == lookup.kkArrayFilterName {
             // The KIR builder resolves array HOF calls (map/filter) to kk_array_*
             // directly when the receiver type is statically known.  Track their
             // results as list expressions so that downstream size/isEmpty/forEach
@@ -443,10 +421,12 @@ extension CollectionLiteralLoweringSupport {
     }
 
     private func handleVirtualCallInstruction(
+        symbol: SymbolID?,
         callee: InternedString,
         receiver: KIRExprID,
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
+        sema: SemaModule?,
         listExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
@@ -458,7 +438,15 @@ extension CollectionLiteralLoweringSupport {
         if callee == lookup.asSequenceName
             || callee == lookup.kkStringAsSequenceName
         {
-            if let result { sequenceExprIDs.insert(result.rawValue) }
+            if let result {
+                let isSourceBacked = {
+                    guard let sema, let symbol, sema.symbols.symbol(symbol) != nil else { return false }
+                    return sema.symbols.isSourceBackedSymbol(symbol)
+                }()
+                if !isSourceBacked {
+                    sequenceExprIDs.insert(result.rawValue)
+                }
+            }
             return
         }
         if callee == lookup.kkStringSplitName

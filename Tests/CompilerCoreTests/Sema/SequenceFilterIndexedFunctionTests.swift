@@ -2,8 +2,7 @@
 import Testing
 
 /// STDLIB-SEQ-FN-024: Validates that `kotlin.sequences.Sequence<T>.filterIndexed`
-/// resolves through Sema and is wired to the runtime bridge.
-/// Runtime link name: `kk_sequence_filterIndexed`.
+/// resolves through the source-backed Sequence transform HOF implementation.
 @Suite
 struct SequenceFilterIndexedFunctionTests {
     @Test func testSequenceFilterIndexedFunctionResolvesInSource() throws {
@@ -23,16 +22,18 @@ struct SequenceFilterIndexedFunctionTests {
             Comment(rawValue: "Expected Sequence.filterIndexed to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
         )
 
+        let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let memberFQName = ["kotlin", "sequences", "Sequence", "filterIndexed"]
-            .map { ctx.interner.intern($0) }
-        let links = Set(
-            sema.symbols.lookupAll(fqName: memberFQName)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
+        let callExprID = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "filterIndexed"
+        }, "Expected filterIndexed member call")
+        let binding = try #require(sema.bindings.callBinding(for: callExprID))
+        let chosenCallee = binding.chosenCallee
         #expect(
-            links.contains("kk_sequence_filterIndexed"),
-            Comment(rawValue: "Expected Sequence.filterIndexed to link to kk_sequence_filterIndexed, got: \(links)")
+            sema.symbols.symbol(chosenCallee)?.declSite != nil,
+            "Expected Sequence.filterIndexed call to resolve to the source-backed extension"
         )
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
     }
 }

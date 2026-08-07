@@ -161,7 +161,7 @@ public inline fun <T, R> List<T>.scanIndexed(initial: R, operation: (Int, R, T) 
 }
 
 public inline fun <T, R> List<T>.scanReduce(operation: (T, T) -> T): List<T> {
-    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    if (size == 0) return emptyList()
     val result = mutableListOf<T>()
     var accumulator = this[0]
     result.add(accumulator)
@@ -201,7 +201,7 @@ public inline fun <T, R> List<T>.runningFoldIndexed(initial: R, operation: (Int,
 }
 
 public inline fun <T> List<T>.runningReduce(operation: (T, T) -> T): List<T> {
-    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    if (size == 0) return emptyList()
     val result = mutableListOf<T>()
     var accumulator = this[0]
     result.add(accumulator)
@@ -215,7 +215,7 @@ public inline fun <T> List<T>.runningReduce(operation: (T, T) -> T): List<T> {
 }
 
 public inline fun <T> List<T>.runningReduceIndexed(operation: (Int, T, T) -> T): List<T> {
-    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    if (size == 0) return emptyList()
     val result = mutableListOf<T>()
     var accumulator = this[0]
     result.add(accumulator)

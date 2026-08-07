@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
-import XCTest
+import Testing
 
 func assertHasDiagnostic(
     _ code: String,
@@ -9,7 +10,7 @@ func assertHasDiagnostic(
     line: UInt = #line
 ) {
     let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
-    XCTAssertTrue(found, "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))", file: file, line: line)
+    #expect(found, "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
 
 func assertNoDiagnostic(
@@ -19,5 +20,6 @@ func assertNoDiagnostic(
     line: UInt = #line
 ) {
     let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
-    XCTAssertFalse(found, "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))", file: file, line: line)
+    #expect(!found, "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
+#endif

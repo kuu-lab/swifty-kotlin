@@ -7,7 +7,12 @@ import Foundation
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     // Match the flat String aggregate length field used by String.length lowering.
-    runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
+    // The receiver may be any CharSequence implementation, so StringBuilder
+    // handles are accepted in addition to String handles.
+    if let text = runtimeCharSequenceText(from: raw) {
+        return text.utf8.count
+    }
+    return runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
 }
 
 // MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
@@ -151,6 +156,31 @@ public func kk_string_ifEmpty_flat(
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
+    guard indexRaw >= 0, indexRaw < scalars.count else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(scalars.count)")
+        )
+        return 0
+    }
+    return Int(scalars[indexRaw].value)
+}
+
+@_cdecl("kk_char_sequence_get")
+public func kk_char_sequence_get(
+    _ sequenceRaw: Int,
+    _ indexRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let text = runtimeCharSequenceText(from: sequenceRaw) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
+        )
+        return 0
+    }
+    let scalars = Array(text.unicodeScalars)
     guard indexRaw >= 0, indexRaw < scalars.count else {
         runtimeSetThrown(
             outThrown,

@@ -6,19 +6,22 @@ public struct ASTArenaSnapshot: Codable {
     public let typeRefs: [TypeRef]
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
+    public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
 
     public init(
         declarations: [Decl],
         expressions: [Expr],
         typeRefs: [TypeRef],
         loopLabels: [ExprID: InternedString],
-        whenSubjectVarNames: [ExprID: InternedString]
+        whenSubjectVarNames: [ExprID: InternedString],
+        lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
     ) {
         self.declarations = declarations
         self.expressions = expressions
         self.typeRefs = typeRefs
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
+        self.lambdaParamTypeRefs = lambdaParamTypeRefs
     }
 }
 
@@ -31,6 +34,9 @@ public final class ASTArena: @unchecked Sendable {
     private var _loopLabels: [ExprID: InternedString] = [:]
     /// Maps whenExpr IDs to their subject variable name for `when (val x = expr)` syntax.
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
+    /// Maps lambdaLiteral expression IDs to their explicit parameter type
+    /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
+    private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
 
     public var decls: [Decl] {
         lock.lock()
@@ -52,6 +58,7 @@ public final class ASTArena: @unchecked Sendable {
         _typeRefs = snapshot.typeRefs
         _loopLabels = snapshot.loopLabels
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
+        _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -62,7 +69,8 @@ public final class ASTArena: @unchecked Sendable {
             expressions: _exprs,
             typeRefs: _typeRefs,
             loopLabels: _loopLabels,
-            whenSubjectVarNames: _whenSubjectVarNames
+            whenSubjectVarNames: _whenSubjectVarNames,
+            lambdaParamTypeRefs: _lambdaParamTypeRefs
         )
     }
 
@@ -192,6 +200,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _whenSubjectVarNames[exprID]
+    }
+
+    public func setLambdaParamTypeRefs(_ typeRefs: [TypeRefID?], for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _lambdaParamTypeRefs[exprID] = typeRefs
+    }
+
+    public func lambdaParamTypeRefs(for exprID: ExprID) -> [TypeRefID?]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _lambdaParamTypeRefs[exprID]
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {

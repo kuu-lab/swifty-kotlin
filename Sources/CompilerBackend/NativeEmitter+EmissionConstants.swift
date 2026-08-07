@@ -730,7 +730,10 @@ extension NativeEmitter {
                let typeSystem,
                case .stringStruct = typeSystem.kind(of: expectedType)
             {
-                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
+                // BUG-168: `length` is the Unicode scalar count (matching the scalar-indexed
+                // space `indexOf`/`substring`/etc. use), not the UTF-8 byte count — those only
+                // coincide for ASCII text. `byteCount` is genuinely the UTF-8 byte count.
+                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.unicodeScalars.count)) ?? state.zeroValue
                 let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
                 let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
                 return buildStringAggregate(
@@ -804,6 +807,27 @@ extension NativeEmitter {
                     pointer: globalPtr,
                     name: "global_load_\(symbol.rawValue)"
                 ) ?? state.zeroValue
+            }
+            // Imported library artifact functions are not internal to the current module,
+            // but they may be referenced as function pointers (e.g. for vtable/itable
+            // registration). Resolve them by their external link name.
+            if let symbols = self.symbols,
+               let signature = symbols.functionSignature(for: symbol),
+               let linkName = symbols.externalLinkName(for: symbol),
+               !linkName.isEmpty,
+               let externFn = declareExternalFunction(
+                   linkName,
+                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
+                   true
+               ),
+               let functionPointer = bindings.buildPtrToInt(
+                   state.builder,
+                   value: externFn.value,
+                   type: state.int64Type,
+                   name: "extern_fn_ptr_\(symbol.rawValue)"
+               )
+            {
+                return functionPointer
             }
             return state.zeroValue
         case let .temporary(raw):

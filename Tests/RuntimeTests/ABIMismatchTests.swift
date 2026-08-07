@@ -1,212 +1,244 @@
 import RuntimeABI
-import XCTest
+import Testing
 
-final class ABIMismatchTests: XCTestCase {
+@Suite
+struct ABIMismatchTests {
     // MARK: - Helpers
 
-    private func requireSpec(_ name: String, file: StaticString = #filePath, line: UInt = #line) throws -> RuntimeABIFunctionSpec {
-        let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == name })
-        return try XCTUnwrap(spec, "'\(name)' not found in RuntimeABISpec.allFunctions", file: file, line: line)
+    private struct MissingSpecError: Error, CustomStringConvertible {
+        let name: String
+
+        var description: String {
+            "'\(name)' not found in RuntimeABISpec.allFunctions"
+        }
+    }
+
+    private func requireSpec(_ name: String) throws -> RuntimeABIFunctionSpec {
+        guard let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == name }) else {
+            throw MissingSpecError(name: name)
+        }
+        return spec
     }
 
     // MARK: - Spec Integrity
 
-    func testAllParameterNamesAreNonEmpty() {
+    @Test
+    func allParameterNamesAreNonEmpty() {
         for spec in RuntimeABISpec.allFunctions {
             for param in spec.parameters {
-                XCTAssertFalse(
-                    param.name.isEmpty,
+                #expect(
+                    !(param.name.isEmpty),
                     "Parameter in '\(spec.name)' has an empty name"
                 )
             }
         }
     }
 
-    func testParameterNamesUniquePerFunction() {
+    @Test
+    func parameterNamesUniquePerFunction() {
         for spec in RuntimeABISpec.allFunctions {
             let names = spec.parameters.map { $0.name }
             let uniqueNames = Set(names)
-            XCTAssertEqual(
-                names.count,
-                uniqueNames.count,
+            #expect(
+                names.count == uniqueNames.count,
                 "Duplicate parameter names in '\(spec.name)'"
             )
         }
     }
 
-    func testFloorDivABISignatures() throws {
+    @Test
+    func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .intptr)
-            XCTAssertEqual(spec.parameters.map(\.type), [.intptr, .intptr])
-            XCTAssertEqual(spec.parameters.map { $0.name }, ["lhs", "rhs"])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == [.intptr, .intptr])
+            #expect(spec.parameters.map(\.name) == ["lhs", "rhs"])
         }
     }
 
     // MARK: - J16.1 Signature Verification (spec-fixed)
 
-    func testKKAllocSignature() throws {
+    @Test
+    func kkAllocSignature() throws {
         let spec = try requireSpec("kk_alloc")
-        XCTAssertEqual(spec.returnType, .opaquePointer)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].name, "size")
-        XCTAssertEqual(spec.parameters[0].type, .uint32)
-        XCTAssertEqual(spec.parameters[1].name, "typeInfo")
-        XCTAssertEqual(spec.parameters[1].type, .constTypeInfoPointer,
-                       "kk_alloc typeInfo must be const KTypeInfo * per J16.1")
+        #expect(spec.returnType == .opaquePointer)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].name == "size")
+        #expect(spec.parameters[0].type == .uint32)
+        #expect(spec.parameters[1].name == "typeInfo")
+        #expect(
+            spec.parameters[1].type == .constTypeInfoPointer,
+            "kk_alloc typeInfo must be const KTypeInfo * per J16.1"
+        )
     }
 
-    func testKKGcCollectSignature() throws {
+    @Test
+    func kkGcCollectSignature() throws {
         let spec = try requireSpec("kk_gc_collect")
-        XCTAssertEqual(spec.returnType, .void)
-        XCTAssertEqual(spec.parameters.count, 0)
+        #expect(spec.returnType == .void)
+        #expect(spec.parameters.count == 0)
     }
 
-    func testKKThreadLocalNewSignature() throws {
+    @Test
+    func kkThreadLocalNewSignature() throws {
         let spec = try requireSpec("kk_thread_local_new")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 0)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 0)
     }
 
-    func testKKThreadLocalGetOrSetSignature() throws {
+    @Test
+    func kkThreadLocalGetOrSetSignature() throws {
         let spec = try requireSpec("kk_thread_local_getOrSet")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "receiver")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "receiver")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKThreadCreateSignature() throws {
+    @Test
+    func kkThreadCreateSignature() throws {
         let spec = try requireSpec("kk_thread_create")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 7)
-        XCTAssertEqual(spec.parameters[0].name, "start")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "isDaemon")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "contextClassLoaderRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "nameRaw")
-        XCTAssertEqual(spec.parameters[3].type, .intptr)
-        XCTAssertEqual(spec.parameters[4].name, "priority")
-        XCTAssertEqual(spec.parameters[4].type, .intptr)
-        XCTAssertEqual(spec.parameters[5].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[5].type, .intptr)
-        XCTAssertEqual(spec.parameters[6].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[6].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 7)
+        #expect(spec.parameters[0].name == "start")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "isDaemon")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "contextClassLoaderRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "nameRaw")
+        #expect(spec.parameters[3].type == .intptr)
+        #expect(spec.parameters[4].name == "priority")
+        #expect(spec.parameters[4].type == .intptr)
+        #expect(spec.parameters[5].name == "fnPtr")
+        #expect(spec.parameters[5].type == .intptr)
+        #expect(spec.parameters[6].name == "closureRaw")
+        #expect(spec.parameters[6].type == .intptr)
     }
 
-    func testKKThrowableNewSignature() throws {
+    @Test
+    func kkThrowableNewSignature() throws {
         let spec = try requireSpec("__kk_throwable_new")
-        XCTAssertEqual(spec.returnType, .opaquePointer)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .nullableOpaquePointer)
+        #expect(spec.returnType == .opaquePointer)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .nullableOpaquePointer)
     }
 
-    func testKKFloorModSignatures() throws {
+    @Test
+    func kkFloorModSignatures() throws {
         for name in ["kk_op_floor_mod", "kk_op_lfloor_mod"] {
             let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .intptr)
-            XCTAssertEqual(spec.parameters.map(\.type), [.intptr, .intptr])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == [.intptr, .intptr])
         }
     }
 
-    func testKKThrowablePrintStackTraceSignature() throws {
+    @Test
+    func kkThrowablePrintStackTraceSignature() throws {
         let spec = try requireSpec("kk_throwable_printStackTrace")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKNoWhenBranchMatchedExceptionConstructorsSignature() throws {
+    @Test
+    func kkNoWhenBranchMatchedExceptionConstructorsSignature() throws {
         let noArg = try requireSpec("kk_no_when_branch_matched_exception_new")
-        XCTAssertEqual(noArg.returnType, .intptr)
-        XCTAssertEqual(noArg.parameters.count, 0)
+        #expect(noArg.returnType == .intptr)
+        #expect(noArg.parameters.count == 0)
 
         let message = try requireSpec("kk_no_when_branch_matched_exception_new_message")
-        XCTAssertEqual(message.returnType, .intptr)
-        XCTAssertEqual(message.parameters.map(\.type), [.intptr])
+        #expect(message.returnType == .intptr)
+        #expect(message.parameters.map(\.type) == [.intptr])
 
         let messageCause = try requireSpec("kk_no_when_branch_matched_exception_new_message_cause")
-        XCTAssertEqual(messageCause.returnType, .intptr)
-        XCTAssertEqual(messageCause.parameters.map(\.type), [.intptr, .intptr])
+        #expect(messageCause.returnType == .intptr)
+        #expect(messageCause.parameters.map(\.type) == [.intptr, .intptr])
 
         let cause = try requireSpec("kk_no_when_branch_matched_exception_new_cause")
-        XCTAssertEqual(cause.returnType, .intptr)
-        XCTAssertEqual(cause.parameters.map(\.type), [.intptr])
+        #expect(cause.returnType == .intptr)
+        #expect(cause.parameters.map(\.type) == [.intptr])
     }
 
-    func testKKConcurrentModificationExceptionConstructorsSignature() throws {
+    @Test
+    func kkConcurrentModificationExceptionConstructorsSignature() throws {
         let noArg = try requireSpec("kk_concurrent_modification_exception_new")
-        XCTAssertEqual(noArg.returnType, .intptr)
-        XCTAssertEqual(noArg.parameters.count, 0)
+        #expect(noArg.returnType == .intptr)
+        #expect(noArg.parameters.count == 0)
 
         let message = try requireSpec("kk_concurrent_modification_exception_new_message")
-        XCTAssertEqual(message.returnType, .intptr)
-        XCTAssertEqual(message.parameters.map(\.type), [.intptr])
+        #expect(message.returnType == .intptr)
+        #expect(message.parameters.map(\.type) == [.intptr])
 
         let messageCause = try requireSpec("kk_concurrent_modification_exception_new_message_cause")
-        XCTAssertEqual(messageCause.returnType, .intptr)
-        XCTAssertEqual(messageCause.parameters.map(\.type), [.intptr, .intptr])
+        #expect(messageCause.returnType == .intptr)
+        #expect(messageCause.parameters.map(\.type) == [.intptr, .intptr])
 
         let cause = try requireSpec("kk_concurrent_modification_exception_new_cause")
-        XCTAssertEqual(cause.returnType, .intptr)
-        XCTAssertEqual(cause.parameters.map(\.type), [.intptr])
+        #expect(cause.returnType == .intptr)
+        #expect(cause.parameters.map(\.type) == [.intptr])
     }
 
-    func testKKArrayIndexOutOfBoundsExceptionConstructorsSignature() throws {
+    @Test
+    func kkArrayIndexOutOfBoundsExceptionConstructorsSignature() throws {
         let noArg = try requireSpec("kk_array_index_out_of_bounds_exception_new")
-        XCTAssertEqual(noArg.returnType, .intptr)
-        XCTAssertEqual(noArg.parameters.count, 0)
+        #expect(noArg.returnType == .intptr)
+        #expect(noArg.parameters.count == 0)
 
         let message = try requireSpec("kk_array_index_out_of_bounds_exception_new_message")
-        XCTAssertEqual(message.returnType, .intptr)
-        XCTAssertEqual(message.parameters.map(\.type), [.intptr])
+        #expect(message.returnType == .intptr)
+        #expect(message.parameters.map(\.type) == [.intptr])
     }
 
-    func testKKThrowableIsCancellationSignature() throws {
+    @Test
+    func kkThrowableIsCancellationSignature() throws {
         let spec = try requireSpec("kk_throwable_is_cancellation")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKThrowableSuppressedExceptionsSignature() throws {
+    @Test
+    func kkThrowableSuppressedExceptionsSignature() throws {
         let spec = try requireSpec("kk_throwable_suppressedExceptions")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKStringFromUTF8Signature() throws {
+    @Test
+    func kkStringFromUTF8Signature() throws {
         let spec = try requireSpec("kk_string_from_utf8")
-        XCTAssertEqual(spec.returnType, .opaquePointer)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .constUInt8Pointer)
-        XCTAssertEqual(spec.parameters[1].type, .int32)
+        #expect(spec.returnType == .opaquePointer)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].type == .constUInt8Pointer)
+        #expect(spec.parameters[1].type == .int32)
     }
 
-    func testKKStringConcatPointerABIRemoved() {
-        XCTAssertFalse(
-            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_concat" },
+    @Test
+    func kkStringConcatPointerABIRemoved() {
+        #expect(
+            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_concat" }),
             "String concat should use kk_string_concat_flat instead of the legacy pointer ABI"
         )
     }
 
-    func testKKStringRepeatPointerABIRemoved() {
-        XCTAssertFalse(
-            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_repeat" },
+    @Test
+    func kkStringRepeatPointerABIRemoved() {
+        #expect(
+            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_repeat" }),
             "String repeat should use kk_string_repeat_flat instead of the legacy pointer ABI"
         )
     }
 
-    func testKKStringSubstringAndReplaceSegmentPointerABIRemoved() {
+    @Test
+    func kkStringSubstringAndReplaceSegmentPointerABIRemoved() {
         let legacyNames = [
             "kk_string_substringBefore",
             "kk_string_substringBefore_char",
@@ -226,18 +258,51 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_replaceBeforeLast_char",
         ]
         for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                "\(legacyName) should be removed in favor of bundled Kotlin source (StringSearchReplace.kt)"
             )
         }
     }
 
-    func testKKStringConcatFlatSignature() throws {
+    // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+    // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
+    // (StringSearchReplace.kt); neither the raw pointer nor the flattened
+    // runtime ABI remains.
+    @Test
+    func kkStringSubstringAndReplaceSegmentFlatABIRemoved() {
+        let removedNames = [
+            "kk_string_substringBefore_flat",
+            "kk_string_substringBefore_char_flat",
+            "kk_string_substringBeforeLast_flat",
+            "kk_string_substringBeforeLast_char_flat",
+            "kk_string_substringAfter_flat",
+            "kk_string_substringAfter_char_flat",
+            "kk_string_substringAfterLast_flat",
+            "kk_string_substringAfterLast_char_flat",
+            "kk_string_replaceAfter_flat",
+            "kk_string_replaceAfter_char_flat",
+            "kk_string_replaceAfterLast_flat",
+            "kk_string_replaceAfterLast_char_flat",
+            "kk_string_replaceBefore_flat",
+            "kk_string_replaceBefore_char_flat",
+            "kk_string_replaceBeforeLast_flat",
+            "kk_string_replaceBeforeLast_char_flat",
+        ]
+        for removedName in removedNames {
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
+                "\(removedName) should be removed in favor of bundled Kotlin source (StringSearchReplace.kt)"
+            )
+        }
+    }
+
+    @Test
+    func kkStringConcatFlatSignature() throws {
         let spec = try requireSpec("kk_string_concat_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 11)
-        XCTAssertEqual(spec.parameters.map(\.type), [
+        #expect(spec.returnType == .nullableUInt8Pointer)
+        #expect(spec.parameters.count == 11)
+        #expect(spec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -252,7 +317,8 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplacePointerABIRemoved() {
+    @Test
+    func kkStringReplacePointerABIRemoved() {
         let legacyNames = [
             "kk_string_replace",
             "kk_string_replace_char",
@@ -260,8 +326,8 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_replace_char_ignoreCase",
         ]
         for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
@@ -270,7 +336,8 @@ final class ABIMismatchTests: XCTestCase {
     // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
     // bundled Kotlin source (StringPrefixSuffix.kt); neither the raw pointer nor
     // the flattened runtime ABI remains.
-    func testKKStringPrefixSuffixABIRemoved() {
+    @Test
+    func kkStringPrefixSuffixABIRemoved() {
         let removedNames = [
             "kk_string_startsWith",
             "kk_string_startsWith_flat",
@@ -286,18 +353,19 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_removeSurrounding_pair_flat",
         ]
         for removedName in removedNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == removedName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
                 "\(removedName) should be removed in favor of bundled Kotlin source (StringPrefixSuffix.kt)"
             )
         }
     }
 
-    func testKKStringReplaceFlatSignature() throws {
+    @Test
+    func kkStringReplaceFlatSignature() throws {
         let spec = try requireSpec("kk_string_replace_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 15)
-        XCTAssertEqual(spec.parameters.map(\.type), [
+        #expect(spec.returnType == .nullableUInt8Pointer)
+        #expect(spec.parameters.count == 15)
+        #expect(spec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -316,11 +384,12 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplaceCharFlatSignature() throws {
+    @Test
+    func kkStringReplaceCharFlatSignature() throws {
         let spec = try requireSpec("kk_string_replace_char_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 9)
-        XCTAssertEqual(spec.parameters.map(\.type), [
+        #expect(spec.returnType == .nullableUInt8Pointer)
+        #expect(spec.parameters.count == 9)
+        #expect(spec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -333,11 +402,12 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplaceIgnoreCaseFlatSignature() throws {
+    @Test
+    func kkStringReplaceIgnoreCaseFlatSignature() throws {
         let spec = try requireSpec("kk_string_replace_ignoreCase_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 16)
-        XCTAssertEqual(spec.parameters.map(\.type), [
+        #expect(spec.returnType == .nullableUInt8Pointer)
+        #expect(spec.parameters.count == 16)
+        #expect(spec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -357,11 +427,12 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplaceCharIgnoreCaseFlatSignature() throws {
+    @Test
+    func kkStringReplaceCharIgnoreCaseFlatSignature() throws {
         let spec = try requireSpec("kk_string_replace_char_ignoreCase_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 10)
-        XCTAssertEqual(spec.parameters.map(\.type), [
+        #expect(spec.returnType == .nullableUInt8Pointer)
+        #expect(spec.parameters.count == 10)
+        #expect(spec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -375,7 +446,8 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplaceFirstRangePointerABIRemoved() {
+    @Test
+    func kkStringReplaceFirstRangePointerABIRemoved() {
         let legacyNames = [
             "kk_string_replaceFirst",
             "kk_string_replaceFirst_ignoreCase",
@@ -384,18 +456,19 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_removeRange_range",
         ]
         for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
     }
 
-    func testKKStringReplaceFirstFlatSignature() throws {
+    @Test
+    func kkStringReplaceFirstFlatSignature() throws {
         let spec = try requireSpec("kk_string_replaceFirst_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 15)
-        XCTAssertEqual(spec.parameters.map(\.type), [
+        #expect(spec.returnType == .nullableUInt8Pointer)
+        #expect(spec.parameters.count == 15)
+        #expect(spec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -414,61 +487,35 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplaceRangeFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replaceRange_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 13)
-        XCTAssertEqual(spec.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
+    @Test
+    func kkStringSubstringSliceRangeABIRemoved() {
+        // KSP-406: substring / subSequence / slice / removeRange / replaceRange are
+        // bundled Kotlin source with no String-specific runtime ABI (raw or flat).
+        let removedNames = [
+            "kk_string_substring",
+            "kk_string_substring_flat",
+            "kk_string_subSequence",
+            "kk_string_subSequence_flat",
+            "kk_string_slice_range",
+            "kk_string_slice_iterable",
+            "kk_string_removeRange",
+            "kk_string_removeRange_flat",
+            "kk_string_removeRange_range",
+            "kk_string_removeRange_range_flat",
+            "kk_string_replaceRange",
+            "kk_string_replaceRange_flat",
+            "kk_string_replaceRange_indices",
+        ]
+        for removedName in removedNames {
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
+                "\(removedName) should be removed: substring/slice/range edits are source-backed after KSP-406"
+            )
+        }
     }
 
-    func testKKStringRemoveRangeFlatSignatures() throws {
-        let indexed = try requireSpec("kk_string_removeRange_flat")
-        XCTAssertEqual(indexed.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(indexed.parameters.count, 10)
-        XCTAssertEqual(indexed.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-
-        let ranged = try requireSpec("kk_string_removeRange_range_flat")
-        XCTAssertEqual(ranged.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(ranged.parameters.count, 9)
-        XCTAssertEqual(ranged.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-    }
-
-    func testKKStringPadPointerABIRemoved() {
+    @Test
+    func kkStringPadPointerABIRemoved() {
         let legacyNames = [
             "kk_string_padStart_default",
             "kk_string_padEnd_default",
@@ -476,19 +523,20 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_padEnd",
         ]
         for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
     }
 
-    func testKKStringPadDefaultFlatSignatures() throws {
+    @Test
+    func kkStringPadDefaultFlatSignatures() throws {
         for name in ["kk_string_padStart_default_flat", "kk_string_padEnd_default_flat"] {
             let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.count, 8)
-            XCTAssertEqual(spec.parameters.map(\.type), [
+            #expect(spec.returnType == .nullableUInt8Pointer)
+            #expect(spec.parameters.count == 8)
+            #expect(spec.parameters.map(\.type) == [
                 .nullableConstUInt8Pointer,
                 .intptr,
                 .intptr,
@@ -501,12 +549,13 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringPadExplicitFlatSignatures() throws {
+    @Test
+    func kkStringPadExplicitFlatSignatures() throws {
         for name in ["kk_string_padStart_flat", "kk_string_padEnd_flat"] {
             let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.count, 9)
-            XCTAssertEqual(spec.parameters.map(\.type), [
+            #expect(spec.returnType == .nullableUInt8Pointer)
+            #expect(spec.parameters.count == 9)
+            #expect(spec.parameters.map(\.type) == [
                 .nullableConstUInt8Pointer,
                 .intptr,
                 .intptr,
@@ -520,7 +569,8 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringTrimPointerABIRemoved() {
+    @Test
+    func kkStringTrimPointerABIRemoved() {
         let legacyNames = [
             "kk_string_trim",
             "kk_string_trim_predicate",
@@ -530,14 +580,15 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_trimEnd_predicate",
         ]
         for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
     }
 
-    func testKKStringTrimPredicateFlatSignatures() throws {
+    @Test
+    func kkStringTrimPredicateFlatSignatures() throws {
         let names = [
             "kk_string_trim_predicate_flat",
             "kk_string_trimStart_predicate_flat",
@@ -545,9 +596,9 @@ final class ABIMismatchTests: XCTestCase {
         ]
         for name in names {
             let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.count, 10)
-            XCTAssertEqual(spec.parameters.map(\.type), [
+            #expect(spec.returnType == .nullableUInt8Pointer)
+            #expect(spec.parameters.count == 10)
+            #expect(spec.parameters.map(\.type) == [
                 .nullableConstUInt8Pointer,
                 .intptr,
                 .intptr,
@@ -562,12 +613,13 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringIfBlankEmptyFlatSignatures() throws {
+    @Test
+    func kkStringIfBlankEmptyFlatSignatures() throws {
         for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
             let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.count, 10)
-            XCTAssertEqual(spec.parameters.map(\.type), [
+            #expect(spec.returnType == .nullableUInt8Pointer)
+            #expect(spec.parameters.count == 10)
+            #expect(spec.parameters.map(\.type) == [
                 .nullableConstUInt8Pointer,
                 .intptr,
                 .intptr,
@@ -582,18 +634,20 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringReplaceFirstCharABIRemoved() {
-        XCTAssertFalse(
-            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar" },
+    @Test
+    func kkStringReplaceFirstCharABIRemoved() {
+        #expect(
+            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar" }),
             "kk_string_replaceFirstChar should be removed now that replaceFirstChar is source-backed"
         )
-        XCTAssertFalse(
-            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar_flat" },
+        #expect(
+            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar_flat" }),
             "kk_string_replaceFirstChar_flat should be removed now that replaceFirstChar is source-backed"
         )
     }
 
-    func testKKStringCommonPrefixSuffixRuntimeABIRemoved() {
+    @Test
+    func kkStringCommonPrefixSuffixRuntimeABIRemoved() {
         let migratedNames = [
             "kk_string_commonPrefixWith",
             "kk_string_commonSuffixWith",
@@ -605,26 +659,28 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_commonSuffixWith_ignoreCase_flat",
         ]
         for migratedName in migratedNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == migratedName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == migratedName }),
                 "\(migratedName) should be provided by bundled Kotlin source, not runtime ABI"
             )
         }
     }
 
-    func testKKStringFormatPointerABIRemoved() {
+    @Test
+    func kkStringFormatPointerABIRemoved() {
         for legacyName in ["kk_string_format", "kk_string_format_locale"] {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
     }
 
-    func testKKStringFormatFlatSignatures() throws {
+    @Test
+    func kkStringFormatFlatSignatures() throws {
         let formatSpec = try requireSpec("kk_string_format_flat")
-        XCTAssertEqual(formatSpec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(formatSpec.parameters.map(\.type), [
+        #expect(formatSpec.returnType == .nullableUInt8Pointer)
+        #expect(formatSpec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
             .intptr,
             .intptr,
@@ -636,8 +692,8 @@ final class ABIMismatchTests: XCTestCase {
         ])
 
         let localeSpec = try requireSpec("kk_string_format_locale_flat")
-        XCTAssertEqual(localeSpec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(localeSpec.parameters.map(\.type), [
+        #expect(localeSpec.returnType == .nullableUInt8Pointer)
+        #expect(localeSpec.parameters.map(\.type) == [
             .intptr,
             .nullableConstUInt8Pointer,
             .intptr,
@@ -650,7 +706,8 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringIndentPointerABIRemoved() {
+    @Test
+    func kkStringIndentPointerABIRemoved() {
         let legacyNames = [
             "kk_string_trimIndent",
             "kk_string_trimMargin_default",
@@ -662,14 +719,15 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_replaceIndentByMargin",
         ]
         for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
     }
 
-    func testKKStringIndentFlatABIRemoved() {
+    @Test
+    func kkStringIndentFlatABIRemoved() {
         let flatNames = [
             "kk_string_trimIndent_flat",
             "kk_string_trimMargin_default_flat",
@@ -681,520 +739,569 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_replaceIndentByMargin_flat",
         ]
         for name in flatNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == name },
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == name }),
                 "\(name) should be provided by bundled Kotlin source, not the flattened runtime ABI"
             )
         }
     }
 
-    func testKKPrintlnAnySignature() throws {
+    @Test
+    func kkPrintlnAnySignature() throws {
         let spec = try requireSpec("kk_println_any")
-        XCTAssertEqual(spec.returnType, .void)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .nullableOpaquePointer)
+        #expect(spec.returnType == .void)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .nullableOpaquePointer)
     }
 
-    func testStringLengthHasNoRuntimeABISignature() {
-        XCTAssertNil(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_string_struct_get_length" }),
+    @Test
+    func stringLengthHasNoRuntimeABISignature() {
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_string_struct_get_length" }) == nil,
             "String.length is lowered as an aggregate field extract and must not have a runtime ABI entry"
         )
     }
 
-    func testKKOpIsSignature() throws {
+    @Test
+    func kkOpIsSignature() throws {
         let spec = try requireSpec("kk_op_is")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
     }
 
-    func testKKCoroutineSuspendedSignature() throws {
+    @Test
+    func kkCoroutineSuspendedSignature() throws {
         let spec = try requireSpec("kk_coroutine_suspended")
-        XCTAssertEqual(spec.returnType, .opaquePointer)
-        XCTAssertEqual(spec.parameters.count, 0)
+        #expect(spec.returnType == .opaquePointer)
+        #expect(spec.parameters.count == 0)
     }
 
-    func testKKCreateCoroutineUninterceptedSignature() throws {
+    @Test
+    func kkCreateCoroutineUninterceptedSignature() throws {
         let spec = try requireSpec("kk_create_coroutine_unintercepted")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].name, "entryPointRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "completionContinuation")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].name == "entryPointRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "completionContinuation")
+        #expect(spec.parameters[1].type == .intptr)
     }
 
-    func testKKStartCoroutineUninterceptedOrReturnSignature() throws {
+    @Test
+    func kkStartCoroutineUninterceptedOrReturnSignature() throws {
         let spec = try requireSpec("kk_start_coroutine_unintercepted_or_return")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].name, "entryPointRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "continuation")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "outThrown")
-        XCTAssertEqual(spec.parameters[2].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters[0].name == "entryPointRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "continuation")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "outThrown")
+        #expect(spec.parameters[2].type == .nullableIntptrPointer)
     }
 
-    func testKKSuspendFunctionInvokeSignature() throws {
+    @Test
+    func kkSuspendFunctionInvokeSignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].name, "functionRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "arg")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "outThrown")
-        XCTAssertEqual(spec.parameters[2].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters[0].name == "functionRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "arg")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "outThrown")
+        #expect(spec.parameters[2].type == .nullableIntptrPointer)
     }
 
-    func testKKSuspendFunctionInvokeZeroAritySignature() throws {
+    @Test
+    func kkSuspendFunctionInvokeZeroAritySignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke_0")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].name, "functionRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "outThrown")
-        XCTAssertEqual(spec.parameters[1].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].name == "functionRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "outThrown")
+        #expect(spec.parameters[1].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListAddAtSignature() throws {
+    @Test
+    func kkMutableListAddAtSignature() throws {
         let spec = try requireSpec("kk_mutable_list_add_at")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "index")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "element")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "index")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "element")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListSetSignature() throws {
+    @Test
+    func kkMutableListSetSignature() throws {
         let spec = try requireSpec("kk_mutable_list_set")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "index")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "element")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "index")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "element")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKListSubtractSignature() throws {
+    @Test
+    func kkListSubtractSignature() throws {
         let spec = try requireSpec("kk_list_subtract")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
     }
 
-    func testKKListSortedSignature() throws {
+    @Test
+    func kkListSortedSignature() throws {
         let spec = try requireSpec("kk_list_sorted")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKListSortedPrimitiveSignature() throws {
+    @Test
+    func kkListSortedPrimitiveSignature() throws {
         let spec = try requireSpec("kk_list_sorted_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .int32)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .int32)
     }
 
-    func testKKListSortedDescendingSignature() throws {
+    @Test
+    func kkListSortedDescendingSignature() throws {
         let spec = try requireSpec("kk_list_sortedDescending")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKListSortedBySignature() throws {
+    @Test
+    func kkListSortedBySignature() throws {
         let spec = try requireSpec("kk_list_sortedBy")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKListSortedByPrimitiveSignature() throws {
+    @Test
+    func kkListSortedByPrimitiveSignature() throws {
         let spec = try requireSpec("kk_list_sortedBy_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 5)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .int32)
-        XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .int32)
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
     }
 
-    func testKKListSortedByDescendingSignature() throws {
+    @Test
+    func kkListSortedByDescendingSignature() throws {
         let spec = try requireSpec("kk_list_sortedByDescending")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKListSortedByDescendingPrimitiveSignature() throws {
+    @Test
+    func kkListSortedByDescendingPrimitiveSignature() throws {
         let spec = try requireSpec("kk_list_sortedByDescending_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 5)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .int32)
-        XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .int32)
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
     }
 
-    func testKKListSortedWithSignature() throws {
+    @Test
+    func kkListSortedWithSignature() throws {
         let spec = try requireSpec("kk_list_sortedWith")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKListSumOfSignature() throws {
+    @Test
+    func kkListSumOfSignature() throws {
         let spec = try requireSpec("kk_list_sumOf")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKListSumSignature() throws {
+    @Test
+    func kkListSumSignature() throws {
         let spec = try requireSpec("kk_list_sum")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKListSumByDoubleSignature() throws {
+    @Test
+    func kkListSumByDoubleSignature() throws {
         let spec = try requireSpec("kk_list_sumByDouble")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKListSumBySignature() throws {
+    @Test
+    func kkListSumBySignature() throws {
         let spec = try requireSpec("kk_list_sumBy")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListSortSignature() throws {
+    @Test
+    func kkMutableListSortSignature() throws {
         let spec = try requireSpec("kk_mutable_list_sort")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKMutableListSortPrimitiveSignature() throws {
+    @Test
+    func kkMutableListSortPrimitiveSignature() throws {
         let spec = try requireSpec("kk_mutable_list_sort_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .int32)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .int32)
     }
 
-    func testKKMutableListSortBySignature() throws {
+    @Test
+    func kkMutableListSortBySignature() throws {
         let spec = try requireSpec("kk_mutable_list_sortBy")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListSortWithSignature() throws {
+    @Test
+    func kkMutableListSortWithSignature() throws {
         let spec = try requireSpec("kk_mutable_list_sortWith")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListSortByPrimitiveSignature() throws {
+    @Test
+    func kkMutableListSortByPrimitiveSignature() throws {
         let spec = try requireSpec("kk_mutable_list_sortBy_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 5)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .int32)
-        XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .int32)
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListSortByDescendingSignature() throws {
+    @Test
+    func kkMutableListSortByDescendingSignature() throws {
         let spec = try requireSpec("kk_mutable_list_sortByDescending")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKMutableListSortByDescendingPrimitiveSignature() throws {
+    @Test
+    func kkMutableListSortByDescendingPrimitiveSignature() throws {
         let spec = try requireSpec("kk_mutable_list_sortByDescending_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 5)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].type, .int32)
-        XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].type == .int32)
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
     }
 
-    func testKKLockWithLockSignature() throws {
+    @Test
+    func kkLockWithLockSignature() throws {
         let spec = try requireSpec("__kk_lock_withLock")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "actionFnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
-    func testKKMutexCreateSignature() throws {
+    @Test
+    func kkMutexCreateSignature() throws {
         let spec = try requireSpec("__kk_mutex_create")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 0)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 0)
     }
 
-    func testKKReadWriteLockCreateSignature() throws {
+    @Test
+    func kkReadWriteLockCreateSignature() throws {
         let spec = try requireSpec("kk_read_write_lock_create")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 0)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 0)
     }
 
-    func testKKMutexLockSignature() throws {
+    @Test
+    func kkMutexLockSignature() throws {
         let spec = try requireSpec("kk_mutex_lock")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "continuation")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "continuation")
+        #expect(spec.parameters[1].type == .intptr)
     }
 
-    func testKKMutexUnlockSignature() throws {
+    @Test
+    func kkMutexUnlockSignature() throws {
         let spec = try requireSpec("kk_mutex_unlock")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKMutexTryLockSignature() throws {
+    @Test
+    func kkMutexTryLockSignature() throws {
         let spec = try requireSpec("__kk_mutex_tryLock")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
     }
 
-    func testKKMutexIsLockedSignature() throws {
+    @Test
+    func kkMutexIsLockedSignature() throws {
         let spec = try requireSpec("__kk_mutex_isLocked")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
     }
 
     // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.
 
-    func testKKReadWriteLockReadSignature() throws {
+    @Test
+    func kkReadWriteLockReadSignature() throws {
         let spec = try requireSpec("kk_read_write_lock_read")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "actionEnvPtr")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "actionFnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "actionEnvPtr")
+        #expect(spec.parameters[2].type == .intptr)
     }
 
-    func testKKReadWriteLockWriteSignature() throws {
+    @Test
+    func kkReadWriteLockWriteSignature() throws {
         let spec = try requireSpec("kk_read_write_lock_write")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "actionEnvPtr")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "actionFnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "actionEnvPtr")
+        #expect(spec.parameters[2].type == .intptr)
     }
 
     // MARK: - Collection HOF Scan/Reduce (STDLIB-526..530)
 
-    func testKKListReduceOrNullSignature() throws {
+    @Test
+    func kkListReduceOrNullSignature() throws {
         let spec = try requireSpec("kk_list_reduceOrNull")
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
-    func testKKListScanReduceSignature() throws {
+    @Test
+    func kkListScanReduceSignature() throws {
         let spec = try requireSpec("kk_list_scanReduce")
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
-    func testKKListScanSignature() throws {
+    @Test
+    func kkListScanSignature() throws {
         let spec = try requireSpec("kk_list_scan")
-        XCTAssertEqual(spec.parameters.count, 5)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "initial")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[3].type, .intptr)
-        XCTAssertEqual(spec.parameters[4].name, "outThrown")
-        XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "initial")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "fnPtr")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "closureRaw")
+        #expect(spec.parameters[3].type == .intptr)
+        #expect(spec.parameters[4].name == "outThrown")
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
-    func testKKListRunningFoldSignature() throws {
+    @Test
+    func kkListRunningFoldSignature() throws {
         let spec = try requireSpec("kk_list_runningFold")
-        XCTAssertEqual(spec.parameters.count, 5)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "initial")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[3].type, .intptr)
-        XCTAssertEqual(spec.parameters[4].name, "outThrown")
-        XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "initial")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "fnPtr")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "closureRaw")
+        #expect(spec.parameters[3].type == .intptr)
+        #expect(spec.parameters[4].name == "outThrown")
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
-    func testKKListRunningReduceSignature() throws {
+    @Test
+    func kkListRunningReduceSignature() throws {
         let spec = try requireSpec("kk_list_runningReduce")
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
-    func testKKListTakeSignature() throws {
+    @Test
+    func kkListTakeSignature() throws {
         let spec = try requireSpec("kk_list_take")
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "count")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "outThrown")
-        XCTAssertEqual(spec.parameters[2].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "count")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "outThrown")
+        #expect(spec.parameters[2].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
-    func testKKListTakeLastSignature() throws {
+    @Test
+    func kkListTakeLastSignature() throws {
         let spec = try requireSpec("kk_list_takeLast")
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "count")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "outThrown")
-        XCTAssertEqual(spec.parameters[2].type, .nullableIntptrPointer)
+        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "count")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "outThrown")
+        #expect(spec.parameters[2].type == .nullableIntptrPointer)
     }
 
-    func testKKListTakeWhileSignature() throws {
+    @Test
+    func kkListTakeWhileSignature() throws {
         let spec = try requireSpec("kk_list_takeWhile")
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "listRaw")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "fnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "outThrown")
-        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
-        XCTAssertEqual(spec.returnType, .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
     // MARK: - Header Generation
 
-    func testGeneratedHeaderContainsGuard() {
+    @Test
+    func generatedHeaderContainsGuard() {
         let header = RuntimeABISpec.generateCHeader()
-        XCTAssertTrue(header.contains("#ifndef KK_RUNTIME_ABI_H"))
-        XCTAssertTrue(header.contains("#define KK_RUNTIME_ABI_H"))
-        XCTAssertTrue(header.contains("#endif"))
+        #expect(header.contains("#ifndef KK_RUNTIME_ABI_H"))
+        #expect(header.contains("#define KK_RUNTIME_ABI_H"))
+        #expect(header.contains("#endif"))
     }
 
-    func testGeneratedHeaderContainsAllFunctions() {
+    @Test
+    func generatedHeaderContainsAllFunctions() {
         let header = RuntimeABISpec.generateCHeader()
         let headerLines = Set(
             header
@@ -1202,16 +1309,17 @@ final class ABIMismatchTests: XCTestCase {
                 .map { String($0).trimmingCharacters(in: .whitespaces) }
         )
         for spec in RuntimeABISpec.allFunctions {
-            XCTAssertTrue(
+            #expect(
                 headerLines.contains(spec.cDeclaration),
                 "Generated header missing declaration for '\(spec.name)': expected line '\(spec.cDeclaration)'"
             )
         }
     }
 
-    func testGeneratedHeaderContainsSpecVersion() {
+    @Test
+    func generatedHeaderContainsSpecVersion() {
         let header = RuntimeABISpec.generateCHeader()
-        XCTAssertTrue(header.contains(RuntimeABISpec.specVersion))
+        #expect(header.contains(RuntimeABISpec.specVersion))
     }
 
 }

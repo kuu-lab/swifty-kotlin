@@ -112,13 +112,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        registerArrayIsArrayOfJvmExtension(
-            arraySymbol: arraySymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
@@ -1340,6 +1333,21 @@ extension DataFlowSemaPhase {
                     )
                 }
             }
+
+            // BUG-158: primitive arrays also need the `transform` overloads. The
+            // element-type-aware renderers above are only required when the runtime
+            // renders raw elements itself; with a transform the lambda produces the
+            // rendered text, so the generic
+            // `kk_array_joinToString_transform` helper is reused here.
+            registerPrimitiveArrayJoinToStringTransformOverloads(
+                arraySymbol: arraySymbol,
+                arrayName: name,
+                receiverType: primArrayReceiverType,
+                joinToStringName: primJoinToStringName,
+                joinToStringFQName: primJoinToStringFQName,
+                symbols: symbols,
+                types: types
+            )
         }
 
         // --- joinToString (STDLIB-GAP-PH1) ---
@@ -1454,81 +1462,79 @@ extension DataFlowSemaPhase {
 
     }
 
-    private func registerArrayIsArrayOfJvmExtension(
+    /// Registers `joinToString(..., transform)` overloads for a primitive array type.
+    ///
+    /// Mirrors the `Array<T>` registration: four required-arity overloads instead of
+    /// one signature with defaults, all linked to `kk_array_joinToString_transform`
+    /// (the transform renders each element, so no element-type-aware renderer is needed).
+    private func registerPrimitiveArrayJoinToStringTransformOverloads(
         arraySymbol: SymbolID,
+        arrayName: String,
+        receiverType: TypeID,
+        joinToStringName: InternedString,
+        joinToStringFQName: [InternedString],
         symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
+        types: TypeSystem
     ) {
-        let kotlinJvmPkg = ensurePackage(
-            path: ["kotlin", "jvm"],
-            symbols: symbols,
-            interner: interner
-        )
-        let functionName = interner.intern("isArrayOf")
-        let functionFQName = kotlinJvmPkg + [functionName]
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = functionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.reifiedTypeParameter]
-            )
+        let alreadyRegistered = symbols.lookupAll(fqName: joinToStringFQName).contains { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID),
+                  let lastParameterType = signature.parameterTypes.last
+            else {
+                return false
+            }
+            if case .functionType = types.kind(of: types.makeNonNullable(lastParameterType)) {
+                return true
+            }
+            return false
         }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: typeParamSymbol)
+        guard !alreadyRegistered else { return }
 
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.star],
+        let elementType: TypeID = switch arrayName {
+        case "IntArray": types.intType
+        case "LongArray": types.longType
+        case "ByteArray": types.intType
+        case "ShortArray": types.intType
+        case "UIntArray": types.uintType
+        case "ULongArray": types.ulongType
+        case "DoubleArray": types.doubleType
+        case "FloatArray": types.floatType
+        case "BooleanArray": types.booleanType
+        case "CharArray": types.charType
+        case "UByteArray": types.ubyteType
+        case "UShortArray": types.ushortType
+        default: types.anyType
+        }
+        let transformType = types.make(.functionType(FunctionType(
+            params: [elementType],
+            returnType: types.anyType,
+            isSuspend: false,
             nullability: .nonNull
         )))
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == types.booleanType
-                && signature.typeParameterSymbols == [typeParamSymbol]
-                && signature.reifiedTypeParameterIndices == [0]
-        }) {
-            symbols.setExternalLinkName("kk_array_isArrayOf", for: existing)
-            return
-        }
 
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinJvmPkg) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        func registerOverload(_ parameterTypes: [TypeID]) {
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: joinToStringName,
+                fqName: joinToStringFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(arraySymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_array_joinToString_transform", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: types.stringType
+                ),
+                for: memberSymbol
+            )
         }
-        symbols.setExternalLinkName("kk_array_isArrayOf", for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: types.booleanType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: [],
-                typeParameterSymbols: [typeParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[types.anyType]],
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
+        registerOverload([transformType])
+        registerOverload([types.stringType, transformType])
+        registerOverload([types.stringType, types.stringType, transformType])
+        registerOverload([types.stringType, types.stringType, types.stringType, transformType])
     }
 
     private func registerSyntheticArrayFactoryFunction(

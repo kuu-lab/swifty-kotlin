@@ -2,7 +2,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import XCTest
 
 @Suite
 struct CollectionLiteralLoweringTests {
@@ -113,6 +112,7 @@ struct CollectionLiteralLoweringTests {
         return extractCallees(from: fn.body, interner: interner)
     }
 
+    @Test
     func testRangeIteratorOnStringStructParameterRewritesToFlatStringIterator() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -148,12 +148,12 @@ struct CollectionLiteralLoweringTests {
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_string_iterator_flat"),
             "String iterator lowering should target the flat ABI, got: \(callees)"
         )
-        XCTAssertFalse(
-            callees.contains("kk_string_iterator"),
+        #expect(
+            !callees.contains("kk_string_iterator"),
             "String iterator lowering must not leave the raw String ABI, got: \(callees)"
         )
     }
@@ -1563,75 +1563,75 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceToList() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToList() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "toList")
         #expect(
-            callees.contains("kk_sequence_to_list"),
-            "virtualCall(toList) on Sequence-typed parameter should be rewritten to kk_sequence_to_list, got: \(callees)"
+            !callees.contains("kk_sequence_to_list"),
+            "virtualCall(toList) on Sequence-typed parameter should not be rewritten to kk_sequence_to_list, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceToCollection() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToCollection() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "toCollection", argCount: 1
         )
         #expect(
-            callees.contains("kk_sequence_toCollection"),
-            "virtualCall(toCollection) on Sequence-typed parameter should be rewritten to kk_sequence_toCollection, got: \(callees)"
+            !callees.contains("kk_sequence_toCollection"),
+            "virtualCall(toCollection) on Sequence-typed parameter should not be rewritten to kk_sequence_toCollection, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapTo() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapTo"),
-            "virtualCall(mapTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapTo"),
+            "virtualCall(mapTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapNotNullTo() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapNotNullTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapNotNullTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapNotNullTo"),
-            "virtualCall(mapNotNullTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapNotNullTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapNotNullTo"),
+            "virtualCall(mapNotNullTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapNotNullTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapIndexedTo() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapIndexedTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapIndexedTo"),
-            "virtualCall(mapIndexedTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapIndexedTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapIndexedTo"),
+            "virtualCall(mapIndexedTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapIndexedTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapIndexedNotNullTo() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedNotNullTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapIndexedNotNullTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapIndexedNotNullTo"),
-            "virtualCall(mapIndexedNotNullTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapIndexedNotNullTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapIndexedNotNullTo"),
+            "virtualCall(mapIndexedNotNullTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapIndexedNotNullTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMax() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMax() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "max")
         #expect(
-            callees.contains("kk_sequence_max"),
-            "virtualCall(max) on Sequence-typed parameter should be rewritten to kk_sequence_max, got: \(callees)"
+            !callees.contains("kk_sequence_max"),
+            "virtualCall(max) on Sequence-typed parameter should not be rewritten to kk_sequence_max, got: \(callees)"
         )
     }
 

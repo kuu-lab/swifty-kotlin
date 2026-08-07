@@ -1,15 +1,28 @@
 
-/// Rewrites (valueOf result).name to $enumOrdinalToName(ordinal). Runs after
+/// Rewrites (valueOf result).name to $enumOrdinalToName(ordinal) and
+/// (valueOf result).ordinal to kk_unbox_int(ordinal). Runs after
 /// DataEnumSealedSynthesisPass which creates the $enumOrdinalToName helper.
+///
+/// Both `name` and `ordinal` are registered as synthetic .property symbols on
+/// the shared kotlin.Enum<T> base class (registerEnumNameOrdinalProperties in
+/// HeaderHelpers+SyntheticEnumStubs.swift), not as real per-class declarations.
+/// Normal call-binding resolution never lands on a usable callee for them (see
+/// the comment on the "name"/"ordinal" case in
+/// CallLowerer+MemberCallEmission.swift's appendReceiverToMemberArguments), so
+/// they always reach this pass as an unresolved `callee: "name"/"ordinal"`
+/// call/virtualCall carrying the receiver as its sole argument, to be rewritten
+/// here by pattern-matching the raw callee name.
 final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumNameAccessLowering"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()
         let nameCallee = ctx.interner.intern("name")
+        let ordinalCallee = ctx.interner.intern("ordinal")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
         return module.usedCallees.contains(nameCallee)
+            || module.usedCallees.contains(ordinalCallee)
             || module.usedCallees.contains(printlnCallee)
             || module.usedCallees.contains(kkPrintlnAnyCallee)
     }
@@ -20,9 +33,11 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return
         }
         let nameCallee = ctx.interner.intern("name")
+        let ordinalCallee = ctx.interner.intern("ordinal")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
         let stringType = sema.types.stringType
+        let intType = sema.types.intType
 
         module.arena.transformFunctions { function in
             var newBody: [KIRInstruction] = []
@@ -40,20 +55,23 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     newBody.append(contentsOf: rewritten)
                     continue
                 }
-                let receiverAndResult: (KIRExprID?, KIRExprID?) = switch instruction {
+                let accessorAndReceiverAndResult: (InternedString, KIRExprID, KIRExprID?)? = switch instruction {
                 case let .call(_, callee, arguments, result, _, _, _, _):
-                    if callee == nameCallee, arguments.count == 1 {
-                        (arguments[0], result)
+                    if callee == nameCallee || callee == ordinalCallee, arguments.count == 1 {
+                        (callee, arguments[0], result)
                     } else {
-                        (nil, nil)
+                        nil
                     }
                 case let .virtualCall(_, callee, receiver, _, result, _, _, _):
-                    if callee == nameCallee { (receiver, result) } else { (nil, nil) }
+                    if callee == nameCallee || callee == ordinalCallee {
+                        (callee, receiver, result)
+                    } else {
+                        nil
+                    }
                 default:
-                    (nil, nil)
+                    nil
                 }
-                let (receiverExpr, result) = receiverAndResult
-                guard let receiver = receiverExpr else {
+                guard let (accessorCallee, receiver, result) = accessorAndReceiverAndResult else {
                     newBody.append(instruction)
                     continue
                 }
@@ -69,7 +87,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                        args.count == 1,
                        let propInfo = sema.symbols.symbol(propSym),
                        propInfo.kind == .property || propInfo.kind == .field,
-                       propInfo.name == nameCallee,
+                       propInfo.name == accessorCallee,
                        let parent = sema.symbols.parentSymbol(for: propSym),
                        let parentInfo = sema.symbols.symbol(parent),
                        parentInfo.kind == .enumClass
@@ -80,7 +98,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                        let propSym = sym,
                        let propInfo = sema.symbols.symbol(propSym),
                        propInfo.kind == .property || propInfo.kind == .field,
-                       propInfo.name == nameCallee,
+                       propInfo.name == accessorCallee,
                        let parent = sema.symbols.parentSymbol(for: propSym),
                        let parentInfo = sema.symbols.symbol(parent),
                        parentInfo.kind == .enumClass
@@ -89,10 +107,29 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     return nil
                 }()
-                if let classSymbol,
-                   let classSym = sema.symbols.symbol(classSymbol)
-                {
-                    let helperName = ctx.interner.intern("$enumOrdinalToName")
+                guard let classSymbol else {
+                    newBody.append(instruction)
+                    continue
+                }
+                if accessorCallee == ordinalCallee {
+                    // The KIR representation of an enum value already *is* its
+                    // boxed ordinal (see $enumOrdinalToName's own first step
+                    // below), so reading .ordinal is just unboxing it -- no
+                    // per-class helper needed.
+                    let targetResult = result ?? module.arena.appendTemporary(type: intType)
+                    newBody.append(.call(
+                        symbol: nil,
+                        callee: ctx.interner.intern("kk_unbox_int"),
+                        arguments: [receiver],
+                        result: targetResult,
+                        canThrow: false,
+                        thrownResult: nil,
+                        isSuperCall: false
+                    ))
+                    continue
+                }
+                if let classSym = sema.symbols.symbol(classSymbol) {
+                    let helperName = ctx.interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
                     let fqName = classSym.fqName + [helperName]
                     if let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
                         sema.symbols.symbol(id).map { $0.kind == .function } ?? false
@@ -144,7 +181,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        let helperName = interner.intern("$enumOrdinalToName")
+        let helperName = interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
         let fqName = classSym.fqName + [helperName]
         guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
             sema.symbols.symbol(id).map { $0.kind == .function } ?? false

@@ -51,14 +51,15 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        // Custom setters must run before direct storage paths so their bodies
-        // observe explicit-receiver assignments as Kotlin does.
+        // Custom setters and delegated properties must run before direct
+        // storage paths so their bodies (or the delegate's `setValue`) observe
+        // explicit-receiver assignments as Kotlin does.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface
            || ownerInfo.kind == .object,
-           memberPropertyHasCustomSetterBody(propertySymbol, ast: ast, sema: sema)
+           memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
         {
             let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
@@ -212,11 +213,21 @@ extension CallLowerer {
             return ownerInfo.kind == .object
         }()
 
+        // Properties whose reads and writes go through accessors (custom
+        // get/set bodies, delegated properties) have no usable backing storage
+        // for a load/compute/store round trip.
+        let usesAccessors: Bool = {
+            guard let propertySymbol else { return false }
+            return memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
+                || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
+        }()
+
         // Direct field-offset storage for ordinary stored properties on
         // class/interface instances.
         let fieldOffset: Int? = {
             guard syntheticLinks == nil,
                   !isObjectOwned,
+                  !usesAccessors,
                   let propertySymbol,
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -233,14 +244,12 @@ extension CallLowerer {
         let currentValue: KIRExprID
         if let syntheticLinks {
             let result = arena.appendTemporary(type: propType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern(syntheticLinks.load),
-                arguments: [receiverID],
+                arg: receiverID,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             currentValue = result
         } else if isObjectOwned, let propertySymbol {
             let result = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
@@ -249,6 +258,19 @@ extension CallLowerer {
                 result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
             )
+        } else if usesAccessors, let propertySymbol {
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: propType)
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [receiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            currentValue = result
         } else if let fieldOffset {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -277,14 +299,12 @@ extension CallLowerer {
                 interner: interner
             )
             let result = arena.appendTemporary(type: propType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: getterName,
-                arguments: [receiverID],
+                arg: receiverID,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             currentValue = result
         }
 
@@ -378,6 +398,18 @@ extension CallLowerer {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
                 instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
                 instructions.append(.copy(from: newValue, to: globalRef))
+            } else if usesAccessors, let propertySymbol {
+                let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+                let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                instructions.append(.call(
+                    symbol: setterSymbol,
+                    callee: interner.intern("set"),
+                    arguments: [receiverID, newValue],
+                    result: setterResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))

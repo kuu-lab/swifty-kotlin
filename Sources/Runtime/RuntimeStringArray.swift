@@ -446,6 +446,33 @@ public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
     return runtimeMakeStringRaw(lhs + rhs)
 }
 
+/// Stable nominal type ID of `kotlin.String`, with String's interface
+/// supertype edges registered on first use (BUG-153). Strings never reach
+/// `kk_object_new`, so this is the only place those edges get installed.
+let runtimeStringNominalTypeID: Int64 = {
+    let stringTypeID = runtimeStableNominalTypeID(fqName: "kotlin.String")
+    runtimeRegisterTypeEdge(
+        childTypeID: stringTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: stringTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+    )
+    return stringTypeID
+}()
+
+/// True when `ptr` is a live runtime object pointer holding a `RuntimeStringBox`.
+func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return false
+    }
+    return tryCast(ptr, to: RuntimeStringBox.self) != nil
+}
+
 @_cdecl("kk_op_is")
 public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -468,13 +495,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
         }
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        guard isObjectPointer else {
-            return 0
-        }
-        return tryCast(ptr, to: RuntimeStringBox.self) == nil ? 0 : 1
+        return runtimeIsStringBoxPointer(ptr) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.intBase,
          RuntimeTypeTokenEncoding.uintBase,
@@ -602,6 +623,20 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
+        }
+        // BUG-153: String values are allocated through the flat-string fast
+        // paths (kk_string_from_flat / kk_string_from_utf8 / concatenation /
+        // toString()), never through kk_object_new, so they carry no object
+        // type ID and can't answer an interface check (`is CharSequence`,
+        // `is Comparable<*>`) via the registered supertype graph. Recover
+        // String's identity from the box itself instead of tagging every
+        // allocation site, then reuse the ordinary assignability walk over
+        // kotlin.String's supertype edges.
+        if runtimeIsStringBoxPointer(ptr) {
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStringNominalTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
         }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
@@ -1605,7 +1640,11 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        Swift.print(intBox.value)
+        if let enumEntryName = intBox.enumEntryName {
+            Swift.print(enumEntryName)
+        } else {
+            Swift.print(intBox.value)
+        }
         return
     }
     if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
@@ -1845,7 +1884,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return boolBox.value ? "true" : "false"
     }
     if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        return String(intBox.value)
+        return intBox.enumEntryName ?? String(intBox.value)
     }
     if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
         return stringBox.value

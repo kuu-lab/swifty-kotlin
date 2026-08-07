@@ -60,18 +60,18 @@ final class ControlFlowLowerer {
             isClassMember = false
         }
         let virtualArguments: [KIRExprID] = isClassMember ? [] : [receiverID]
-        if let receiverExpr,
-           let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
-               chosenCallee: callBinding.chosenCallee,
-               calleeName: calleeName,
-               receiverExpr: receiverExpr,
-               loweredReceiverID: receiverID,
-               isSuperCall: false,
-               finalArguments: virtualArguments,
-               result: result,
-               sema: sema,
-               interner: interner
-           ) {
+        if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+            chosenCallee: callBinding.chosenCallee,
+            calleeName: calleeName,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: receiverID,
+            isSuperCall: false,
+            finalArguments: virtualArguments,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        ) {
             instructions.append(virtualInstruction)
         } else {
             instructions.append(.call(
@@ -346,14 +346,12 @@ final class ControlFlowLowerer {
         )
 
         let sizeID = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_size"),
-            arguments: [arrayID],
+            arg: arrayID,
             result: sizeID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
 
         let indexSlot = arena.appendTemporary(type: intType)
         let zeroID = arena.appendExpr(.intLiteral(0), type: intType)
@@ -585,7 +583,7 @@ final class ControlFlowLowerer {
             guard let candidateSymbol = sema.symbols.symbol(candidate),
                   candidateSymbol.kind == .function,
                   candidateSymbol.flags.contains(.operatorFunction),
-                  !candidateSymbol.flags.contains(.synthetic),
+                  (!candidateSymbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty,
                   let candidateReceiverType = signature.receiverType
@@ -608,16 +606,21 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
-        // Only resolve for user-defined class types and the bundled Range/Progression
-        // and Channel classes whose `iterator()` operators are now supplied by
-        // Kotlin source.
+        // Only resolve for user-defined class types and bundled Range/Progression,
+        // Channel, or source Sequence/Iterator classes whose `iterator()` operators
+        // are now supplied by Kotlin source.
         guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               !classSymbol.flags.contains(.synthetic)
                 || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
                 || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
+                || KnownCompilerNames(interner: interner).isSequenceSymbol(classSymbol)
+                || sema.symbols.isSourceBackedSymbol(classSymbol.id)
         else {
             return nil
         }
+        // KSP-441: Allow synthetic Sequence/Iterator symbols to resolve source `iterator()`.
+        // Range-like types still fall through to the dedicated range intrinsics when
+        // they have no operator iterator() candidate.
 
         let helpers = TypeCheckHelpers()
         let iteratorName = interner.intern("iterator")
@@ -629,7 +632,7 @@ final class ControlFlowLowerer {
         ).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.flags.contains(.operatorFunction),
-                  !symbol.flags.contains(.synthetic),
+                  (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {
@@ -1003,14 +1006,12 @@ final class ControlFlowLowerer {
                 if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                     // Cancellation check only needs falseValue for the jump;
                     // trueValue/sharedUnknownToken are not used.
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_throwable_is_cancellation"),
-                        arguments: [exceptionSlot],
+                        arg: exceptionSlot,
                         result: matchResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                 } else {
                     // Only emit trueValue/sharedUnknownToken when actually needed
                     // by emitExceptionTypeCheck (avoids dead constValue instructions).
@@ -1136,14 +1137,12 @@ final class ControlFlowLowerer {
                     if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                         // Cancellation check only needs falseValue for the jump;
                         // trueValue/sharedUnknownToken are not used.
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_throwable_is_cancellation"),
-                            arguments: [exceptionSlot],
+                            arg: exceptionSlot,
                             result: matchResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                     } else {
                         // Safe to force-unwrap: needsRuntimeTypeCheck guarantees these are set
                         let tv = trueValue!
@@ -1318,14 +1317,12 @@ final class ControlFlowLowerer {
 
         instructions.append(.label(rethrowLabel))
         let cancellationCheckResult = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_throwable_is_cancellation"),
-            arguments: [exceptionSlot],
+            arg: exceptionSlot,
             result: cancellationCheckResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         instructions.append(.rethrow(value: exceptionSlot))
 
         instructions.append(.label(endLabel))
@@ -1886,14 +1883,12 @@ final class ControlFlowLowerer {
             } else {
                 componentName
             }
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: resolvedCallee,
-                arguments: [nextValueID],
+                arg: nextValueID,
                 result: componentResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))

@@ -151,7 +151,7 @@ final class DeclTypeChecker {
         if let initializer = property.initializer {
             var locals: LocalBindings = initialLocals
             let initializerType = driver.inferExpr(
-                initializer, ctx: ctx, locals: &locals,
+                initializer, ctx: ctx.with(initializingPropertySymbol: symbol), locals: &locals,
                 expectedType: inferredPropertyType
             )
             if let declaredType = inferredPropertyType {
@@ -195,6 +195,48 @@ final class DeclTypeChecker {
                 locals: &delegateLocals,
                 diagnostics: diagnostics
             )
+
+            // Delegate bodies are parsed separately from delegateExpression, so
+            // they must be type-checked explicitly. Besides validating the body,
+            // this records the identifier bindings KIR needs for implicit member
+            // access and for observable/vetoable callback parameters.
+            if let delegateBody = property.delegateBody {
+                let delegateKind = StdlibDelegateKind.detect(
+                    delegateExpr: delegateExpr, ast: ctx.ast, interner: ctx.interner
+                )
+                if delegateKind == .lazy
+                    || delegateKind == .observable
+                    || delegateKind == .vetoable
+                {
+                    var bodyLocals: LocalBindings = [:]
+                    if delegateKind == .observable || delegateKind == .vetoable {
+                        let valueType = inferredPropertyType ?? sema.types.anyType
+                        let parameterTypes = [sema.types.anyType, valueType, valueType]
+                        let underscore = ctx.interner.intern("_")
+                        for (index, name) in property.delegateBodyParams.enumerated()
+                            where index < parameterTypes.count && name != underscore
+                        {
+                            bodyLocals[name] = (
+                                parameterTypes[index],
+                                SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                                    for: symbol, at: index
+                                ),
+                                false,
+                                true
+                            )
+                        }
+                    }
+                    let expectedBodyType: TypeID? = switch delegateKind {
+                    case .observable: sema.types.unitType
+                    case .vetoable: sema.types.booleanType
+                    default: inferredPropertyType
+                    }
+                    _ = inferFunctionBodyType(
+                        delegateBody, ctx: accessorCtx, locals: &bodyLocals,
+                        expectedType: expectedBodyType
+                    )
+                }
+            }
         }
 
         let finalPropertyType = inferredPropertyType

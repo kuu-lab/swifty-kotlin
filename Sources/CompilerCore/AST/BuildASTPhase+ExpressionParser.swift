@@ -40,7 +40,7 @@ extension BuildASTPhase {
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
-        static let maxRecursionDepth = 512
+        static let maxRecursionDepth = 64
 
         /// Current expression-parser recursion depth. Incremented on entry to the
         /// mutually recursive expression parsing functions and decremented on exit.
@@ -48,6 +48,15 @@ extension BuildASTPhase {
 
         /// Ensures the depth-limit diagnostic is emitted at most once per parse.
         private var depthLimitReported = false
+
+        /// Counter used to name the temporaries introduced by the `x++` / `x--`
+        /// desugaring (see `BuildASTPhase+ExpressionParserIncDec.swift`).
+        private var incDecTempCounter = 0
+
+        func nextIncDecTempID() -> Int {
+            incDecTempCounter += 1
+            return incDecTempCounter
+        }
 
         /// Increments the recursion counter and reports whether parsing may continue.
         /// Returns `false` (emitting a diagnostic once) once the maximum depth is
@@ -222,6 +231,11 @@ extension BuildASTPhase {
                 guard let operand = parsePrefixUnary() else { return nil }
                 let range = mergeRanges(token.range, astArena.exprRange(operand), fallback: token.range)
                 return astArena.appendExpr(.unaryExpr(op: .unaryPlus, operand: operand, range: range))
+            case .symbol(.plusPlus), .symbol(.minusMinus):
+                if let prefixMutation = tryParsePrefixIncrementDecrement() {
+                    return prefixMutation
+                }
+                return parsePostfixOrPrimary()
             default:
                 return parsePostfixOrPrimary()
             }

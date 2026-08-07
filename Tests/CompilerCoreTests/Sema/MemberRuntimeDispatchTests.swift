@@ -115,7 +115,6 @@ struct MemberRuntimeDispatchTests {
             ("toInt", 0, "kk_string_toInt_flat", true, .lowered, .none),
             ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
             ("mapIndexed", 1, "kk_string_mapIndexed_flat", false, .normalized, .none),
-            ("partition", 1, "kk_string_partition_flat", true, .normalized, .nullableAny),
             ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
         ]
 
@@ -165,6 +164,45 @@ struct MemberRuntimeDispatchTests {
             #expect(
                 MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
                 "String.\(memberName)/\(arity) should be source-backed after KSP-405"
+            )
+        }
+        // KSP-410: filter/count/any/all/none/filterNot/find/findLast/onEach/
+        // partition/sumBy/sumByDouble/filterIndexed/onEachIndexed/reduce
+        // family/fold family are bundled Kotlin source. map/mapIndexed are
+        // excluded (BUG-171 keeps them Swift-backed).
+        let ksp410Cases: [(String, Int)] = [
+            ("filter", 1),
+            ("filterNot", 1),
+            ("any", 1),
+            ("all", 1),
+            ("none", 1),
+            ("count", 1),
+            ("find", 1),
+            ("findLast", 1),
+            ("onEach", 1),
+            ("partition", 1),
+            ("sumBy", 1),
+            ("sumByDouble", 1),
+            ("filterIndexed", 1),
+            ("onEachIndexed", 1),
+            ("reduce", 1),
+            ("reduceOrNull", 1),
+            ("reduceIndexed", 1),
+            ("reduceIndexedOrNull", 1),
+            ("reduceRight", 1),
+            ("reduceRightOrNull", 1),
+            ("reduceRightIndexed", 1),
+            ("reduceRightIndexedOrNull", 1),
+            ("fold", 2),
+            ("foldIndexed", 2),
+            ("foldRight", 2),
+            ("foldRightIndexed", 2),
+        ]
+        for (memberName, arity) in ksp410Cases {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
+                "String.\(memberName)/\(arity) should be source-backed after KSP-410"
             )
         }
     }

@@ -550,6 +550,9 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeListBox(from: rangeRaw) != nil {
         return kk_list_iterator(rangeRaw)
     }
+    if runtimeSetBox(from: rangeRaw) != nil {
+        return kk_list_iterator(rangeRaw)
+    }
     // `for (x in arrayOf(...))` (and other raw arrays: IntArray, ByteArray, ...)
     // reaches this generic for-loop entry point same as List, when the iterable
     // has no compile-time-resolved iterator (e.g. a generic Iterable<T>
@@ -560,6 +563,9 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     // used for ordinary class instances.
     if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
         return kk_list_iterator(rangeRaw)
+    }
+    if runtimeIndexingIterableBox(from: rangeRaw) != nil {
+        return kk_indexing_iterable_iterator(rangeRaw)
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0

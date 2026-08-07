@@ -77,5 +77,24 @@ struct RuntimeBigDecimalTests {
         #expect(__kk_string_toBigDecimalOrNull(runtimeString("not-a-number")) == runtimeNullSentinelInt)
         #expect(__kk_string_toBigDecimalOrNull(runtimeString(" 12.5 ")) == runtimeNullSentinelInt)
     }
+
+    @Test
+    func testStringToBigDecimalOrNullFlatAcceptsScientificNotation() {
+        let raw = withFlatString("+.5E-2") { data, length, byteCount, hash in
+            __kk_string_toBigDecimalOrNull_flat(data, length, byteCount, hash)
+        }
+        #expect(raw != runtimeNullSentinelInt)
+        #expect(stringValue(__kk_bignum_toString(raw)) == "+.5E-2")
+    }
+
+    @Test
+    func testStringToBigDecimalOrNullFlatReturnsNullForInvalidInput() {
+        for value in ["not-a-number", " 12.5 "] {
+            let raw = withFlatString(value) { data, length, byteCount, hash in
+                __kk_string_toBigDecimalOrNull_flat(data, length, byteCount, hash)
+            }
+            #expect(raw == runtimeNullSentinelInt, "Expected \(value) to yield null")
+        }
+    }
 }
 #endif

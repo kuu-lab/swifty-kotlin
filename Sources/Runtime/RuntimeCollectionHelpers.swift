@@ -121,8 +121,11 @@ func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeCollectionElements(from: rawValue) {
         return elements
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.elements
+    // runtimeSequenceSourceElements covers RuntimeSequenceBox, source Sequence
+    // objects (RuntimeObjectBox), List, Set, and arrays, while excluding
+    // RuntimeObjectBox instances that are not actually arrays.
+    if let elements = runtimeSequenceSourceElements(from: rawValue) {
+        return elements
     }
     return nil
 }
@@ -131,8 +134,8 @@ func runtimeCollectionOrArrayValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeCollectionValues(from: rawValue) {
         return values
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.values
+    if let values = runtimeSequenceSourceValues(from: rawValue) {
+        return values
     }
     return nil
 }
@@ -151,11 +154,10 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
             RuntimeValue(raw: runtimeIndexedValueNew(index: index, value: element))
         }
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.values
-    }
-    if runtimeSequenceBox(from: rawValue) != nil {
-        return runtimeSequenceSourceValues(from: rawValue)
+    // runtimeSequenceSourceValues handles RuntimeSequenceBox, source Sequence
+    // objects, List, Set, and arrays without misclassifying RuntimeObjectBox.
+    if let values = runtimeSequenceSourceValues(from: rawValue) {
+        return values
     }
     return nil
 }
@@ -259,7 +261,9 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
-    return Int(bitPattern: opaque)
+    let raw = Int(bitPattern: opaque)
+    maybeRegisterCollectionIterableItable(raw: raw, box: box)
+    return raw
 }
 
 func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
@@ -272,6 +276,156 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
     registerRuntimeObject(box, typeID: mapRuntimeTypeID)
 }
 
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
+
+/// Register the `kotlin.collections.Iterator` itable on a raw object handle.
+private func registerIteratorItable(
+    raw: Int,
+    hasNext: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
+    next: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int
+) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeIteratorInterfaceTypeID), 0)
+    let hasNextPtr = unsafeBitCast(hasNext, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
+    let nextPtr = unsafeBitCast(next, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
+}
+
+/// Register the `kotlin.collections.Iterable` itable on a raw object handle.
+private func registerIterableItable(raw: Int, ifaceSlot: Int = 0) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeIterableInterfaceTypeID), ifaceSlot)
+    let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
+}
+
+/// Register the `kotlin.sequences.Sequence` itable on a raw object handle.
+private func registerSequenceItable(raw: Int, ifaceSlot: Int = 1) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeSequenceInterfaceTypeID), ifaceSlot)
+    let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
+}
+
+private let runtimeIterableIteratorThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterableRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator(iterableRaw)
+}
+
+private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
+    // Runtime-backed collection boxes may be passed as `Iterable<T>` from
+    // source-implemented `Sequence` wrappers (e.g. a `List` returned by a
+    // `flatMap` lambda typed as `Iterable`). Register `Iterable.iterator()`
+    // so interface dispatch works on those boxes.
+    //
+    // Some source-implemented `Sequence` HOF overloads are resolved to the
+    // `Sequence` variant even when the lambda returns a `List`/`Set`/array
+    // (which is `Iterable` but not actually `Sequence`); registering the
+    // `Sequence` itable lets the generated `Sequence.iterator()` dispatch
+    // reach the same runtime-backed iterator. `is` checks still consult the
+    // nominal class hierarchy, so this does not make `List`/`Set` report as
+    // `Sequence`.
+    if box is RuntimeListBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: listRuntimeTypeID)
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+    } else if box is RuntimeSetBox {
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+    } else if type(of: box) == RuntimeArrayBox.self {
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+    }
+}
+
+// MARK: - Iterator box itable registration
+
+// Runtime-backed iterator boxes are returned by `iterator()` calls resolved
+// through the synthetic collection fallback (e.g. `List.iterator()`). When a
+// source-implemented `Sequence`/`Iterator` wrapper stores such an iterator as
+// an `Iterator<T>` interface value, subsequent `hasNext()`/`next()` calls use
+// itable dispatch and need the box to advertise those methods.
+
+private let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_hasNext(iterRaw)
+}
+
+private let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
+    return raw
+}
+
+private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_range_hasNext(iterRaw)
+}
+
+private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_range_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeRangeIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeRangeIteratorHasNextThunk, next: runtimeRangeIteratorNextThunk)
+    return raw
+}
+
+private let runtimeIndexingIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_indexing_iterable_hasNext(iterRaw)
+}
+
+private let runtimeIndexingIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_indexing_iterable_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeIndexingIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeIndexingIteratorHasNextThunk, next: runtimeIndexingIteratorNextThunk)
+    return raw
+}
+
+private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_map_iterator_hasNext(iterRaw)
+}
+
+private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_map_iterator_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeMapIteratorHasNextThunk, next: runtimeMapIteratorNextThunk)
+    return raw
+}
+
+private let runtimeStringIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_string_iterator_hasNext(iterRaw)
+}
+
+private let runtimeStringIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_string_iterator_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeStringIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeStringIteratorHasNextThunk, next: runtimeStringIteratorNextThunk)
+    return raw
+}
+
 func maybeUnbox(_ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
         return value
@@ -280,6 +434,12 @@ func maybeUnbox(_ value: Int) -> Int {
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     guard isObjectPointer else {
+        return value
+    }
+    // Recognize string/sequence boxes first so unrelated primitive casts do
+    // not trip on object pointers whose class metadata lives in libswiftCore.
+    if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
+        _ = stringBox
         return value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
@@ -553,7 +713,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return stringBox.value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
-        return "\(intBox.value)"
+        return intBox.enumEntryName ?? "\(intBox.value)"
     }
     if let boolBox = tryCast(ptr, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"
@@ -680,6 +840,50 @@ func runtimeInvokeCollectionLambda1(
 ) -> Int {
     let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
     return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
+}
+
+/// Like `runtimeInvokeCollectionLambda1`, but tolerates `fnPtr` arriving as a
+/// `kk_function_create_1`-wrapped function-value handle instead of a raw,
+/// directly-callable function pointer.
+///
+/// `Sequence<T>.chunked(size, transform)` / `.windowed(..., transform)` have
+/// real Kotlin-source declarations (SequenceWindowChunk.kt) so their
+/// `require()`-style validation runs; because they take a function-typed
+/// parameter, KIRLoweringDriver's auto-inline heuristic
+/// (`hasLambdaParam && !isSuspend`) always inlines their body at the call
+/// site. `materializeSourceBackedFunctionValueArguments` wraps the caller's
+/// lambda via `kk_function_create_1` before that inlining substitutes it in,
+/// since from the *caller's* perspective this looks like an ordinary
+/// function-value parameter. The inlined body then forwards that already-
+/// wrapped handle straight to this native bridge via
+/// `splitCallableLambdaArgument`, whose fallback (no compile-time
+/// `callableValueInfo` exists for a plain forwarded parameter) assumes an
+/// unrecognized value is already a raw callable and pairs it with a literal
+/// `0` closureRaw. Unwrapping here — the same `RuntimeFunctionValueBox`
+/// detection `kk_function_invoke` already relies on — makes the lazy/eager
+/// invocation robust to either calling convention without having to teach
+/// every KIR argument-adaptation path about this one forwarding pattern.
+@inline(__always)
+func runtimeInvokeCollectionLambda1MaybeWrapped(
+    fnPtr: Int,
+    closureRaw: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let box = runtimeFunctionValueBox(from: fnPtr) {
+        return runtimeInvokeCollectionLambda1(
+            fnPtr: box.fnPtr,
+            closureRaw: box.closureRaw,
+            value: value,
+            outThrown: outThrown
+        )
+    }
+    return runtimeInvokeCollectionLambda1(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        value: value,
+        outThrown: outThrown
+    )
 }
 
 /// Like `runtimeInvokeCollectionLambda1`, but leaves `value` boxed for statically-`Any` lambda parameters (LambdaLowerer unboxes concrete-primitive ones itself).
@@ -888,7 +1092,7 @@ func runtimeBinarySearch(
 }
 
 @inline(__always)
-private func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
+func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
           lhsTypeID == rhsTypeID,
@@ -897,15 +1101,30 @@ private func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
         return nil
     }
 
-    // Comparable has a single compareTo method, so the first interface slot
-    // is enough for direct runtime dispatch when the value's nominal type
-    // implements Comparable.
-    let compareToFnPtr = kk_itable_lookup(lhs, 0, 0)
+    // Comparable has a single compareTo method (method slot 0). Resolve the
+    // interface slot from the object's own registration so classes that
+    // implement several interfaces dispatch to the right table; hand-built
+    // runtime objects without that registration keep using slot 0.
+    var compareToFnPtr = kk_itable_lookup_dynamic(lhs, Int(comparableRuntimeTypeID), 0)
+    if compareToFnPtr == 0 {
+        compareToFnPtr = kk_itable_lookup(lhs, 0, 0)
+    }
     guard compareToFnPtr != 0 else {
         return nil
     }
-    let compareToFn = unsafeBitCast(compareToFnPtr, to: (@convention(c) (Int, Int) -> Int).self)
-    return compareToFn(lhs, rhs)
+    // Compiler-emitted members follow the (receiver, args..., outThrown) ABI
+    // and may return a boxed Int, so pass the thrown channel explicitly and
+    // normalize the result instead of treating it as a bare Int.
+    let compareToFn = unsafeBitCast(
+        compareToFnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = compareToFn(lhs, rhs, &thrown)
+    if thrown != 0 {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Comparable.compareTo threw during a runtime comparison")
+    }
+    return maybeUnbox(result)
 }
 
 enum RuntimePrimitiveCompareKind {
@@ -933,7 +1152,12 @@ private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
         return -1
     }
     if lhs == rhs {
-        return 0
+        // IEEE equality treats -0.0 == 0.0, but Kotlin's `compareTo` follows
+        // the `Double.compare` total order where -0.0 sorts before 0.0.
+        if lhs.sign == rhs.sign {
+            return 0
+        }
+        return lhs.sign == .minus ? -1 : 1
     }
     return lhs < rhs ? -1 : 1
 }

@@ -532,5 +532,49 @@ struct LoweringPassRegressionTests {
         #expect(hasOriginalBranch)
     }
 
+    @Test
+    func testSamConvertedCallableRefLowersToInterfaceWrapper() throws {
+        // BUG-048: `Comparator<Int>(::myCompare)` must synthesize a functional
+        // interface wrapper object with an itable entry, like the equivalent
+        // lambda literal does. Lowering it as a bare callable value made
+        // interface dispatch on the result fail at runtime.
+        let source = """
+        fun myCompare(a: Int, b: Int): Int = a - b
+
+        fun interface Stringify {
+            fun render(value: Int): String
+        }
+
+        fun label(value: Int): String = "v=" + value
+
+        fun main() {
+            val comparator = Comparator<Int>(::myCompare)
+            println(comparator.compare(3, 5))
+            println(Stringify(::label).render(42))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SamCallableRefLowering", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
+            #expect(
+                mainCallees.filter { $0 == "kk_object_register_itable_method" }.count == 2,
+                "Callees: \(mainCallees)"
+            )
+            #expect(mainCallees.contains("kk_type_register_iface"), "Callees: \(mainCallees)")
+
+            let functionNames = findAllKIRFunctions(in: module).map { ctx.interner.resolve($0.name) }
+            #expect(
+                functionNames.filter { $0.hasPrefix("kk_sam_ref_thunk_") }.count == 2,
+                "Functions: \(functionNames.filter { $0.hasPrefix("kk_sam_") })"
+            )
+        }
+    }
+
 }
 #endif

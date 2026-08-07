@@ -172,6 +172,42 @@ import Testing
         """)
     }
 
+    // MARK: - BUG-152: member access through a CharSequence static type
+
+    @Test func testCompile_charSequence_length_parameter() throws {
+        try assertKotlinCompilesToKIR("""
+        fun printLength(cs: CharSequence) {
+            println(cs.length)
+        }
+        fun main() {
+            printLength("hello")
+        }
+        """)
+    }
+
+    @Test func testCompile_charSequence_lengthGetSubSequence_local() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val cs: CharSequence = "hello"
+            println(cs.length)
+            println(cs.get(1))
+            println(cs[2])
+            println(cs.subSequence(1, 3))
+        }
+        """)
+    }
+
+    @Test func testCompile_charSequence_members_stringBuilder() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val cs: CharSequence = StringBuilder("abc")
+            println(cs.length)
+            println(cs.get(1))
+            println(cs[2])
+        }
+        """)
+    }
+
     // MARK: - String padding
 
     @Test func testCompile_string_padStart() throws {

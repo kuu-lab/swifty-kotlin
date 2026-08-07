@@ -165,6 +165,9 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let set = runtimeSetBox(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(elements: set.elements))
     }
+    if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
+        return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
+    }
     // Delegate to kk_sequence_to_list when the handle is a sequence box.
     // This can happen when Collection.toList() is resolved on a sequence
     // receiver via the synthetic Collection stub.
@@ -197,21 +200,6 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
         return set.elements.isEmpty ? 1 : 0
     }
     return 1
-}
-
-// BUG-172: Collection<T>.contains() has no concrete backing (RuntimeListBox /
-// RuntimeSetBox never register itable entries), so a call through the bare
-// `Collection` interface type must bypass virtual dispatch entirely — mirrors
-// the externalLinkName wiring `kk_set_contains` already uses for Set.contains.
-@_cdecl("kk_collection_contains")
-public func kk_collection_contains(_ collRaw: Int, _ element: Int) -> Int {
-    if let list = runtimeListBox(from: collRaw) {
-        return kk_box_bool(list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0)
-    }
-    if let set = runtimeSetBox(from: collRaw) {
-        return kk_box_bool(set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0)
-    }
-    return kk_box_bool(0)
 }
 
 // MARK: - Set Operations (STDLIB-266)

@@ -1,16 +1,46 @@
-name: Setup Swift (Ubuntu)
-description: Install Swift toolchain only (no LLVM). For targets that do not link against LLVM.
+name: Setup Swift
+description: Configure Swift without privileged writes on macOS self-hosted runners.
 
 inputs:
   swift-version:
-    description: Swift version string for SwiftyLab/setup-swift
+    description: Required Swift major and minor version
     required: false
     default: "6.3"
 
 runs:
   using: composite
   steps:
-    - name: Install Swift
+    - name: Install Swift on Linux
+      if: runner.os == 'Linux'
       uses: SwiftyLab/setup-swift@v1
       with:
         swift-version: ${{ inputs.swift-version }}
+
+    - name: Use Xcode Swift on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        REQUIRED_SWIFT_VERSION: ${{ inputs.swift-version }}
+      run: |
+        developer_dir="$(xcode-select --print-path)"
+        swift_bin="$developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
+
+        if [[ ! -x "$swift_bin" ]]; then
+          echo "Xcode Swift was not found at $swift_bin." >&2
+          exit 1
+        fi
+
+        actual_swift_version="$("$swift_bin" --version | sed -n 's/.*Swift version \([0-9][0-9.]*\).*/\1/p' | head -n 1)"
+        if [[ -z "$actual_swift_version" ]]; then
+          echo "Unable to determine the Xcode Swift version." >&2
+          exit 1
+        fi
+
+        if [[ "$actual_swift_version" != "$REQUIRED_SWIFT_VERSION" && "$actual_swift_version" != "$REQUIRED_SWIFT_VERSION".* ]]; then
+          echo "Xcode provides Swift $actual_swift_version, but Swift $REQUIRED_SWIFT_VERSION is required." >&2
+          exit 1
+        fi
+
+        echo "$developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/bin" >> "$GITHUB_PATH"
+        echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+        "$swift_bin" --version

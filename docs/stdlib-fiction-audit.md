@@ -59,6 +59,47 @@ RF-STUB-004〜006 は登録構造の整理であり、API 除去そのもので�
 上表の `.synthetic` フラグ付き残留サーフェス値を更新し、実削減がある場合は該当 bucket と削除根拠を
 このファイルへ追記する。
 
+## 2026-07-25 CLEANUP-STUB-102（cinterop 未配線外殻削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
+```
+
+結果:
+
+| 時点 | 追跡対象 | 合計 | 前回からの差分 |
+|---|---|---:|---:|
+| 2026-07-06 RF-STUB-007 | `.synthetic` フラグ付き残留サーフェス | 5951 | - |
+| 2026-07-25 CLEANUP-STUB-102 | `.synthetic` フラグ付き残留サーフェス | 5099 | -852 (-14.3%) |
+
+現行 `.synthetic` フラグ付き root 内訳:
+
+- `kotlin.*`: 4434
+- `kotlinx.*`: 294
+- `java.*`: 370
+- `CancellationException`: 1
+
+参考値として、同じ `DUMP_SURFACE=1` 実行時の `SymbolTable.allSymbols()` 総数は **8599**。
+
+主な削減内容:
+
+- `kotlinx.cinterop` パッケージから externalLinkName 未設定の未配線 synthetic 関数外殻
+  （`CPointer.get/set/pointed/value/reinterpret`, `CPointer.plus`, `CPointer.asStableRef`,
+  `Arena`/`MemScope`/`NativePlacement`/`nativeHeap` 系 `alloc`/`place`, `StableRef`,
+  `CValues`/`CValue`/`CValuesRef` 系アクセサ, `CEnum`/`CVariable` 系プロパティ,
+  `zeroValue`/`typeOf`/Vector128 系など）を削除。
+- 併せて `HeaderHelpers+SyntheticNativeInteropHelpers.swift` から
+  `registerSyntheticCPointerGetFunction`/`setFunction`/`pointedProperty`/`plusFunction`/
+  `varTypeAlias`/`CPointedReadFunction` などの未使用ビルダーと、
+  `registerSyntheticNativeExtensionProperty`/`NativeTopLevelProperty`/`NativePlacementAllocArrayFunction`
+  を削除。
+- 残留する実働 cinterop ブリッジは `kk_cpointer_toLong`, `kk_byteArray_toCValues`,
+  `kk_pin_object`/`kk_pinned_get`/`kk_unpin_object`, `kk_uByteArray_toCValues`/
+  `kk_uIntArray_toCValues`/`kk_uLongArray_toCValues`, `kk_cpointer_toKStringFromUtf32`/
+  `kk_cpointer_toKStringFromUtf16` のみ。
+
 ## 重要な判断: `java.*` / `kotlinx.*` は「架空」ではない
 
 当初の計画では `java.*`/`javax.*` を一律「架空クラス」として削除予定だったが、調査の結果

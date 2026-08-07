@@ -110,19 +110,6 @@ private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
     return tryCast(ptr, to: RuntimeThrowableBox.self)
 }
 
-private let runtimeFlatStringDigitPredicate: RuntimeStringUnaryEntry = { _, charRaw, _ in
-    (0x30 ... 0x39).contains(charRaw) ? 1 : 0
-}
-
-private let runtimeFlatStringLowercasePredicate: RuntimeStringUnaryEntry = { _, charRaw, _ in
-    (0x61 ... 0x7A).contains(charRaw) ? 1 : 0
-}
-
-private let runtimeFlatStringThrowingPredicate: RuntimeStringUnaryEntry = { _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "flat predicate failure")
-    return 0
-}
-
 private let runtimeFlatStringLengthTransform: RuntimeStringUnaryEntry = { _, strRaw, _ in
     runtimeStringFromRawOrPanic(strRaw, caller: "runtimeFlatStringLengthTransform").count
 }
@@ -463,39 +450,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    private func flatStringSubstringValue(
-        _ value: String,
-        start: Int,
-        end: Int,
-        hasEnd: Int = 1,
-        outThrown: UnsafeMutablePointer<Int>? = nil
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = kk_string_substring_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                start,
-                end,
-                hasEnd,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                outThrown
-            )
-            return flatStringValue(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
     private func doubleFromRuntimeBits(_ raw: Int) -> Double {
         Double(bitPattern: UInt64(bitPattern: Int64(raw)))
     }
@@ -727,147 +681,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    func testFlatStringSubstringReportsThrownSlot() {
-        withFlatString("abc") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            var thrown = 0
-            let outData = kk_string_substring_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                4,
-                1,
-                1,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                &thrown
-            )
-            XCTAssertNotEqual(thrown, 0)
-            XCTAssertEqual(
-                flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ),
-                ""
-            )
-        }
-    }
-
-    func testFlatStringSubSequenceReturnsFlattenedStringFields() {
-        withFlatString("aé🐻z") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = kk_string_subSequence_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                1,
-                3,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                nil
-            )
-            XCTAssertEqual(
-                flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ),
-                "é🐻"
-            )
-        }
-    }
-
-    func testFlatStringSubSequenceReportsThrownSlot() {
-        withFlatString("abc") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            var thrown = 0
-            let outData = kk_string_subSequence_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                3,
-                1,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                &thrown
-            )
-            XCTAssertNotEqual(thrown, 0)
-            XCTAssertEqual(
-                flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ),
-                ""
-            )
-        }
-    }
-
     func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             withFlatString("swift") { needleData, needleLength, needleByteCount, needleHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(
-                        kk_string_contains_ignoreCase_flat(
-                            data,
-                            length,
-                            byteCount,
-                            hash,
-                            needleData,
-                            needleLength,
-                            needleByteCount,
-                            needleHash,
-                            1
-                        )
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_string_indexOf_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        needleData,
-                        needleLength,
-                        needleByteCount,
-                        needleHash,
-                        0,
-                        1
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_string_lastIndexOf_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        needleData,
-                        needleLength,
-                        needleByteCount,
-                        needleHash,
-                        length,
-                        1
-                    ),
-                    1
-                )
                 XCTAssertEqual(
                     kk_string_compareToIgnoreCase_flat(
                         data,
@@ -883,92 +699,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                     -1
                 )
             }
-            withFlatString("") { emptyData, emptyLength, emptyByteCount, emptyHash in
-                XCTAssertEqual(
-                    kk_string_indexOf_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        emptyData,
-                        emptyLength,
-                        emptyByteCount,
-                        emptyHash,
-                        length + 1,
-                        0
-                    ),
-                    length
-                )
-                XCTAssertEqual(
-                    kk_string_indexOf_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        emptyData,
-                        emptyLength,
-                        emptyByteCount,
-                        emptyHash,
-                        length + 1,
-                        1
-                    ),
-                    -1
-                )
-                XCTAssertEqual(
-                    kk_string_lastIndexOf_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        emptyData,
-                        emptyLength,
-                        emptyByteCount,
-                        emptyHash,
-                        length + 1,
-                        0
-                    ),
-                    length
-                )
-                XCTAssertEqual(
-                    kk_string_lastIndexOf_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        emptyData,
-                        emptyLength,
-                        emptyByteCount,
-                        emptyHash,
-                        length + 1,
-                        1
-                    ),
-                    length - 1
-                )
-            }
-            XCTAssertEqual(
-                kk_string_indexOf_char_flat(
-                    data,
-                    length,
-                    byteCount,
-                    hash,
-                    kk_box_char(Int(Unicode.Scalar("s").value)),
-                    0,
-                    1
-                ),
-                1
-            )
-            XCTAssertEqual(
-                kk_string_lastIndexOf_char_flat(
-                    data,
-                    length,
-                    byteCount,
-                    hash,
-                    kk_box_char(Int(Unicode.Scalar("K").value)),
-                    length,
-                    0
-                ),
-                6
-            )
             XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 1)
         }
         withFlatString("  \n\t") { data, length, byteCount, hash in
@@ -980,150 +710,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    func testFlatStringIndexOfAnyRuntimeAPIsUseFlattenedStringFields() {
-        let charNeedles = makeRuntimeArray([
-            kk_box_char(Int(Unicode.Scalar("B").value)),
-            kk_box_char(Int(Unicode.Scalar("x").value)),
-        ])
-        let stringNeedles = makeRuntimeArray([
-            rawFromRuntimeString("x"),
-            rawFromRuntimeString("bc"),
-        ])
-        let emptyStringNeedles = makeRuntimeArray([
-            rawFromRuntimeString(""),
-        ])
-
-        withFlatString("aBcabc") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_indexOfAny_chars_flat(data, length, byteCount, hash, charNeedles, 0, 0),
-                1
-            )
-            XCTAssertEqual(
-                kk_string_indexOfAny_chars_flat(data, length, byteCount, hash, charNeedles, 2, 1),
-                4
-            )
-            XCTAssertEqual(
-                kk_string_lastIndexOfAny_chars_flat(data, length, byteCount, hash, charNeedles, length, 1),
-                4
-            )
-            XCTAssertEqual(
-                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 0),
-                4
-            )
-            XCTAssertEqual(
-                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 1),
-                1
-            )
-            XCTAssertEqual(
-                kk_string_lastIndexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, length, 0),
-                4
-            )
-            XCTAssertEqual(
-                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, emptyStringNeedles, 2, 0),
-                2
-            )
-            XCTAssertEqual(
-                kk_string_lastIndexOfAny_strings_flat(data, length, byteCount, hash, emptyStringNeedles, 99, 0),
-                length
-            )
-        }
-
-        XCTAssertEqual(kk_string_indexOfAny_chars_flat(nil, 0, 0, 0, charNeedles, 0, 1), -1)
-        XCTAssertEqual(kk_string_indexOfAny_strings_flat(nil, 0, 0, 0, emptyStringNeedles, 2, 0), 0)
-        XCTAssertEqual(kk_string_lastIndexOfAny_strings_flat(nil, 0, 0, 0, emptyStringNeedles, 2, 0), 0)
-    }
-
-    func testFlatStringIndexOfAnyStringNeedlesUseAggregateStorageWithoutLegacyStringBoxes() {
-        let stringNeedles = makeRuntimeStringValueArray(["x", "bc"])
-        let baselineObjectCount = kk_debugging_global_object_count()
-
-        withFlatString("aBcabc") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 0),
-                4
-            )
-            XCTAssertEqual(
-                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 1),
-                1
-            )
-            XCTAssertEqual(
-                kk_string_lastIndexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, length, 0),
-                4
-            )
-        }
-
-        XCTAssertEqual(
-            kk_debugging_global_object_count(),
-            baselineObjectCount,
-            "String needle lookup must not materialize RuntimeStringBox values from aggregate storage"
-        )
-    }
-
-    func testFlatStringFindAnyOfRuntimeAPIsUseFlattenedStringFields() {
-        let stringNeedles = makeRuntimeArray([
-            rawFromRuntimeString("x"),
-            rawFromRuntimeString("bc"),
-            rawFromRuntimeString("AB"),
-        ])
-        let emptyStringNeedles = makeRuntimeArray([
-            rawFromRuntimeString(""),
-        ])
-
-        withFlatString("abcABC") { data, length, byteCount, hash in
-            let first = kk_string_findAnyOf_flat(data, length, byteCount, hash, stringNeedles, 0, 0)
-            assertFindAnyOfPair(first, offset: 1, match: "bc")
-
-            let afterPrefix = kk_string_findAnyOf_flat(data, length, byteCount, hash, stringNeedles, 3, 0)
-            assertFindAnyOfPair(afterPrefix, offset: 3, match: "AB")
-
-            let last = kk_string_findLastAnyOf_flat(data, length, byteCount, hash, stringNeedles, length, 0)
-            assertFindAnyOfPair(last, offset: 3, match: "AB")
-
-            let caseInsensitiveNeedles = makeRuntimeArray([
-                rawFromRuntimeString("ab"),
-            ])
-            let caseInsensitive = kk_string_findLastAnyOf_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                caseInsensitiveNeedles,
-                length,
-                1
-            )
-            assertFindAnyOfPair(caseInsensitive, offset: 3, match: "ab")
-
-            XCTAssertEqual(
-                kk_string_findAnyOf_flat(
-                    data,
-                    length,
-                    byteCount,
-                    hash,
-                    makeRuntimeArray([rawFromRuntimeString("z")]),
-                    0,
-                    0
-                ),
-                runtimeNullSentinelInt
-            )
-        }
-
-        withFlatString("abc") { data, length, byteCount, hash in
-            let firstEmpty = kk_string_findAnyOf_flat(data, length, byteCount, hash, emptyStringNeedles, 9, 0)
-            assertFindAnyOfPair(firstEmpty, offset: 3, match: "")
-
-            let lastEmpty = kk_string_findLastAnyOf_flat(data, length, byteCount, hash, emptyStringNeedles, -1, 0)
-            XCTAssertEqual(lastEmpty, runtimeNullSentinelInt)
-        }
-    }
-
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(nil, 0, 0, 0, nil, 0, 0, 0, 1)), 1)
 
         withFlatString("") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)), 1)
             XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
+            XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
+            XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)), 0)
         }
 
         withFlatString("  \n\t") { data, length, byteCount, hash in
@@ -1223,22 +821,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash), 0)
             XCTAssertEqual(kk_string_isNullOrBlank_flat(data, length, byteCount, hash), 0)
 
-            withFlatString("iftK") { suffixData, suffixLength, suffixByteCount, suffixHash in
-                XCTAssertEqual(
-                    kk_string_contains_str_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        suffixData,
-                        suffixLength,
-                        suffixByteCount,
-                        suffixHash
-                    ),
-                    1
-                )
-            }
-
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
                 XCTAssertEqual(
                     kk_string_equals_flat(
@@ -1269,20 +851,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 )
                 XCTAssertEqual(
                     kk_string_contentEquals_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash,
-                        1
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_string_contains_ignoreCase_flat(
                         data,
                         length,
                         byteCount,
@@ -1471,73 +1039,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    func testFlatStringCallbackScalarRuntimeAPIsUseFlattenedStringFields() {
-        let digitPredicate = unsafeBitCast(runtimeFlatStringDigitPredicate, to: Int.self)
-        let lowercasePredicate = unsafeBitCast(runtimeFlatStringLowercasePredicate, to: Int.self)
-
-        withFlatString("a1b2") { data, length, byteCount, hash in
-            var thrown = 0
-            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 2)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 1)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, lowercasePredicate, 0, &thrown), 0)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 0)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 1)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_indexOfLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 3)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_unbox_char(kk_string_find_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown)), 49)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(
-                kk_unbox_char(kk_string_findLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown)),
-                50
-            )
-            XCTAssertEqual(thrown, 0)
-
-            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, 0, 0, &thrown), 4)
-            XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
-            XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
-            XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
-            XCTAssertEqual(kk_string_find_flat(data, length, byteCount, hash, 0, 0, &thrown), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_findLast_flat(data, length, byteCount, hash, 0, 0, &thrown), runtimeNullSentinelInt)
-        }
-
-        withFlatString("") { data, length, byteCount, hash in
-            var thrown = 0
-            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
-            XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
-            XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
-            XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
-            XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), -1)
-            XCTAssertEqual(kk_string_indexOfLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), -1)
-            XCTAssertEqual(kk_string_find_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_findLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), runtimeNullSentinelInt)
-            XCTAssertEqual(thrown, 0)
-        }
-
-        withFlatString("abc") { data, length, byteCount, hash in
-            let throwingPredicate = unsafeBitCast(runtimeFlatStringThrowingPredicate, to: Int.self)
-            var thrown = 0
-            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
-            let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-            XCTAssertTrue(thrownOutput.contains("flat predicate failure"))
-
-            thrown = 0
-            XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown), -1)
-            XCTAssertNotEqual(thrown, 0)
-
-            thrown = 0
-            XCTAssertEqual(
-                kk_string_find_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertNotEqual(thrown, 0)
-        }
-    }
+    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
+    // KSP-410: count/any/all/none/find/findLast are bundled Kotlin source
+    // (StringHOF.kt). None of these lower to a flat runtime cdecl anymore;
+    // coverage now lives in Scripts/diff_cases/string_hof*.kt / string_find.kt /
+    // string_indexoffirst_indexoflast.kt via diff_kotlinc.sh.
 
     func testStringSplitProducesListOfStrings() {
         var splitRaw = 0
@@ -2370,44 +1876,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedCodeUnits)
     }
 
-    func testStringScalarIndexedOperationsWithNonASCII() {
-        XCTAssertEqual(flatStringSubstringValue("aé🐻", start: 1, end: 3), "é🐻")
-        XCTAssertEqual(
-            withFlatString("aé🐻") { data, length, byteCount, hash in
-                withFlatString("é🐻") { otherData, otherLength, otherByteCount, otherHash in
-                    kk_string_indexOf_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash
-                    )
-                }
-            },
-            1
-        )
-        XCTAssertEqual(
-            withFlatString("aé🐻") { data, length, byteCount, hash in
-                withFlatString("é") { otherData, otherLength, otherByteCount, otherHash in
-                    kk_string_lastIndexOf_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash
-                    )
-                }
-            },
-            1
-        )
-    }
-
     func testStringCodePointCountUsesUTF16Ranges() {
         let textRaw = rawFromRuntimeString("a😀b")
 
@@ -2594,115 +2062,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             using: kk_string_replace_char_ignoreCase_flat
         )
         XCTAssertEqual(replaced, "Hello World")
-    }
-
-    func testStringStartsWithEndsWithContains() {
-        withFlatString("HelloWorld") { data, length, byteCount, hash in
-            withFlatString("World") { suffixData, suffixLength, suffixByteCount, suffixHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(kk_string_contains_str_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        suffixData,
-                        suffixLength,
-                        suffixByteCount,
-                        suffixHash
-                    )),
-                    1
-                )
-            }
-            withFlatString("") { emptyData, emptyLength, emptyByteCount, emptyHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(kk_string_contains_str_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        emptyData,
-                        emptyLength,
-                        emptyByteCount,
-                        emptyHash
-                    )),
-                    1
-                )
-            }
-        }
-    }
-
-    // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase_flat
-    //
-    // Asserts the raw Boolean scalar returned by `kk_string_contains_ignoreCase_flat`
-    // matches Kotlin's `CharSequence.contains(other, ignoreCase)` semantics:
-    // - empty needle always matches (mirroring `String.contains("")`)
-    // - case-sensitive mode (`ignoreCase = false`) behaves like `kk_string_contains_str_flat`
-    // - case-insensitive mode matches across mixed-case ASCII without copying
-    //   into a normalized scratch buffer.
-    func testStringContainsIgnoreCase() {
-        func contains(_ source: String, _ other: String, ignoreCase: Int) -> Int {
-            withFlatString(source) { data, length, byteCount, hash in
-                withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
-                    kk_unbox_bool(kk_string_contains_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash,
-                        ignoreCase
-                    ))
-                }
-            }
-        }
-
-        // ignoreCase = false: identical to kk_string_contains_str_flat.
-        XCTAssertEqual(
-            contains("HelloWorld", "World", ignoreCase: 0),
-            1,
-            "case-sensitive hit should return raw `true`"
-        )
-        XCTAssertEqual(
-            contains("HelloWorld", "world", ignoreCase: 0),
-            0,
-            "case-sensitive miss should return raw `false`"
-        )
-        XCTAssertEqual(
-            contains("HelloWorld", "", ignoreCase: 0),
-            1,
-            "empty needle should always match"
-        )
-
-        // ignoreCase = true: case-insensitive substring match.
-        XCTAssertEqual(
-            contains("HelloWorld", "world", ignoreCase: 1),
-            1,
-            "case-insensitive hit should return raw `true`"
-        )
-        XCTAssertEqual(
-            contains("HelloWorld", "WORLD", ignoreCase: 1),
-            1,
-            "fully uppercased needle should return raw `true` when ignoreCase=true"
-        )
-        XCTAssertEqual(
-            contains("HelloWorld", "", ignoreCase: 1),
-            1,
-            "empty needle should always match even when ignoreCase=true"
-        )
-
-        // Needle longer than source must return false without indexing OOB.
-        XCTAssertEqual(
-            contains("hi", "there", ignoreCase: 1),
-            0
-        )
-
-        // Truly absent needle returns false even with ignoreCase=true.
-        XCTAssertEqual(
-            contains("HelloWorld", "zzz", ignoreCase: 1),
-            0
-        )
     }
 
     func testStringToIntSuccessAndFailure() {

@@ -1,6 +1,7 @@
 import Dispatch
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // Runtime テストの下限時間（短縮候補・フレークに注意）: 本ファイルの ~50ms sleep（measureTime）、
 // RuntimeFlowTests の usleep、RuntimeChannelTests / RuntimeMutexTests の期待待ち 2s 前後、
@@ -50,13 +51,12 @@ private let throwingThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> I
     return 0
 }
 
-final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        capturedClosureRaw = 0
-    }
+private func resetRuntimeDurationTestState() {
+    capturedClosureRaw = 0
+}
 
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeDurationTestState))
+struct RuntimeDurationTests {
     private final class DurationResultsBox: @unchecked Sendable {
         private let lock = NSLock()
         private var values: [Int] = []
@@ -96,616 +96,616 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Factory: durationFromNanoseconds
 
-    func testFromNanosecondsStoresExactValue() {
+    @Test func testFromNanosecondsStoresExactValue() {
         let handle = durationFromNanoseconds(500)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 500)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 500)
     }
 
-    func testFromNanosecondsZero() {
+    @Test func testFromNanosecondsZero() {
         let handle = durationFromNanoseconds(0)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 0)
     }
 
-    func testFromNanosecondsNegative() {
+    @Test func testFromNanosecondsNegative() {
         let handle = durationFromNanoseconds(-1000)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), -1000)
+        #expect(kk_duration_inWholeNanoseconds(handle) == -1000)
     }
 
     // MARK: - Factory: durationFromMicroseconds
 
-    func testFromMicrosecondsConvertsToNanoseconds() {
+    @Test func testFromMicrosecondsConvertsToNanoseconds() {
         let handle = durationFromMicroseconds(3)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 3000)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 3000)
     }
 
-    func testFromMicrosecondsZero() {
+    @Test func testFromMicrosecondsZero() {
         let handle = durationFromMicroseconds(0)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 0)
     }
 
     // MARK: - Factory: durationFromMilliseconds
 
-    func testFromMillisecondsConvertsToNanoseconds() {
+    @Test func testFromMillisecondsConvertsToNanoseconds() {
         let handle = durationFromMilliseconds(5)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 5_000_000)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 5_000_000)
     }
 
-    func testFromMillisecondsRoundTrip() {
+    @Test func testFromMillisecondsRoundTrip() {
         let handle = durationFromMilliseconds(42)
-        XCTAssertEqual(durationInWholeMilliseconds(handle), 42)
+        #expect(durationInWholeMilliseconds(handle) == 42)
     }
 
-    func testFromMillisecondsZero() {
+    @Test func testFromMillisecondsZero() {
         let handle = durationFromMilliseconds(0)
-        XCTAssertEqual(durationInWholeMilliseconds(handle), 0)
+        #expect(durationInWholeMilliseconds(handle) == 0)
     }
 
-    func testFromMillisecondsNegative() {
+    @Test func testFromMillisecondsNegative() {
         let handle = durationFromMilliseconds(-100)
-        XCTAssertEqual(durationInWholeMilliseconds(handle), -100)
+        #expect(durationInWholeMilliseconds(handle) == -100)
     }
 
     // MARK: - Factory: durationFromSeconds
 
-    func testFromSecondsConvertsToNanoseconds() {
+    @Test func testFromSecondsConvertsToNanoseconds() {
         let handle = durationFromSeconds(2)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 2_000_000_000)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 2_000_000_000)
     }
 
-    func testFromSecondsRoundTrip() {
+    @Test func testFromSecondsRoundTrip() {
         let handle = durationFromSeconds(7)
-        XCTAssertEqual(durationInWholeSeconds(handle), 7)
+        #expect(durationInWholeSeconds(handle) == 7)
     }
 
-    func testFromSecondsZero() {
+    @Test func testFromSecondsZero() {
         let handle = durationFromSeconds(0)
-        XCTAssertEqual(durationInWholeSeconds(handle), 0)
+        #expect(durationInWholeSeconds(handle) == 0)
     }
 
-    func testFromSecondsNegative() {
+    @Test func testFromSecondsNegative() {
         let handle = durationFromSeconds(-3)
-        XCTAssertEqual(durationInWholeSeconds(handle), -3)
+        #expect(durationInWholeSeconds(handle) == -3)
     }
 
     // MARK: - Factory: durationFromMinutes
 
-    func testFromMinutesConvertsToNanoseconds() {
+    @Test func testFromMinutesConvertsToNanoseconds() {
         let handle = durationFromMinutes(1)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 60_000_000_000)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 60_000_000_000)
     }
 
-    func testFromMinutesRoundTripSeconds() {
+    @Test func testFromMinutesRoundTripSeconds() {
         let handle = durationFromMinutes(2)
-        XCTAssertEqual(durationInWholeSeconds(handle), 120)
+        #expect(durationInWholeSeconds(handle) == 120)
     }
 
-    func testFromMinutesZero() {
+    @Test func testFromMinutesZero() {
         let handle = durationFromMinutes(0)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 0)
     }
 
     // MARK: - Factory: durationFromHours
 
-    func testFromHoursConvertsToNanoseconds() {
+    @Test func testFromHoursConvertsToNanoseconds() {
         let handle = durationFromHours(1)
         let expected = Int(3600) * 1_000_000_000
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), expected)
+        #expect(kk_duration_inWholeNanoseconds(handle) == expected)
     }
 
-    func testFromHoursRoundTripSeconds() {
+    @Test func testFromHoursRoundTripSeconds() {
         let handle = durationFromHours(2)
-        XCTAssertEqual(durationInWholeSeconds(handle), 7200)
+        #expect(durationInWholeSeconds(handle) == 7200)
     }
 
-    func testFromHoursZero() {
+    @Test func testFromHoursZero() {
         let handle = durationFromHours(0)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 0)
     }
 
     // MARK: - inWholeHours
 
-    func testInWholeHoursFromHoursRoundTrip() {
+    @Test func testInWholeHoursFromHoursRoundTrip() {
         let handle = durationFromHours(3)
-        XCTAssertEqual(durationInWholeHours(handle), 3)
+        #expect(durationInWholeHours(handle) == 3)
     }
 
-    func testInWholeHoursFromMinutes() {
+    @Test func testInWholeHoursFromMinutes() {
         let handle = durationFromMinutes(150)
-        XCTAssertEqual(durationInWholeHours(handle), 2)
+        #expect(durationInWholeHours(handle) == 2)
     }
 
-    func testInWholeHoursFromSeconds() {
+    @Test func testInWholeHoursFromSeconds() {
         let handle = durationFromSeconds(7200)
-        XCTAssertEqual(durationInWholeHours(handle), 2)
+        #expect(durationInWholeHours(handle) == 2)
     }
 
-    func testInWholeHoursTruncatesSubHour() {
+    @Test func testInWholeHoursTruncatesSubHour() {
         // 90 minutes = 1.5 hours -> inWholeHours should return 1
         let handle = durationFromMinutes(90)
-        XCTAssertEqual(durationInWholeHours(handle), 1)
+        #expect(durationInWholeHours(handle) == 1)
     }
 
-    func testInWholeHoursSubHourReturnsZero() {
+    @Test func testInWholeHoursSubHourReturnsZero() {
         let handle = durationFromMinutes(59)
-        XCTAssertEqual(durationInWholeHours(handle), 0)
+        #expect(durationInWholeHours(handle) == 0)
     }
 
-    func testInWholeHoursZero() {
+    @Test func testInWholeHoursZero() {
         let handle = durationFromHours(0)
-        XCTAssertEqual(durationInWholeHours(handle), 0)
+        #expect(durationInWholeHours(handle) == 0)
     }
 
-    func testInWholeHoursNegative() {
+    @Test func testInWholeHoursNegative() {
         let handle = durationFromHours(-5)
-        XCTAssertEqual(durationInWholeHours(handle), -5)
+        #expect(durationInWholeHours(handle) == -5)
     }
 
     // MARK: - Duration companion constants
 
-    func testDurationZeroAndInfiniteConstants() {
+    @Test func testDurationZeroAndInfiniteConstants() {
         let zero = kk_duration_zero()
         let infinite = kk_duration_infinite()
 
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(zero), 0)
-        XCTAssertEqual(kk_duration_isInfinite(zero), 0)
-        XCTAssertEqual(kk_duration_isInfinite(infinite), 1)
+        #expect(kk_duration_inWholeNanoseconds(zero) == 0)
+        #expect(kk_duration_isInfinite(zero) == 0)
+        #expect(kk_duration_isInfinite(infinite) == 1)
     }
 
     // MARK: - Double receiver factories
 
-    func testDoubleReceiverSecondsConvertsFractionalDuration() {
+    @Test func testDoubleReceiverSecondsConvertsFractionalDuration() {
         let handle = durationFromSecondsDouble(kk_double_to_bits(1.5))
-        XCTAssertEqual(durationInWholeMilliseconds(handle), 1_500)
+        #expect(durationInWholeMilliseconds(handle) == 1_500)
     }
 
-    func testDoubleReceiverDaysConvertsFractionalDuration() {
+    @Test func testDoubleReceiverDaysConvertsFractionalDuration() {
         let handle = durationFromDaysDouble(kk_double_to_bits(1.25))
-        XCTAssertEqual(durationInWholeHours(handle), 30)
+        #expect(durationInWholeHours(handle) == 30)
     }
 
     // MARK: - Numeric.toDuration(unit)
 
-    func testNumericToDurationUsesDurationUnitOrdinals() {
+    @Test func testNumericToDurationUsesDurationUnitOrdinals() {
         let seconds = kk_duration_toDuration_int(2, 3)
         let milliseconds = kk_duration_toDuration_long(1500, 2)
         let minutes = kk_duration_toDuration_double(kk_double_to_bits(1.5), 4)
 
-        XCTAssertEqual(durationInWholeSeconds(seconds), 2)
-        XCTAssertEqual(durationInWholeMilliseconds(milliseconds), 1500)
-        XCTAssertEqual(durationInWholeSeconds(minutes), 90)
+        #expect(durationInWholeSeconds(seconds) == 2)
+        #expect(durationInWholeMilliseconds(milliseconds) == 1500)
+        #expect(durationInWholeSeconds(minutes) == 90)
     }
 
     // MARK: - Duration / Duration -> Double
 
-    func testDurationDivisionReturnsDoubleBits() {
+    @Test func testDurationDivisionReturnsDoubleBits() {
         let lhs = durationFromSeconds(3)
         let rhs = durationFromSeconds(2)
         let resultBits = kk_duration_div_duration(lhs, rhs)
-        XCTAssertEqual(kk_bits_to_double(resultBits), 1.5)
+        #expect(kk_bits_to_double(resultBits) == 1.5)
     }
 
     // MARK: - inWholeDays
 
-    func testInWholeDaysRoundTrip() {
+    @Test func testInWholeDaysRoundTrip() {
         let handle = durationFromDays(2)
-        XCTAssertEqual(durationInWholeDays(handle), 2)
+        #expect(durationInWholeDays(handle) == 2)
     }
 
     // MARK: - Saturation on overflow
 
-    func testFromSecondsLargeValueSaturates() {
+    @Test func testFromSecondsLargeValueSaturates() {
         // Int64.max / 1_000_000_000 = 9_223_372_036, so 9_223_372_037 will overflow.
         let handle = durationFromSeconds(9_223_372_037)
         let ns = kk_duration_inWholeNanoseconds(handle)
         // The result must be saturated to Int64.max.
-        XCTAssertEqual(ns, Int(Int64.max))
+        #expect(ns == Int(Int64.max))
     }
 
-    func testFromMillisecondsLargeNegativeValueSaturates() {
+    @Test func testFromMillisecondsLargeNegativeValueSaturates() {
         // Int64.min / 1_000_000 = -9_223_372_036_854, so -9_223_372_036_855 will overflow.
         let handle = durationFromMilliseconds(-9_223_372_036_855)
         let ns = kk_duration_inWholeNanoseconds(handle)
         // The result must be saturated to Int64.min.
-        XCTAssertEqual(ns, Int(Int64.min))
+        #expect(ns == Int(Int64.min))
     }
 
     // MARK: - inWholeMicroseconds
 
-    func testInWholeMicrosecondsFromSeconds() {
+    @Test func testInWholeMicrosecondsFromSeconds() {
         let handle = durationFromSeconds(3)
-        XCTAssertEqual(durationInWholeMicroseconds(handle), 3_000_000)
+        #expect(durationInWholeMicroseconds(handle) == 3_000_000)
     }
 
-    func testInWholeMicrosecondsFromMilliseconds() {
+    @Test func testInWholeMicrosecondsFromMilliseconds() {
         let handle = durationFromMilliseconds(2500)
-        XCTAssertEqual(durationInWholeMicroseconds(handle), 2_500_000)
+        #expect(durationInWholeMicroseconds(handle) == 2_500_000)
     }
 
-    func testInWholeMicrosecondsRoundTrip() {
+    @Test func testInWholeMicrosecondsRoundTrip() {
         let handle = durationFromMicroseconds(42)
-        XCTAssertEqual(durationInWholeMicroseconds(handle), 42)
+        #expect(durationInWholeMicroseconds(handle) == 42)
     }
 
-    func testInWholeMicrosecondsTruncatesSubMicrosecond() {
+    @Test func testInWholeMicrosecondsTruncatesSubMicrosecond() {
         // 1500 ns = 1.5 us -> inWholeMicroseconds should return 1
         let handle = durationFromNanoseconds(1500)
-        XCTAssertEqual(durationInWholeMicroseconds(handle), 1)
+        #expect(durationInWholeMicroseconds(handle) == 1)
     }
 
-    func testInWholeMicrosecondsSubMicrosecondReturnsZero() {
+    @Test func testInWholeMicrosecondsSubMicrosecondReturnsZero() {
         // 999 ns < 1 us -> inWholeMicroseconds should return 0
         let handle = durationFromNanoseconds(999)
-        XCTAssertEqual(durationInWholeMicroseconds(handle), 0)
+        #expect(durationInWholeMicroseconds(handle) == 0)
     }
 
     // MARK: - inWholeMilliseconds truncation
 
-    func testInWholeMillisecondsTruncatesSubMillisecond() {
+    @Test func testInWholeMillisecondsTruncatesSubMillisecond() {
         // 1_500_000 ns = 1.5 ms -> inWholeMilliseconds should return 1
         let handle = durationFromNanoseconds(1_500_000)
-        XCTAssertEqual(durationInWholeMilliseconds(handle), 1)
+        #expect(durationInWholeMilliseconds(handle) == 1)
     }
 
-    func testInWholeMillisecondsSubMillisecondReturnsZero() {
+    @Test func testInWholeMillisecondsSubMillisecondReturnsZero() {
         // 999_999 ns < 1 ms -> inWholeMilliseconds should return 0
         let handle = durationFromNanoseconds(999_999)
-        XCTAssertEqual(durationInWholeMilliseconds(handle), 0)
+        #expect(durationInWholeMilliseconds(handle) == 0)
     }
 
     // MARK: - inWholeSeconds truncation
 
-    func testInWholeSecondsTruncatesSubSecond() {
+    @Test func testInWholeSecondsTruncatesSubSecond() {
         // 1500 ms = 1.5 s -> inWholeSeconds should return 1
         let handle = durationFromMilliseconds(1500)
-        XCTAssertEqual(durationInWholeSeconds(handle), 1)
+        #expect(durationInWholeSeconds(handle) == 1)
     }
 
-    func testInWholeSecondsSubSecondReturnsZero() {
+    @Test func testInWholeSecondsSubSecondReturnsZero() {
         let handle = durationFromMilliseconds(999)
-        XCTAssertEqual(durationInWholeSeconds(handle), 0)
+        #expect(durationInWholeSeconds(handle) == 0)
     }
 
     // MARK: - toString formatting
 
-    func testToStringZeroSeconds() {
+    @Test func testToStringZeroSeconds() {
         let handle = durationFromNanoseconds(0)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "0s")
+        #expect(stringFromHandle(result) == "0s")
     }
 
-    func testToStringWholeSeconds() {
+    @Test func testToStringWholeSeconds() {
         let handle = durationFromSeconds(5)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "5s")
+        #expect(stringFromHandle(result) == "5s")
     }
 
-    func testToStringNegativeWholeSeconds() {
+    @Test func testToStringNegativeWholeSeconds() {
         let handle = durationFromSeconds(-3)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "-3s")
+        #expect(stringFromHandle(result) == "-3s")
     }
 
-    func testToStringWholeMilliseconds() {
+    @Test func testToStringWholeMilliseconds() {
         let handle = durationFromMilliseconds(42)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "42ms")
+        #expect(stringFromHandle(result) == "42ms")
     }
 
-    func testToStringWholeMicroseconds() {
+    @Test func testToStringWholeMicroseconds() {
         let handle = durationFromMicroseconds(7)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "7us")
+        #expect(stringFromHandle(result) == "7us")
     }
 
-    func testToStringNanoseconds() {
+    @Test func testToStringNanoseconds() {
         let handle = durationFromNanoseconds(123)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "123ns")
+        #expect(stringFromHandle(result) == "123ns")
     }
 
-    func testToStringOneMinuteRendersAsSeconds() {
+    @Test func testToStringOneMinuteRendersAsSeconds() {
         let handle = durationFromMinutes(1)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "1m")
+        #expect(stringFromHandle(result) == "1m")
     }
 
-    func testToStringOneHourRendersAsSeconds() {
+    @Test func testToStringOneHourRendersAsSeconds() {
         let handle = durationFromHours(1)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "1h")
+        #expect(stringFromHandle(result) == "1h")
     }
 
     // MARK: - parse
 
-    func testParseAcceptsIsoAndDefaultFormats() {
+    @Test func testParseAcceptsIsoAndDefaultFormats() {
         var thrown = 0
         let iso = kk_duration_parse(stringHandle("PT1H30M"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(durationInWholeMinutes(iso), 90)
+        #expect(thrown == 0)
+        #expect(durationInWholeMinutes(iso) == 90)
 
         let defaultFormat = kk_duration_parse(stringHandle("1h 30m"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(durationInWholeMinutes(defaultFormat), 90)
+        #expect(thrown == 0)
+        #expect(durationInWholeMinutes(defaultFormat) == 90)
     }
 
-    func testParseAcceptsSingleUnitDecimalFormat() {
+    @Test func testParseAcceptsSingleUnitDecimalFormat() {
         var thrown = 0
         let parsed = kk_duration_parse(stringHandle("1.5h"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(durationInWholeMinutes(parsed), 90)
+        #expect(thrown == 0)
+        #expect(durationInWholeMinutes(parsed) == 90)
     }
 
-    func testParseInvalidStringSetsThrownChannel() {
+    @Test func testParseInvalidStringSetsThrownChannel() {
         var thrown = 0
         let parsed = kk_duration_parse(stringHandle("1 hour 30 minutes"), &thrown)
-        XCTAssertEqual(parsed, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(parsed == runtimeNullSentinelInt)
+        #expect(thrown != 0)
     }
 
-    func testParseOrNullReturnsDurationOrNullSentinel() {
+    @Test func testParseOrNullReturnsDurationOrNullSentinel() {
         let valid = kk_duration_parseOrNull(stringHandle("PT0.120300S"))
-        XCTAssertEqual(durationInWholeMicroseconds(valid), 120_300)
+        #expect(durationInWholeMicroseconds(valid) == 120_300)
 
         let invalid = kk_duration_parseOrNull(stringHandle("1 hour 30 minutes"))
-        XCTAssertEqual(invalid, runtimeNullSentinelInt)
+        #expect(invalid == runtimeNullSentinelInt)
     }
 
-    func testParseIsoStringRejectsDefaultFormat() {
+    @Test func testParseIsoStringRejectsDefaultFormat() {
         var thrown = 0
         let parsed = kk_duration_parseIsoString(stringHandle("1h 30m"), &thrown)
-        XCTAssertEqual(parsed, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(parsed == runtimeNullSentinelInt)
+        #expect(thrown != 0)
     }
 
-    func testParseIsoStringOrNullAcceptsOnlyIsoFormat() {
+    @Test func testParseIsoStringOrNullAcceptsOnlyIsoFormat() {
         let valid = kk_duration_parseIsoStringOrNull(stringHandle("P1DT2H3M4.005S"))
-        XCTAssertEqual(durationInWholeSeconds(valid), 93_784)
+        #expect(durationInWholeSeconds(valid) == 93_784)
 
         let invalid = kk_duration_parseIsoStringOrNull(stringHandle("1h 30m"))
-        XCTAssertEqual(invalid, runtimeNullSentinelInt)
+        #expect(invalid == runtimeNullSentinelInt)
     }
 
     // MARK: - Multiple independent durations
 
-    func testMultipleDurationsAreIndependent() {
+    @Test func testMultipleDurationsAreIndependent() {
         let h1 = durationFromSeconds(10)
         let h2 = durationFromMilliseconds(500)
-        XCTAssertEqual(durationInWholeSeconds(h1), 10)
-        XCTAssertEqual(durationInWholeMilliseconds(h2), 500)
+        #expect(durationInWholeSeconds(h1) == 10)
+        #expect(durationInWholeMilliseconds(h2) == 500)
     }
 
     // MARK: - RuntimeDurationBox accessor chain
 
-    func testDurationBoxAccessorChainEndToEnd() {
+    @Test func testDurationBoxAccessorChainEndToEnd() {
         // Verify the direct RuntimeDurationBox path by constructing one
         // manually and confirming the accessor chain works end-to-end.
         let box = RuntimeDurationBox(nanoseconds: 42_000_000)
         let handle = registerRuntimeObject(box)
-        XCTAssertEqual(durationInWholeMilliseconds(handle), 42)
-        XCTAssertEqual(durationInWholeSeconds(handle), 0)
-        XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 42_000_000)
+        #expect(durationInWholeMilliseconds(handle) == 42)
+        #expect(durationInWholeSeconds(handle) == 0)
+        #expect(kk_duration_inWholeNanoseconds(handle) == 42_000_000)
     }
 
-    func testDurationBoxLargeValueDoesNotCrash() {
+    @Test func testDurationBoxLargeValueDoesNotCrash() {
         // Verify that a box with Int64.max nanoseconds does not crash accessors.
         let box = RuntimeDurationBox(nanoseconds: Int64.max)
         let handle = registerRuntimeObject(box)
         let ms = durationInWholeMilliseconds(handle)
         let s = durationInWholeSeconds(handle)
-        XCTAssertGreaterThan(ms, 0)
-        XCTAssertGreaterThan(s, 0)
+        #expect(ms > 0)
+        #expect(s > 0)
     }
 
     // MARK: - inWholeMinutes
 
-    func testInWholeMinutesFromMinutesRoundTrip() {
+    @Test func testInWholeMinutesFromMinutesRoundTrip() {
         let handle = durationFromMinutes(5)
-        XCTAssertEqual(durationInWholeMinutes(handle), 5)
+        #expect(durationInWholeMinutes(handle) == 5)
     }
 
-    func testInWholeMinutesTruncatesSubMinute() {
+    @Test func testInWholeMinutesTruncatesSubMinute() {
         // 90 seconds = 1.5 minutes -> inWholeMinutes should return 1
         let handle = durationFromSeconds(90)
-        XCTAssertEqual(durationInWholeMinutes(handle), 1)
+        #expect(durationInWholeMinutes(handle) == 1)
     }
 
-    func testInWholeMinutesSubMinuteReturnsZero() {
+    @Test func testInWholeMinutesSubMinuteReturnsZero() {
         let handle = durationFromSeconds(59)
-        XCTAssertEqual(durationInWholeMinutes(handle), 0)
+        #expect(durationInWholeMinutes(handle) == 0)
     }
 
-    func testInWholeMinutesFromHours() {
+    @Test func testInWholeMinutesFromHours() {
         let handle = durationFromHours(2)
-        XCTAssertEqual(durationInWholeMinutes(handle), 120)
+        #expect(durationInWholeMinutes(handle) == 120)
     }
 
-    func testInWholeMinutesNegative() {
+    @Test func testInWholeMinutesNegative() {
         let handle = durationFromMinutes(-3)
-        XCTAssertEqual(durationInWholeMinutes(handle), -3)
+        #expect(durationInWholeMinutes(handle) == -3)
     }
 
     // MARK: - Saturation edge cases
 
-    func testFromMicrosecondsLargePositiveSaturates() {
+    @Test func testFromMicrosecondsLargePositiveSaturates() {
         // Int64.max / 1_000 overflows, should saturate
         let handle = durationFromMicroseconds(Int(Int64.max / 999))
         let ns = kk_duration_inWholeNanoseconds(handle)
-        XCTAssertEqual(ns, Int(Int64.max))
+        #expect(ns == Int(Int64.max))
     }
 
-    func testFromMinutesLargePositiveSaturates() {
+    @Test func testFromMinutesLargePositiveSaturates() {
         // Very large minutes value should saturate
         let handle = durationFromMinutes(Int(Int64.max / 1_000_000_000))
         let ns = kk_duration_inWholeNanoseconds(handle)
-        XCTAssertEqual(ns, Int(Int64.max))
+        #expect(ns == Int(Int64.max))
     }
 
-    func testFromHoursLargePositiveSaturates() {
+    @Test func testFromHoursLargePositiveSaturates() {
         // Very large hours value should saturate
         let handle = durationFromHours(Int(Int64.max / 1_000_000_000))
         let ns = kk_duration_inWholeNanoseconds(handle)
-        XCTAssertEqual(ns, Int(Int64.max))
+        #expect(ns == Int(Int64.max))
     }
 
     // MARK: - toString edge cases
 
-    func testToStringSubMicrosecondRendersAsNanoseconds() {
+    @Test func testToStringSubMicrosecondRendersAsNanoseconds() {
         let handle = durationFromNanoseconds(1_500)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "1.5us")
+        #expect(stringFromHandle(result) == "1.5us")
     }
 
-    func testToStringExactlyOneMicrosecond() {
+    @Test func testToStringExactlyOneMicrosecond() {
         let handle = durationFromMicroseconds(1)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "1us")
+        #expect(stringFromHandle(result) == "1us")
     }
 
-    func testToStringExactlyOneNanosecond() {
+    @Test func testToStringExactlyOneNanosecond() {
         let handle = durationFromNanoseconds(1)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "1ns")
+        #expect(stringFromHandle(result) == "1ns")
     }
 
-    func testToStringNegativeMilliseconds() {
+    @Test func testToStringNegativeMilliseconds() {
         let handle = durationFromMilliseconds(-7)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "-7ms")
+        #expect(stringFromHandle(result) == "-7ms")
     }
 
-    func testToStringNegativeNanoseconds() {
+    @Test func testToStringNegativeNanoseconds() {
         let handle = durationFromNanoseconds(-123)
         let result = kk_duration_toString(handle)
-        XCTAssertEqual(stringFromHandle(result), "-123ns")
+        #expect(stringFromHandle(result) == "-123ns")
     }
 
     // MARK: - toString multi-component formatting (JVM kotlin-stdlib parity)
     // Expected values were captured by compiling and running the equivalent
     // Kotlin snippets against JVM kotlinc 2.4.0 (kotlin-stdlib Duration.toString()).
 
-    func testToStringCombinesMinutesAndSeconds() {
+    @Test func testToStringCombinesMinutesAndSeconds() {
         // 90 seconds -> "1m 30s"
         let handle = durationFromSeconds(90)
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1m 30s")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "1m 30s")
     }
 
-    func testToStringCombinesHoursAndMinutes() {
+    @Test func testToStringCombinesHoursAndMinutes() {
         let handle = kk_duration_plus(durationFromHours(2), durationFromMinutes(5))
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "2h 5m")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "2h 5m")
     }
 
-    func testToStringSecondsComponentCarriesSubsecondFraction() {
+    @Test func testToStringSecondsComponentCarriesSubsecondFraction() {
         // 1h + 30m + 340ms -> seconds component is 0 but nanoseconds carry the fraction: "1h 30m 0.34s"
         let handle = kk_duration_plus(
             kk_duration_plus(durationFromHours(1), durationFromMinutes(30)),
             durationFromMilliseconds(340)
         )
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1h 30m 0.34s")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "1h 30m 0.34s")
     }
 
-    func testToStringRollsUpDaysPastTwentyFourHours() {
+    @Test func testToStringRollsUpDaysPastTwentyFourHours() {
         // 25 hours -> "1d 1h"
         let handle = durationFromHours(25)
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1d 1h")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "1d 1h")
     }
 
-    func testToStringKeepsIntermediateZeroComponent() {
+    @Test func testToStringKeepsIntermediateZeroComponent() {
         // 1 day + 5 minutes -> hours stays visible between nonzero days and minutes: "1d 0h 5m"
         let handle = kk_duration_plus(durationFromDays(1), durationFromMinutes(5))
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1d 0h 5m")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "1d 0h 5m")
     }
 
-    func testToStringNegativeMultiComponentIsParenthesized() {
+    @Test func testToStringNegativeMultiComponentIsParenthesized() {
         let handle = kk_duration_unary_minus(
             kk_duration_plus(durationFromHours(1), durationFromMinutes(30))
         )
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "-(1h 30m)")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "-(1h 30m)")
     }
 
-    func testToStringInfiniteDuration() {
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(kk_duration_infinite())), "Infinity")
+    @Test func testToStringInfiniteDuration() {
+        #expect(stringFromHandle(kk_duration_toString(kk_duration_infinite())) == "Infinity")
     }
 
-    func testToStringNegativeInfiniteDuration() {
+    @Test func testToStringNegativeInfiniteDuration() {
         let negInfinite = kk_duration_unary_minus(kk_duration_infinite())
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(negInfinite)), "-Infinity")
+        #expect(stringFromHandle(kk_duration_toString(negInfinite)) == "-Infinity")
     }
 
-    func testToStringFractionalSecondsPadsToNineDigits() {
+    @Test func testToStringFractionalSecondsPadsToNineDigits() {
         // 1s + 4500ns -> 7 significant fractional digits round up to 9: "1.000004500s"
         let handle = kk_duration_plus(durationFromSeconds(1), durationFromNanoseconds(4_500))
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1.000004500s")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "1.000004500s")
     }
 
-    func testToStringFractionalSecondsPadsToSixDigits() {
+    @Test func testToStringFractionalSecondsPadsToSixDigits() {
         // 1s + 500_000ns -> 4 significant fractional digits round up to 6: "1.000500s"
         let handle = kk_duration_plus(durationFromSeconds(1), durationFromNanoseconds(500_000))
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1.000500s")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "1.000500s")
     }
 
-    func testToStringFractionalSecondsKeepsTwoDigitsAsIs() {
+    @Test func testToStringFractionalSecondsKeepsTwoDigitsAsIs() {
         // 30s + 340ms -> 2 significant fractional digits stay untrimmed: "30.34s"
         let handle = kk_duration_plus(durationFromSeconds(30), durationFromMilliseconds(340))
-        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "30.34s")
+        #expect(stringFromHandle(kk_duration_toString(handle)) == "30.34s")
     }
 
     // MARK: - kk_measureTime: basic timing
 
-    func testMeasureTimeReturnsNonZeroDuration() {
+    @Test func testMeasureTimeReturnsNonZeroDuration() {
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertEqual(thrown, 0, "No exception should be thrown")
-        XCTAssertNotEqual(result, 0, "Should return a valid duration handle")
+        #expect(thrown == 0, "No exception should be thrown")
+        #expect(result != 0, "Should return a valid duration handle")
         // Even a no-op should take >= 0 nanoseconds
         let ns = kk_duration_inWholeNanoseconds(result)
-        XCTAssertGreaterThanOrEqual(ns, 0)
+        #expect(ns >= 0)
     }
 
-    func testMeasureTimeElapsedIsPlausible() {
+    @Test func testMeasureTimeElapsedIsPlausible() {
         // A 50ms sleep should produce a duration roughly in [40ms, 500ms]
         let fnPtr = unsafeBitCast(sleep50msThunk, to: Int.self)
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let ms = durationInWholeMilliseconds(result)
-        XCTAssertGreaterThanOrEqual(ms, 40, "Should be at least ~40ms")
-        XCTAssertLessThan(ms, 500, "Should not exceed 500ms")
+        #expect(ms >= 40, "Should be at least ~40ms")
+        #expect(ms < 500, "Should not exceed 500ms")
     }
 
-    func testMeasureTimeNoopIsFast() {
+    @Test func testMeasureTimeNoopIsFast() {
         // A no-op closure should complete in well under 100ms
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let ms = durationInWholeMilliseconds(result)
-        XCTAssertLessThan(ms, 100, "No-op should complete in < 100ms")
+        #expect(ms < 100, "No-op should complete in < 100ms")
     }
 
     // MARK: - kk_measureTime: exception propagation
 
-    func testMeasureTimeReturnsZeroOnException() {
+    @Test func testMeasureTimeReturnsZeroOnException() {
         let fnPtr = unsafeBitCast(throwingThunk, to: Int.self)
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "Exception sentinel should be propagated")
-        XCTAssertEqual(thrown, 0xDEAD, "Should propagate the exact exception value")
-        XCTAssertEqual(result, 0, "Duration handle should be 0 on exception")
+        #expect(thrown != 0, "Exception sentinel should be propagated")
+        #expect(thrown == 0xDEAD, "Should propagate the exact exception value")
+        #expect(result == 0, "Duration handle should be 0 on exception")
     }
 
-    func testMeasureTimeOutThrownInitializedToZero() {
+    @Test func testMeasureTimeOutThrownInitializedToZero() {
         // Verify outThrown is cleared before invocation
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown: Int = 0xBEEF // pre-fill with garbage
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertEqual(thrown, 0, "outThrown should be reset to 0 for non-throwing closure")
-        XCTAssertNotEqual(result, 0)
+        #expect(thrown == 0, "outThrown should be reset to 0 for non-throwing closure")
+        #expect(result != 0)
     }
 
     // MARK: - kk_measureTime: closureRaw passthrough
 
-    func testMeasureTimePassesClosureRawToThunk() {
+    @Test func testMeasureTimePassesClosureRawToThunk() {
         // The captureClosureRawThunk stores its closureRaw argument into a global.
         // We verify kk_measureTime forwards the closureRaw value correctly.
         capturedClosureRaw = 0
@@ -713,35 +713,35 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         var thrown: Int = 0
         let sentinel = 42
         let result = kk_measureTime(fnPtr, sentinel, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(capturedClosureRaw, sentinel, "closureRaw should be forwarded to the thunk")
+        #expect(thrown == 0)
+        #expect(capturedClosureRaw == sentinel, "closureRaw should be forwarded to the thunk")
         // The duration should still be valid (non-zero handle)
-        XCTAssertNotEqual(result, 0)
+        #expect(result != 0)
         let ns = kk_duration_inWholeNanoseconds(result)
-        XCTAssertGreaterThanOrEqual(ns, 0)
+        #expect(ns >= 0)
     }
 
     // MARK: - kk_measureTime: nullable outThrown
 
-    func testMeasureTimeNilOutThrownDoesNotCrash() {
+    @Test func testMeasureTimeNilOutThrownDoesNotCrash() {
         // kk_measureTime accepts a nullable outThrown pointer.
         // Passing nil should not crash even for a non-throwing closure.
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         let result = kk_measureTime(fnPtr, 0, nil)
-        XCTAssertNotEqual(result, 0)
+        #expect(result != 0)
         let ns = kk_duration_inWholeNanoseconds(result)
-        XCTAssertGreaterThanOrEqual(ns, 0)
+        #expect(ns >= 0)
     }
 
     // MARK: - kk_measureTime: result is a proper Duration
 
-    func testMeasureTimeResultWorksWithDurationAccessors() {
+    @Test func testMeasureTimeResultWorksWithDurationAccessors() {
         // Verify the returned handle is a valid RuntimeDurationBox
         // that works with all duration accessor functions.
         let fnPtr = unsafeBitCast(sleep50msThunk, to: Int.self)
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         // All accessors should work without crashing
         let ns = kk_duration_inWholeNanoseconds(result)
@@ -749,88 +749,87 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         let s = durationInWholeSeconds(result)
         let min = durationInWholeMinutes(result)
 
-        XCTAssertGreaterThan(ns, 0)
-        XCTAssertGreaterThanOrEqual(ms, 40)
-        XCTAssertGreaterThanOrEqual(s, 0)
-        XCTAssertGreaterThanOrEqual(min, 0)
+        #expect(ns > 0)
+        #expect(ms >= 40)
+        #expect(s >= 0)
+        #expect(min >= 0)
     }
 
-    func testMeasureTimeResultWorksWithToString() {
+    @Test func testMeasureTimeResultWorksWithToString() throws {
         // The toString of a measured duration should produce a non-empty string
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         let strHandle = kk_duration_toString(result)
-        guard let str = stringFromHandle(strHandle) else {
-            XCTFail("toString returned nil for a valid duration handle")
-            return
-        }
+        let str = try #require(
+            stringFromHandle(strHandle),
+            "toString returned nil for a valid duration handle"
+        )
         // The string should end with a time unit suffix.
         // Check longest suffixes first to avoid "s" matching "ns"/"us"/"ms".
         let validSuffixes = ["ns", "us", "ms", "s"]
         let hasValidSuffix = validSuffixes.contains { str.hasSuffix($0) }
-        XCTAssertTrue(hasValidSuffix, "toString should end with a time unit suffix, got: \(str)")
+        #expect(hasValidSuffix, "toString should end with a time unit suffix, got: \(str)")
     }
 
     // MARK: - kk_measureTime: consecutive calls
 
-    func testMeasureTimeConsecutiveCallsProduceIndependentDurations() {
+    @Test func testMeasureTimeConsecutiveCallsProduceIndependentDurations() {
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown1: Int = 0
         var thrown2: Int = 0
         let result1 = kk_measureTime(fnPtr, 0, &thrown1)
         let result2 = kk_measureTime(fnPtr, 0, &thrown2)
-        XCTAssertEqual(thrown1, 0)
-        XCTAssertEqual(thrown2, 0)
+        #expect(thrown1 == 0)
+        #expect(thrown2 == 0)
         // Both should be valid, independent duration handles
-        XCTAssertNotEqual(result1, 0)
-        XCTAssertNotEqual(result2, 0)
+        #expect(result1 != 0)
+        #expect(result2 != 0)
         // They should be distinct handles (different allocations)
-        XCTAssertNotEqual(result1, result2)
+        #expect(result1 != result2)
     }
 
     // MARK: - kk_measureTime: advanced testing (TEST-001)
 
-    func testMeasureTimeParallelExecutionIndependence() {
+    @Test func testMeasureTimeParallelExecutionIndependence() {
         // Test that concurrent measurements don't interfere with each other
-        let expectation = XCTestExpectation(description: "Parallel measurements complete")
-        expectation.expectedFulfillmentCount = 4
-
         let resultsBox = DurationResultsBox()
+        let group = DispatchGroup()
 
         for i in 0..<4 {
+            group.enter()
             DispatchQueue.global(qos: .userInitiated).async {
                 let fnPtr = unsafeBitCast(sleep50msThunk, to: Int.self)
                 var thrown: Int = 0
                 let result = kk_measureTime(fnPtr, i, &thrown)
                 let thrownValue = thrown
 
-                XCTAssertEqual(thrownValue, 0, "Thread \(i): No exception should be thrown")
-                XCTAssertNotEqual(result, 0, "Thread \(i): Should return valid duration")
+                #expect(thrownValue == 0, "Thread \(i): No exception should be thrown")
+                #expect(result != 0, "Thread \(i): Should return valid duration")
                 resultsBox.append(result)
-                expectation.fulfill()
+                group.leave()
             }
         }
 
-        wait(for: [expectation], timeout: 2.0)
+        #expect(group.wait(timeout: .now() + 2.0) == .success, "Parallel measurements should complete")
         let results = resultsBox.snapshot()
-        XCTAssertEqual(results.count, 4, "All 4 parallel measurements should complete")
+        #expect(results.count == 4, "All 4 parallel measurements should complete")
 
         // Verify all results are distinct handles
         let uniqueResults = Set(results)
-        XCTAssertEqual(uniqueResults.count, 4, "All parallel measurements should produce distinct handles")
+        #expect(uniqueResults.count == 4, "All parallel measurements should produce distinct handles")
 
         // Verify all measurements are in reasonable range
         for result in results {
             let ms = durationInWholeMilliseconds(result)
-            XCTAssertGreaterThanOrEqual(ms, 40, "Parallel measurement should be at least ~40ms")
-            XCTAssertLessThan(ms, 500, "Parallel measurement should not exceed 500ms")
+            #expect(ms >= 40, "Parallel measurement should be at least ~40ms")
+            #expect(ms < 500, "Parallel measurement should not exceed 500ms")
         }
     }
 
-    func testMeasureTimeHighPrecisionTiming() {
+    @Test func testMeasureTimeHighPrecisionTiming() {
         // Test sub-millisecond precision capabilities
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown: Int = 0
@@ -839,23 +838,23 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         var measurements: [Int64] = []
         for _ in 0..<10 {
             let result = kk_measureTime(fnPtr, 0, &thrown)
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             let ns = kk_duration_inWholeNanoseconds(result)
             measurements.append(Int64(ns))
         }
 
         // Even no-ops should show some variation in nanosecond precision
         let uniqueValues = Set(measurements)
-        XCTAssertGreaterThan(uniqueValues.count, 1, "Multiple measurements should show timing variation")
+        #expect(uniqueValues.count > 1, "Multiple measurements should show timing variation")
 
         // All measurements should be reasonable (not negative, not excessively large)
         for ns in measurements {
-            XCTAssertGreaterThanOrEqual(ns, 0, "Nanosecond measurement should not be negative")
-            XCTAssertLessThan(ns, 1_000_000, "No-op should complete within 1ms")
+            #expect(ns >= 0, "Nanosecond measurement should not be negative")
+            #expect(ns < 1_000_000, "No-op should complete within 1ms")
         }
     }
 
-    func testMeasureTimeComplexExceptionScenarios() {
+    @Test func testMeasureTimeComplexExceptionScenarios() {
         // Test nested exception scenarios and exception preservation
 
         // First test: exception with closureRaw value
@@ -864,24 +863,24 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         let sentinel = 0xBEEF
         let result = kk_measureTime(fnPtr, sentinel, &thrown)
 
-        XCTAssertEqual(thrown, 0xDEAD, "Exception should be preserved regardless of closureRaw")
-        XCTAssertEqual(result, 0, "Duration should be zero on exception")
+        #expect(thrown == 0xDEAD, "Exception should be preserved regardless of closureRaw")
+        #expect(result == 0, "Duration should be zero on exception")
 
         // Second test: verify outThrown is properly reset after exception
         var thrown2: Int = 0xDEAD // Pre-fill with garbage
         let result2 = kk_measureTime(fnPtr, sentinel, &thrown2)
-        XCTAssertEqual(thrown2, 0xDEAD, "Exception should overwrite pre-filled value")
-        XCTAssertEqual(result2, 0, "Duration should be zero on second exception")
+        #expect(thrown2 == 0xDEAD, "Exception should overwrite pre-filled value")
+        #expect(result2 == 0, "Duration should be zero on second exception")
 
         // Third test: verify normal operation after exception
         var thrown3: Int = 0xDEAD // Pre-fill with garbage
         let noopPtr = unsafeBitCast(noopThunk, to: Int.self)
         let result3 = kk_measureTime(noopPtr, sentinel, &thrown3)
-        XCTAssertEqual(thrown3, 0, "Normal operation should reset outThrown to zero")
-        XCTAssertNotEqual(result3, 0, "Normal operation should return valid duration")
+        #expect(thrown3 == 0, "Normal operation should reset outThrown to zero")
+        #expect(result3 != 0, "Normal operation should return valid duration")
     }
 
-    func testMeasureTimeLongDurationOverflowHandling() {
+    @Test func testMeasureTimeLongDurationOverflowHandling() {
         // Test behavior with very long durations that might approach Int64 limits
         let longSleepThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in
             // Sleep for 2 seconds to create a substantial duration
@@ -893,21 +892,21 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0, "Long sleep should not throw exception")
-        XCTAssertNotEqual(result, 0, "Long duration should return valid handle")
+        #expect(thrown == 0, "Long sleep should not throw exception")
+        #expect(result != 0, "Long duration should return valid handle")
 
         let ns = kk_duration_inWholeNanoseconds(result)
-        XCTAssertGreaterThan(ns, 1_000_000_000, "Should be at least 1 second")
-        XCTAssertLessThan(ns, Int(Int64.max), "Should not overflow Int64")
+        #expect(ns > 1_000_000_000, "Should be at least 1 second")
+        #expect(ns < Int(Int64.max), "Should not overflow Int64")
 
         // Verify the duration can be safely used with all accessors
         let ms = durationInWholeMilliseconds(result)
         let s = durationInWholeSeconds(result)
-        XCTAssertGreaterThan(ms, 1000, "Milliseconds should be > 1000")
-        XCTAssertGreaterThanOrEqual(s, 2, "Seconds should be >= 2")
+        #expect(ms > 1000, "Milliseconds should be > 1000")
+        #expect(s >= 2, "Seconds should be >= 2")
     }
 
-    func testMeasureTimeSystemClockStability() {
+    @Test func testMeasureTimeSystemClockStability() {
         // Test measurement stability under rapid successive calls
         let fnPtr = unsafeBitCast(noopThunk, to: Int.self)
         var thrown: Int = 0
@@ -918,7 +917,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         // Perform rapid measurements
         for i in 0..<50 {
             let result = kk_measureTime(fnPtr, i, &thrown)
-            XCTAssertEqual(thrown, 0, "Measurement \(i) should not throw")
+            #expect(thrown == 0, "Measurement \(i) should not throw")
             let ns = kk_duration_inWholeNanoseconds(result)
             durations.append(Int64(ns))
         }
@@ -931,57 +930,56 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         // with a small allowance for clock sampling overhead.
         let measuredTotal = durations.reduce(0, +)
         let aggregateSlackNs: Int64 = 20_000_000
-        XCTAssertGreaterThanOrEqual(durations.min() ?? -1, 0, "Measured durations should never be negative")
-        XCTAssertLessThanOrEqual(
-            measuredTotal,
-            Int64(totalTestTime) + aggregateSlackNs,
+        #expect((durations.min() ?? -1) >= 0, "Measured durations should never be negative")
+        #expect(
+            measuredTotal <= Int64(totalTestTime) + aggregateSlackNs,
             "Aggregate measured durations should stay close to enclosing wall-clock time"
         )
 
         // Verify total test time is reasonable
-        XCTAssertLessThan(totalTestTime, 10_000_000_000, "50 rapid measurements should complete within 10 seconds")
+        #expect(totalTestTime < 10_000_000_000, "50 rapid measurements should complete within 10 seconds")
     }
 
     // MARK: - Long factory: durationFromDaysLong (TEST-TIME-020)
 
-    func testDurationFromDaysLongNormalValues() {
-        XCTAssertEqual(durationInWholeDays(durationFromDaysLong(5)), 5)
-        XCTAssertEqual(durationInWholeDays(durationFromDaysLong(0)), 0)
-        XCTAssertEqual(durationInWholeDays(durationFromDaysLong(-3)), -3)
+    @Test func testDurationFromDaysLongNormalValues() {
+        #expect(durationInWholeDays(durationFromDaysLong(5)) == 5)
+        #expect(durationInWholeDays(durationFromDaysLong(0)) == 0)
+        #expect(durationInWholeDays(durationFromDaysLong(-3)) == -3)
     }
 
     // MARK: - Long factory: durationFromHoursLong (TEST-TIME-020)
 
-    func testDurationFromHoursLongNormalValues() {
-        XCTAssertEqual(durationInWholeHours(durationFromHoursLong(5)), 5)
-        XCTAssertEqual(durationInWholeHours(durationFromHoursLong(0)), 0)
-        XCTAssertEqual(durationInWholeHours(durationFromHoursLong(-2)), -2)
+    @Test func testDurationFromHoursLongNormalValues() {
+        #expect(durationInWholeHours(durationFromHoursLong(5)) == 5)
+        #expect(durationInWholeHours(durationFromHoursLong(0)) == 0)
+        #expect(durationInWholeHours(durationFromHoursLong(-2)) == -2)
     }
 
     // MARK: - Long factory: durationFromMinutesLong (TEST-TIME-020)
 
-    func testDurationFromMinutesLongNormalValues() {
-        XCTAssertEqual(durationInWholeMinutes(durationFromMinutesLong(5)), 5)
-        XCTAssertEqual(durationInWholeMinutes(durationFromMinutesLong(0)), 0)
-        XCTAssertEqual(durationInWholeMinutes(durationFromMinutesLong(-10)), -10)
+    @Test func testDurationFromMinutesLongNormalValues() {
+        #expect(durationInWholeMinutes(durationFromMinutesLong(5)) == 5)
+        #expect(durationInWholeMinutes(durationFromMinutesLong(0)) == 0)
+        #expect(durationInWholeMinutes(durationFromMinutesLong(-10)) == -10)
     }
 
     // MARK: - Long factory: durationFromMicrosecondsLong (TEST-TIME-020)
 
-    func testDurationFromMicrosecondsLongNormalValues() {
-        XCTAssertEqual(durationInWholeMicroseconds(durationFromMicrosecondsLong(5)), 5)
-        XCTAssertEqual(durationInWholeMicroseconds(durationFromMicrosecondsLong(0)), 0)
-        XCTAssertEqual(durationInWholeMicroseconds(durationFromMicrosecondsLong(-100)), -100)
+    @Test func testDurationFromMicrosecondsLongNormalValues() {
+        #expect(durationInWholeMicroseconds(durationFromMicrosecondsLong(5)) == 5)
+        #expect(durationInWholeMicroseconds(durationFromMicrosecondsLong(0)) == 0)
+        #expect(durationInWholeMicroseconds(durationFromMicrosecondsLong(-100)) == -100)
     }
 
     // MARK: - Long.MAX_VALUE saturation (TEST-TIME-020)
 
-    func testDurationLongMaxValueSaturatesToInfinite() {
+    @Test func testDurationLongMaxValueSaturatesToInfinite() {
         // Long.MAX_VALUE = Int64.max; all factories with a multiplier > 1 overflow to INFINITE
         let longMax = Int(Int64.max)
-        XCTAssertEqual(kk_duration_isInfinite(durationFromDaysLong(longMax)), 1)
-        XCTAssertEqual(kk_duration_isInfinite(durationFromHoursLong(longMax)), 1)
-        XCTAssertEqual(kk_duration_isInfinite(durationFromMinutesLong(longMax)), 1)
-        XCTAssertEqual(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)), 1)
+        #expect(kk_duration_isInfinite(durationFromDaysLong(longMax)) == 1)
+        #expect(kk_duration_isInfinite(durationFromHoursLong(longMax)) == 1)
+        #expect(kk_duration_isInfinite(durationFromMinutesLong(longMax)) == 1)
+        #expect(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)) == 1)
     }
 }

@@ -1,10 +1,10 @@
+// SKIP-DIFF (DEBT-DIFF-005): end-to-end sequence {} builder requires KSP-447
+// residual runtime/source object pipeline wiring (Iterator itable dispatch for
+// coroutine-produced Sequence objects). Type inference is now unblocked, but the
+// generated Sequence/Iterator object expressions still fail virtual dispatch.
+//
 // STDLIB-563: Verify that sequence {} builder is lazy.
 // Side effects in the builder should only execute when elements are consumed.
-// Currently blocked on builder DSL type inference for SequenceScope<T> receiver.
-// The runtime infrastructure (lazy coroutine-based yield/next protocol) is
-// implemented and verified at the unit test level. End-to-end compilation
-// depends on the type inference fix for generic builder lambdas with receiver
-// types (shared with iterator {} builder).
 fun main() {
     // Basic sequence builder: yield values one at a time
     val seq = sequence {

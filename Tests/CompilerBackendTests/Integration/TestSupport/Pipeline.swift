@@ -31,7 +31,9 @@ func makeCompilationContext(
     frontendFlags: [String] = [],
     includeStdlib: Bool = true,
     interner: StringInterner? = nil,
-    diagnostics: DiagnosticEngine? = nil
+    diagnostics: DiagnosticEngine? = nil,
+    stdlibOnly: Bool = false,
+    stdlibLibraryPath: String? = nil
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -45,7 +47,9 @@ func makeCompilationContext(
         target: defaultTargetTriple(),
         frontendFlags: frontendFlags,
         irFlags: irFlags,
-        includeStdlib: includeStdlib
+        includeStdlib: includeStdlib,
+        stdlibOnly: stdlibOnly,
+        stdlibLibraryPath: stdlibLibraryPath
     )
     return CompilationContext(
         options: options,
@@ -77,13 +81,10 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try LoweringPhase().run(ctx)
 }
 
-func makeContextFromSource(
-    _ source: String,
-    frontendFlags: [String] = []
-) -> CompilationContext {
+func makeContextFromSource(_ source: String) -> CompilationContext {
     let fakePath = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString + ".kt").path
-    let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
+    let ctx = makeCompilationContext(inputs: [fakePath])
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     return ctx
 }

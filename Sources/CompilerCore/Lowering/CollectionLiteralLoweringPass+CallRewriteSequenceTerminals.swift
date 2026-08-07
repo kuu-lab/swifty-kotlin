@@ -1,6 +1,7 @@
 /// Sequence terminal conversions plus list/range transform rewrites.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceTerminalCall(
+        symbol: SymbolID?,
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
@@ -12,6 +13,15 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+        // STDLIB-pipeline §5 / KSP-441〜447: Bundled Kotlin source implementations
+        // (e.g. flatten, toSet) take priority over runtime shortcuts, but a runtime
+        // Sequence handle still needs the corresponding `kk_*` helper because source
+        // `for-in` cannot dispatch against an opaque runtime box.
+        if isSourceBacked(symbol: symbol, ctx: ctx),
+           let receiverID = arguments.first,
+           !state.sequenceExprIDs.contains(receiverID.rawValue) {
+            return false
+        }
         let uintType = ctx.sema?.types.uintType
 
         func isUIntRangeExpr(_ expr: KIRExprID) -> Bool {

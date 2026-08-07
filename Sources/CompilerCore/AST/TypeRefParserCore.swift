@@ -32,7 +32,9 @@ enum TypeRefParserCore {
     /// Maximum recursion/nesting depth allowed while parsing a type reference.
     /// Guards the mutually recursive type parser against unbounded native stack
     /// growth on deeply nested untrusted source (a stack-overflow DoS).
-    static let maxRecursionDepth = 512
+    // Function-type recursion retains several native frames per nested type.
+    // Keep enough headroom for the smaller stacks used by macOS test workers.
+    static let maxRecursionDepth = 32
 
     private static func reportTypeRecursionDepthExceeded(
         diagnostics: DiagnosticEngine?,

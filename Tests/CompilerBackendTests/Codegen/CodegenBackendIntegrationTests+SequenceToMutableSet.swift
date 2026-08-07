@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenSequenceToMutableSetUsesCanonicalDiffCase() throws {
+@Suite
+struct CodegenBackendSequenceToMutableSetTests {
+    @Test func testCodegenSequenceToMutableSetUsesCanonicalDiffCase() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -18,5 +20,29 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "SequenceToMutableSetRuntime", expected: "[3, 1, 2, 42]\n[7]\n")
     }
-}
 
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+}
+#endif

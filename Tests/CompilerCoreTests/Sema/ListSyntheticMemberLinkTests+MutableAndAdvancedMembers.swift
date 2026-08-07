@@ -403,17 +403,29 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let memberFQName = [
+            let packageFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("sequences"),
+                ctx.interner.intern("flatMapIndexed"),
+            ]
+            let sequenceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
                 ctx.interner.intern("Sequence"),
-                ctx.interner.intern("flatMapIndexed"),
             ]
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
+            guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
+                #expect(false, "Sequence symbol not found")
+                return
+            }
+            let allSymbols = sema.symbols.lookupAll(fqName: packageFQName)
+            let symbols = allSymbols.filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let (receiverClassType, _) = resolveClassTypeSymbol(signature.receiverType ?? sema.types.anyType, sema: sema)
+                else { return false }
+                return receiverClassType.classSymbol == sequenceSymbol
+            }
             #expect(symbols.count == 2, "Expected Iterable and Sequence flatMapIndexed overloads")
-            #expect(symbols.allSatisfy {
-                sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexed"
-            })
+            #expect(symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "Source-backed flatMapIndexed must not link to runtime")
 
             let transformReturnTypeNames = symbols.compactMap { symbolID -> String? in
                 guard let parameterType = sema.symbols.functionSignature(for: symbolID)?.parameterTypes.first,
@@ -461,7 +473,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testSequenceRequireNoNullsSyntheticStubHasRuntimeExternalLink() throws {
+    func testSequenceRequireNoNullsIsBundledSourceWithNoRuntimeLink() throws {
         let source = """
         fun render(values: Sequence<Int?>) {
             val result: Sequence<Int> = values.requireNoNulls()
@@ -477,15 +489,28 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let fqName = [
+            let packageFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("sequences"),
+                ctx.interner.intern("requireNoNulls"),
+            ]
+            let sequenceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
                 ctx.interner.intern("Sequence"),
-                ctx.interner.intern("requireNoNulls"),
             ]
-            #expect(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_sequence_requireNoNulls"
-            })
+            guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
+                #expect(false, "Sequence symbol not found")
+                return
+            }
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName).filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let (receiverClassType, _) = resolveClassTypeSymbol(signature.receiverType ?? sema.types.anyType, sema: sema)
+                else { return false }
+                return receiverClassType.classSymbol == sequenceSymbol
+            }
+            #expect(candidates.isEmpty == false, "Expected a bundled source requireNoNulls")
+            #expect(candidates.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "Source-backed requireNoNulls must not have a runtime link")
         }
     }
 
@@ -966,8 +991,9 @@ extension ListSyntheticMemberLinkTests {
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID),
-                      case let .memberCall(_, callee, _, _, _) = expr,
-                      ctx.interner.resolve(callee) == "contains"
+                      case let .memberCall(_, callee, _, _, range) = expr,
+                      ctx.interner.resolve(callee) == "contains",
+                      !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 else { continue }
                 containsCalls.append(exprID)
             }
@@ -1049,9 +1075,11 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "contains"
+            let callExpr = try #require(firstExprID(in: ast) { id, expr in
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                guard ctx.interner.resolve(callee) == "contains" else { return false }
+                guard !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_") else { return false }
+                return true
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_set_contains", "Expected contains to resolve to kk_set_contains")
@@ -1191,11 +1219,28 @@ extension ListSyntheticMemberLinkTests {
             #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
             #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
 
-            let stringContains = try #require(sema.symbols.lookup(fqName: [
+            // KSP-408: `kotlin.text.contains` now has multiple overloads under the same
+            // fqName: CharSequence.contains(other: CharSequence) (1-arg `operator fun`
+            // used for `in` resolution), CharSequence.contains(other, ignoreCase) (2-arg,
+            // not an operator function), and the pre-existing String.contains(regex:
+            // Regex) synthetic stub (1-arg, but a different receiver type and not marked
+            // as an operator function). Disambiguate by receiver type rather than relying
+            // on `lookup`/arity alone, mirroring the List/Set `containsSymbol` helper above.
+            let charSequenceSymbol = try #require(sema.types.charSequenceInterfaceSymbol)
+            let stringContainsCandidates = sema.symbols.lookupAll(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("text"),
                 ctx.interner.intern("contains"),
-            ]))
+            ])
+            let stringContains = try #require(stringContainsCandidates.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      case let .classType(classType) = sema.types.kind(of: receiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == charSequenceSymbol && signature.parameterTypes.count == 1
+            })
             #expect(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
         }
     }

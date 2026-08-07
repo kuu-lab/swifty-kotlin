@@ -9,20 +9,17 @@ extension DataFlowSemaPhase {
         kotlinCollectionsPkg: [InternedString],
         listInterfaceSymbol: SymbolID,
         mapInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        guard let listTypeParamSymbol = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
-        ),
-            let mutableListSymbol = symbols.lookup(
-                fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]
-            ),
-            let setInterfaceSymbol = symbols.lookup(
-                fqName: kotlinCollectionsPkg + [interner.intern("Set")]
-            ),
-            let mutableSetInterfaceSymbol = symbols.lookup(
-                fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]
-            )
+        let listE = kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
+        let mutableList = kotlinCollectionsPkg + [interner.intern("MutableList")]
+        let setSym = kotlinCollectionsPkg + [interner.intern("Set")]
+        let mutableSet = kotlinCollectionsPkg + [interner.intern("MutableSet")]
+        guard let listTypeParamSymbol = symbols.lookup(fqName: listE),
+            let mutableListSymbol = symbols.lookup(fqName: mutableList),
+            let setInterfaceSymbol = symbols.lookup(fqName: setSym),
+            let mutableSetInterfaceSymbol = symbols.lookup(fqName: mutableSet)
         else {
             return
         }
@@ -80,7 +77,8 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            bundledIndex: bundledIndex
         )
         registerListToGenericArrayMember(
             symbols: symbols, types: types, interner: interner,

@@ -307,6 +307,13 @@ extension DataFlowSemaPhase {
         if BundledSyntheticStubRegistration.postBundledPass {
             return
         }
+        // KSP-441〜447: source sequenceOf があれば合成スタブを登録しない。
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if bundledIndex.contains(owner: packageFQName, name: functionName, arity: 1)
+            || bundledIndex.contains(owner: packageFQName, name: functionName, arity: 0)
+        {
+            return
+        }
         if symbols.lookup(fqName: functionFQName) != nil {
             return
         }
@@ -386,7 +393,20 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.isEmpty
         }) {
+            // STDLIB-SHARED-015: source 関数 (parsed source or imported library)
+            // already carries the compiled ABI name; do not overwrite it with the
+            // runtime helper.  Imported stdlib symbols have declSite nil but are
+            // still source-backed via the .importedLibrary flag.
+            if symbols.isSourceBackedSymbol(existing) {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        // KSP-441〜447: source emptySequence があれば合成スタブを登録しない。
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if bundledIndex.contains(owner: packageFQName, name: functionName, arity: 0) {
             return
         }
 
@@ -455,7 +475,18 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.count == 2
         }) {
+            // STDLIB-SHARED-001: Imported source-backed stdlib symbols already carry
+            // the correct compiled external link name; do not overwrite it with the
+            // runtime helper callee. Source declarations also remain source-backed.
+            if symbols.isSourceBackedSymbol(existing) {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if bundledIndex.contains(owner: packageFQName, name: functionName, arity: 2) {
             return
         }
 
@@ -556,7 +587,18 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.count == 1
         }) {
+            // STDLIB-SHARED-001: Imported source-backed stdlib symbols already carry
+            // the correct compiled external link name; do not overwrite it with the
+            // runtime helper callee. Source declarations also remain source-backed.
+            if symbols.isSourceBackedSymbol(existing) {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if bundledIndex.contains(owner: packageFQName, name: functionName, arity: 1) {
             return
         }
 
@@ -698,15 +740,26 @@ extension DataFlowSemaPhase {
             symbol: typeParamSymbol,
             nullability: .nonNull
         )))
-        registerSyntheticSequenceIteratorMember(
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            elementType: sequenceElementType,
-            typeParameterSymbol: typeParamSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
+
+        // KSP-441〜447: source Sequence インターフェースがあれば iterator() は source 側で定義する。
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        let iteratorName = interner.intern("iterator")
+        let hasSourceIterator = bundledIndex.contains(
+            owner: sequenceFQName,
+            name: iteratorName,
+            arity: 0
         )
+        if !hasSourceIterator {
+            registerSyntheticSequenceIteratorMember(
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                elementType: sequenceElementType,
+                typeParameterSymbol: typeParamSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
 
         let nullableReceiverType = types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,

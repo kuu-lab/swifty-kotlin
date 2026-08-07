@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-012: Runtime tests for `kk_file_copyRecursively`.
 ///
@@ -10,13 +10,11 @@ import XCTest
 ///       overwrite: Boolean = false,
 ///       onError: (File, IOException) -> OnErrorAction = { _, exception -> throw exception }
 ///   ): Boolean
-final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeFileCopyRecursivelyTests {
     // MARK: - Happy paths
 
-    func testCopyRecursivelyFlatFileCopiesContents() throws {
+    @Test func copyRecursivelyFlatFileCopiesContents() throws {
         let sourceURL = try makeTempFile(contents: "hello world")
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
@@ -29,12 +27,12 @@ final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(kk_unbox_bool(resultRaw), 0) // true
-        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "hello world")
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(resultRaw) != 0) // true
+        #expect(try String(contentsOf: targetURL, encoding: .utf8) == "hello world")
     }
 
-    func testCopyRecursivelyDirectoryWithFilesCopiesToTarget() throws {
+    @Test func copyRecursivelyDirectoryWithFilesCopiesToTarget() throws {
         let sourceDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
         let fileA = sourceDir.appendingPathComponent("a.txt")
@@ -53,19 +51,17 @@ final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(kk_unbox_bool(resultRaw), 0) // true
-        XCTAssertEqual(
-            try String(contentsOf: targetDir.appendingPathComponent("a.txt"), encoding: .utf8),
-            "alpha"
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(resultRaw) != 0) // true
+        #expect(
+            try String(contentsOf: targetDir.appendingPathComponent("a.txt"), encoding: .utf8) == "alpha"
         )
-        XCTAssertEqual(
-            try String(contentsOf: targetDir.appendingPathComponent("b.txt"), encoding: .utf8),
-            "beta"
+        #expect(
+            try String(contentsOf: targetDir.appendingPathComponent("b.txt"), encoding: .utf8) == "beta"
         )
     }
 
-    func testCopyRecursivelyNestedDirectoryStructure() throws {
+    @Test func copyRecursivelyNestedDirectoryStructure() throws {
         let sourceDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let subDir = sourceDir.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
@@ -83,13 +79,13 @@ final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(kk_unbox_bool(resultRaw), 0) // true
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(resultRaw) != 0) // true
         let copiedDeep = targetDir.appendingPathComponent("sub").appendingPathComponent("deep.txt")
-        XCTAssertEqual(try String(contentsOf: copiedDeep, encoding: .utf8), "deep content")
+        #expect(try String(contentsOf: copiedDeep, encoding: .utf8) == "deep content")
     }
 
-    func testCopyRecursivelyWithOverwriteReplacesExistingFile() throws {
+    @Test func copyRecursivelyWithOverwriteReplacesExistingFile() throws {
         let sourceDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let targetDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
@@ -109,14 +105,14 @@ final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(1), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(kk_unbox_bool(resultRaw), 0) // true
-        XCTAssertEqual(try String(contentsOf: dstFile, encoding: .utf8), "new content")
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(resultRaw) != 0) // true
+        #expect(try String(contentsOf: dstFile, encoding: .utf8) == "new content")
     }
 
     // MARK: - Edge cases
 
-    func testCopyRecursivelyOnNonExistentSourceReturnsFalse() throws {
+    @Test func copyRecursivelyOnNonExistentSourceReturnsFalse() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 
@@ -125,11 +121,11 @@ final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_unbox_bool(resultRaw), 0) // false — source does not exist
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(resultRaw) == 0) // false — source does not exist
     }
 
-    func testCopyRecursivelyWithoutOverwriteThrowsOnExistingFile() throws {
+    @Test func copyRecursivelyWithoutOverwriteThrowsOnExistingFile() throws {
         let sourceDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let targetDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
@@ -150,9 +146,9 @@ final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
         _ = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         // Without overwrite, a conflicting file should produce a thrown exception.
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
         // The existing target file must be untouched.
-        XCTAssertEqual(try String(contentsOf: dstFile, encoding: .utf8), "target")
+        #expect(try String(contentsOf: dstFile, encoding: .utf8) == "target")
     }
 
     // MARK: - Helpers

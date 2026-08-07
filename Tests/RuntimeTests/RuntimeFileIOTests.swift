@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-FN-016: File.forEachBlock lambda thunks
 // Lambda ABI: (closureRaw: Int, bytesRaw: Int, bytesReadRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int
@@ -22,10 +22,12 @@ private let forEachBlockCountChunks: @convention(c) (Int, Int, Int, UnsafeMutabl
     return 0
 }
 
-final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testReadTextReturnsUtf8Contents() throws {
+@Suite(.serialized, .runtimeIsolation(.gcOnly, resetAdditionalState: {
+    forEachBlockAccumulator = 0
+    forEachBlockChunkCount = 0
+}))
+struct RuntimeFileIOTests {
+    @Test func testReadTextReturnsUtf8Contents() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
@@ -33,27 +35,27 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let textRaw = kk_file_readText(fileRaw, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(readString(textRaw), "alpha\nbeta")
+        #expect(thrown == 0)
+        #expect(readString(textRaw) == "alpha\nbeta")
     }
 
-    func testAppendTextCreatesAndAppendsFile() throws {
+    @Test func testAppendTextCreatesAndAppendsFile() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
 
-        XCTAssertEqual(kk_file_appendText(fileRaw, runtimeStringRaw("alpha"), &thrown), 0)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha")
+        #expect(kk_file_appendText(fileRaw, runtimeStringRaw("alpha"), &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(try String(contentsOf: fileURL, encoding: .utf8) == "alpha")
 
-        XCTAssertEqual(kk_file_appendText(fileRaw, runtimeStringRaw("\nbeta"), &thrown), 0)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha\nbeta")
+        #expect(kk_file_appendText(fileRaw, runtimeStringRaw("\nbeta"), &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
     }
 
-    func testReadBytesReturnsSignedByteValues() throws {
+    @Test func testReadBytesReturnsSignedByteValues() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data([0, 127, 128, 255]).write(to: fileURL)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -62,12 +64,12 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let bytesRaw = kk_file_readBytes(fileRaw, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeListBox(from: bytesRaw)?.elements, [0, 127, -128, -1])
+        #expect(thrown == 0)
+        #expect(runtimeListBox(from: bytesRaw)?.elements == [0, 127, -128, -1])
     }
 
     // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
-    func testAppendBytesCreatesAndAppendsFile() throws {
+    @Test func testAppendBytesCreatesAndAppendsFile() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
@@ -76,18 +78,18 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
 
         // Write initial bytes [1, 2, 3]
         let bytesRaw1 = registerRuntimeObject(RuntimeListBox(elements: [1, 2, 3]))
-        XCTAssertEqual(kk_file_appendBytes(fileRaw, bytesRaw1, &thrown), 0)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(try Data(contentsOf: fileURL), Data([1, 2, 3]))
+        #expect(kk_file_appendBytes(fileRaw, bytesRaw1, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(try Data(contentsOf: fileURL) == Data([1, 2, 3]))
 
         // Append additional bytes [4, 5]
         let bytesRaw2 = registerRuntimeObject(RuntimeListBox(elements: [4, 5]))
-        XCTAssertEqual(kk_file_appendBytes(fileRaw, bytesRaw2, &thrown), 0)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(try Data(contentsOf: fileURL), Data([1, 2, 3, 4, 5]))
+        #expect(kk_file_appendBytes(fileRaw, bytesRaw2, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(try Data(contentsOf: fileURL) == Data([1, 2, 3, 4, 5]))
     }
 
-    func testAppendBytesHandlesSignedByteValues() throws {
+    @Test func testAppendBytesHandlesSignedByteValues() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
@@ -96,19 +98,19 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
 
         // Kotlin Byte range: -128 to 127; -1 maps to 0xFF, -128 to 0x80
         let bytesRaw = registerRuntimeObject(RuntimeListBox(elements: [0, 127, -128, -1]))
-        XCTAssertEqual(kk_file_appendBytes(fileRaw, bytesRaw, &thrown), 0)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(try Data(contentsOf: fileURL), Data([0, 127, 128, 255]))
+        #expect(kk_file_appendBytes(fileRaw, bytesRaw, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(try Data(contentsOf: fileURL) == Data([0, 127, 128, 255]))
     }
 
-    func testStringByteInputStreamFlatDefaultCharsetYieldsUtf8Bytes() {
+    @Test func testStringByteInputStreamFlatDefaultCharsetYieldsUtf8Bytes() {
         withFlatString("A\u{00E9}") { data, length, byteCount, hash in
             let streamRaw = kk_string_byteInputStream_flat(data, length, byteCount, hash)
-            XCTAssertEqual(readInputStreamBytes(streamRaw), [65, 195, 169])
+            #expect(readInputStreamBytes(streamRaw) == [65, 195, 169])
         }
     }
 
-    func testStringByteInputStreamFlatExplicitCharsetYieldsEncodedBytes() {
+    @Test func testStringByteInputStreamFlatExplicitCharsetYieldsEncodedBytes() {
         withFlatString("AB") { data, length, byteCount, hash in
             let streamRaw = kk_string_byteInputStream_charset_flat(
                 data,
@@ -117,12 +119,12 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
                 hash,
                 __kk_charset_utf_16be()
             )
-            XCTAssertEqual(readInputStreamBytes(streamRaw), [0, 65, 0, 66])
+            #expect(readInputStreamBytes(streamRaw) == [0, 65, 0, 66])
         }
     }
 
     // STDLIB-IO-FN-016: File.forEachBlock — default blockSize accumulates all bytes
-    func testForEachBlockDefaultBlockSizeAccumulatesAllBytes() throws {
+    @Test func testForEachBlockDefaultBlockSizeAccumulatesAllBytes() throws {
         let bytes: [UInt8] = [1, 2, 3, 4, 5, 6, 7, 8]
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data(bytes).write(to: fileURL)
@@ -138,12 +140,12 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_file_forEachBlock(fileRaw, fnPtr, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(forEachBlockAccumulator, 8)
+        #expect(thrown == 0)
+        #expect(forEachBlockAccumulator == 8)
     }
 
     // STDLIB-IO-FN-016: File.forEachBlock — explicit blockSize splits data into chunks
-    func testForEachBlockWithExplicitBlockSizeProcessesChunks() throws {
+    @Test func testForEachBlockWithExplicitBlockSizeProcessesChunks() throws {
         let bytes: [UInt8] = [10, 20, 30, 40, 50, 60]
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data(bytes).write(to: fileURL)
@@ -162,9 +164,9 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_file_forEachBlock_blockSize(fileRaw, blockSizeRaw, fnPtr, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(forEachBlockChunkCount, 3)
-        XCTAssertEqual(forEachBlockAccumulator, 6) // 3 chunks × 2 bytes each
+        #expect(thrown == 0)
+        #expect(forEachBlockChunkCount == 3)
+        #expect(forEachBlockAccumulator == 6) // 3 chunks × 2 bytes each
     }
 
     private func makeTempFile(contents: String) throws -> URL {
@@ -206,7 +208,7 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         while true {
             let byte = kk_input_stream_read(streamRaw, &thrown)
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             if byte < 0 {
                 return result
             }

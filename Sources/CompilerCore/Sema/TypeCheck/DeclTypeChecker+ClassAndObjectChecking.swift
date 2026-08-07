@@ -263,6 +263,14 @@ extension DeclTypeChecker {
         // functions first meant any function referencing such a property — even
         // one declared textually above it — would see the placeholder and fail
         // with a spurious KSWIFTK-TYPE-0001.
+        //
+        // A function that textually precedes such a property still only sees
+        // the placeholder on this first pass, so every member function is
+        // re-checked once more below, after every property in this loop has
+        // been resolved to its real type. Diagnostics from this first,
+        // speculative function check are truncated away immediately: they may
+        // be blaming a placeholder that the second, authoritative pass below
+        // will no longer see (DEBT-SEMA-001).
         let orderedMembers = (memberFunctions + memberProperties).sorted {
             (memberDeclStartOffset($0, ast: ast) ?? 0) < (memberDeclStartOffset($1, ast: ast) ?? 0)
         }
@@ -275,6 +283,7 @@ extension DeclTypeChecker {
             }
             switch decl {
             case let .funDecl(function):
+                let diagnosticSnapshot = diagnostics.count
                 typeCheckFunctionDecl(
                     function,
                     symbol: symbol,
@@ -282,6 +291,7 @@ extension DeclTypeChecker {
                     solver: solver,
                     diagnostics: diagnostics
                 )
+                diagnostics.truncate(to: diagnosticSnapshot)
 
             case let .propertyDecl(property):
                 typeCheckBoundPropertyDecl(

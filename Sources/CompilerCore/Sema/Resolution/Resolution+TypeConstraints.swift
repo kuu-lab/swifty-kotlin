@@ -92,6 +92,13 @@ extension OverloadResolver {
         var boundNonVarargParams: Set<Int> = []
         var sawNamedArgument = false
         var positionalCursor = 0
+        // Highest parameter index bound so far by any argument (named or
+        // positional). Kotlin only allows a positional argument after a named
+        // one when the parameter order still matches declaration order; a
+        // vararg parameter that is declared *before* an already-bound named
+        // parameter (e.g. `fun f(vararg items: Int, name: String)` called as
+        // `f(name = "x", 1, 2)`) would otherwise be silently accepted here.
+        var maxBoundParamIndex = -1
 
         for (argIndex, arg) in callArgs.enumerated() {
             if let label = arg.label {
@@ -104,6 +111,7 @@ extension OverloadResolver {
                 }
                 if isVararg[paramIndex] {
                     mapping[argIndex] = paramIndex
+                    maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
                     continue
                 }
                 if boundNonVarargParams.contains(paramIndex) {
@@ -111,6 +119,7 @@ extension OverloadResolver {
                 }
                 boundNonVarargParams.insert(paramIndex)
                 mapping[argIndex] = paramIndex
+                maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
                 if paramIndex == positionalCursor {
                     positionalCursor += 1
                 }
@@ -122,12 +131,15 @@ extension OverloadResolver {
                 // are allowed only when they bind to a vararg parameter.
                 // Trailing lambdas are also allowed after named arguments when
                 // they map to the final function-typed parameter.
-                if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex) {
+                if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex),
+                   trailingLambdaParamIndex >= maxBoundParamIndex
+                {
                     if boundNonVarargParams.contains(trailingLambdaParamIndex) {
                         return nil
                     }
                     boundNonVarargParams.insert(trailingLambdaParamIndex)
                     mapping[argIndex] = trailingLambdaParamIndex
+                    maxBoundParamIndex = max(maxBoundParamIndex, trailingLambdaParamIndex)
                     if trailingLambdaParamIndex == positionalCursor {
                         positionalCursor += 1
                     }
@@ -135,9 +147,10 @@ extension OverloadResolver {
                 }
                 // Advance the cursor past already-bound non-vararg params.
                 advancePositionalCursor(for: argIndex)
-                if positionalCursor >= paramCount || !isVararg[positionalCursor] {
+                if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
                     return nil
                 }
+                maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
                 continue
             }

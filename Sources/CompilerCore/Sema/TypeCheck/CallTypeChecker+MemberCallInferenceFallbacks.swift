@@ -1155,15 +1155,14 @@ extension CallTypeChecker {
         }
 
         let calleeStr = interner.resolve(calleeName)
-        func sourceBackedComparisonsExtension(parameterCount: Int) -> SymbolID? {
+        func comparisonsExtension(parameterCount: Int) -> SymbolID? {
             let fqName = [
                 interner.intern("kotlin"),
                 interner.intern("comparisons"),
                 calleeName,
             ]
             return sema.symbols.lookupAll(fqName: fqName).first(where: { candidate in
-                guard sema.symbols.externalLinkName(for: candidate) == nil,
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                guard let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == parameterCount,
                       let receiver = signature.receiverType,
                       resolvedComparatorElementType(of: receiver, sema: sema, interner: interner) != nil
@@ -1196,7 +1195,7 @@ extension CallTypeChecker {
                 expectedType: expectedLambdaType
             )
 
-            guard let chosen = sourceBackedComparisonsExtension(parameterCount: 2) else {
+            guard let chosen = comparisonsExtension(parameterCount: 2) else {
                 return nil
             }
 
@@ -1206,6 +1205,27 @@ extension CallTypeChecker {
                     chosenCallee: chosen,
                     substitutedTypeArguments: [comparatorElementType, keyType],
                     parameterMapping: [0: 0, 1: 1]
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+
+            let resultType = sema.types.makeNonNullable(receiverType)
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+
+        if args.count == 0, calleeStr == "reversed" {
+            guard let chosen = comparisonsExtension(parameterCount: 0) else {
+                return nil
+            }
+
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: [],
+                    parameterMapping: [:]
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -1247,7 +1267,7 @@ extension CallTypeChecker {
             expectedType: expectedLambdaType
         )
 
-        guard let chosen = sourceBackedComparisonsExtension(parameterCount: 1) else {
+        guard let chosen = comparisonsExtension(parameterCount: 1) else {
             return nil
         }
 

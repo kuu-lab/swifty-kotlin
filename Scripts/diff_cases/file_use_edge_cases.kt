@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 import java.io.Closeable
 import java.io.File
 

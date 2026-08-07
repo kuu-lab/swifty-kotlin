@@ -209,7 +209,35 @@ public extension RuntimeABISpec {
             section: "Delegate"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_function_value_fn_ptr",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_function_value_closure_raw",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_function_create_2",
+            parameters: [
+                RuntimeABIParameter(name: "bodyRaw", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Delegate"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_function_create_3",
             parameters: [
                 RuntimeABIParameter(name: "bodyRaw", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),

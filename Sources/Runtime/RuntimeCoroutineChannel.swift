@@ -374,6 +374,16 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
     }
 
+    /// Returns the current suspended waiter counts under the channel lock.
+    ///
+    /// Runtime tests use this snapshot to synchronize with actual suspension
+    /// instead of assuming a background queue has progressed after a fixed delay.
+    func suspendedWaiterCountsSnapshot() -> (senders: Int, receivers: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (senderQueue.count, receiverQueue.count)
+    }
+
     // MARK: - Private helpers
 
     /// CORO-004: Resume a suspended sender using continuation model if available,

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "char_get_error.kt",
+      "range": {
+        "start": { "line": 2, "character": 12 },
+        "end": { "line": 2, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'get'.",
+      "codeActions": []
+    }
+  ]
+}

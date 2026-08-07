@@ -264,6 +264,173 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
+        // mapIndexed/filterIndexed on array → kk_array_mapIndexed/kk_array_filterIndexed
+        // (result is List). Array HOF gap fix: these previously failed Sema
+        // member resolution outright (see CallTypeChecker+ArrayMemberFallback.swift).
+        if callee == lookup.mapIndexedName || callee == lookup.filterIndexedName, arguments.count == 1 {
+            let kkName: InternedString = callee == lookup.mapIndexedName
+                ? lookup.kkArrayMapIndexedName : lookup.kkArrayFilterIndexedName
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            let hofResult = emitHOFCall(
+                kkName: kkName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(hofResult.rawValue)
+            }
+            return true
+        }
+
+        // mapNotNull/filterNot on array → kk_array_mapNotNull/kk_array_filterNot
+        // (result is List). Array HOF gap fix.
+        if callee == lookup.mapNotNullName || callee == lookup.filterNotName, arguments.count == 1 {
+            let kkName: InternedString = callee == lookup.mapNotNullName
+                ? lookup.kkArrayMapNotNullName : lookup.kkArrayFilterNotName
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            let hofResult = emitHOFCall(
+                kkName: kkName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(hofResult.rawValue)
+            }
+            return true
+        }
+
+        // filterNotNull on array → kk_array_filterNotNull (result is List, no
+        // lambda argument). Array HOF gap fix.
+        if callee == lookup.filterNotNullName, arguments.isEmpty {
+            let filterResult = module.arena.appendTemporary(type: nil
+            )
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayFilterNotNullName,
+                arguments: [receiver],
+                result: filterResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(filterResult.rawValue)
+                loweredBody.append(.copy(from: filterResult, to: result))
+            }
+            return true
+        }
+
+        // first()/last() on array (no predicate) → kk_array_first/kk_array_last
+        // (throws NoSuchElementException when empty). Array HOF gap fix.
+        if callee == lookup.firstName, arguments.isEmpty {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayFirstName,
+                arguments: [receiver],
+                result: result,
+                canThrow: true,
+                thrownResult: origThrownResult
+            ))
+            return true
+        }
+        if callee == lookup.lastName, arguments.isEmpty {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayLastName,
+                arguments: [receiver],
+                result: result,
+                canThrow: true,
+                thrownResult: origThrownResult
+            ))
+            return true
+        }
+
+        // firstOrNull()/lastOrNull() on array (no predicate) →
+        // kk_array_firstOrNull/kk_array_lastOrNull (never throws). Array HOF gap fix.
+        if callee == lookup.firstOrNullName, arguments.isEmpty {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayFirstOrNullName,
+                arguments: [receiver],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return true
+        }
+        if callee == lookup.lastOrNullName, arguments.isEmpty {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayLastOrNullName,
+                arguments: [receiver],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return true
+        }
+
+        // first(predicate)/last(predicate) on array → kk_array_first_predicate/
+        // kk_array_last_predicate (throws NoSuchElementException on no match).
+        // Array HOF gap fix. Like the map/filter/mapIndexed/etc. cases above,
+        // a zero placeholder is appended after the single source-level lambda
+        // argument to match the runtime function's (arrayRaw, fnPtr,
+        // closureRaw, outThrown) shape — see emitHOFCall's callers above.
+        if callee == lookup.firstName, arguments.count == 1 {
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            _ = emitHOFCall(
+                kkName: lookup.kkArrayFirstPredicateName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+        if callee == lookup.lastName, arguments.count == 1 {
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            _ = emitHOFCall(
+                kkName: lookup.kkArrayLastPredicateName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+
+        // firstOrNull(predicate)/lastOrNull(predicate) on array reuse the
+        // existing find/findLast runtime entry points (identical semantics:
+        // returns null, never throws, when no element matches). Array HOF gap fix.
+        if callee == lookup.firstOrNullName, arguments.count == 1 {
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            _ = emitHOFCall(
+                kkName: lookup.kkArrayFindName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+        if callee == lookup.lastOrNullName, arguments.count == 1 {
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            _ = emitHOFCall(
+                kkName: lookup.kkArrayFindLastName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+
         return false
     }
 }

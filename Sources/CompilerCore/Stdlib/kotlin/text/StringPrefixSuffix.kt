@@ -125,3 +125,62 @@ public fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence):
  * Otherwise returns this string unchanged.
  */
 public fun String.removeSurrounding(delimiter: CharSequence): String = removeSurrounding(delimiter, delimiter)
+
+// BUG-167: the String-receiver overloads above don't satisfy a call whose
+// receiver is statically typed CharSequence (rather than a concrete String) —
+// e.g. `fun f(value: CharSequence): String = value.removePrefix("foo")` —
+// since Sema resolves member calls by the receiver's static type, not its
+// runtime value. startsWith/endsWith above already have real
+// CharSequence-receiver overloads for the same reason;
+// removePrefix/removeSuffix/removeSurrounding were missing theirs. Unlike
+// real Kotlin (whose CharSequence-receiver overloads return CharSequence),
+// these return String: every CharSequence value this compiler's runtime
+// actually produces is String-backed, and callers assign/return the result
+// as String (matching the String-receiver overloads' signatures above), so
+// a CharSequence return type here would just demand an extra, pointless
+// `.toString()` at every call site for no behavioral difference.
+
+/**
+ * If this char sequence starts with the given [prefix], returns a copy of this char sequence
+ * with the prefix removed. Otherwise, returns this char sequence.
+ */
+public fun CharSequence.removePrefix(prefix: CharSequence): String {
+    if (startsWith(prefix)) {
+        return this.toString().substring(prefix.toString().toList().size)
+    }
+    return this.toString()
+}
+
+/**
+ * If this char sequence ends with the given [suffix], returns a copy of this char sequence
+ * with the suffix removed. Otherwise, returns this char sequence.
+ */
+public fun CharSequence.removeSuffix(suffix: CharSequence): String {
+    if (endsWith(suffix)) {
+        val selfLength = this.toString().toList().size
+        return this.toString().substring(0, selfLength - suffix.toString().toList().size)
+    }
+    return this.toString()
+}
+
+/**
+ * When this char sequence starts with the given [prefix] and ends with the given [suffix],
+ * returns a copy of this char sequence having both the given [prefix] and [suffix] removed.
+ * Otherwise returns this char sequence unchanged.
+ */
+public fun CharSequence.removeSurrounding(prefix: CharSequence, suffix: CharSequence): String {
+    val selfLength = this.toString().toList().size
+    val prefixLength = prefix.toString().toList().size
+    val suffixLength = suffix.toString().toList().size
+    if (selfLength >= prefixLength + suffixLength && startsWith(prefix) && endsWith(suffix)) {
+        return this.toString().substring(prefixLength, selfLength - suffixLength)
+    }
+    return this.toString()
+}
+
+/**
+ * When this char sequence starts with and ends with the given [delimiter],
+ * returns a copy of this char sequence having the [delimiter] removed from both ends.
+ * Otherwise returns this char sequence unchanged.
+ */
+public fun CharSequence.removeSurrounding(delimiter: CharSequence): String = removeSurrounding(delimiter, delimiter)

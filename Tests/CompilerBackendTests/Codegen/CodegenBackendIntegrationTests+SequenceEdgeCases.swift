@@ -404,6 +404,26 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testSourceSequenceObjectTerminalHofTraversesIterator() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2, 3).map { it * 2 }.sumBy { it })
+            println(emptySequence<Int>().sumBy { 5 })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SourceSeqTerminalHof",
+            expected:
+                """
+                12
+                0
+                """
+                + "\n"
+        )
+    }
+
     func testSequenceRunningReduceIndexedAccumulatesWithIndex() throws {
         let source = """
         fun main() {
@@ -1066,6 +1086,52 @@ extension CodegenBackendIntegrationTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceMinByOrNull", expected: "3\ntrue\n")
+    }
+
+    // KSP-441 / BUG-155 regression: object-expression Sequence/Iterator pipelines must
+    // support for-in iteration and virtual dispatch of the overridden iterator().
+    func testCodegenSequenceObjectExpressionIteratorSupportsForIn() throws {
+        let source = """
+        interface MySeq<out T> {
+            operator fun iterator(): Iterator<T>
+        }
+
+        fun main() {
+            val it = object : Iterator<Int> {
+                var i = 1
+                override fun hasNext(): Boolean = i <= 3
+                override fun next(): Int {
+                    val current = i
+                    i = i + 1
+                    return current
+                }
+            }
+            val seq = object : MySeq<Int> {
+                override fun iterator(): Iterator<Int> = it
+            }
+            for (x in seq) println(x)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceObjectExpressionForIn", expected: "1\n2\n3\n")
+    }
+
+    // KSP-441 regression: flatMap/flatMapIndexed on source Sequence objects must
+    // traverse nested source Iterators and accept Iterable sub-collections.
+    func testCodegenSequenceFlatMapAndFlatMapIndexedOverSourceSequence() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2).flatMap { listOf(it, it * 10) }.toList())
+            println(sequenceOf(1, 2).flatMapIndexed { index, value -> listOf(index, value * 10) }.toList())
+            println(emptySequence<Int>().flatMapIndexed { index, value -> listOf(index, value) }.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapRegression",
+            expected: "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[]\n"
+        )
     }
 }
 

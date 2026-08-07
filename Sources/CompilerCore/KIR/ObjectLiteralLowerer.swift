@@ -1,4 +1,3 @@
-
 final class ObjectLiteralLowerer {
     unowned let driver: KIRLoweringDriver
 
@@ -158,6 +157,20 @@ final class ObjectLiteralLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             )
+            // BUG-141: object-literal member properties are not lowered through
+            // MemberLowerer above (memberProperties: []), so synthesize a getter
+            // accessor for each property that overrides an interface property.
+            // appendObjectItableMethodRegistrations registers these getters into
+            // the interface itable so an interface-typed receiver can read them.
+            lowerObjectLiteralPropertyGetters(
+                objectDecl,
+                objectSymbol: objectSymbol,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
         }
 
         let intType = sema.types.intType
@@ -195,6 +208,7 @@ final class ObjectLiteralLowerer {
         appendObjectItableMethodRegistrations(
             objectValue: objectValue,
             nominalSymbol: objectSymbol,
+            driver: driver,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -573,6 +587,68 @@ final class ObjectLiteralLowerer {
             interner: interner,
             propertyConstantInitializers: propertyConstantInitializers
         )
+        for declID in allDecls {
+            driver.ctx.appendGeneratedCallableDecl(declID)
+        }
+    }
+
+    /// BUG-141: emit getter accessor functions for object-literal member
+    /// properties that override an interface property, so they can be dispatched
+    /// through the interface itable. Stored properties get a field-reading
+    /// getter; custom-getter properties reuse their explicit getter body.
+    private func lowerObjectLiteralPropertyGetters(
+        _ objectDecl: ObjectDecl,
+        objectSymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) {
+        guard !objectDecl.memberProperties.isEmpty else {
+            return
+        }
+        var allDecls: [KIRDeclID] = []
+        for propertyDeclID in objectDecl.memberProperties {
+            guard let propertySymbol = sema.bindings.declSymbols[propertyDeclID],
+                  let decl = ast.arena.decl(propertyDeclID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            // Object-literal member properties are not flagged `.overrideMember`
+            // in Sema, so every non-delegated property gets a getter accessor;
+            // the itable registration only wires up the ones that match an
+            // interface property, and any extra getter is simply unused.
+            guard propertyDecl.delegateExpression == nil else {
+                continue
+            }
+            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                driver.memberLowerer.lowerAccessorBody(
+                    accessorBody: getter.body,
+                    propertySymbol: propertySymbol,
+                    propertyType: propertyType,
+                    accessorKind: .getter,
+                    setterParamName: nil,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    allDecls: &allDecls
+                )
+            } else {
+                driver.memberLowerer.synthesizeStoredPropertyGetterAccessor(
+                    propertySymbol: propertySymbol,
+                    ownerSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
+            }
+        }
         for declID in allDecls {
             driver.ctx.appendGeneratedCallableDecl(declID)
         }

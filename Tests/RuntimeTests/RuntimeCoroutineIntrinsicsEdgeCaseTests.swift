@@ -1,6 +1,6 @@
 import Dispatch
 @testable import Runtime
-import XCTest
+import Testing
 
 private typealias RuntimeCoroutineIntrinsicEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
@@ -57,77 +57,64 @@ private func coro_intrinsics_throw_immediately(_ continuation: Int, _ outThrown:
 // RuntimeCancellationBox reports this chain via exceptionHierarchyFQNames so catch clauses
 // targeting IllegalStateException / RuntimeException match CancellationException at runtime (PR #1261).
 
-final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
-
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
+@Suite(.runtimeIsolation(.all))
+struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     // MARK: - COROUTINE_SUSPENDED sentinel
 
     /// kk_coroutine_suspended() returns a stable non-null pointer.
-    func testCoroutineSuspendedSentinelIsNonNull() {
+    @Test func coroutineSuspendedSentinelIsNonNull() {
         let sentinel = kk_coroutine_suspended()
-        XCTAssertNotEqual(Int(bitPattern: sentinel), 0,
-            "COROUTINE_SUSPENDED sentinel must be non-null")
+        #expect(Int(bitPattern: sentinel) != 0, "COROUTINE_SUSPENDED sentinel must be non-null")
     }
 
     /// Two consecutive calls return the same pointer (singleton identity).
-    func testCoroutineSuspendedSentinelIsSingletonIdentity() {
+    @Test func coroutineSuspendedSentinelIsSingletonIdentity() {
         let first = kk_coroutine_suspended()
         let second = kk_coroutine_suspended()
-        XCTAssertEqual(first, second,
-            "COROUTINE_SUSPENDED sentinel must return the same object on every call")
+        #expect(first == second, "COROUTINE_SUSPENDED sentinel must return the same object on every call")
     }
 
     /// The COROUTINE_SUSPENDED sentinel must compare equal to itself (pointer equality).
     /// This models the `result === COROUTINE_SUSPENDED` check in the state machine.
-    func testCoroutineSuspendedSentinelEqualityCheck() {
+    @Test func coroutineSuspendedSentinelEqualityCheck() {
         let sentinelA = kk_coroutine_suspended()
         let sentinelB = kk_coroutine_suspended()
         // Pointer equality — simulates the generated jumpIfEqual comparison.
-        XCTAssertTrue(sentinelA == sentinelB,
-            "COROUTINE_SUSPENDED pointer equality check must hold (state-machine short-circuit)")
+        #expect(sentinelA == sentinelB, "COROUTINE_SUSPENDED pointer equality check must hold (state-machine short-circuit)")
     }
 
     /// The sentinel pointer must NOT compare equal to an unrelated object.
-    func testCoroutineSuspendedSentinelNotEqualToOtherObject() {
+    @Test func coroutineSuspendedSentinelNotEqualToOtherObject() {
         let sentinel = Int(bitPattern: kk_coroutine_suspended())
         let cont = kk_coroutine_continuation_new(8800)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
-        XCTAssertNotEqual(sentinel, cont,
-            "COROUTINE_SUSPENDED must not alias a regular continuation handle")
+        #expect(sentinel != cont, "COROUTINE_SUSPENDED must not alias a regular continuation handle")
     }
 
     // MARK: - start/create unintercepted runtime entry points
 
-    func testCreateCoroutineUninterceptedStartsWhenReturnedContinuationIsResumed() throws {
+    @Test func createCoroutineUninterceptedStartsWhenReturnedContinuationIsResumed() throws {
         let completion = kk_coroutine_continuation_new(8812)
         defer { _ = kk_coroutine_state_exit(completion, 0) }
-        let completionState = try XCTUnwrap(runtimeContinuationState(from: completion))
+        let completionState = try #require(runtimeContinuationState(from: completion))
         let entryRaw = unsafeBitCast(
             coro_intrinsics_return_123 as RuntimeCoroutineIntrinsicEntry,
             to: Int.self
         )
 
         let continuation = kk_create_coroutine_unintercepted(entryRaw, completion)
-        XCTAssertNotEqual(continuation, 0)
+        #expect(continuation != 0)
 
         kk_coroutine_continuation_resume(continuation, 0)
-        XCTAssertEqual(Int(completionState.completion), 123)
-        XCTAssertEqual(completionState.thrownException, 0)
+        #expect(Int(completionState.completion) == 123)
+        #expect(completionState.thrownException == 0)
     }
 
-    func testCreateCoroutineUninterceptedPreservesReceiverLauncherArg() throws {
+    @Test func createCoroutineUninterceptedPreservesReceiverLauncherArg() throws {
         let completion = kk_coroutine_continuation_new(8813)
         defer { _ = kk_coroutine_state_exit(completion, 0) }
-        let completionState = try XCTUnwrap(runtimeContinuationState(from: completion))
+        let completionState = try #require(runtimeContinuationState(from: completion))
         let entryRaw = unsafeBitCast(
             coro_intrinsics_receiver_plus_one as RuntimeCoroutineIntrinsicEntry,
             to: Int.self
@@ -137,14 +124,14 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 41)
         kk_coroutine_continuation_resume(continuation, 0)
 
-        XCTAssertEqual(Int(completionState.completion), 42)
-        XCTAssertEqual(completionState.thrownException, 0)
+        #expect(Int(completionState.completion) == 42)
+        #expect(completionState.thrownException == 0)
     }
 
-    func testStartCoroutineUninterceptedOrReturnReturnsImmediateResult() throws {
+    @Test func startCoroutineUninterceptedOrReturnReturnsImmediateResult() throws {
         let completion = kk_coroutine_continuation_new(8814)
         defer { _ = kk_coroutine_state_exit(completion, 0) }
-        let completionState = try XCTUnwrap(runtimeContinuationState(from: completion))
+        let completionState = try #require(runtimeContinuationState(from: completion))
         let entryRaw = unsafeBitCast(
             coro_intrinsics_return_123 as RuntimeCoroutineIntrinsicEntry,
             to: Int.self
@@ -154,16 +141,16 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
 
         let result = kk_start_coroutine_unintercepted_or_return(entryRaw, continuation, &thrown)
 
-        XCTAssertEqual(result, 123)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(Int(completionState.completion), 0)
-        XCTAssertEqual(completionState.thrownException, 0)
+        #expect(result == 123)
+        #expect(thrown == 0)
+        #expect(Int(completionState.completion) == 0)
+        #expect(completionState.thrownException == 0)
     }
 
-    func testStartCoroutineUninterceptedOrReturnSuspendsAndResumesCompletion() throws {
+    @Test func startCoroutineUninterceptedOrReturnSuspendsAndResumesCompletion() throws {
         let completion = kk_coroutine_continuation_new(8815)
         defer { _ = kk_coroutine_state_exit(completion, 0) }
-        let completionState = try XCTUnwrap(runtimeContinuationState(from: completion))
+        let completionState = try #require(runtimeContinuationState(from: completion))
         let completed = DispatchSemaphore(value: 0)
         completionState.installResumeContinuation {
             completed.signal()
@@ -177,17 +164,17 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
 
         let result = kk_start_coroutine_unintercepted_or_return(entryRaw, continuation, &thrown)
 
-        XCTAssertEqual(result, Int(bitPattern: kk_coroutine_suspended()))
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(completed.wait(timeout: .now() + 3), .success)
-        XCTAssertEqual(Int(completionState.completion), 456)
-        XCTAssertEqual(completionState.thrownException, 0)
+        #expect(result == Int(bitPattern: kk_coroutine_suspended()))
+        #expect(thrown == 0)
+        #expect(completed.wait(timeout: .now() + 3) == .success)
+        #expect(Int(completionState.completion) == 456)
+        #expect(completionState.thrownException == 0)
     }
 
-    func testStartCoroutineUninterceptedOrReturnPropagatesImmediateThrow() throws {
+    @Test func startCoroutineUninterceptedOrReturnPropagatesImmediateThrow() throws {
         let completion = kk_coroutine_continuation_new(8816)
         defer { _ = kk_coroutine_state_exit(completion, 0) }
-        let completionState = try XCTUnwrap(runtimeContinuationState(from: completion))
+        let completionState = try #require(runtimeContinuationState(from: completion))
         let entryRaw = unsafeBitCast(
             coro_intrinsics_throw_immediately as RuntimeCoroutineIntrinsicEntry,
             to: Int.self
@@ -197,10 +184,10 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
 
         let result = kk_start_coroutine_unintercepted_or_return(entryRaw, continuation, &thrown)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(Int(completionState.completion), 0)
-        XCTAssertEqual(completionState.thrownException, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
+        #expect(Int(completionState.completion) == 0)
+        #expect(completionState.thrownException == 0)
     }
 
     // MARK: - intercepted() — bypass semantics
@@ -208,107 +195,98 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
     /// kk_continuation_intercepted on a fresh (undecorated) continuation returns
     /// the same handle (identity), meaning "no ContinuationInterceptor installed".
     /// This verifies that unintercepted variants correctly bypass ContinuationInterceptor.
-    func testInterceptedFreshContinuationReturnsIdentity() {
+    @Test func interceptedFreshContinuationReturnsIdentity() {
         let cont = kk_coroutine_continuation_new(8801)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
         let intercepted = kk_continuation_intercepted(cont)
         // The freshly-created continuation has no dispatcher-backed context, so
         // intercepted() must return the same handle unchanged.
-        XCTAssertEqual(intercepted, cont,
-            "intercepted() on a continuation with no interceptor must return the same handle (bypass)")
+        #expect(intercepted == cont, "intercepted() on a continuation with no interceptor must return the same handle (bypass)")
     }
 
     /// kk_continuation_intercepted with the zero handle returns 0 (null safety guard).
-    func testInterceptedZeroHandleReturnsZero() {
+    @Test func interceptedZeroHandleReturnsZero() {
         let result = kk_continuation_intercepted(0)
-        XCTAssertEqual(result, 0, "intercepted(null) must return 0")
+        #expect(result == 0, "intercepted(null) must return 0")
     }
 
     /// kk_continuation_intercepted returns a non-zero handle for a valid continuation.
-    func testInterceptedValidContinuationIsNonZero() {
+    @Test func interceptedValidContinuationIsNonZero() {
         let cont = kk_coroutine_continuation_new(8802)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
         let intercepted = kk_continuation_intercepted(cont)
-        XCTAssertNotEqual(intercepted, 0,
-            "intercepted() must return a non-zero handle for a valid continuation")
+        #expect(intercepted != 0, "intercepted() must return a non-zero handle for a valid continuation")
     }
 
     // MARK: - kk_continuation_interceptor_intercept_continuation
 
     /// With an invalid interceptor (0), the original continuation handle is returned unchanged.
-    func testInterceptorInterceptContinuationWithZeroInterceptorReturnsOriginal() {
+    @Test func interceptorInterceptContinuationWithZeroInterceptorReturnsOriginal() {
         let cont = kk_coroutine_continuation_new(8803)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
         let result = kk_continuation_interceptor_intercept_continuation(0, cont)
-        XCTAssertEqual(result, cont,
-            "Intercepting with null interceptor must return the original continuation unchanged")
+        #expect(result == cont, "Intercepting with null interceptor must return the original continuation unchanged")
     }
 
     /// With a valid continuation but no known dispatcher tag, the continuation is returned unchanged.
-    func testInterceptorInterceptContinuationWithNonDispatcherInterceptorReturnsOriginal() {
+    @Test func interceptorInterceptContinuationWithNonDispatcherInterceptorReturnsOriginal() {
         let cont = kk_coroutine_continuation_new(8804)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
         // Use the continuation itself as the interceptor — it is not a dispatcher,
         // so interception must be a no-op.
         let result = kk_continuation_interceptor_intercept_continuation(cont, cont)
-        XCTAssertEqual(result, cont,
-            "Non-dispatcher interceptor must leave the continuation unchanged")
+        #expect(result == cont, "Non-dispatcher interceptor must leave the continuation unchanged")
     }
 
     /// With a zero continuation, the function returns 0 regardless of interceptor.
-    func testInterceptorInterceptContinuationWithZeroContinuationReturnsZero() {
+    @Test func interceptorInterceptContinuationWithZeroContinuationReturnsZero() {
         let result = kk_continuation_interceptor_intercept_continuation(0, 0)
-        XCTAssertEqual(result, 0,
-            "Intercepting a null continuation must return 0")
+        #expect(result == 0, "Intercepting a null continuation must return 0")
     }
 
     // MARK: - CancellationException type identity
 
     /// runtimeAllocateCancellationException produces a non-zero pointer.
-    func testCancellationExceptionAllocatePtrIsNonZero() {
+    @Test func cancellationExceptionAllocatePtrIsNonZero() {
         let exc = runtimeAllocateCancellationException()
-        XCTAssertNotEqual(exc, 0, "CancellationException allocation must return a non-zero pointer")
+        #expect(exc != 0, "CancellationException allocation must return a non-zero pointer")
     }
 
     /// kk_is_cancellation_exception returns 1 for a CancellationException.
-    func testIsCancellationExceptionReturnsTrueForCancellation() {
+    @Test func isCancellationExceptionReturnsTrueForCancellation() {
         let exc = runtimeAllocateCancellationException()
-        XCTAssertEqual(kk_is_cancellation_exception(exc), 1,
-            "kk_is_cancellation_exception must return 1 for a CancellationException")
+        #expect(kk_is_cancellation_exception(exc) == 1, "kk_is_cancellation_exception must return 1 for a CancellationException")
     }
 
     /// kk_is_cancellation_exception returns 0 for a regular throwable.
-    func testIsCancellationExceptionReturnsFalseForRegularThrowable() {
+    @Test func isCancellationExceptionReturnsFalseForRegularThrowable() {
         let exc = runtimeAllocateThrowable(message: "regular error")
-        XCTAssertEqual(kk_is_cancellation_exception(exc), 0,
-            "kk_is_cancellation_exception must return 0 for a non-CancellationException")
+        #expect(kk_is_cancellation_exception(exc) == 0, "kk_is_cancellation_exception must return 0 for a non-CancellationException")
     }
 
     /// kk_is_cancellation_exception with zero returns 0 (null-safety).
-    func testIsCancellationExceptionReturnsFalseForNull() {
-        XCTAssertEqual(kk_is_cancellation_exception(0), 0,
-            "kk_is_cancellation_exception(null) must return 0")
+    @Test func isCancellationExceptionReturnsFalseForNull() {
+        #expect(kk_is_cancellation_exception(0) == 0, "kk_is_cancellation_exception(null) must return 0")
     }
 
     /// A CancellationException with a custom message round-trips correctly.
-    func testCancellationExceptionCustomMessageRoundTrips() {
+    @Test func cancellationExceptionCustomMessageRoundTrips() {
         let exc = runtimeAllocateCancellationException(message: "job was cancelled")
-        XCTAssertEqual(kk_is_cancellation_exception(exc), 1)
+        #expect(kk_is_cancellation_exception(exc) == 1)
 
         // Verify the message is accessible through the throwable API.
         let msgRaw = kk_throwable_message(exc)
-        XCTAssertNotEqual(msgRaw, 0, "CancellationException message handle must be non-zero")
+        #expect(msgRaw != 0, "CancellationException message handle must be non-zero")
     }
 
     /// A CancellationException with a cause stores the cause correctly.
-    func testCancellationExceptionWithCauseRoundTrips() {
+    @Test func cancellationExceptionWithCauseRoundTrips() {
         let cause = runtimeAllocateThrowable(message: "root cause")
         let exc = runtimeAllocateCancellationException(message: "cancelled with cause", cause: cause)
-        XCTAssertEqual(kk_is_cancellation_exception(exc), 1)
+        #expect(kk_is_cancellation_exception(exc) == 1)
 
         let causeRaw = kk_throwable_cause(exc)
-        XCTAssertEqual(causeRaw, cause,
-            "CancellationException must preserve its cause reference")
+        #expect(causeRaw == cause, "CancellationException must preserve its cause reference")
     }
 
     // MARK: - CancellationException is NOT a regular failure (Result semantics)
@@ -316,7 +294,7 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
     /// When a coroutine block throws a CancellationException through runtimeResultRunCatching,
     /// the Result must be a failure AND kk_is_cancellation_exception on its stored
     /// exception must return 1 — distinguishing cancellation from error failure.
-    func testRunCatchingWithCancellationExceptionProducesFailureResult() {
+    @Test func runCatchingWithCancellationExceptionProducesFailureResult() {
         // Use a non-capturing C stub that writes a CancellationException to outThrown.
         let cancellationExcRaw = runtimeAllocateCancellationException(message: "cancelled")
 
@@ -330,21 +308,18 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
 
         var outerThrown = 0
         let resultRaw = runtimeResultRunCatching(fnPtr, cancellationExcRaw, &outerThrown)
-        XCTAssertEqual(outerThrown, 0, "runtimeResultRunCatching outer outThrown must remain 0")
-        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1,
-            "A block throwing CancellationException must produce Result.failure")
-        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 0,
-            "A block throwing CancellationException must NOT be Result.success")
+        #expect(outerThrown == 0, "runtimeResultRunCatching outer outThrown must remain 0")
+        #expect(runtimeResultFailureFlag(resultRaw) == 1, "A block throwing CancellationException must produce Result.failure")
+        #expect(runtimeResultSuccessFlag(resultRaw) == 0, "A block throwing CancellationException must NOT be Result.success")
 
         // Crucially: the failure's exception must be identified as CancellationException,
         // not just as a generic throwable.
         let exceptionFromResult = runtimeResultExceptionOrNull(resultRaw)
-        XCTAssertEqual(kk_is_cancellation_exception(exceptionFromResult), 1,
-            "Result.failure wrapping a CancellationException must be identified as CancellationException")
+        #expect(kk_is_cancellation_exception(exceptionFromResult) == 1, "Result.failure wrapping a CancellationException must be identified as CancellationException")
     }
 
     /// A Result.failure wrapping a regular exception must NOT be identified as CancellationException.
-    func testRunCatchingWithRegularExceptionIsNotCancellation() {
+    @Test func runCatchingWithRegularExceptionIsNotCancellation() {
         let regularExc = runtimeAllocateThrowable(message: "normal error")
         let stub: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { exc, outThrown in
             outThrown?.pointee = exc
@@ -354,11 +329,10 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
 
         var outerThrown = 0
         let resultRaw = runtimeResultRunCatching(fnPtr, regularExc, &outerThrown)
-        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1)
+        #expect(runtimeResultFailureFlag(resultRaw) == 1)
 
         let exceptionFromResult = runtimeResultExceptionOrNull(resultRaw)
-        XCTAssertEqual(kk_is_cancellation_exception(exceptionFromResult), 0,
-            "Result.failure wrapping a regular exception must NOT be identified as CancellationException")
+        #expect(kk_is_cancellation_exception(exceptionFromResult) == 0, "Result.failure wrapping a regular exception must NOT be identified as CancellationException")
     }
 
     // MARK: - CancellationException class hierarchy (RuntimeCancellationBox : RuntimeThrowableBox)
@@ -366,26 +340,23 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
     /// Verifies that the RuntimeCancellationBox is a subtype of RuntimeThrowableBox by
     /// confirming that CancellationException pointers are tracked in the object store
     /// (same mechanism as all throwable allocations) and respond to throwable APIs.
-    func testCancellationExceptionIsSubtypeOfThrowable() {
+    @Test func cancellationExceptionIsSubtypeOfThrowable() {
         let exc = runtimeAllocateCancellationException(message: "hierarchy check")
         // If it is a throwable, kk_throwable_message must return a non-zero handle.
         let msgRaw = kk_throwable_message(exc)
-        XCTAssertNotEqual(msgRaw, 0,
-            "CancellationException must respond to throwable APIs (is-a RuntimeThrowableBox)")
+        #expect(msgRaw != 0, "CancellationException must respond to throwable APIs (is-a RuntimeThrowableBox)")
         // And it must still be identified as a CancellationException.
-        XCTAssertEqual(kk_is_cancellation_exception(exc), 1,
-            "CancellationException must also satisfy is-cancellation check (is-a RuntimeCancellationBox)")
+        #expect(kk_is_cancellation_exception(exc) == 1, "CancellationException must also satisfy is-cancellation check (is-a RuntimeCancellationBox)")
     }
 
     /// A regular throwable is NOT a CancellationException (negative case).
-    func testRegularThrowableIsNotCancellationException() {
+    @Test func regularThrowableIsNotCancellationException() {
         let exc = runtimeAllocateThrowable(message: "not cancelled")
         // It IS a throwable.
         let msgRaw = kk_throwable_message(exc)
-        XCTAssertNotEqual(msgRaw, 0, "Regular throwable must respond to throwable APIs")
+        #expect(msgRaw != 0, "Regular throwable must respond to throwable APIs")
         // But NOT a CancellationException.
-        XCTAssertEqual(kk_is_cancellation_exception(exc), 0,
-            "Regular throwable must not be identified as CancellationException")
+        #expect(kk_is_cancellation_exception(exc) == 0, "Regular throwable must not be identified as CancellationException")
     }
 
     // MARK: - COROUTINE_SUSPENDED in state machine short-circuit
@@ -393,79 +364,64 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
     /// Simulates the generated state-machine equality check:
     ///   if (blockResult === COROUTINE_SUSPENDED) return COROUTINE_SUSPENDED
     /// When blockResult IS the sentinel, the check passes and the continuation suspends.
-    func testStateMachineShortCircuitWhenResultIsSuspendedSentinel() {
+    @Test func stateMachineShortCircuitWhenResultIsSuspendedSentinel() {
         let sentinel = Int(bitPattern: kk_coroutine_suspended())
         let blockResult = Int(bitPattern: kk_coroutine_suspended())
 
         let shouldSuspend = (blockResult == sentinel)
-        XCTAssertTrue(shouldSuspend,
-            "State machine must short-circuit and suspend when blockResult === COROUTINE_SUSPENDED")
+        #expect(shouldSuspend, "State machine must short-circuit and suspend when blockResult === COROUTINE_SUSPENDED")
     }
 
     /// When blockResult is NOT the sentinel, the check fails and the machine resumes inline.
-    func testStateMachineDoesNotShortCircuitWhenResultIsNotSuspendedSentinel() {
+    @Test func stateMachineDoesNotShortCircuitWhenResultIsNotSuspendedSentinel() {
         let sentinel = Int(bitPattern: kk_coroutine_suspended())
         let blockResult = 42  // some actual computed value
 
         let shouldSuspend = (blockResult == sentinel)
-        XCTAssertFalse(shouldSuspend,
-            "State machine must NOT short-circuit when blockResult is a real value (not COROUTINE_SUSPENDED)")
+        #expect(!(shouldSuspend), "State machine must NOT short-circuit when blockResult is a real value (not COROUTINE_SUSPENDED)")
     }
 
     // MARK: - CancellationException extends IllegalStateException hierarchy (PR #1261)
 
     /// CancellationException hierarchy must include kotlin.IllegalStateException so that
     /// catch (e: IllegalStateException) blocks catch CancellationException (Kotlin spec).
-    func testCancellationExceptionHierarchyIncludesIllegalStateException() {
+    @Test func cancellationExceptionHierarchyIncludesIllegalStateException() {
         let box = RuntimeCancellationBox(message: "cancelled")
-        XCTAssertTrue(
-            box.exceptionHierarchyFQNames.contains("kotlin.IllegalStateException"),
-            "CancellationException must be catchable as IllegalStateException per Kotlin spec"
-        )
+        #expect(box.exceptionHierarchyFQNames.contains("kotlin.IllegalStateException"), "CancellationException must be catchable as IllegalStateException per Kotlin spec")
     }
 
     /// CancellationException hierarchy must include kotlin.RuntimeException.
-    func testCancellationExceptionHierarchyIncludesRuntimeException() {
+    @Test func cancellationExceptionHierarchyIncludesRuntimeException() {
         let box = RuntimeCancellationBox(message: "cancelled")
-        XCTAssertTrue(
-            box.exceptionHierarchyFQNames.contains("kotlin.RuntimeException"),
-            "CancellationException must be catchable as RuntimeException per Kotlin spec"
-        )
+        #expect(box.exceptionHierarchyFQNames.contains("kotlin.RuntimeException"), "CancellationException must be catchable as RuntimeException per Kotlin spec")
     }
 
     /// IllegalStateException must appear before RuntimeException in the hierarchy list
     /// (subtype ordering: CancellationException → ISE → RuntimeException → Exception → Throwable).
-    func testCancellationExceptionHierarchyOrderingISEBeforeRuntimeException() {
+    @Test func cancellationExceptionHierarchyOrderingISEBeforeRuntimeException() {
         let box = RuntimeCancellationBox(message: "cancelled")
         let names = box.exceptionHierarchyFQNames
         let iseIndex = names.firstIndex(of: "kotlin.IllegalStateException")
         let rteIndex = names.firstIndex(of: "kotlin.RuntimeException")
-        XCTAssertNotNil(iseIndex, "kotlin.IllegalStateException must be present")
-        XCTAssertNotNil(rteIndex, "kotlin.RuntimeException must be present")
+        #expect(iseIndex != nil, "kotlin.IllegalStateException must be present")
+        #expect(rteIndex != nil, "kotlin.RuntimeException must be present")
         if let ise = iseIndex, let rte = rteIndex {
-            XCTAssertLessThan(ise, rte,
-                "IllegalStateException must precede RuntimeException in the hierarchy list")
+            #expect(ise < rte, "IllegalStateException must precede RuntimeException in the hierarchy list")
         }
     }
 
     /// runtimeThrowableMatchesNominalTypeID must return true when checking CancellationException
     /// against the nominal type ID of kotlin.IllegalStateException — this is what catch blocks use.
-    func testCancellationExceptionMatchesIllegalStateExceptionTypeID() {
+    @Test func cancellationExceptionMatchesIllegalStateExceptionTypeID() {
         let box = RuntimeCancellationBox(message: "cancelled")
         let iseTypeID = runtimeStableNominalTypeID(fqName: "kotlin.IllegalStateException")
-        XCTAssertTrue(
-            runtimeThrowableMatchesNominalTypeID(box, targetTypeID: iseTypeID),
-            "catch (e: IllegalStateException) must catch CancellationException"
-        )
+        #expect(runtimeThrowableMatchesNominalTypeID(box, targetTypeID: iseTypeID), "catch (e: IllegalStateException) must catch CancellationException")
     }
 
     /// runtimeThrowableMatchesNominalTypeID must return true for kotlin.RuntimeException as well.
-    func testCancellationExceptionMatchesRuntimeExceptionTypeID() {
+    @Test func cancellationExceptionMatchesRuntimeExceptionTypeID() {
         let box = RuntimeCancellationBox(message: "cancelled")
         let rteTypeID = runtimeStableNominalTypeID(fqName: "kotlin.RuntimeException")
-        XCTAssertTrue(
-            runtimeThrowableMatchesNominalTypeID(box, targetTypeID: rteTypeID),
-            "catch (e: RuntimeException) must catch CancellationException"
-        )
+        #expect(runtimeThrowableMatchesNominalTypeID(box, targetTypeID: rteTypeID), "catch (e: RuntimeException) must catch CancellationException")
     }
 }

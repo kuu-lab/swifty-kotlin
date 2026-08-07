@@ -499,9 +499,11 @@ extension KIRLoweringDriver {
             delegateValue
         }
         if let storageSym = delegateStorageSym {
-            let delegateType = sema.types.anyType
-            let fieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
-            body.append(.copy(from: valueToStore, to: fieldRef))
+            emitFieldStore(
+                propSymbol: propSymbol, targetSymbol: storageSym,
+                value: valueToStore, valueType: sema.types.anyType,
+                shared: shared, compilationCtx: compilationCtx, body: &body
+            )
         }
     }
 
@@ -532,7 +534,8 @@ extension KIRLoweringDriver {
         switch delegateKind {
         case .lazy:
             let lambdaFnPtr = lowerDelegateLambdaBody(
-                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                delegateBody: propertyDecl.delegateBody,
+                delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
             let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
@@ -549,7 +552,9 @@ extension KIRLoweringDriver {
                 delegateExpr: propertyDecl.delegateExpression, shared: shared, emit: &body
             )
             let callbackFnPtr = lowerDelegateLambdaBody(
-                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                delegateBody: propertyDecl.delegateBody,
+                delegateBodyParams: propertyDecl.delegateBodyParams,
+                valueType: sema.symbols.propertyType(for: propSymbol), propertySymbol: propSymbol,
                 paramCount: 3, shared: shared, emit: &body
             )
             let runtimeFnName = delegateKind == .observable ? "kk_observable_create" : "kk_vetoable_create"
@@ -570,8 +575,11 @@ extension KIRLoweringDriver {
             preconditionFailure("emitStdlibDelegatePropertyInitializer must not be called for .custom")
         }
 
-        let fieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
-        body.append(.copy(from: createResult, to: fieldRef))
+        emitFieldStore(
+            propSymbol: propSymbol, targetSymbol: storageSym,
+            value: createResult, valueType: delegateType,
+            shared: shared, compilationCtx: compilationCtx, body: &body
+        )
     }
 
     private func emitProvideDelegateCall(
@@ -584,9 +592,17 @@ extension KIRLoweringDriver {
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
+        guard let provideDelegateSymbol = sema.symbols.delegateProvideDelegateSymbol(
+            for: propSymbol
+        ) else {
+            return delegateValue
+        }
         let delegateType = sema.types.anyType
-        let tempFieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
-        body.append(.copy(from: delegateValue, to: tempFieldRef))
+        emitFieldStore(
+            propSymbol: propSymbol, targetSymbol: storageSym,
+            value: delegateValue, valueType: delegateType,
+            shared: shared, compilationCtx: compilationCtx, body: &body
+        )
         let propertyName = sema.symbols.symbol(propSymbol)?.name
             ?? compilationCtx.interner.intern("")
         let thisRefExprID: KIRExprID
@@ -606,8 +622,8 @@ extension KIRLoweringDriver {
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
-            symbol: storageSym, callee: provideDelegateName,
-            arguments: [thisRefExprID, kPropertyExprID],
+            symbol: provideDelegateSymbol, callee: provideDelegateName,
+            arguments: [delegateValue, thisRefExprID, kPropertyExprID],
             result: provideDelegateResult,
             canThrow: false, thrownResult: nil
         ))

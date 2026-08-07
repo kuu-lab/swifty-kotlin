@@ -110,10 +110,11 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(types.intType, for: sizeSymbol)
         }
 
-        // BUG-172: same itable-dispatch gap as contains() below — wire the same
-        // kk_collection_isEmpty bridge already used for the implicit-receiver case
-        // (ExprLowerer+ControlFlowAndBlocks.swift) so an explicit-receiver call
-        // through the bare `Collection` interface type doesn't panic either.
+        // BUG-166: needs externalLinkName for the same reason as `contains`
+        // below — without it, calling isEmpty() through a `Collection<T>`-typed
+        // (rather than concrete `List<T>`/`Set<T>`-typed) receiver requires
+        // virtual itable dispatch, which the built-in List/Set runtime boxes
+        // never register for.
         defineCollectionFunctionMember(
             name: "isEmpty",
             parameterTypes: [],
@@ -125,16 +126,27 @@ extension DataFlowSemaPhase {
         // Variance note: Collection declares `out E`, but contains() uses E in
         // parameter (contravariant) position. This matches Kotlin's own declaration
         // where `contains` has `@UnsafeVariance E` — the mismatch is intentional.
-        // BUG-172: needs externalLinkName like Set.contains (kk_set_contains) —
-        // RuntimeListBox/RuntimeSetBox never register itable entries, so a bare
-        // `Collection`-typed receiver falling through to virtual dispatch always
-        // panics with "method not found in vtable/itable".
+        //
+        // BUG-166: externalLinkName is required here, not optional. Without it,
+        // a call through a `Collection<T>`-typed receiver (as opposed to a
+        // concrete `List<T>`/`Set<T>`-typed one, which resolves `contains`
+        // through the name-based collection dispatch fallback before this
+        // member is ever considered) binds to this member as a real
+        // `chosenCallee` and requires virtual itable dispatch — but the
+        // built-in List/Set runtime boxes never register themselves into the
+        // itable system (they bypass kk_object_new construction entirely), so
+        // dispatch panics with KSWIFTK-RUNTIME-0001 ("method not found in
+        // vtable/itable"). Setting externalLinkName makes
+        // CallLowerer+MemberCallDefaultsAndResolution.tryEmitVirtualDispatch
+        // skip virtual dispatch and call the (already receiver-type-agnostic)
+        // kk_op_contains directly instead, exactly like the random/
+        // randomOrNull/last members below.
         defineCollectionFunctionMember(
             name: "contains",
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
             flags: [.synthetic, .operatorFunction],
-            externalLinkName: "kk_collection_contains"
+            externalLinkName: "kk_op_contains"
         )
 
         // last(): E — modeled directly here because Collection member lookup does
@@ -969,7 +981,10 @@ extension DataFlowSemaPhase {
 
         let hasNextName = interner.intern("hasNext")
         let hasNextFQName = iteratorFQName + [hasNextName]
-        if symbols.lookup(fqName: hasNextFQName) == nil {
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if symbols.lookup(fqName: hasNextFQName) == nil,
+           !bundledIndex.contains(owner: iteratorFQName, name: hasNextName, arity: 0)
+        {
             let sym = symbols.define(
                 kind: .function, name: hasNextName, fqName: hasNextFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
@@ -993,7 +1008,9 @@ extension DataFlowSemaPhase {
 
         let nextName = interner.intern("next")
         let nextFQName = iteratorFQName + [nextName]
-        if symbols.lookup(fqName: nextFQName) == nil {
+        if symbols.lookup(fqName: nextFQName) == nil,
+           !bundledIndex.contains(owner: iteratorFQName, name: nextName, arity: 0)
+        {
             let sym = symbols.define(
                 kind: .function, name: nextName, fqName: nextFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
@@ -1183,7 +1200,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty
     ) -> SymbolID {
         let kotlinSequencesPkg: [InternedString] = [
             interner.intern("kotlin"), interner.intern("sequences")
@@ -1233,7 +1251,12 @@ extension DataFlowSemaPhase {
         // so it's added even when Sequence<T> was created elsewhere.
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = sequenceFQName + [iterFnName]
-        if symbols.lookup(fqName: iterFnFQName) == nil {
+        let hasSourceIterator = bundledIndex.contains(
+            owner: sequenceFQName,
+            name: iterFnName,
+            arity: 0
+        )
+        if !hasSourceIterator, symbols.lookup(fqName: iterFnFQName) == nil {
             if let seqTypeParamSymbol = symbols.lookup(fqName: seqTypeParamFQName) {
                 let seqTypeParamType = types.make(.typeParam(TypeParamType(
                     symbol: seqTypeParamSymbol, nullability: .nonNull
@@ -1355,12 +1378,15 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("asSequence")
         let memberFQName = iterableFQName + [memberName]
         guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        // KSP-441〜447: Iterable.asSequence は source 化する。source 実装があれば合成スタブを登録しない。
+        guard !bundledIndex.contains(owner: iterableFQName, name: memberName, arity: 0) else { return }
 
         // Retrieve the type parameter E from Iterable<E>.
         let typeParamName = interner.intern("E")
@@ -1381,7 +1407,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: bundledIndex
         )
         let returnType = types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,
@@ -1781,8 +1808,7 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         let functionFQName = collectionsFQName + [name]
         return symbols.lookupAll(fqName: functionFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  !symbol.flags.contains(.synthetic),
+            guard symbols.isSourceBackedSymbol(symbolID),
                   let signature = symbols.functionSignature(for: symbolID),
                   signature.parameterTypes.count == arity,
                   let receiverType = signature.receiverType,

@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): reference target/classpath/runtime-only case tracking
+// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no java.sql.* / JDBC support at all (no DriverManager, no synthetic stub; verified by repo-wide search). Note: unlike the other 4 jdbc_*/prepared_statement_*/resultset_*/connection_*/transaction_* cases, this file already uses a real, portable "jdbc:sqlite::memory:" URL, so it is the best future candidate once JDBC support exists. See docs/diff-skip-inventory.md.
 import java.sql.DriverManager
 import java.sql.SQLException
 

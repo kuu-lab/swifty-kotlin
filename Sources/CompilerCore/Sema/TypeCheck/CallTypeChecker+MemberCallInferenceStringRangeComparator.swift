@@ -85,6 +85,32 @@ extension CallTypeChecker {
         ) {
             return boundType
         }
+        if let boundType = tryBindStringChunkedTransform(
+            id,
+            calleeName: calleeName,
+            receiverType: stringHOFReceiverType,
+            args: args,
+            safeCall: safeCall,
+            ast: ast,
+            ctx: ctx,
+            locals: &locals,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return boundType
+        }
+        if let boundType = tryBindStringWindowedTransform(
+            id,
+            calleeName: calleeName,
+            receiverType: stringHOFReceiverType,
+            args: args,
+            safeCall: safeCall,
+            ast: ast,
+            ctx: ctx,
+            locals: &locals,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return boundType
+        }
 
         // Early String HOF fallback: String HOF members need lambda inference with
         // expected types so the implicit `it` parameter (Char) gets bound correctly.
@@ -111,21 +137,17 @@ extension CallTypeChecker {
         if args.count == 1 {
             let stringHOFCalleeStr = interner.resolve(calleeName)
             let isStringHOFReceiver = sema.types.isSubtype(stringHOFReceiverType, sema.types.stringType)
-                || ((stringHOFCalleeStr == "ifBlank" || stringHOFCalleeStr == "ifEmpty" || stringHOFCalleeStr == "zipWithNext" || stringHOFCalleeStr == "sumBy" || stringHOFCalleeStr == "sumByDouble")
+                || ((stringHOFCalleeStr == "ifBlank" || stringHOFCalleeStr == "ifEmpty" || stringHOFCalleeStr == "zipWithNext")
                     && isSyntheticStringLikeType(stringHOFReceiverType, sema: sema))
             if isStringHOFReceiver,
                [
-                   "filter", "map", "count", "any", "all", "none",
                    "indexOfFirst", "indexOfLast",
-                   "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
-                   "takeWhile", "dropWhile", "find", "findLast",
+                   "map", "mapIndexed", "mapNotNull",
+                   "takeWhile", "dropWhile",
                    "trim", "trimStart", "trimEnd",
                    "zipWithNext",
-                   "partition",
                    "ifBlank",
                    "ifEmpty",
-                   "sumBy",
-                   "sumByDouble",
                ].contains(stringHOFCalleeStr)
             {
                 let charType = sema.types.make(.primitive(.char, .nonNull))
@@ -135,17 +157,17 @@ extension CallTypeChecker {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
                     let lambdaExpectedType: TypeID = switch stringHOFCalleeStr {
-                    case "mapIndexed":
+                    case "map":
                         sema.types.make(.functionType(FunctionType(
-                            params: [intType, charType],
+                            params: [charType],
                             returnType: sema.types.anyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
-                    case "filterIndexed":
+                    case "mapIndexed":
                         sema.types.make(.functionType(FunctionType(
                             params: [intType, charType],
-                            returnType: sema.types.booleanType,
+                            returnType: sema.types.anyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
@@ -167,27 +189,6 @@ extension CallTypeChecker {
                         sema.types.make(.functionType(FunctionType(
                             params: [],
                             returnType: sema.types.stringType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "sumBy":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [charType],
-                            returnType: sema.types.intType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "sumByDouble":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [charType],
-                            returnType: sema.types.doubleType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "map":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [charType],
-                            returnType: sema.types.anyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
@@ -258,16 +259,7 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
-                if stringHOFCalleeStr == "partition" {
-                    bindSyntheticStringMemberDirectlyIfAvailable(
-                        id,
-                        calleeName: calleeName,
-                        argumentCount: args.count,
-                        receiverType: stringHOFReceiverType,
-                        sema: sema,
-                        interner: interner
-                    )
-                } else if let boundType = tryBindSyntheticStringMemberFallback(
+                if let boundType = tryBindSyntheticStringMemberFallback(
                     id,
                     calleeName: calleeName,
                     receiverType: stringHOFReceiverType,
@@ -300,35 +292,13 @@ extension CallTypeChecker {
                         nullability: .nonNull
                     )))
                 }()
-                let pairStringStringTypeEarly: TypeID = {
-                    let pairFQName: [InternedString] = [
-                        interner.intern("kotlin"),
-                        interner.intern("Pair"),
-                    ]
-                    guard let pairSymbol = sema.symbols.lookup(fqName: pairFQName) else {
-                        return sema.types.anyType
-                    }
-                    return sema.types.make(.classType(ClassType(
-                        classSymbol: pairSymbol,
-                        args: [.out(sema.types.stringType), .out(sema.types.stringType)],
-                        nullability: .nonNull
-                    )))
-                }()
                 let resultType: TypeID = switch stringHOFCalleeStr {
-                case "filter": sema.types.stringType
-                case "map": sema.types.anyType // Kotlin String.map returns List<R>
-                case "mapIndexed", "mapNotNull": sema.types.anyType
-                case "count": sema.types.intType
                 case "indexOfFirst", "indexOfLast": sema.types.intType
-                case "any", "all", "none": sema.types.booleanType
-                case "filterIndexed", "filterNot", "takeWhile", "dropWhile",
+                case "takeWhile", "dropWhile",
                      "trim", "trimStart", "trimEnd": sema.types.stringType
-                case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
+                case "map", "mapIndexed", "mapNotNull": sema.types.anyType
                 case "splitToSequence": sequenceStringType
-                case "partition": pairStringStringTypeEarly
                 case "ifBlank", "ifEmpty": sema.types.stringType
-                case "sumBy": sema.types.intType
-                case "sumByDouble": sema.types.doubleType
                 default: sema.types.anyType
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

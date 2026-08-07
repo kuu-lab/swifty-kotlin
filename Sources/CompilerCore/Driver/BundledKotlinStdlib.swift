@@ -5,7 +5,7 @@ import Foundation
 ///
 /// As functions are migrated to `.kt` files (auto-discovered by
 /// `LoadSourcesPhase.injectBundledStdlib`), remove them from here.
-enum BundledKotlinStdlib {
+package enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     ///
@@ -60,45 +60,26 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
 }
 """
 
-    // repeat / reversed / padStart / padEnd are pure Kotlin but not yet in .kt files.
-    // encodeToByteArray / decodeToString delegate to C-bridge primitives (__kk_*).
-    // The case-conversion functions (lowercase, uppercase, capitalize, replaceFirstChar,
-    // locale variants) have been migrated to StringCaseConversion.kt.
+    // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
+    // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
+    // StringEncoding.kt (delegating to the __kk_-prefixed bridges in RuntimeStringEncoding.swift);
+    // kotlinx.cinterop.ByteArray.toKString has been migrated to CInteropExtensions.kt.
+    // indent / trimIndent / trimMargin / prependIndent / replaceIndent(ByMargin) have been
+    // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
+    // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
     static let kotlinTextSource = ""
 
     // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
-    // toList / toSet / toMutableList use forEach as the iteration primitive
-    // (intercepted by CollectionLiteralLoweringPass to kk_sequence_forEach).
+    // toList / toSet / toMutableList are resolved via synthetic Sequence member
+    // stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to the C-level
+    // kk_sequence_* entry points in RuntimeSequence.swift.  They are NOT included
+    // here as bundled source because source `for-in` cannot dispatch against
+    // runtime Sequence boxes produced by string.windowedSequence() and similar
+    // legacy runtime shortcuts.
     //
-    // Terminal HOFs (first, last, single, count, any, all, none, …) are resolved
-    // via synthetic stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to
-    // the C-level kk_sequence_* entry points in RuntimeSequence.swift.  They are
-    // NOT included here to avoid scope pollution that would break Sema resolution
-    // for List / Collection / Set receivers with the same member names.
-    static let kotlinSequencesSource = """
-package kotlin.sequences
-
-// MIGRATION-SEQ-003
-
-public fun <T> Sequence<T>.toList(): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) { result.add(element) }
-    return result
-}
-
-public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
-    val result = mutableListOf<T>()
-    for (element in this) { result.add(element) }
-    return result
-}
-
-public fun <T> Sequence<T>.toSet(): Set<T> {
-    val result = mutableSetOf<T>()
-    for (element in this) { result.add(element) }
-    return result
-}
-
-"""
+    // Terminal HOFs (first, last, single, count, any, all, none, …) are also
+    // resolved via synthetic stubs to keep dispatch consistent.
+    static let kotlinSequencesSource = ""
 
     /// Errors that can occur while loading bundled stdlib sources from the
     /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
@@ -197,14 +178,14 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
     /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
     /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
     /// and is used to compute the stdlib manifest hash for incremental builds.
-    static func bundledStdlibSources() -> [(path: String, contents: Data)] {
+    package static func bundledStdlibSources() -> [(path: String, contents: Data)] {
         _bundledStdlibSources
     }
 
     private static let _manifestHash: String = Self.stableFNV1a64Hex(for: _bundledStdlibSources)
 
     /// Returns a stable hash of the bundled stdlib manifest.
-    static func manifestHash() -> String {
+    package static func manifestHash() -> String {
         _manifestHash
     }
 

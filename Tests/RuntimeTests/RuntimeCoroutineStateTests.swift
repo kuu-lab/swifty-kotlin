@@ -1,6 +1,7 @@
 import Dispatch
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private typealias RuntimeTestSuspendEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
@@ -164,30 +165,31 @@ func runtime_test_outer_with_context_delay(_ continuation: Int, _ outThrown: Uns
     return kk_coroutine_state_exit(continuation, completedValue)
 }
 
-final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        runtimeCoroutineTestState.reset()
-    }
+private func resetRuntimeCoroutineStateTestState() {
+    runtimeCoroutineTestState.reset()
+}
 
-    func testContinuationStoresAndLoadsSpillSlotsAndCompletion() {
+// Serialized: these cases block libdispatch worker threads while waiting on
+// coroutine resumers, so running them concurrently starves the global pool.
+@Suite(.serialized, .runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeCoroutineStateTestState))
+struct RuntimeCoroutineStateTests {
+    @Test func testContinuationStoresAndLoadsSpillSlotsAndCompletion() {
         let continuation = kk_coroutine_continuation_new(42)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
-        XCTAssertEqual(kk_coroutine_state_enter(continuation, 42), 0)
+        #expect(kk_coroutine_state_enter(continuation, 42) == 0)
 
-        XCTAssertEqual(kk_coroutine_state_set_spill(continuation, 0, 111), 111)
-        XCTAssertEqual(kk_coroutine_state_set_spill(continuation, 2, 333), 333)
-        XCTAssertEqual(kk_coroutine_state_get_spill(continuation, 0), 111)
-        XCTAssertEqual(kk_coroutine_state_get_spill(continuation, 1), 0)
-        XCTAssertEqual(kk_coroutine_state_get_spill(continuation, 2), 333)
+        #expect(kk_coroutine_state_set_spill(continuation, 0, 111) == 111)
+        #expect(kk_coroutine_state_set_spill(continuation, 2, 333) == 333)
+        #expect(kk_coroutine_state_get_spill(continuation, 0) == 111)
+        #expect(kk_coroutine_state_get_spill(continuation, 1) == 0)
+        #expect(kk_coroutine_state_get_spill(continuation, 2) == 333)
 
-        XCTAssertEqual(kk_coroutine_state_set_completion(continuation, 777), 777)
-        XCTAssertEqual(kk_coroutine_state_get_completion(continuation), 777)
+        #expect(kk_coroutine_state_set_completion(continuation, 777) == 777)
+        #expect(kk_coroutine_state_get_completion(continuation) == 777)
     }
 
-    func testStateEnterResetsCompletionAndSpillsWhenFunctionChanges() {
+    @Test func testStateEnterResetsCompletionAndSpillsWhenFunctionChanges() {
         let continuation = kk_coroutine_continuation_new(7)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
@@ -195,22 +197,22 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         _ = kk_coroutine_state_set_spill(continuation, 0, 91)
         _ = kk_coroutine_state_set_completion(continuation, 123)
 
-        XCTAssertEqual(kk_coroutine_state_enter(continuation, 7), 5)
-        XCTAssertEqual(kk_coroutine_state_enter(continuation, 8), 0)
-        XCTAssertEqual(kk_coroutine_state_get_spill(continuation, 0), 0)
-        XCTAssertEqual(kk_coroutine_state_get_completion(continuation), 0)
+        #expect(kk_coroutine_state_enter(continuation, 7) == 5)
+        #expect(kk_coroutine_state_enter(continuation, 8) == 0)
+        #expect(kk_coroutine_state_get_spill(continuation, 0) == 0)
+        #expect(kk_coroutine_state_get_completion(continuation) == 0)
     }
 
-    func testKxMiniRunBlockingResumesDelayedSuspendEntry() {
+    @Test func testKxMiniRunBlockingResumesDelayedSuspendEntry() {
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_with_delay as RuntimeTestSuspendEntry,
             to: Int.self
         )
         let result = kk_kxmini_run_blocking(entryRaw, runtimeKxMiniDelayFunctionID, nil)
-        XCTAssertEqual(result, 42)
+        #expect(result == 42)
     }
 
-    func testKxMiniLaunchRunsSuspendEntryAsynchronously() {
+    @Test func testKxMiniLaunchRunsSuspendEntryAsynchronously() {
         let launchBaseline = runtimeCoroutineTestState.launchEventCountSnapshot()
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_launch as RuntimeTestSuspendEntry,
@@ -218,25 +220,60 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         // launch now returns a job handle (non-zero) for structured concurrency
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniLaunchFunctionID)
-        XCTAssertNotEqual(jobHandle, 0)
-        XCTAssertTrue(
-            runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 1.0),
+        #expect(jobHandle != 0)
+        #expect(runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 1.0),
             "Expected launched coroutine to record a launch event."
         )
-        XCTAssertEqual(kk_job_join(jobHandle, 0), 7)
+        #expect(kk_job_join(jobHandle, 0) == 7)
     }
 
-    func testKxMiniAsyncReturnsAwaitableHandle() {
+    @Test func testKxMiniAsyncReturnsAwaitableHandle() {
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_async as RuntimeTestSuspendEntry,
             to: Int.self
         )
         let handle = kk_kxmini_async(entryRaw, runtimeKxMiniAsyncFunctionID)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_kxmini_async_await(handle, 0), 73)
+        #expect(handle != 0)
+        #expect(kk_kxmini_async_await(handle, 0) == 73)
     }
 
-    func testDirectSuspendCallReturnsImmediateChildResult() {
+    @Test func testAwaitPropagatesExceptionFromAlreadyCompletedTask() {
+        let task = RuntimeAsyncTask()
+        let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+        defer { Unmanaged<RuntimeAsyncTask>.fromOpaque(taskPtr).release() }
+        let handle = Int(bitPattern: taskPtr)
+
+        let throwable = runtimeAllocateThrowable(message: "child-fail")
+        task.completeExceptionally(with: throwable)
+
+        let callerContinuation = kk_coroutine_continuation_new(9110)
+        defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+
+        let awaited = kk_kxmini_async_await(handle, callerContinuation)
+
+        #expect(awaited == Int(bitPattern: kk_coroutine_suspended()),
+            "Awaiting an already-failed task must hand control back to the resume label."
+        )
+        #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == throwable,
+            "The child failure must be published on the caller state instead of being swallowed."
+        )
+    }
+
+    @Test func testAwaitReturnsResultDirectlyForAlreadyCompletedTask() {
+        let task = RuntimeAsyncTask()
+        let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+        defer { Unmanaged<RuntimeAsyncTask>.fromOpaque(taskPtr).release() }
+        let handle = Int(bitPattern: taskPtr)
+        task.complete(with: 55)
+
+        let callerContinuation = kk_coroutine_continuation_new(9111)
+        defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+
+        #expect(kk_kxmini_async_await(handle, callerContinuation) == 55)
+        #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == 0)
+    }
+
+    @Test func testDirectSuspendCallReturnsImmediateChildResult() {
         let callerContinuation = kk_coroutine_continuation_new(9108)
         defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
         let childContinuation = kk_coroutine_continuation_new(9109)
@@ -251,33 +288,33 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
             callerContinuation
         )
 
-        XCTAssertEqual(result, 123)
-        XCTAssertNotEqual(result, Int(bitPattern: kk_coroutine_suspended()))
-        XCTAssertEqual(kk_coroutine_state_get_completion(callerContinuation), 123)
+        #expect(result == 123)
+        #expect(result != Int(bitPattern: kk_coroutine_suspended()))
+        #expect(kk_coroutine_state_get_completion(callerContinuation) == 123)
     }
 
-    func testLauncherArgSetAndGetRoundTrips() {
+    @Test func testLauncherArgSetAndGetRoundTrips() {
         let continuation = kk_coroutine_continuation_new(5000)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
-        XCTAssertEqual(kk_coroutine_launcher_arg_set(continuation, 0, 42), 42)
-        XCTAssertEqual(kk_coroutine_launcher_arg_set(continuation, 1, 99), 99)
-        XCTAssertEqual(kk_coroutine_launcher_arg_get(continuation, 0), 42)
-        XCTAssertEqual(kk_coroutine_launcher_arg_get(continuation, 1), 99)
-        XCTAssertEqual(kk_coroutine_launcher_arg_get(continuation, 2), 0)
+        #expect(kk_coroutine_launcher_arg_set(continuation, 0, 42) == 42)
+        #expect(kk_coroutine_launcher_arg_set(continuation, 1, 99) == 99)
+        #expect(kk_coroutine_launcher_arg_get(continuation, 0) == 42)
+        #expect(kk_coroutine_launcher_arg_get(continuation, 1) == 99)
+        #expect(kk_coroutine_launcher_arg_get(continuation, 2) == 0)
     }
 
-    func testLauncherArgsSurviveStateEnterReset() {
+    @Test func testLauncherArgsSurviveStateEnterReset() {
         let continuation = kk_coroutine_continuation_new(5001)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 77)
-        XCTAssertEqual(kk_coroutine_state_enter(continuation, 5001), 0)
+        #expect(kk_coroutine_state_enter(continuation, 5001) == 0)
         _ = kk_coroutine_state_enter(continuation, 9999)
-        XCTAssertEqual(kk_coroutine_launcher_arg_get(continuation, 0), 77)
+        #expect(kk_coroutine_launcher_arg_get(continuation, 0) == 77)
     }
 
-    func testRunBlockingWithContPassesArgsThroughLauncherArgs() {
+    @Test func testRunBlockingWithContPassesArgsThroughLauncherArgs() {
         let functionID = 5002
         let continuation = kk_coroutine_continuation_new(functionID)
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 32)
@@ -287,10 +324,10 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
             to: Int.self
         )
         let result = kk_kxmini_run_blocking_with_cont(entryRaw, continuation, nil)
-        XCTAssertEqual(result, 42)
+        #expect(result == 42)
     }
 
-    func testLaunchWithContRunsAsynchronously() {
+    @Test func testLaunchWithContRunsAsynchronously() {
         let launchBaseline = runtimeCoroutineTestState.launchEventCountSnapshot()
         let functionID = 5003
         let continuation = kk_coroutine_continuation_new(functionID)
@@ -302,15 +339,35 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         // launch_with_cont now returns a job handle (non-zero) for structured concurrency
         let jobHandle = kk_kxmini_launch_with_cont(entryRaw, continuation)
-        XCTAssertNotEqual(jobHandle, 0)
-        XCTAssertTrue(
-            runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 1.0),
+        #expect(jobHandle != 0)
+        #expect(runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 1.0),
             "Expected launched continuation to record a launch event."
         )
-        XCTAssertEqual(kk_job_join(jobHandle, 0), 7)
+        #expect(kk_job_join(jobHandle, 0) == 7)
     }
 
-    func testAsyncWithContReturnsAwaitableResult() {
+    @Test func testCoroutineScopeLaunchWithContForwardsCaptureArgs() {
+        // BUG-049: a capturing suspend lambda launched via CoroutineScope.launch must
+        // thread its captured outer variables through the launcher continuation.
+        let scopeHandle = kk_coroutine_scope_new()
+        #expect(scopeHandle != 0)
+
+        let functionID = 5008
+        let continuation = kk_coroutine_continuation_new(functionID)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 63)
+
+        let entryRaw = unsafeBitCast(
+            runtime_test_suspend_with_arg as RuntimeTestSuspendEntry,
+            to: Int.self
+        )
+        let jobHandle = kk_coroutine_scope_launch_with_cont(scopeHandle, entryRaw, continuation)
+        #expect(jobHandle != 0)
+        // runtime_test_suspend_with_arg returns launcherArg(0) + 10 == 73.
+        #expect(kk_job_join(jobHandle, 0) == 73)
+        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
+    }
+
+    @Test func testAsyncWithContReturnsAwaitableResult() {
         let functionID = 5004
         let continuation = kk_coroutine_continuation_new(functionID)
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 63)
@@ -320,23 +377,23 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
             to: Int.self
         )
         let handle = kk_kxmini_async_with_cont(entryRaw, continuation)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_kxmini_async_await(handle, 0), 73)
+        #expect(handle != 0)
+        #expect(kk_kxmini_async_await(handle, 0) == 73)
     }
 
-    func testRunBlockingWithContInvalidEntryDoesNotCrash() {
+    @Test func testRunBlockingWithContInvalidEntryDoesNotCrash() {
         let continuation = kk_coroutine_continuation_new(5005)
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 123)
         _ = kk_kxmini_run_blocking_with_cont(0, continuation, nil)
     }
 
-    func testLaunchWithContInvalidEntryDoesNotCrash() {
+    @Test func testLaunchWithContInvalidEntryDoesNotCrash() {
         let continuation = kk_coroutine_continuation_new(5006)
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 0)
         _ = kk_kxmini_launch_with_cont(0, continuation)
     }
 
-    func testAsyncWithContInvalidEntryDoesNotCrash() {
+    @Test func testAsyncWithContInvalidEntryDoesNotCrash() {
         let continuation = kk_coroutine_continuation_new(5007)
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 1)
         _ = kk_kxmini_async_with_cont(0, continuation)
@@ -344,15 +401,15 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Structured Concurrency (P5-89)
 
-    func testCoroutineScopeNewAndWaitLifecycle() {
+    @Test func testCoroutineScopeNewAndWaitLifecycle() {
         let scopeHandle = kk_coroutine_scope_new()
-        XCTAssertNotEqual(scopeHandle, 0)
+        #expect(scopeHandle != 0)
         // Scope with no children should complete immediately; wait returns the
         // nullable-Throwable null sentinel (not raw 0) when there is no failure.
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
     }
 
-    func testCoroutineScopeWaitsForLaunchedChild() {
+    @Test func testCoroutineScopeWaitsForLaunchedChild() {
         let scopeHandle = kk_coroutine_scope_new()
         let launchBaseline = runtimeCoroutineTestState.launchEventCountSnapshot()
 
@@ -362,31 +419,30 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
             to: Int.self
         )
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniLaunchFunctionID)
-        XCTAssertNotEqual(jobHandle, 0)
+        #expect(jobHandle != 0)
 
         // Wait for the launched signal to confirm the child ran
-        XCTAssertTrue(
-            runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 2.0),
+        #expect(runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 2.0),
             "Expected scope child to record a launch event."
         )
 
         // scope_wait should return after all children complete
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
     }
 
-    func testJobJoinWaitsForCompletion() {
+    @Test func testJobJoinWaitsForCompletion() {
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_async as RuntimeTestSuspendEntry,
             to: Int.self
         )
         // Launch outside a scope to get a job handle directly
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniAsyncFunctionID)
-        XCTAssertNotEqual(jobHandle, 0)
+        #expect(jobHandle != 0)
         let result = kk_job_join(jobHandle, 0)
-        XCTAssertEqual(result, 73)
+        #expect(result == 73)
     }
 
-    func testCoroutineScopeCancelPropagatesToChildren() {
+    @Test func testCoroutineScopeCancelPropagatesToChildren() {
         let scopeHandle = kk_coroutine_scope_new()
 
         // Launch a child that delays (will be cancelled before completing normally)
@@ -402,20 +458,20 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         let start = DispatchTime.now()
 
         // Cancel the scope — should propagate to children
-        XCTAssertEqual(kk_coroutine_scope_cancel(scopeHandle), 0)
+        #expect(kk_coroutine_scope_cancel(scopeHandle) == 0)
 
         // Wait should complete (children are cancelled so they exit early)
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
 
         let end = DispatchTime.now()
         let elapsedSeconds = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
 
         // Ensure we didn't just wait for the full 1-second delay, which would
         // indicate that the child was not actually cancelled.
-        XCTAssertLessThan(elapsedSeconds, 0.9)
+        #expect(elapsedSeconds < 0.9)
     }
 
-    func testCoroutineScopeRegisterChildManualRegistration() {
+    @Test func testCoroutineScopeRegisterChildManualRegistration() {
         let scopeHandle = kk_coroutine_scope_new()
 
         // Create an async task and manually register it
@@ -437,15 +493,15 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         // Await the async result BEFORE scope_wait, since scope_wait releases the handle.
         // This matches real usage: user code awaits within the scope block, then scope cleans up.
         let result = kk_kxmini_async_await(asyncHandle, 0)
-        XCTAssertEqual(result, 73)
+        #expect(result == 73)
 
         // Wait for children — scope releases remaining retains for the child
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
     }
 
-    func testJobJoinWithinScopeAndScopeWaitsForChild() {
+    @Test func testJobJoinWithinScopeAndScopeWaitsForChild() {
         let scopeHandle = kk_coroutine_scope_new()
-        XCTAssertNotEqual(scopeHandle, 0)
+        #expect(scopeHandle != 0)
 
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_async as RuntimeTestSuspendEntry,
@@ -454,42 +510,42 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
 
         // Launch within an active scope so the job is registered with it
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniAsyncFunctionID)
-        XCTAssertNotEqual(jobHandle, 0)
+        #expect(jobHandle != 0)
 
         // Explicitly join the job and verify it completed successfully
         let result = kk_job_join(jobHandle, 0)
-        XCTAssertEqual(result, 73)
+        #expect(result == 73)
 
         // Scope wait should also complete successfully after the child has finished
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
     }
 
-    func testNestedCoroutineScopesRestoreParent() {
+    @Test func testNestedCoroutineScopesRestoreParent() {
         let outerScope = kk_coroutine_scope_new()
-        XCTAssertNotEqual(outerScope, 0)
+        #expect(outerScope != 0)
 
         let innerScope = kk_coroutine_scope_new()
-        XCTAssertNotEqual(innerScope, 0)
+        #expect(innerScope != 0)
 
         // Inner scope wait should pop inner and restore outer as current
-        XCTAssertEqual(kk_coroutine_scope_wait(innerScope), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(innerScope) == runtimeNullSentinelInt)
 
         // Outer scope wait should pop outer
-        XCTAssertEqual(kk_coroutine_scope_wait(outerScope), runtimeNullSentinelInt)
+        #expect(kk_coroutine_scope_wait(outerScope) == runtimeNullSentinelInt)
     }
 
     // MARK: - CORO-002: Cancellation Tests
 
-    func testCheckCancellationReturnsZeroWhenNotCancelled() {
+    @Test func testCheckCancellationReturnsZeroWhenNotCancelled() {
         let continuation = kk_coroutine_continuation_new(42)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
         var outThrown = 0
         let result = kk_coroutine_check_cancellation(continuation, &outThrown)
-        XCTAssertEqual(result, 0, "Should return 0 when not cancelled")
-        XCTAssertEqual(outThrown, 0, "outThrown should be 0 when not cancelled")
+        #expect(result == 0, "Should return 0 when not cancelled")
+        #expect(outThrown == 0, "outThrown should be 0 when not cancelled")
     }
 
-    func testCheckCancellationReturnsCancellationExceptionWhenCancelled() {
+    @Test func testCheckCancellationReturnsCancellationExceptionWhenCancelled() {
         let continuation = kk_coroutine_continuation_new(42)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
         // Link a job handle so kk_coroutine_cancel and kk_coroutine_check_cancellation work
@@ -501,12 +557,12 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         kk_coroutine_cancel(continuation)
         var outThrown = 0
         let result = kk_coroutine_check_cancellation(continuation, &outThrown)
-        XCTAssertEqual(result, 1, "Should return 1 when cancelled")
-        XCTAssertNotEqual(outThrown, 0, "outThrown should be set to CancellationException")
-        XCTAssertEqual(kk_is_cancellation_exception(outThrown), 1, "Should be a CancellationException")
+        #expect(result == 1, "Should return 1 when cancelled")
+        #expect(outThrown != 0, "outThrown should be set to CancellationException")
+        #expect(kk_is_cancellation_exception(outThrown) == 1, "Should be a CancellationException")
     }
 
-    func testCancelCurrentCoroutinePreservesMessageAndCause() {
+    @Test func testCancelCurrentCoroutinePreservesMessageAndCause() {
         let continuation = kk_coroutine_continuation_new(42)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
@@ -527,39 +583,36 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         let causeRaw = __kk_throwable_new(UnsafeMutableRawPointer(bitPattern: makeRuntimeString("root cause")))
 
         _ = kk_coroutine_cancel_current(messageRaw, Int(bitPattern: causeRaw))
-        XCTAssertTrue(job.cancellationSnapshot(), "Current job should be cancelled")
+        #expect(job.cancellationSnapshot(), "Current job should be cancelled")
 
         var outThrown = 0
         let thrownRaw = kk_coroutine_check_cancellation(continuation, &outThrown)
-        XCTAssertEqual(thrownRaw, 1, "Cancellation check should report cancellation")
-        XCTAssertNotEqual(outThrown, 0, "Cancellation should materialize a throwable")
-        XCTAssertEqual(runtimeStringValue(kk_throwable_message(outThrown)), "custom stop")
-        XCTAssertEqual(runtimeStringValue(kk_throwable_message(kk_throwable_cause(outThrown))), "root cause")
+        #expect(thrownRaw == 1, "Cancellation check should report cancellation")
+        #expect(outThrown != 0, "Cancellation should materialize a throwable")
+        #expect(runtimeStringValue(kk_throwable_message(outThrown)) == "custom stop")
+        #expect(runtimeStringValue(kk_throwable_message(kk_throwable_cause(outThrown))) == "root cause")
     }
 
-    func testIsCancellationExceptionReturnsFalseForRegularThrowable() {
+    @Test func testIsCancellationExceptionReturnsFalseForRegularThrowable() {
         let throwablePtr = __kk_throwable_new(nil)
         let throwableInt = Int(bitPattern: throwablePtr)
         let result = kk_is_cancellation_exception(throwableInt)
-        XCTAssertEqual(result, 0, "Regular throwable should not be CancellationException")
+        #expect(result == 0, "Regular throwable should not be CancellationException")
     }
 
-    func testJobCancelStopsLaunchedCoroutine() {
+    @Test func testJobCancelStopsLaunchedCoroutine() {
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_cancel_loop as RuntimeTestSuspendEntry,
             to: Int.self
         )
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniCancelFunctionID)
-        XCTAssertNotEqual(jobHandle, 0, "Launch should return a job handle")
+        #expect(jobHandle != 0, "Launch should return a job handle")
 
         // Wait until the coroutine has started (bounded polling)
-        XCTAssertTrue(
-            runtimeCoroutineTestState.waitForCancelLoopIterations(atLeast: 1, timeout: 2.0),
+        #expect(runtimeCoroutineTestState.waitForCancelLoopIterations(atLeast: 1, timeout: 2.0),
             "Coroutine should have started"
         )
-        XCTAssertGreaterThan(
-            runtimeCoroutineTestState.cancelLoopIterationsSnapshot(),
-            0,
+        #expect(runtimeCoroutineTestState.cancelLoopIterationsSnapshot() > 0,
             "Coroutine should have started"
         )
 
@@ -570,78 +623,76 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         let startTime = DispatchTime.now()
         _ = kk_job_join(jobHandle, 0)
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000_000
-        XCTAssertLessThan(elapsed, 2.0, "Coroutine should stop promptly after cancel")
+        #expect(elapsed < 2.0, "Coroutine should stop promptly after cancel")
     }
 
-    func testContextCancelStopsLaunchedCoroutine() {
+    @Test func testContextCancelStopsLaunchedCoroutine() {
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_cancel_loop as RuntimeTestSuspendEntry,
             to: Int.self
         )
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniCancelFunctionID)
-        XCTAssertNotEqual(jobHandle, 0, "Launch should return a job handle")
+        #expect(jobHandle != 0, "Launch should return a job handle")
 
         let contextHandle = kk_context_plus(jobHandle, kk_dispatcher_default())
         defer { kk_context_release(contextHandle) }
 
-        XCTAssertTrue(
-            runtimeCoroutineTestState.waitForCancelLoopIterations(atLeast: 1, timeout: 2.0),
+        #expect(runtimeCoroutineTestState.waitForCancelLoopIterations(atLeast: 1, timeout: 2.0),
             "Coroutine should have started"
         )
 
         _ = kk_context_cancel(contextHandle, 0)
-        XCTAssertEqual(kk_job_is_cancelled(jobHandle), 1)
+        #expect(kk_job_is_cancelled(jobHandle) == 1)
 
         let startTime = DispatchTime.now()
         _ = kk_job_join(jobHandle, 0)
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000_000
-        XCTAssertLessThan(elapsed, 2.0, "Coroutine should stop promptly after context cancel")
+        #expect(elapsed < 2.0, "Coroutine should stop promptly after context cancel")
     }
 
-    func testLaunchReturnsJobHandle() {
+    @Test func testLaunchReturnsJobHandle() {
         let launchBaseline = runtimeCoroutineTestState.launchEventCountSnapshot()
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_launch as RuntimeTestSuspendEntry,
             to: Int.self
         )
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniLaunchFunctionID)
-        XCTAssertNotEqual(jobHandle, 0, "Launch should return a non-zero job handle")
-        XCTAssertTrue(
-            runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 1.0),
+        #expect(jobHandle != 0, "Launch should return a non-zero job handle")
+        #expect(runtimeCoroutineTestState.waitForLaunchEvent(after: launchBaseline, timeout: 1.0),
             "Expected launched coroutine to record a launch event."
         )
-        XCTAssertEqual(kk_job_join(jobHandle, 0), 7)
+        #expect(kk_job_join(jobHandle, 0) == 7)
     }
 
-    func testJobStateMachineTransitionsAndAwaitCompletion() {
+    @Test func testJobStateMachineTransitionsAndAwaitCompletion() {
         let job = RuntimeJobHandle()
-        XCTAssertFalse(job.isActiveSnapshot())
-        XCTAssertFalse(job.completedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
+        #expect(!job.isActiveSnapshot())
+        #expect(!job.completedSnapshot())
+        #expect(!job.cancellationSnapshot())
 
         job.markStarted()
-        XCTAssertTrue(job.isActiveSnapshot())
+        #expect(job.isActiveSnapshot())
 
-        XCTAssertTrue(job.complete(with: 41))
-        XCTAssertTrue(job.completedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
-        XCTAssertEqual(job.awaitCompletion(), 41)
-        XCTAssertEqual(job.join(), 41)
+        #expect(job.complete(with: 41))
+        #expect(job.completedSnapshot())
+        #expect(!job.cancellationSnapshot())
+        #expect(job.awaitCompletion() == 41)
+        #expect(job.join() == 41)
     }
 
-    func testJobCompleteExceptionallyStoresFailureCause() {
+    @Test func testJobCompleteExceptionallyStoresFailureCause() {
         let job = RuntimeJobHandle()
         job.markStarted()
         let throwable = runtimeAllocateThrowable(message: "boom")
 
-        XCTAssertTrue(job.completeExceptionally(with: throwable))
-        XCTAssertTrue(job.completedSnapshot())
-        XCTAssertTrue(job.isFailedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
-        XCTAssertEqual(job.join(), throwable)
+        #expect(job.completeExceptionally(with: throwable))
+        #expect(job.completedSnapshot())
+        #expect(job.isFailedSnapshot())
+        #expect(!job.cancellationSnapshot())
+        #expect(job.join() == throwable)
     }
 
-    func testJobCancelPropagatesToRegisteredChildren() {
+    @Test func testJobCancelPropagatesToRegisteredChildren() {
         let parent = RuntimeJobHandle()
         let child = RuntimeJobHandle()
         parent.markStarted()
@@ -650,29 +701,29 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         let childHandle = Int(bitPattern: Unmanaged.passUnretained(child).toOpaque())
         parent.registerChild(childHandle)
 
-        XCTAssertTrue(parent.cancel())
-        XCTAssertTrue(parent.cancellationSnapshot())
-        XCTAssertTrue(child.cancellationSnapshot())
-        XCTAssertTrue(parent.complete(with: 0))
-        XCTAssertTrue(child.complete(with: 0))
-        XCTAssertTrue(parent.completedSnapshot())
-        XCTAssertTrue(child.completedSnapshot())
+        #expect(parent.cancel())
+        #expect(parent.cancellationSnapshot())
+        #expect(child.cancellationSnapshot())
+        #expect(parent.complete(with: 0))
+        #expect(child.complete(with: 0))
+        #expect(parent.completedSnapshot())
+        #expect(child.completedSnapshot())
     }
 
-    func testJobCancelWithCausePreservesCauseValue() {
+    @Test func testJobCancelWithCausePreservesCauseValue() {
         let job = RuntimeJobHandle()
         job.markStarted()
         let cause = runtimeAllocateThrowable(message: "cancel cause")
 
-        XCTAssertTrue(job.cancel(cause: cause))
-        XCTAssertTrue(job.cancellationSnapshot())
-        XCTAssertTrue(job.complete(with: 0))
-        XCTAssertEqual(job.join(), cause)
+        #expect(job.cancel(cause: cause))
+        #expect(job.cancellationSnapshot())
+        #expect(job.complete(with: 0))
+        #expect(job.join() == cause)
     }
 
     // MARK: - STDLIB-250: withContext async context switching
 
-    func testWithContextDefaultDispatcherReturnsBlockResult() {
+    @Test func testWithContextDefaultDispatcherReturnsBlockResult() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_with_context_simple as RuntimeTestSuspendEntry,
@@ -680,10 +731,10 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         let dispatcher = kk_dispatcher_default()
         let result = kk_with_context(dispatcher, entryRaw, continuation)
-        XCTAssertEqual(result, 99, "withContext should return the block's result")
+        #expect(result == 99, "withContext should return the block's result")
     }
 
-    func testWithContextIODispatcherReturnsBlockResult() {
+    @Test func testWithContextIODispatcherReturnsBlockResult() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_with_context_simple as RuntimeTestSuspendEntry,
@@ -691,10 +742,10 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         let dispatcher = kk_dispatcher_io()
         let result = kk_with_context(dispatcher, entryRaw, continuation)
-        XCTAssertEqual(result, 99, "withContext(IO) should return the block's result")
+        #expect(result == 99, "withContext(IO) should return the block's result")
     }
 
-    func testWithContextHandlesSuspensionInsideBlock() {
+    @Test func testWithContextHandlesSuspensionInsideBlock() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_with_context_delay as RuntimeTestSuspendEntry,
@@ -702,10 +753,10 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         let dispatcher = kk_dispatcher_default()
         let result = kk_with_context(dispatcher, entryRaw, continuation)
-        XCTAssertEqual(result, 55, "withContext should handle suspension inside the block")
+        #expect(result == 55, "withContext should handle suspension inside the block")
     }
 
-    func testWithContextUnknownDispatcherFallsBackToDefault() {
+    @Test func testWithContextUnknownDispatcherFallsBackToDefault() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_with_context_simple as RuntimeTestSuspendEntry,
@@ -713,19 +764,19 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         // Unknown dispatcher tag — should fall back to Default
         let result = kk_with_context(0xDEAD, entryRaw, continuation)
-        XCTAssertEqual(result, 99, "Unknown dispatcher should fall back to Default and still work")
+        #expect(result == 99, "Unknown dispatcher should fall back to Default and still work")
     }
 
-    func testWithContextInvalidEntryPointReturnsZero() {
+    @Test func testWithContextInvalidEntryPointReturnsZero() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         // kk_with_context now cleans up the continuation internally on
         // invalid entry, so no manual defer cleanup is needed.
         let dispatcher = kk_dispatcher_default()
         let result = kk_with_context(dispatcher, 0, continuation)
-        XCTAssertEqual(result, 0, "Invalid entry point should return 0")
+        #expect(result == 0, "Invalid entry point should return 0")
     }
 
-    func testWithContextIODispatcherRunsOffMainThread() {
+    @Test func testWithContextIODispatcherRunsOffMainThread() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_with_context_simple as RuntimeTestSuspendEntry,
@@ -735,10 +786,10 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         // even when issued from the main thread (no deadlock).
         let dispatcher = kk_dispatcher_io()
         let result = kk_with_context(dispatcher, entryRaw, continuation)
-        XCTAssertEqual(result, 99, "IO dispatcher should execute without deadlock")
+        #expect(result == 99, "IO dispatcher should execute without deadlock")
     }
 
-    func testWithContextMainDispatcherFromMainThread() {
+    @Test func testWithContextMainDispatcherFromMainThread() {
         // Dispatchers.Main should execute inline when already on the main
         // thread, avoiding the deadlock that would occur with async+semaphore.
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
@@ -748,17 +799,17 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         let dispatcher = kk_dispatcher_main()
         let result = kk_with_context(dispatcher, entryRaw, continuation)
-        XCTAssertEqual(result, 99, "Main dispatcher should execute inline on main thread")
+        #expect(result == 99, "Main dispatcher should execute inline on main thread")
     }
 
-    func testWithContextMainDispatcherFromBackgroundThread() {
+    @Test func testWithContextMainDispatcherFromBackgroundThread() {
         // When called from a background thread, kk_with_context dispatches
-        // async to DispatchQueue.main and waits on a semaphore. The test
-        // succeeds because XCTest's wait(for:timeout:) pumps the main run
-        // loop, allowing the main queue to service the enqueued block.
-        let expectation = XCTestExpectation(description: "withContext(Main) from background")
+        // async to DispatchQueue.main and waits on a semaphore. The test body
+        // runs off the main thread, so the main queue stays free to service
+        // the enqueued block.
+        let finished = DispatchSemaphore(value: 0)
         // Perform the assertion inside the async block so there is no shared
-        // mutable state across threads — only the expectation is used to
+        // mutable state across threads — only the semaphore is used to
         // synchronize completion with the test thread.
         DispatchQueue.global().async {
             let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
@@ -768,13 +819,13 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
             )
             let dispatcher = kk_dispatcher_main()
             let result = kk_with_context(dispatcher, entryRaw, continuation)
-            XCTAssertEqual(result, 99, "Main dispatcher from background thread should return block result")
-            expectation.fulfill()
+            #expect(result == 99, "Main dispatcher from background thread should return block result")
+            finished.signal()
         }
-        wait(for: [expectation], timeout: 5.0)
+        #expect(finished.wait(timeout: .now() + 5.0) == .success)
     }
 
-    func testWithContextWithDelayOnIODispatcher() {
+    @Test func testWithContextWithDelayOnIODispatcher() {
         let continuation = kk_coroutine_continuation_new(runtimeWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_with_context_delay as RuntimeTestSuspendEntry,
@@ -782,16 +833,16 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
         let dispatcher = kk_dispatcher_io()
         let result = kk_with_context(dispatcher, entryRaw, continuation)
-        XCTAssertEqual(result, 55, "withContext(IO) should handle suspension correctly")
+        #expect(result == 55, "withContext(IO) should handle suspension correctly")
     }
 
-    func testWithContextCoroutineCallerUsesContinuationCompletionPath() {
+    @Test func testWithContextCoroutineCallerUsesContinuationCompletionPath() {
         let continuation = kk_coroutine_continuation_new(runtimeOuterWithContextFunctionID)
         let entryRaw = unsafeBitCast(
             runtime_test_outer_with_context_delay as RuntimeTestSuspendEntry,
             to: Int.self
         )
-        let completed = XCTestExpectation(description: "withContext caller resumed")
+        let completed = DispatchSemaphore(value: 0)
         let probe = ResumerProbe()
 
         let immediate = runSuspendEntryLoopWithContinuation(
@@ -799,102 +850,103 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
             continuation: continuation,
             onCompletion: { result, thrown in
                 probe.record(result: result, thrown: thrown)
-                completed.fulfill()
+                completed.signal()
             }
         )
 
-        XCTAssertEqual(immediate, 0)
-        XCTAssertFalse(probe.fired, "withContext should suspend the caller instead of blocking until the block completes")
-        wait(for: [completed], timeout: 2.0)
-        XCTAssertEqual(probe.result, 56)
-        XCTAssertEqual(probe.thrown, 0)
+        #expect(immediate == 0)
+        #expect(!probe.fired, "withContext should suspend the caller instead of blocking until the block completes")
+        #expect(completed.wait(timeout: .now() + 2.0) == .success)
+        #expect(probe.result == 56)
+        #expect(probe.thrown == 0)
     }
 
     // MARK: - CORO-004: suspend-aware await / join resumers
 
-    func testAsyncTaskCompletionResumerFiresWithResultOnComplete() {
+    @Test func testAsyncTaskCompletionResumerFiresWithResultOnComplete() {
         let task = RuntimeAsyncTask()
         let probe = ResumerProbe()
         task.addCompletionResumer { result, thrown in
             probe.record(result: result, thrown: thrown)
         }
-        XCTAssertFalse(probe.fired, "resumer must not fire before completion")
+        #expect(!probe.fired, "resumer must not fire before completion")
         task.complete(with: 42)
-        XCTAssertTrue(probe.fired, "resumer should fire when the task completes")
-        XCTAssertEqual(probe.result, 42)
-        XCTAssertEqual(probe.thrown, 0)
+        #expect(probe.fired, "resumer should fire when the task completes")
+        #expect(probe.result == 42)
+        #expect(probe.thrown == 0)
     }
 
-    func testAsyncTaskCompletionResumerFiresWithExceptionOnCompleteExceptionally() {
+    @Test func testAsyncTaskCompletionResumerFiresWithExceptionOnCompleteExceptionally() {
         let task = RuntimeAsyncTask()
         let probe = ResumerProbe()
         task.addCompletionResumer { result, thrown in
             probe.record(result: result, thrown: thrown)
         }
         task.completeExceptionally(with: 0xBEEF)
-        XCTAssertTrue(probe.fired)
-        XCTAssertEqual(probe.thrown, 0xBEEF, "the thrown exception pointer should be propagated")
+        #expect(probe.fired)
+        #expect(probe.thrown == 0xBEEF, "the thrown exception pointer should be propagated")
     }
 
-    func testAsyncTaskCompletionResumerFiresImmediatelyWhenAlreadyComplete() {
+    @Test func testAsyncTaskCompletionResumerFiresImmediatelyWhenAlreadyComplete() {
         let task = RuntimeAsyncTask()
         task.complete(with: 7)
         let probe = ResumerProbe()
         task.addCompletionResumer { result, thrown in
             probe.record(result: result, thrown: thrown)
         }
-        XCTAssertTrue(probe.fired, "resumer must fire immediately for an already-completed task")
-        XCTAssertEqual(probe.result, 7)
+        #expect(probe.fired, "resumer must fire immediately for an already-completed task")
+        #expect(probe.result == 7)
     }
 
-    func testJobHandleJoinResumerFiresOnComplete() {
+    @Test func testJobHandleJoinResumerFiresOnComplete() {
         let job = RuntimeJobHandle()
         job.markStarted()
         let probe = ResumerProbe()
         job.addJoinResumer { value in
             probe.record(result: value, thrown: 0)
         }
-        XCTAssertFalse(probe.fired, "join resumer must not fire before completion")
+        #expect(!probe.fired, "join resumer must not fire before completion")
         _ = job.complete(with: 11)
-        XCTAssertTrue(probe.fired, "join resumer should fire when the job completes")
-        XCTAssertEqual(probe.result, 11)
+        #expect(probe.fired, "join resumer should fire when the job completes")
+        #expect(probe.result == 11)
     }
 
     // MARK: - CORO-004: RuntimeCoroutineSyncGate (sequence/iterator builder migration)
 
-    func testCoroutineSyncGateContinuationResumeDoesNotBlockWaiterThread() {
+    @Test func testCoroutineSyncGateContinuationResumeDoesNotBlockWaiterThread() {
         let gate = RuntimeCoroutineSyncGate()
-        let resumed = XCTestExpectation(description: "continuation resumed")
-        let waiterFinished = XCTestExpectation(description: "waiter returned after resume")
+        let resumed = DispatchSemaphore(value: 0)
+        let waiterFinished = DispatchSemaphore(value: 0)
 
         DispatchQueue.global().async {
             let suspended = gate.wait(resumeContinuation: {
-                resumed.fulfill()
+                resumed.signal()
             })
-            XCTAssertTrue(suspended, "continuation install should suspend without blocking")
-            waiterFinished.fulfill()
+            #expect(suspended, "continuation install should suspend without blocking")
+            waiterFinished.signal()
         }
 
         Thread.sleep(forTimeInterval: 0.05)
         gate.signal()
-        wait(for: [resumed, waiterFinished], timeout: 2.0)
+        #expect(resumed.wait(timeout: .now() + 2.0) == .success)
+        #expect(waiterFinished.wait(timeout: .now() + 2.0) == .success)
     }
 
-    func testCoroutineSyncGateSemaphoreFallbackWakesBlockedWaiter() {
+    @Test func testCoroutineSyncGateSemaphoreFallbackWakesBlockedWaiter() {
         let gate = RuntimeCoroutineSyncGate()
-        let done = XCTestExpectation(description: "semaphore wait completes")
+        let done = DispatchSemaphore(value: 0)
 
         DispatchQueue.global().async {
             gate.wait()
-            done.fulfill()
+            done.signal()
         }
 
         Thread.sleep(forTimeInterval: 0.05)
         gate.signal()
-        wait(for: [done], timeout: 2.0)
+        #expect(done.wait(timeout: .now() + 2.0) == .success)
     }
 
-    func testSequenceCoroutineNextElementAsyncResumesCallerWithoutBlockingWaiter() {
+    @Test func testSequenceCoroutineNextElementAsyncResumesCallerWithoutBlockingWaiter() {
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             Thread.sleep(forTimeInterval: 0.05)
             _ = kk_sequence_builder_yield(builderRaw, 41)
@@ -902,29 +954,29 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         }
         let coroutine = RuntimeSequenceCoroutine(fnPtr: unsafeBitCast(thunk, to: Int.self), closureRaw: 0)
         let callerState = RuntimeContinuationState(functionID: 9202)
-        let resumed = XCTestExpectation(description: "sequence caller resumed")
+        let resumed = DispatchSemaphore(value: 0)
         let probe = ResumerProbe()
         callerState.installResumeContinuation {
             probe.record(result: Int(callerState.completion), thrown: callerState.thrownException)
-            resumed.fulfill()
+            resumed.signal()
         }
 
         let next = coroutine.nextElementAsync(callerState: callerState)
 
-        XCTAssertNil(next, "nextElementAsync should return suspended instead of blocking for the producer")
-        XCTAssertFalse(probe.fired)
-        wait(for: [resumed], timeout: 2.0)
-        XCTAssertEqual(probe.result, 41)
-        XCTAssertEqual(probe.thrown, 0)
+        #expect(next == nil, "nextElementAsync should return suspended instead of blocking for the producer")
+        #expect(!probe.fired)
+        #expect(resumed.wait(timeout: .now() + 2.0) == .success)
+        #expect(probe.result == 41)
+        #expect(probe.thrown == 0)
         switch coroutine.nextElement() {
         case .done:
             break
         case .value(let value):
-            XCTFail("expected coroutine to drain after the async element, got \(value)")
+            Issue.record("expected coroutine to drain after the async element, got \(value)")
         }
     }
 
-    func testIteratorBuilderHasNextAsyncResumesCallerWithoutBlockingWaiter() {
+    @Test func testIteratorBuilderHasNextAsyncResumesCallerWithoutBlockingWaiter() {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
             Thread.sleep(forTimeInterval: 0.05)
             _ = kk_iterator_builder_yield(builderRaw, 17)
@@ -934,64 +986,64 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         let builderHandle = registerRuntimeObject(builder)
         builder.bindRegisteredHandle(builderHandle)
         let callerState = RuntimeContinuationState(functionID: 9203)
-        let resumed = XCTestExpectation(description: "iterator caller resumed")
+        let resumed = DispatchSemaphore(value: 0)
         let probe = ResumerProbe()
         callerState.installResumeContinuation {
             probe.record(result: Int(callerState.completion), thrown: callerState.thrownException)
-            resumed.fulfill()
+            resumed.signal()
         }
 
         let hasNext = builder.probeHasNextAsync(callerState: callerState)
 
-        XCTAssertEqual(hasNext, Int(bitPattern: kk_coroutine_suspended()))
-        XCTAssertFalse(probe.fired)
-        wait(for: [resumed], timeout: 2.0)
-        XCTAssertEqual(probe.result, 1)
-        XCTAssertEqual(probe.thrown, 0)
-        XCTAssertEqual(builder.consumeNext(), 17)
-        XCTAssertFalse(builder.probeHasNext())
+        #expect(hasNext == Int(bitPattern: kk_coroutine_suspended()))
+        #expect(!probe.fired)
+        #expect(resumed.wait(timeout: .now() + 2.0) == .success)
+        #expect(probe.result == 1)
+        #expect(probe.thrown == 0)
+        #expect(builder.consumeNext() == 17)
+        #expect(!builder.probeHasNext())
     }
 
-    func testAsyncTaskAwaitResultReturnsCompletedWhenAlreadyDone() {
+    @Test func testAsyncTaskAwaitResultReturnsCompletedWhenAlreadyDone() {
         let task = RuntimeAsyncTask()
         task.complete(with: 19)
         let state = RuntimeContinuationState(functionID: 9201)
         switch task.awaitResult(callerState: state) {
         case .completed(let result, let thrown):
-            XCTAssertEqual(result, 19)
-            XCTAssertEqual(thrown, 0)
+            #expect(result == 19)
+            #expect(thrown == 0)
         case .suspended:
-            XCTFail("already-completed task must not suspend")
+            Issue.record("already-completed task must not suspend")
         }
     }
 
-    func testAsyncTaskAwaitResultSuspendsAndResumesCallerState() {
+    @Test func testAsyncTaskAwaitResultSuspendsAndResumesCallerState() {
         let task = RuntimeAsyncTask()
         let state = RuntimeContinuationState(functionID: 9202)
-        let registered = expectation(description: "resumer registered")
+        let registered = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             switch task.awaitResult(callerState: state) {
             case .suspended:
-                registered.fulfill()
+                registered.signal()
             case .completed:
-                XCTFail("incomplete task with callerState must suspend")
+                Issue.record("incomplete task with callerState must suspend")
             }
         }
-        wait(for: [registered], timeout: 2.0)
+        #expect(registered.wait(timeout: .now() + 2.0) == .success)
         task.complete(with: 31)
-        XCTAssertEqual(state.completion, 31, "completion resumer should resume callerState")
+        #expect(state.completion == 31, "completion resumer should resume callerState")
     }
 
-    func testAsyncTaskBlockingAwaitResultStillWaits() {
+    @Test func testAsyncTaskBlockingAwaitResultStillWaits() {
         let task = RuntimeAsyncTask()
-        let completed = expectation(description: "blocking await finished")
+        let completed = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
-            XCTAssertEqual(task.awaitResult(), 44)
-            completed.fulfill()
+            #expect(task.awaitResult() == 44)
+            completed.signal()
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
             task.complete(with: 44)
         }
-        wait(for: [completed], timeout: 2.0)
+        #expect(completed.wait(timeout: .now() + 2.0) == .success)
     }
 }

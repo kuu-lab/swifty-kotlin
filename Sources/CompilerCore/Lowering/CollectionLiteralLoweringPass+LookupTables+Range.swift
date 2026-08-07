@@ -1,0 +1,142 @@
+import RuntimeABI
+
+/// Range lookup names for `CollectionLiteralLookupTables`.
+///
+/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
+struct RangeLookupNames {
+    // Range iterator names (emitted by ForLoweringPass)
+    let kkRangeIteratorName: InternedString
+    let kkRangeHasNextName: InternedString
+    let kkRangeNextName: InternedString
+    // Range factory / member ABI names (STDLIB-090/091/092/093)
+    let kkOpRangeToName: InternedString
+    let kkOpRangeUntilName: InternedString
+    let kkOpULongRangeUntilName: InternedString
+    let kkOpDownToName: InternedString
+    let kkOpStepName: InternedString
+    let kkRangeFirstName: InternedString
+    let kkRangeLastName: InternedString
+    let kkRangeEndExclusiveName: InternedString
+    let kkRangeCountName: InternedString
+    let kkRangeToListName: InternedString
+    let kkRangeForEachName: InternedString
+    let kkRangeMapName: InternedString
+    let kkRangeMapIndexedName: InternedString
+    let kkRangeMapNotNullName: InternedString
+    let kkRangeFilterName: InternedString
+    let kkRangeFilterIndexedName: InternedString
+    let kkRangeFilterNotName: InternedString
+    let kkRangeReduceName: InternedString
+    let kkRangeReduceIndexedName: InternedString
+    let kkRangeFoldName: InternedString
+    let kkRangeFoldIndexedName: InternedString
+    let kkRangeFindName: InternedString
+    let kkRangeFindLastName: InternedString
+    let kkRangeFirstPredicateName: InternedString
+    let kkRangeFirstOrNullPredicateName: InternedString
+    let kkRangeLastPredicateName: InternedString
+    let kkRangeLastOrNullPredicateName: InternedString
+    let kkRangeAnyName: InternedString
+    let kkRangeAllName: InternedString
+    let kkRangeNoneName: InternedString
+    let kkRangeChunkedName: InternedString
+    let kkRangeWindowedName: InternedString
+    let kkRangeStepName: InternedString
+    let kkRangeReversedName: InternedString
+    let kkRangeIsEmptyName: InternedString
+    let kkRangeSumName: InternedString
+    let kkRangeToIntArrayName: InternedString
+    let kkRangeTakeName: InternedString
+    let kkRangeDropName: InternedString
+    let kkRangeAverageName: InternedString
+    let kkRangeSortedName: InternedString
+    let kkOpContainsName: InternedString
+    // CharRange (STDLIB-290)
+    let kkBoxCharName: InternedString
+    let kkCharRangeToListName: InternedString
+    let kkCharRangeForEachName: InternedString
+    // ULongRange (STDLIB-524, STDLIB-RANGE-037)
+    let kkULongRangeToListName: InternedString
+    let kkULongRangeContainsName: InternedString
+    let kkULongRangeFirstName: InternedString
+    let kkULongRangeLastName: InternedString
+    let kkULongRangeStepName: InternedString
+    let kkULongRangeIsEmptyName: InternedString
+    let kkULongRangeReversedName: InternedString
+    let kkULongRangeToULongArrayName: InternedString
+    let kkULongRangeCountName: InternedString
+    let kkULongRangeIteratorName: InternedString
+    let kkULongRangeHasNextName: InternedString
+    let kkULongRangeNextName: InternedString
+    let kkULongRangeForEachName: InternedString
+    let kkULongRangeMapName: InternedString
+    let kkLongRangeToLongArrayName: InternedString
+
+    init(interner: StringInterner) {
+        kkRangeIteratorName = interner.intern("kk_range_iterator")
+        kkRangeHasNextName = interner.intern("kk_range_hasNext")
+        kkRangeNextName = interner.intern("kk_range_next")
+        kkOpRangeToName = interner.intern("kk_op_rangeTo")
+        kkOpRangeUntilName = interner.intern("kk_op_rangeUntil")
+        kkOpULongRangeUntilName = interner.intern("kk_op_ulong_rangeUntil")
+        kkOpDownToName = interner.intern("kk_op_downTo")
+        kkOpStepName = interner.intern("kk_op_step")
+        kkRangeFirstName = interner.intern("kk_range_first")
+        kkRangeLastName = interner.intern("kk_range_last")
+        kkRangeEndExclusiveName = interner.intern("kk_range_endExclusive")
+        kkRangeCountName = interner.intern("kk_range_count")
+        kkRangeToListName = interner.intern("kk_range_toList")
+        kkRangeForEachName = interner.intern("kk_range_forEach")
+        kkRangeMapName = interner.intern("kk_range_map")
+        kkRangeMapIndexedName = interner.intern("kk_range_mapIndexed")
+        kkRangeMapNotNullName = interner.intern("kk_range_mapNotNull")
+        kkRangeFilterName = interner.intern("kk_range_filter")
+        kkRangeFilterIndexedName = interner.intern("kk_range_filterIndexed")
+        kkRangeFilterNotName = interner.intern("kk_range_filterNot")
+        kkRangeReduceName = interner.intern("kk_range_reduce")
+        kkRangeReduceIndexedName = interner.intern("kk_range_reduceIndexed")
+        kkRangeFoldName = interner.intern("kk_range_fold")
+        kkRangeFoldIndexedName = interner.intern("kk_range_foldIndexed")
+        kkRangeFindName = interner.intern("kk_range_find")
+        kkRangeFindLastName = interner.intern("kk_range_findLast")
+        kkRangeFirstPredicateName = interner.intern("kk_range_first_predicate")
+        kkRangeFirstOrNullPredicateName = interner.intern("kk_range_firstOrNull_predicate")
+        kkRangeLastPredicateName = interner.intern("kk_range_last_predicate")
+        kkRangeLastOrNullPredicateName = interner.intern("kk_range_lastOrNull_predicate")
+        kkRangeAnyName = interner.intern("kk_range_any")
+        kkRangeAllName = interner.intern("kk_range_all")
+        kkRangeNoneName = interner.intern("kk_range_none")
+        kkRangeChunkedName = interner.intern("kk_range_chunked")
+        kkRangeWindowedName = interner.intern("kk_range_windowed")
+        kkRangeStepName = interner.intern("kk_range_step")
+        kkRangeReversedName = interner.intern("kk_range_reversed")
+        kkRangeIsEmptyName = interner.intern("kk_range_isEmpty")
+        kkRangeSumName = interner.intern("kk_range_sum")
+        kkRangeToIntArrayName = interner.intern("kk_range_toIntArray")
+        kkRangeTakeName = interner.intern("kk_range_take")
+        kkRangeDropName = interner.intern("kk_range_drop")
+        kkRangeAverageName = interner.intern("kk_range_average")
+        kkRangeSortedName = interner.intern("kk_range_sorted")
+        kkOpContainsName = interner.intern("kk_op_contains")
+        // CharRange (STDLIB-290)
+        kkBoxCharName = ABILoweringPass.primitiveBoxingCallee(for: .char, interner: interner)
+        kkCharRangeToListName = interner.intern("kk_char_range_toList")
+        kkCharRangeForEachName = interner.intern("kk_char_range_forEach")
+        // ULongRange (STDLIB-524, STDLIB-RANGE-037)
+        kkULongRangeToListName = interner.intern("kk_ulong_range_toList")
+        kkULongRangeContainsName = interner.intern("kk_ulong_range_contains")
+        kkULongRangeFirstName = interner.intern("kk_ulong_range_first")
+        kkULongRangeLastName = interner.intern("kk_ulong_range_last")
+        kkULongRangeStepName = interner.intern("kk_ulong_range_step")
+        kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
+        kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
+        kkULongRangeToULongArrayName = interner.intern("kk_ulong_range_toULongArray")
+        kkULongRangeCountName = interner.intern("kk_ulong_range_count")
+        kkULongRangeIteratorName = interner.intern("kk_ulong_range_iterator")
+        kkULongRangeHasNextName = interner.intern("kk_ulong_range_hasNext")
+        kkULongRangeNextName = interner.intern("kk_ulong_range_next")
+        kkULongRangeForEachName = interner.intern("kk_ulong_range_forEach")
+        kkULongRangeMapName = interner.intern("kk_ulong_range_map")
+        kkLongRangeToLongArrayName = interner.intern("kk_long_range_toLongArray")
+    }
+}

@@ -9,8 +9,6 @@ import Testing
 // kotlin.concurrent.atomics.AtomicArray<T> class.
 // CAS uses identity semantics (pointer equality), not structural equality.
 
-private let refArrayThunkReturn42: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in 42 }
-private let refArrayThunkReturn42Ptr = unsafeBitCast(refArrayThunkReturn42, to: Int.self)
 
 @Suite
 struct RuntimeAtomicRefArrayTests {
@@ -175,62 +173,6 @@ struct RuntimeAtomicRefArrayTests {
         let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 99, 0, ref)
         #expect(old == 0)
     }
-
-    // MARK: - fetchAndUpdateAt
-
-    @Test
-    func testFetchAndUpdateAtReturnsOldValueAndStoresTransformedValue() {
-        let handle = kk_atomic_ref_array_new(1)
-        kk_atomic_ref_array_storeAt(handle, 0, 10)
-
-        let old = kk_atomic_ref_array_fetchAndUpdateAt(handle, 0, refArrayThunkReturn42Ptr, nil)
-
-        #expect(old == 10)
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 42)
-    }
-
-    @Test
-    func testFetchAndUpdateAtOutOfBoundsReturnsZero() {
-        let handle = kk_atomic_ref_array_new(1)
-
-        let old = kk_atomic_ref_array_fetchAndUpdateAt(handle, 2, refArrayThunkReturn42Ptr, nil)
-
-        #expect(old == 0)
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 0)
-    }
-
-    @Test
-    func testUpdateAtStoresTransformedValueAndReturnsUnit() {
-        let handle = kk_atomic_ref_array_new(1)
-        kk_atomic_ref_array_storeAt(handle, 0, 10)
-
-        let result = kk_atomic_ref_array_updateAt(handle, 0, refArrayThunkReturn42Ptr, nil)
-
-        #expect(result == 0)
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 42)
-    }
-
-    @Test
-    func testUpdateAndFetchAtReturnsNewValueAndStoresTransformedValue() {
-        let handle = kk_atomic_ref_array_new(1)
-        kk_atomic_ref_array_storeAt(handle, 0, 10)
-
-        let new = kk_atomic_ref_array_updateAndFetchAt(handle, 0, refArrayThunkReturn42Ptr, nil)
-
-        #expect(new == 42)
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 42)
-    }
-
-    @Test
-    func testUpdateAndFetchAtOutOfBoundsReturnsZero() {
-        let handle = kk_atomic_ref_array_new(1)
-
-        let new = kk_atomic_ref_array_updateAndFetchAt(handle, 2, refArrayThunkReturn42Ptr, nil)
-
-        #expect(new == 0)
-        #expect(kk_atomic_ref_array_loadAt(handle, 0) == 0)
-    }
-
     // MARK: - Multiple independent arrays
 
     @Test

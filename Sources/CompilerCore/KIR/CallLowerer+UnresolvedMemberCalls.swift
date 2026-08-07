@@ -349,6 +349,48 @@ extension CallLowerer {
                 return interner.intern("kk_array_find")
             case "findLast":
                 return interner.intern("kk_array_findLast")
+            // Array HOF gap fix: mapIndexed/filterIndexed/mapNotNull/filterNot/
+            // filterNotNull/first/firstOrNull/last/lastOrNull previously failed
+            // Sema member resolution outright (see
+            // CallTypeChecker+ArrayMemberFallback.swift), so this switch was
+            // never reached for them.
+            case "mapIndexed":
+                return interner.intern("kk_array_mapIndexed")
+            case "filterIndexed":
+                return interner.intern("kk_array_filterIndexed")
+            case "mapNotNull":
+                return interner.intern("kk_array_mapNotNull")
+            case "filterNot":
+                return interner.intern("kk_array_filterNot")
+            case "filterNotNull":
+                return interner.intern("kk_array_filterNotNull")
+            case "asSequence":
+                return interner.intern("kk_array_asSequence")
+            // NOTE: branches on `hofArity` (source-level arg count), not the raw
+            // `argumentCount` parameter above — `argumentCount` can arrive with
+            // the receiver already prepended by some call sites (see the
+            // `hofArity` doc comment at the top of this function), which would
+            // otherwise misroute a bare `first()`/`last()` call to the
+            // predicate-taking runtime function with a garbage fnPtr/closureRaw
+            // and crash. Caught via an end-to-end SIGSEGV repro during manual
+            // verification, not by the type checker (both routes type-check
+            // identically).
+            case "first":
+                return hofArity == 0
+                    ? interner.intern("kk_array_first")
+                    : interner.intern("kk_array_first_predicate")
+            case "firstOrNull":
+                return hofArity == 0
+                    ? interner.intern("kk_array_firstOrNull")
+                    : interner.intern("kk_array_find")
+            case "last":
+                return hofArity == 0
+                    ? interner.intern("kk_array_last")
+                    : interner.intern("kk_array_last_predicate")
+            case "lastOrNull":
+                return hofArity == 0
+                    ? interner.intern("kk_array_lastOrNull")
+                    : interner.intern("kk_array_findLast")
             default:
                 break
             }
@@ -493,6 +535,23 @@ extension CallLowerer {
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
             || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        // Bare Iterable/Collection/Set interfaces are also matched by
+        // isConcreteCollectionLikeType, so the gate above excludes them. That is
+        // intentional for general HOF routing: Set must fall through to the
+        // isSetLikeType block / CollectionLiteral Set-HOF rewrite (kk_set_*), not
+        // kk_sequence_* (mapNotNull/flatMap/count on a set handle would return empty
+        // or 0). Only joinTo/joinToString lack that set-specific path and would
+        // otherwise stay unresolved — handle those alone.
+        if memberName == "joinTo" || memberName == "joinToString" {
+            let isBareIterableCollectionOrSetInterfaceType =
+                isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            if isBareIterableCollectionOrSetInterfaceType {
+                return interner.intern(
+                    memberName == "joinTo" ? "kk_iterable_joinTo" : "kk_iterable_joinToString"
+                )
+            }
+        }
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
@@ -583,9 +642,9 @@ extension CallLowerer {
                     return nil
                 }
             case joinToName:
-                return interner.intern("kk_sequence_joinTo")
+                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinTo" : "kk_sequence_joinTo")
             case joinToStringName:
-                return interner.intern("kk_sequence_joinToString")
+                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinToString" : "kk_sequence_joinToString")
             case sumOfName:
                 return interner.intern("kk_sequence_sumOf")
             case sumByName:
@@ -951,6 +1010,21 @@ extension CallLowerer {
                     ]
                 {
                     return interner.intern("kk_list_reduceRightIndexed")
+                }
+            }
+        case "reduceRightOrNull":
+            switch knownNames.collectionKind(of: symbol) {
+            case .list?, .set?, .collection?:
+                return interner.intern("kk_list_reduceRightOrNull")
+            default:
+                if symbol.name == interner.intern("Iterable")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+                {
+                    return interner.intern("kk_list_reduceRightOrNull")
                 }
             }
         case "reduceRightIndexedOrNull":

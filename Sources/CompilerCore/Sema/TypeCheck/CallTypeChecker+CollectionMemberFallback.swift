@@ -267,8 +267,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.isEmpty,
                       let signatureReceiver = signature.receiverType
@@ -332,8 +331,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -579,6 +577,22 @@ extension CallTypeChecker {
                 }
             }
         }
+        // A trailing lambda (e.g. `windowed(3) { ... }`) always binds to the
+        // callee's LAST parameter, skipping over any defaulted parameters in
+        // between (`step`/`partialWindows`) -- it does not advance only one
+        // slot past the last explicit positional argument. Without this fix,
+        // the last arg lands on the next positional slot (`step`) instead of
+        // `transform`, and the lambda silently vanishes: normalizedCallArguments
+        // sees no argument mapped to the real last parameter and fills it from
+        // its (nonexistent) default, while the lambda's value is discarded.
+        if let lastArgIndex = args.indices.last,
+           args[lastArgIndex].label == nil,
+           paramCount > args.count,
+           let lastParamType = signature.parameterTypes.last,
+           case .functionType = sema.types.kind(of: sema.types.makeNonNullable(lastParamType))
+        {
+            mapping[lastArgIndex] = paramCount - 1
+        }
         return mapping
     }
 
@@ -749,12 +763,31 @@ extension CallTypeChecker {
                 return false
             }
         }
+        // A trailing lambda binds to the callee's LAST parameter regardless of how
+        // many parameters before it are defaulted (Kotlin's trailing-lambda syntax
+        // skips over defaulted middle parameters). Requiring an exact arg-count
+        // match here made `windowed(3) { ... }` (2 provided args: size, transform)
+        // fail to match the real 4-param `windowed(size, step = 1,
+        // partialWindows = false, transform)` overload, falling through to the
+        // "first candidate" arity fallback below -- which silently picked the
+        // unrelated 3-param no-transform overload (declared first in
+        // SequenceWindowChunk.kt) and dropped the transform lambda entirely.
+        func canMatchViaTrailingLambda(_ candidate: SymbolID) -> Bool {
+            guard let sig = sema.symbols.functionSignature(for: candidate),
+                  argCount >= 1,
+                  sig.parameterTypes.count >= argCount,
+                  hasFunctionTypedLastParam(candidate)
+            else {
+                return false
+            }
+            let skippedIndices = (argCount - 1) ..< (sig.parameterTypes.count - 1)
+            return skippedIndices.allSatisfy { index in
+                sig.valueParameterHasDefaultValues.indices.contains(index)
+                    && sig.valueParameterHasDefaultValues[index]
+            }
+        }
         if lastArgIsFunctionLike,
-           let lambdaMatch = allCandidates.first(where: { candidate in
-               guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-               guard sig.parameterTypes.count == argCount else { return false }
-               return hasFunctionTypedLastParam(candidate)
-           }) {
+           let lambdaMatch = allCandidates.first(where: canMatchViaTrailingLambda) {
             return lambdaMatch
         }
         // When the call site has no trailing lambda, an overload whose last parameter
@@ -2226,6 +2259,15 @@ extension CallTypeChecker {
             )
         }
 
+        if memberName == interner.intern("asSequence") {
+            return makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
+        }
+
         return sema.types.anyType
     }
 
@@ -2910,7 +2952,15 @@ extension CallTypeChecker {
         }
 
         guard let firstArg = classType.args.first else {
-            return sema.types.anyType
+            // Primitive arrays (IntArray, DoubleArray, ...) have no type argument;
+            // their element type comes from the class itself (BUG-158: a
+            // `joinToString(..., transform)` lambda must see the real element type
+            // rather than an erased `Any`).
+            return primitiveArrayElementType(
+                className: symbol.name,
+                sema: sema,
+                interner: interner
+            ) ?? sema.types.anyType
         }
         return switch firstArg {
         case let .invariant(type), let .out(type), let .in(type):

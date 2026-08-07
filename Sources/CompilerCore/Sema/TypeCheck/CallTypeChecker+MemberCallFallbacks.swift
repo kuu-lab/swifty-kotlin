@@ -170,7 +170,7 @@ extension CallTypeChecker {
         let resultType: TypeID? = switch (memberName, args.count) {
         case ("toRegex", 0), ("toRegex", 1):
             regexType ?? sema.types.anyType
-        case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1):
+        case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1), ("lastIndexOf", 2):
             sema.types.intType
         case ("indexOfFirst", 1), ("indexOfLast", 1):
             sema.types.intType
@@ -318,6 +318,9 @@ extension CallTypeChecker {
            let expectedType = stringSearchNeedleExpectedType(for: args[0].expr)
         {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+        }
+        if memberName == "lastIndexOf", args.indices.contains(1) {
+            _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
         }
         if args.indices.contains(0), let regexType {
             let expectedType = memberName == "replace" || memberName == "replaceFirst"

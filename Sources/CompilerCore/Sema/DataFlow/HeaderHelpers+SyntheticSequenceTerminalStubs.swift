@@ -1362,36 +1362,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // withIndex(): Sequence<IndexedValue<T>>
-        let indexedValueSymbol = registerSyntheticIndexedValueStub(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinCollectionsPkg: [interner.intern("kotlin"), interner.intern("collections")]
-        )
-        let indexedValueReturnType = types.make(.classType(ClassType(
-            classSymbol: indexedValueSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let sequenceIndexedValueReturnType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(indexedValueReturnType)],
-            nullability: .nonNull
-        )))
-        registerSequenceMemberStub(
-            named: "withIndex",
-            externalLinkName: "kk_sequence_withIndex",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: sequenceIndexedValueReturnType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
         // toMutableSet(): MutableSet<T>
         registerSequenceMemberStub(
             named: "toMutableSet",
@@ -1825,37 +1795,6 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-
-        // requireNoNulls(): Sequence<T> (STDLIB-SEQ-014)
-        let nullableElementSequenceType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(types.makeNullable(typeParamType))],
-            nullability: .nonNull
-        )))
-        registerSequenceMemberStub(
-            named: "filterNotNull",
-            externalLinkName: "kk_sequence_filterNotNull",
-            receiverType: nullableElementSequenceType,
-            parameters: [],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSequenceMemberStub(
-            named: "requireNoNulls",
-            externalLinkName: "kk_sequence_requireNoNulls",
-            receiverType: nullableElementSequenceType,
-            parameters: [],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
 
         // reversed(): Sequence<T> (STDLIB-SEQ-FN-099)
         registerSequenceMemberStub(

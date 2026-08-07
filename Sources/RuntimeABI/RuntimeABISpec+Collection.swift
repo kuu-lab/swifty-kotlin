@@ -475,16 +475,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_collection_contains",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_set_intersect",
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),

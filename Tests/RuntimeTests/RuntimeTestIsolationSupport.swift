@@ -2,7 +2,6 @@ import Dispatch
 import Foundation
 @testable import Runtime
 import Testing
-import XCTest
 
 // MARK: - Fine-grained lock sets for test isolation
 
@@ -98,7 +97,7 @@ private struct RuntimeIsolationLockTimeoutError: Error, CustomStringConvertible 
 /// longer than a few seconds while the current holder is starved of CPU. The
 /// timeout exists only to surface a genuine deadlock, so it is deliberately
 /// generous and overridable via `RUNTIME_TEST_ISOLATION_LOCK_TIMEOUT_SECONDS`.
-private let runtimeIsolationLockWaitTimeout: DispatchTimeInterval = {
+let runtimeIsolationLockWaitTimeout: DispatchTimeInterval = {
     if let raw = ProcessInfo.processInfo.environment["RUNTIME_TEST_ISOLATION_LOCK_TIMEOUT_SECONDS"],
        let seconds = Int(raw), seconds > 0 {
         return .seconds(seconds)
@@ -106,7 +105,7 @@ private let runtimeIsolationLockWaitTimeout: DispatchTimeInterval = {
     return .seconds(120)
 }()
 
-private func semaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
+func runtimeIsolationSemaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
     switch lockSet {
     case .none:
         return []
@@ -133,7 +132,7 @@ private func semaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
     }
 }
 
-private func resetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
+func runtimeIsolationResetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
     switch lockSet {
     case .none:
         return []
@@ -165,7 +164,7 @@ private func acquireSemaphores(
     testName: String
 ) async throws -> [DispatchSemaphore] {
     try await acquireSemaphores(
-        semaphores(for: lockSet),
+        runtimeIsolationSemaphores(for: lockSet),
         testName: testName
     )
 }
@@ -216,7 +215,7 @@ private func releaseSemaphores(_ semaphores: [DispatchSemaphore]) {
 }
 
 private func resetRuntimeState(for lockSet: RuntimeLockSet) {
-    for reset in resetFunctions(for: lockSet) {
+    for reset in runtimeIsolationResetFunctions(for: lockSet) {
         reset()
     }
 }
@@ -326,18 +325,23 @@ func runtimeIsolationLockSerializesConcurrentContenders() async {
 
     #expect(probe.maxObserved == 1)
     // The single token is back (balanced release, no leak).
-    #expect(mutex.wait(timeout: .now()) == .success)
-    mutex.signal()
+    let reacquired = (try? acquireSemaphoresBlocking(
+        [mutex],
+        testName: "serialize-regression-postcondition",
+        timeout: .nanoseconds(0)
+    )) ?? []
+    #expect(reacquired.count == 1)
+    releaseSemaphores(reacquired)
 }
 
-/// Use this base class for runtime tests that mutate global runtime state or
-/// observe file-global callback state.
+/// Scoped hold on the process-wide runtime isolation locks, for tests that
+/// mutate global runtime state or observe file-global callback state.
 final class RuntimeTestIsolationLease {
     private var acquiredSemaphores: [DispatchSemaphore] = []
 
     convenience init(lockSet: RuntimeLockSet) {
         self.init(
-            semaphores: semaphores(for: lockSet),
+            semaphores: runtimeIsolationSemaphores(for: lockSet),
             testName: "RuntimeTestIsolationLease(\(lockSet))",
             timeout: runtimeIsolationLockWaitTimeout
         )
@@ -379,50 +383,6 @@ final class RuntimeTestIsolationLease {
     deinit {
         release()
     }
-}
-
-class IsolatedRuntimeXCTestCase: XCTestCase {
-    private var acquiredSemaphores: [DispatchSemaphore] = []
-
-    /// Override to declare which lock set this test class requires.
-    /// Default is `.all` for backward compatibility.
-    class var requiredLockSet: RuntimeLockSet { .all }
-
-    override final func setUp() {
-        super.setUp()
-        acquiredSemaphores = []
-
-        let sems = semaphores(for: type(of: self).requiredLockSet)
-        for sem in sems {
-            let waitResult = sem.wait(timeout: .now() + runtimeIsolationLockWaitTimeout)
-            guard waitResult == .success else {
-                for acquired in acquiredSemaphores { acquired.signal() }
-                acquiredSemaphores = []
-                XCTFail("Runtime test isolation lock timed out while waiting for available token")
-                return
-            }
-            acquiredSemaphores.append(sem)
-        }
-
-        for reset in resetFunctions(for: type(of: self).requiredLockSet) {
-            reset()
-        }
-        resetIsolatedRuntimeTestState()
-    }
-
-    override final func tearDown() {
-        resetIsolatedRuntimeTestState()
-        for reset in resetFunctions(for: type(of: self).requiredLockSet) {
-            reset()
-        }
-        super.tearDown()
-        for sem in acquiredSemaphores.reversed() {
-            sem.signal()
-        }
-        acquiredSemaphores = []
-    }
-
-    func resetIsolatedRuntimeTestState() {}
 }
 
 /// Monotonic counters make launch/cancel assertions immune to stale signals

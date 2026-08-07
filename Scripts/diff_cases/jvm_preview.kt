@@ -1,7 +1,15 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+// SKIP-DIFF (DEBT-DIFF-007): with `-jvm-target 21` (for @JvmRecord) and a `kotlin.math.PI`
+// import (bare `kotlin.math.PI` fully-qualified in expression position doesn't resolve —
+// KSWIFTK-SEMA-0022 "Unresolved reference 'kotlin'" — a separate, small gap) both sides now
+// compile, but candidate prints "null" for `sqlQuery` (the second top-level multi-line
+// `"""...""".trimIndent()` property) instead of the actual SQL text; `jsonTemplate` (the
+// first such property) prints correctly. Looks like a second-in-file top-level string
+// property initialization bug. See docs/diff-skip-inventory.md (DEBT-DIFF-007).
+// KOTLINC_FLAGS: -jvm-target 21
 // STDLIB-JVM-166: Java preview feature simulations.
 // Covers: @PreviewFeature opt-in, sealed class hierarchy, @JvmRecord, pattern
 // matching for instanceof, switch expressions, and text blocks.
+import kotlin.math.PI
 
 // ---------------------------------------------------------------------------
 // Sealed class hierarchy interop
@@ -18,7 +26,7 @@ fun describeShape(shape: Shape): String = when (shape) {
 }
 
 fun shapeArea(shape: Shape): Double = when (shape) {
-    is Circle -> Math.PI * shape.radius * shape.radius
+    is Circle -> PI * shape.radius * shape.radius
     is Rectangle -> shape.width * shape.height
     is Triangle -> 0.5 * shape.base * shape.height
 }

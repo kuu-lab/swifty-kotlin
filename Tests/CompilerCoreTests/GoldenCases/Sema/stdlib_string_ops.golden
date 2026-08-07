@@ -38,33 +38,13 @@ symbol fq=golden.sema.useTrim kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=golden.sema.useUppercase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.text.contains#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean
-symbol fq=kotlin.text.contains.other kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.ranges.IntRange kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.equals#0 kind=function vis=public flags=synthetic sig=recv=String params=[String?] ret=Boolean
 symbol fq=kotlin.text.equals#1 kind=function vis=public flags=synthetic sig=recv=String params=[String?,Boolean] ret=Boolean
 symbol fq=kotlin.text.equals.ignoreCase kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.equals.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.format kind=function vis=public flags=synthetic sig=recv=String params=[Any?] ret=String vararg=[1]
 symbol fq=kotlin.text.format.args kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceRange#1 kind=function vis=public flags=synthetic sig=recv=String params=[Int,String] ret=String
-symbol fq=kotlin.text.replaceRange.range kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceRange.replacement kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substring#0 kind=function vis=public flags=synthetic sig=recv=String params=[Int] ret=String
-symbol fq=kotlin.text.substring#1 kind=function vis=public flags=synthetic sig=recv=String params=[Int,Int] ret=String
-symbol fq=kotlin.text.substring.endIndex kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substring.startIndex kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringAfter#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String defaults=[0,1]
-symbol fq=kotlin.text.substringAfter.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringAfter.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringAfterLast#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String defaults=[0,1]
-symbol fq=kotlin.text.substringAfterLast.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringAfterLast.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringBefore#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String defaults=[0,1]
-symbol fq=kotlin.text.substringBefore.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringBefore.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringBeforeLast#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String defaults=[0,1]
-symbol fq=kotlin.text.substringBeforeLast.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.substringBeforeLast.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.toInt#1 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.text.toIntOrNull#1 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int?
 file fstdlib_string_ops package=golden.sema
@@ -123,7 +103,7 @@ expr e@11:48 string(lin) type=String
 expr e@11:30#1 memberCall recv=e@11:30 callee=endsWith args=[_:e@11:48] type=Boolean call=kotlin.text.endsWith#1
 expr e@13:30 string(Kotlin) type=String
 expr e@13:48 string(otl) type=String
-expr e@13:30#1 memberCall recv=e@13:30 callee=contains args=[_:e@13:48] type=Boolean call=kotlin.text.contains#0
+expr e@13:30#1 memberCall recv=e@13:30 callee=contains args=[_:e@13:48] type=Boolean call=kotlin.text.contains#1
 expr e@15:23 string(42) type=String
 expr e@15:23#1 memberCall recv=e@15:23 callee=toInt args=[] type=Int call=kotlin.text.toInt#1
 expr e@17:29 string(3.14) type=String
@@ -153,10 +133,10 @@ expr e@35:43 string(abc) type=String
 expr e@35:43#1 memberCall recv=e@35:43 callee=toDoubleOrNull args=[] type=Double? call=kotlin.text.toDoubleOrNull#1
 expr e@37:33 string(hello) type=String
 expr e@37:54 string(he) type=String
-expr e@37:33#1 memberCall recv=e@37:33 callee=removePrefix args=[_:e@37:54] type=String call=kotlin.text.removePrefix
+expr e@37:33#1 memberCall recv=e@37:33 callee=removePrefix args=[_:e@37:54] type=String call=kotlin.text.removePrefix#0
 expr e@39:33 string(hello) type=String
 expr e@39:54 string(lo) type=String
-expr e@39:33#1 memberCall recv=e@39:33 callee=removeSuffix args=[_:e@39:54] type=String call=kotlin.text.removeSuffix
+expr e@39:33#1 memberCall recv=e@39:33 callee=removeSuffix args=[_:e@39:54] type=String call=kotlin.text.removeSuffix#0
 expr e@41:39 string([hello]) type=String
 expr e@41:67 string([) type=String
 expr e@41:72 string(]) type=String

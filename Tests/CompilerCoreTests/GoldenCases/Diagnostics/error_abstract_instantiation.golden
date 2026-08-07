@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 17, "character": 12 },
+        "end": { "line": 17, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Cannot create an instance of abstract class 'Animal'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 20, "character": 12 },
+        "end": { "line": 20, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0023",
+      "source": "kswiftk",
+      "message": "Unresolved function 'Flyable'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 23, "character": 12 },
+        "end": { "line": 23, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Cannot create an instance of abstract class 'Vehicle'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 29, "character": 12 },
+        "end": { "line": 29, "character": 25 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0023",
+      "source": "kswiftk",
+      "message": "Unresolved function 'PartialImpl'.",
+      "codeActions": []
+    }
+  ]
+}

@@ -22,6 +22,22 @@ public func kk_array_map(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
     return registerRuntimeObject(RuntimeListBox(elements: mapped))
 }
 
+@_cdecl("kk_array_mapIndexed")
+public func kk_array_mapIndexed(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        invalidContainerPanic(#function, "array")
+    }
+    var mapped: [Int] = []
+    mapped.reserveCapacity(array.elements.count)
+    for (index, elem) in array.elements.enumerated() {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: index, rhs: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        mapped.append(maybeUnbox(result))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: mapped))
+}
+
 @_cdecl("kk_array_filter")
 public func kk_array_filter(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
@@ -33,6 +49,54 @@ public func kk_array_filter(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
         let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if maybeUnbox(result) != 0 { filtered.append(elem) }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: filtered))
+}
+
+@_cdecl("kk_array_filterIndexed")
+public func kk_array_filterIndexed(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        invalidContainerPanic(#function, "array")
+    }
+    var filtered: [Int] = []
+    for (index, elem) in array.elements.enumerated() {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: index, rhs: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if maybeUnbox(result) != 0 { filtered.append(elem) }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: filtered))
+}
+
+@_cdecl("kk_array_filterNot")
+public func kk_array_filterNot(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        invalidContainerPanic(#function, "array")
+    }
+    var filtered: [Int] = []
+    for elem in array.elements {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if maybeUnbox(result) == 0 { filtered.append(elem) }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: filtered))
+}
+
+/// `Array<T?>.filterNotNull()`: returns a `List<T>` containing only the
+/// non-null elements. Unlike `filter`/`filterNot`, this takes no lambda
+/// argument, so null-ness is checked directly against the runtime null
+/// sentinel (matching how `RuntimeArrayBox.elements` represents a Kotlin
+/// `null` element; see `runtimeNullSentinelInt`).
+@_cdecl("kk_array_filterNotNull")
+public func kk_array_filterNotNull(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        invalidContainerPanic(#function, "array")
+    }
+    var filtered: [Int] = []
+    filtered.reserveCapacity(array.elements.count)
+    for elem in array.elements where elem != runtimeNullSentinelInt {
+        filtered.append(elem)
     }
     return registerRuntimeObject(RuntimeListBox(elements: filtered))
 }
@@ -76,7 +140,10 @@ public func kk_array_none(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
     return kk_box_bool(1)
 }
 
-// (a) RF-DEAD-002: 配線予定 → Array.mapNotNull lowering
+// RF-DEAD-002: now wired end-to-end (Sema allowlist + KIR virtual-call
+// rewrite + CallLowerer unresolved-member dispatch); see
+// CallTypeChecker+ArrayMemberFallback.swift, CollectionLiteralLoweringPass+
+// VirtualCallRewrite+Array.swift, and CallLowerer+UnresolvedMemberCalls.swift.
 @_cdecl("kk_array_mapNotNull")
 public func kk_array_mapNotNull(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
@@ -117,7 +184,11 @@ public func kk_array_reduce(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
         invalidContainerPanic(#function, "array")
     }
     guard !array.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateUnsupportedOperationException(message: "Empty collection can't be reduced."), outThrown)
+        // Real kotlinc says "Empty array can't be reduced." for Array receivers
+        // (verified against kotlinc directly), distinct from the "Empty
+        // collection can't be reduced." wording used for List/Iterable. This
+        // was previously (incorrectly) using the collection wording here.
+        return handleCollectionLambdaThrow(runtimeAllocateUnsupportedOperationException(message: "Empty array can't be reduced."), outThrown)
     }
     var acc = maybeUnbox(array.elements[0])
     for idx in 1 ..< array.elements.count {
@@ -134,7 +205,8 @@ public func kk_array_reduceIndexed(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: 
         invalidContainerPanic(#function, "array")
     }
     guard !array.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateUnsupportedOperationException(message: "Empty collection can't be reduced."), outThrown)
+        // See kk_array_reduce above: real kotlinc uses "Empty array can't be reduced." for Array receivers.
+        return handleCollectionLambdaThrow(runtimeAllocateUnsupportedOperationException(message: "Empty array can't be reduced."), outThrown)
     }
     var acc = maybeUnbox(array.elements[0])
     for idx in 1 ..< array.elements.count {
@@ -214,6 +286,93 @@ public func kk_array_findLast(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
         if maybeUnbox(result) != 0 { return elem }
     }
     return runtimeNullSentinelInt
+}
+
+// MARK: - Array first/last (Array HOF gap fix)
+//
+// `firstOrNull(predicate)`/`lastOrNull(predicate)` deliberately reuse
+// kk_array_find/kk_array_findLast above (identical semantics: linear scan,
+// return the sentinel on no match, never throw) rather than duplicating them
+// under a different name; see CollectionLiteralLoweringPass+
+// VirtualCallRewrite+Array.swift and CallLowerer+UnresolvedMemberCalls.swift.
+
+/// `Array<T>.first()`: throws `NoSuchElementException` when empty (message
+/// verified against real kotlinc: "Array is empty.", distinct from the
+/// "Collection is empty." wording used for List/Iterable).
+@_cdecl("kk_array_first")
+public func kk_array_first(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let array = runtimeArrayBox(from: arrayRaw), !array.elements.isEmpty else {
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Array is empty.")
+        return 0
+    }
+    return array.elements[0]
+}
+
+/// `Array<T>.firstOrNull()`: never throws; returns the null sentinel when empty.
+@_cdecl("kk_array_firstOrNull")
+public func kk_array_firstOrNull(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw), !array.elements.isEmpty else {
+        return runtimeNullSentinelInt
+    }
+    return array.elements[0]
+}
+
+/// `Array<T>.last()`: throws `NoSuchElementException` when empty (message
+/// verified against real kotlinc: "Array is empty.").
+@_cdecl("kk_array_last")
+public func kk_array_last(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let array = runtimeArrayBox(from: arrayRaw), !array.elements.isEmpty else {
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Array is empty.")
+        return 0
+    }
+    return array.elements[array.elements.count - 1]
+}
+
+/// `Array<T>.lastOrNull()`: never throws; returns the null sentinel when empty.
+@_cdecl("kk_array_lastOrNull")
+public func kk_array_lastOrNull(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw), !array.elements.isEmpty else {
+        return runtimeNullSentinelInt
+    }
+    return array.elements[array.elements.count - 1]
+}
+
+/// `Array<T>.first(predicate)`: throws `NoSuchElementException` when no
+/// element matches (message verified against real kotlinc: "Array contains
+/// no element matching the predicate.").
+@_cdecl("kk_array_first_predicate")
+public func kk_array_first_predicate(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else { invalidContainerPanic(#function, "array") }
+    for elem in array.elements {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if maybeUnbox(result) != 0 { return elem }
+    }
+    return handleCollectionLambdaThrow(
+        runtimeAllocateNoSuchElementException(message: "Array contains no element matching the predicate."),
+        outThrown
+    )
+}
+
+/// `Array<T>.last(predicate)`: throws `NoSuchElementException` when no
+/// element matches (message verified against real kotlinc: "Array contains
+/// no element matching the predicate.").
+@_cdecl("kk_array_last_predicate")
+public func kk_array_last_predicate(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else { invalidContainerPanic(#function, "array") }
+    for elem in array.elements.reversed() {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if maybeUnbox(result) != 0 { return elem }
+    }
+    return handleCollectionLambdaThrow(
+        runtimeAllocateNoSuchElementException(message: "Array contains no element matching the predicate."),
+        outThrown
+    )
 }
 
 @_cdecl("kk_array_all")

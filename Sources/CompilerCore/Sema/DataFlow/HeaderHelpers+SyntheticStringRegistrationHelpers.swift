@@ -134,16 +134,25 @@ extension DataFlowSemaPhase {
         symbols.setConstValueExprKind(.charLiteral(scalar), for: propertySymbol)
     }
 
-    func registerSyntheticStringTopLevelProperty(
+    /// Registers a synthetic companion-object (static) property backed by a
+    /// zero-argument native function. Reads resolve through the object-member
+    /// read path (`loadGlobal`) against a global initialized once at module
+    /// init by `emitSyntheticTopLevelExternalPropertyInitializers` (which calls
+    /// `externalLinkName()` for `.object`-parented synthetic properties). Used
+    /// for `String.Companion.CASE_INSENSITIVE_ORDER` (BUG-154).
+    func registerSyntheticCompanionExternalProperty(
         named name: String,
-        packageFQName: [InternedString],
+        companionFQName: [InternedString],
         returnType: TypeID,
         externalLinkName: String,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
+        guard let companionSymbol = symbols.lookup(fqName: companionFQName) else {
+            return
+        }
         let propertyName = interner.intern(name)
-        let propertyFQName = packageFQName + [propertyName]
+        let propertyFQName = companionFQName + [propertyName]
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
             symbols.symbol(symbolID)?.kind == .property
         }) {
@@ -158,11 +167,9 @@ extension DataFlowSemaPhase {
             fqName: propertyFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: [.synthetic, .static]
         )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
+        symbols.setParentSymbol(companionSymbol, for: propertySymbol)
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
     }

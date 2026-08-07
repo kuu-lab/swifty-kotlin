@@ -5,6 +5,15 @@ extension CallTypeChecker {
         let lambdaLiteralIndices: Set<Int>
         let inputOnlyLambdaIndices: Set<Int>
         let blockedLambdaRefinement: Bool
+        /// True when a bare (no declared parameter list) lambda argument relies on an
+        /// implicit single parameter (`it`) whose type can't be fixed before overload
+        /// resolution, because the remaining candidates each expect exactly one
+        /// parameter but disagree on its type (DEBT-SEMA-004). Unlike
+        /// `blockedLambdaRefinement`, which only forces an ambiguity diagnostic when a
+        /// candidate opts in via `@OverloadResolutionByLambdaReturnType`, this case is
+        /// unresolvable regardless of that annotation: there is no locally-known type
+        /// to check the lambda body against.
+        let hasUnresolvableImplicitLambdaParameter: Bool
     }
 
     private struct LambdaParameterCandidate {
@@ -29,6 +38,7 @@ extension CallTypeChecker {
         var lambdaLiteralIndices: Set<Int> = []
         var inputOnlyLambdaIndices: Set<Int> = []
         var blockedLambdaRefinement = false
+        var hasUnresolvableImplicitLambdaParameter = false
         var contextualArgExpectedTypes = [TypeID?](repeating: nil, count: args.count)
 
         for (index, argument) in args.enumerated() {
@@ -88,7 +98,7 @@ extension CallTypeChecker {
                     explicitTypeArgs: explicitTypeArgs,
                     sema: sema
                 )
-            case .lambdaLiteral:
+            case let .lambdaLiteral(lambdaParams, _, _, _):
                 let expectation = lambdaLiteralExpectedType(
                     at: index,
                     candidates: expectedTypeCandidates,
@@ -104,6 +114,14 @@ extension CallTypeChecker {
                 }
                 if expectation.blocksRefinement {
                     blockedLambdaRefinement = true
+                    // A lambda with no declared parameter list (`{ it }` or `{ ... }`)
+                    // has no locally-known type to fall back on; if the surviving
+                    // candidates each want exactly one parameter but disagree on its
+                    // type, there is no way to check the body without guessing which
+                    // overload was meant.
+                    if lambdaParams.isEmpty, expectation.hasAmbiguousImplicitParameterShape {
+                        hasUnresolvableImplicitLambdaParameter = true
+                    }
                 }
             default:
                 continue
@@ -138,11 +156,45 @@ extension CallTypeChecker {
             return driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
         }
 
+        // An inline range literal (e.g. `1..3`) is bound with its element type
+        // (Int) plus a range-expr marker, so it does not match a range-class
+        // parameter (IntRange) by subtyping alone. When a candidate expects a
+        // range-like parameter at this position, report the argument as the
+        // corresponding range class type so source-backed overloads such as
+        // String.slice(IntRange) resolve.
+        let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
+            let type = argTypes[index]
+            guard !lambdaLiteralIndices.contains(index),
+                  let rangeClassType = sourceLevelRangeMemberLookupType(
+                      receiverExpr: argument.expr,
+                      receiverType: type,
+                      sema: sema,
+                      interner: ctx.interner
+                  ),
+                  candidates.contains(where: { candidate in
+                      guard let signature = sema.symbols.functionSignature(for: candidate),
+                            let parameterType = parameterTypeForArgument(at: index, in: signature)
+                      else {
+                          return false
+                      }
+                      return driver.helpers.isRangeLikeType(
+                          sema.types.makeNonNullable(parameterType),
+                          sema: sema,
+                          interner: ctx.interner
+                      )
+                  })
+            else {
+                return type
+            }
+            return rangeClassType
+        }
+
         return PreparedCallArguments(
-            argTypes: argTypes,
+            argTypes: refinedArgTypes,
             lambdaLiteralIndices: lambdaLiteralIndices,
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,
-            blockedLambdaRefinement: blockedLambdaRefinement
+            blockedLambdaRefinement: blockedLambdaRefinement,
+            hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter
         )
     }
 
@@ -158,6 +210,7 @@ extension CallTypeChecker {
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
         blockedLambdaRefinement: Bool,
+        hasUnresolvableImplicitLambdaParameter: Bool,
         ctx: TypeInferenceContext
     ) -> ResolvedCall {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
@@ -199,7 +252,7 @@ extension CallTypeChecker {
             return true
         })
 
-        if blockedLambdaRefinement, hasRefinementAnnotation {
+        if blockedLambdaRefinement, hasRefinementAnnotation || hasUnresolvableImplicitLambdaParameter {
             return ambiguousCallResult(range: range)
         }
 
@@ -440,14 +493,31 @@ extension CallTypeChecker {
         }
 
         let declaredClassArgs: [TypeArg]
+        let concreteClassArgs: [TypeArg]
         if let signatureReceiverType = signature.receiverType,
-           let declaredClass = resolveClassType(signatureReceiverType, sema: sema),
-           declaredClass.classSymbol == callSiteClass.classSymbol,
-           declaredClass.args.count == callSiteClass.args.count {
-            declaredClassArgs = declaredClass.args
+           let declaredClass = resolveClassType(signatureReceiverType, sema: sema) {
+            if declaredClass.classSymbol == callSiteClass.classSymbol,
+               declaredClass.args.count == callSiteClass.args.count {
+                declaredClassArgs = declaredClass.args
+                concreteClassArgs = callSiteClass.args
+            } else if sema.types.isNominalSubtypeSymbol(callSiteClass.classSymbol, of: declaredClass.classSymbol) {
+                declaredClassArgs = declaredClass.args
+                guard let lifted = sema.types.liftedNominalSupertypeArgs(
+                    from: callSiteClass.classSymbol,
+                    childArgs: callSiteClass.args,
+                    to: declaredClass.classSymbol
+                ), lifted.count == declaredClassArgs.count else {
+                    return parameterType
+                }
+                concreteClassArgs = lifted
+            } else {
+                return parameterType
+            }
         } else if signature.classTypeParameterCount > 0,
                   callSiteClass.args.count >= signature.classTypeParameterCount {
-            declaredClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            let prefix = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            declaredClassArgs = prefix
+            concreteClassArgs = prefix
         } else {
             return parameterType
         }
@@ -467,7 +537,7 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            let concreteType: TypeID = switch callSiteClass.args[index] {
+            let concreteType: TypeID = switch concreteClassArgs[index] {
             case let .invariant(type), let .out(type), let .in(type):
                 type
             case .star:
@@ -617,7 +687,12 @@ extension CallTypeChecker {
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
         resolver: OverloadResolver? = nil,
         sema: SemaModule
-    ) -> (type: TypeID?, isInputOnly: Bool, blocksRefinement: Bool) {
+    ) -> (
+        type: TypeID?,
+        isInputOnly: Bool,
+        blocksRefinement: Bool,
+        hasAmbiguousImplicitParameterShape: Bool
+    ) {
         // When all candidates share the same input-only HOF link name (e.g. String and
                 // CharSequence overloads of zip both map to kk_string_zipTransform), pick the
         // first candidate and treat the lambda as input-only so that its return type is
@@ -650,7 +725,7 @@ extension CallTypeChecker {
                 receiverType: receiverType,
                 sema: sema
             )
-            return (substituted, true, false)
+            return (substituted, true, false, false)
         }
 
         if candidates.count == 1,
@@ -685,7 +760,7 @@ extension CallTypeChecker {
                 resolver: resolver,
                 sema: sema
             )
-            return (substituted, false, false)
+            return (substituted, false, false, false)
         }
 
         let parameterCandidates = lambdaParameterCandidates(
@@ -694,22 +769,71 @@ extension CallTypeChecker {
             sema: sema
         )
         guard !parameterCandidates.isEmpty else {
-            return (nil, false, false)
+            return (nil, false, false, false)
         }
 
         if let first = parameterCandidates.first,
            parameterCandidates.dropFirst().allSatisfy({ $0.originalType == first.originalType })
         {
-            return (first.originalType, false, false)
+            return (first.originalType, false, false, false)
         }
 
         guard let sharedType = sharedLambdaInputOnlyType(
             from: parameterCandidates,
             types: sema.types
         ) else {
-            return (nil, false, parameterCandidates.count > 1)
+            // The candidates disagree on this lambda's parameter shape, so no single
+            // expected type can be pushed down. When every surviving candidate still
+            // expects exactly one, genuinely concrete parameter type, a bare lambda
+            // here would need an implicit `it` whose type cannot be determined
+            // before an overload is chosen (DEBT-SEMA-004) -- e.g. `(Int) -> String`
+            // vs. `(String) -> Int`. Candidates whose parameter type still mentions a
+            // type parameter are excluded: two independently-registered overloads
+            // (e.g. a source declaration and a synthetic vararg sibling) can each
+            // mint their own distinct type-parameter symbol for what is conceptually
+            // the same generic slot, so raw TypeID inequality there reflects how the
+            // signatures happened to be built rather than a real shape conflict --
+            // unlike concrete types, where inequality always means a real conflict.
+            let isImplicitSingleParameterAmbiguous = parameterCandidates.allSatisfy { candidate in
+                guard candidate.functionType.params.count == 1,
+                      let onlyParam = candidate.functionType.params.first
+                else {
+                    return false
+                }
+                return !typeMentionsTypeParameter(onlyParam, sema: sema)
+            }
+            return (nil, false, parameterCandidates.count > 1, isImplicitSingleParameterAmbiguous)
         }
-        return (sharedType, true, false)
+        return (sharedType, true, false, false)
+    }
+
+    /// Recursively checks whether `type` (or any nested type argument / function
+    /// parameter / return type) is or mentions a type parameter. Used to keep
+    /// implicit-`it` ambiguity detection scoped to genuinely concrete, conflicting
+    /// parameter types rather than misreading distinct type-parameter symbols that
+    /// happen to represent the same generic slot as a real conflict.
+    private func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            return classType.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeMentionsTypeParameter(inner, sema: sema)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(functionType):
+            return functionType.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+                || typeMentionsTypeParameter(functionType.returnType, sema: sema)
+                || (functionType.receiver.map { typeMentionsTypeParameter($0, sema: sema) } ?? false)
+        case let .intersection(members):
+            return members.contains { typeMentionsTypeParameter($0, sema: sema) }
+        default:
+            return false
+        }
     }
 
     private func lambdaParameterCandidates(

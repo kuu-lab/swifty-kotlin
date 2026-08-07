@@ -22,7 +22,7 @@ extension CallLowerer {
             specialKind: .atomicIntArrayFactory,
             valueType: sema.types.intType,
             createCalleeName: "kk_atomic_int_array_create",
-            storeAtCalleeName: "kk_atomic_int_array_storeAt"
+            storeAtCalleeName: "__kk_atomic_int_array_store"
         )
     }
 
@@ -48,7 +48,7 @@ extension CallLowerer {
             specialKind: .atomicLongArrayFactory,
             valueType: sema.types.longType,
             createCalleeName: "kk_atomic_long_array_create",
-            storeAtCalleeName: "kk_atomic_long_array_storeAt"
+            storeAtCalleeName: "__kk_atomic_long_array_store"
         )
     }
 
@@ -67,7 +67,7 @@ extension CallLowerer {
         storeAtCalleeName: String
     ) -> KIRExprID? {
         guard sema.bindings.stdlibSpecialCallKind(for: exprID) == specialKind,
-              args.count == 2
+              args.count == 1 || args.count == 2
         else {
             return nil
         }
@@ -93,14 +93,16 @@ extension CallLowerer {
         )
 
         let arrayExpr = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: createCallee,
-            arguments: [sizeExpr],
+            arg: sizeExpr,
             result: arrayExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
+
+        guard args.count == 2 else {
+            return arrayExpr
+        }
 
         let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)

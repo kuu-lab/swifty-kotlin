@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 3, "character": 14 },
+        "end": { "line": 3, "character": 18 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0051",
+      "source": "kswiftk",
+      "message": "'this' is not allowed in this context.",
+      "codeActions": []
+    },
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 6, "character": 15 },
+        "end": { "line": 6, "character": 31 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    },
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 6, "character": 15 },
+        "end": { "line": 6, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0050",
+      "source": "kswiftk",
+      "message": "'super' is not allowed outside of a class body.",
+      "codeActions": []
+    },
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 10, "character": 4 },
+        "end": { "line": 10, "character": 9 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0018",
+      "source": "kswiftk",
+      "message": "'break' is only allowed inside loop bodies.",
+      "codeActions": []
+    },
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 15, "character": 4 },
+        "end": { "line": 15, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0019",
+      "source": "kswiftk",
+      "message": "'continue' is only allowed inside loop bodies.",
+      "codeActions": []
+    },
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 20, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "error_semantic_basic.kt",
+      "range": {
+        "start": { "line": 26, "character": 12 },
+        "end": { "line": 26, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0031",
+      "source": "kswiftk",
+      "message": "Variable 'x' must be initialized before use.",
+      "codeActions": []
+    }
+  ]
+}

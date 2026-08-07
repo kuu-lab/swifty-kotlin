@@ -1,6 +1,7 @@
 import Dispatch
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private final class RuntimeMutexTestState: @unchecked Sendable {
     private let lock = NSLock()
@@ -41,41 +42,40 @@ private var runtimeMutexTestState: RuntimeMutexTestState {
     }
 }
 
-final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        runtimeMutexTestState.reset()
-    }
+private func resetRuntimeMutexTestState() {
+    runtimeMutexTestState.reset()
+}
 
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeMutexTestState))
+struct RuntimeMutexTests {
     // KSP-677: Mutex.withLock is Kotlin source composing the c-soft lock()/unlock()
     // kernel primitives, so its runtime coverage is the lock/tryLock/unlock path below.
-    func testMutexBasicLockTryLockUnlock() {
+    @Test func mutexBasicLockTryLockUnlock() {
         let handle = __kk_mutex_create()
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
 
-        XCTAssertEqual(__kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_lock(handle, 0), 0)
-        XCTAssertEqual(__kk_mutex_isLocked(handle), 1)
-        XCTAssertEqual(__kk_mutex_tryLock(handle), 0)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
-        XCTAssertEqual(__kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(__kk_mutex_tryLock(handle), 1)
-        XCTAssertEqual(__kk_mutex_isLocked(handle), 1)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+        #expect(kk_mutex_lock(handle, 0) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(__kk_mutex_tryLock(handle) == 0)
+        #expect(kk_mutex_unlock(handle) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+        #expect(__kk_mutex_tryLock(handle) == 1)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(kk_mutex_unlock(handle) == 0)
     }
 
     // NOTE: pthread_mutex_t does not guarantee FIFO wake-up order on Linux, so
     // this test verifies only that multiple waiters can all acquire and release
     // the mutex without deadlock.  A strict ordering assertion would be flaky on
     // CI runners using Linux's nptl mutex implementation.
-    func testMutexLockWaitersAreServedInFIFOOrder() {
+    @Test func mutexLockWaitersAreServedInFIFOOrder() {
         let handle = __kk_mutex_create()
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
 
-        XCTAssertEqual(kk_mutex_lock(handle, 0), 0)
+        #expect(kk_mutex_lock(handle, 0) == 0)
         runtimeMutexTestState.record("main-acquired")
-        XCTAssertEqual(__kk_mutex_isLocked(handle), 1)
+        #expect(__kk_mutex_isLocked(handle) == 1)
 
         let waiter1Done = DispatchSemaphore(value: 0)
         let waiter2Done = DispatchSemaphore(value: 0)
@@ -99,32 +99,32 @@ final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
         }
 
         Thread.sleep(forTimeInterval: 0.05)
-        XCTAssertEqual(__kk_mutex_tryLock(handle), 0)
+        #expect(__kk_mutex_tryLock(handle) == 0)
 
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        #expect(kk_mutex_unlock(handle) == 0)
 
-        XCTAssertEqual(waiter1Done.wait(timeout: .now() + .seconds(2)), .success)
-        XCTAssertEqual(waiter2Done.wait(timeout: .now() + .seconds(2)), .success)
+        #expect(waiter1Done.wait(timeout: .now() + .seconds(2)) == .success)
+        #expect(waiter2Done.wait(timeout: .now() + .seconds(2)) == .success)
 
-        XCTAssertEqual(__kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(__kk_mutex_tryLock(handle), 1)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+        #expect(__kk_mutex_tryLock(handle) == 1)
+        #expect(kk_mutex_unlock(handle) == 0)
 
         // Verify that all expected events were recorded (order is platform-dependent).
         let events = runtimeMutexTestState.snapshot()
-        XCTAssertTrue(events.contains("main-acquired"), "main-acquired must be recorded")
-        XCTAssertTrue(events.contains("waiter-1-acquired"), "waiter-1-acquired must be recorded")
-        XCTAssertTrue(events.contains("waiter-1-released"), "waiter-1-released must be recorded")
-        XCTAssertTrue(events.contains("waiter-2-acquired"), "waiter-2-acquired must be recorded")
-        XCTAssertTrue(events.contains("waiter-2-released"), "waiter-2-released must be recorded")
+        #expect(events.contains("main-acquired"), "main-acquired must be recorded")
+        #expect(events.contains("waiter-1-acquired"), "waiter-1-acquired must be recorded")
+        #expect(events.contains("waiter-1-released"), "waiter-1-released must be recorded")
+        #expect(events.contains("waiter-2-acquired"), "waiter-2-acquired must be recorded")
+        #expect(events.contains("waiter-2-released"), "waiter-2-released must be recorded")
         // Each waiter must release after it acquires.
         if let a1 = events.firstIndex(of: "waiter-1-acquired"),
            let r1 = events.firstIndex(of: "waiter-1-released") {
-            XCTAssertLessThan(a1, r1, "waiter-1 must release after acquiring")
+            #expect(a1 < r1, "waiter-1 must release after acquiring")
         }
         if let a2 = events.firstIndex(of: "waiter-2-acquired"),
            let r2 = events.firstIndex(of: "waiter-2-released") {
-            XCTAssertLessThan(a2, r2, "waiter-2 must release after acquiring")
+            #expect(a2 < r2, "waiter-2 must release after acquiring")
         }
     }
 }

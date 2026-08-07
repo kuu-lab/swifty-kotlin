@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - Trampoline wrappers
 // Local @convention(c) closures that delegate to the @_cdecl runtime functions.
@@ -128,21 +128,13 @@ private func withComparatorObject(mode: Int, body: (Int) -> Void) {
 
 // MARK: - Tests
 
-final class RuntimeComparatorTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+@Suite(.runtimeIsolation(.all))
+struct RuntimeComparatorTests {
     // MARK: - compareBy ascending
 
     // MARK: - compareByDescending
 
+    @Test
     func testComparatorFromMultiSelectorsVararg() {
         let selectors = makeArray([
             selectorPtr(selectModTen), 0,
@@ -152,77 +144,86 @@ final class RuntimeComparatorTests: XCTestCase {
         ])
         let closureRaw = kk_comparator_from_multi_selectors_vararg(selectors)
 
-        XCTAssertLessThan(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 25, nil), 0)
-        XCTAssertLessThan(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil), 0)
-        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 17, 17, nil), 0)
+        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 25, nil) < 0)
+        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil) < 0)
+        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 17, 17, nil) == 0)
     }
 
     // MARK: - compareValues
 
+    @Test
     func testCompareValuesLessThan() {
         var thrown = 0
         let result = kk_compareValues(kk_box_int(3), kk_box_int(7), &thrown)
-        XCTAssertLessThan(kk_unbox_int(result), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) < 0)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesEqual() {
         var thrown = 0
         let result = kk_compareValues(kk_box_int(5), kk_box_int(5), &thrown)
-        XCTAssertEqual(kk_unbox_int(result), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) == 0)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesGreaterThan() {
         var thrown = 0
         let result = kk_compareValues(kk_box_int(9), kk_box_int(2), &thrown)
-        XCTAssertGreaterThan(kk_unbox_int(result), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) > 0)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesNullLessThanNonNull() {
         var thrown = 0
         let result = kk_compareValues(runtimeNullSentinelInt, kk_box_int(1), &thrown)
-        XCTAssertLessThan(kk_unbox_int(result), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) < 0)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesNonNullGreaterThanNull() {
         var thrown = 0
         let result = kk_compareValues(kk_box_int(1), runtimeNullSentinelInt, &thrown)
-        XCTAssertGreaterThan(kk_unbox_int(result), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) > 0)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesBothNull() {
         var thrown = 0
         let result = kk_compareValues(runtimeNullSentinelInt, runtimeNullSentinelInt, &thrown)
-        XCTAssertEqual(kk_unbox_int(result), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) == 0)
+        #expect(thrown == 0)
     }
 
     // Regression (KSP-659): a boxed zero can reach compareValues as the raw
     // value 0 (e.g. the generic element argument of `Array<Int>.binarySearch(0)`).
     // It must compare as the integer zero and must not be mistaken for `null`.
+    @Test
     func testCompareValuesBoxedZeroIsNotNull() {
         var thrown = 0
-        XCTAssertEqual(kk_unbox_int(kk_compareValues(kk_box_int(0), 0, &thrown)), 0)
-        XCTAssertEqual(kk_unbox_int(kk_compareValues(0, kk_box_int(0), &thrown)), 0)
-        XCTAssertEqual(kk_unbox_int(kk_compareValues(0, 0, &thrown)), 0)
-        XCTAssertLessThan(kk_unbox_int(kk_compareValues(0, kk_box_int(5), &thrown)), 0)
-        XCTAssertGreaterThan(kk_unbox_int(kk_compareValues(kk_box_int(5), 0, &thrown)), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(kk_compareValues(kk_box_int(0), 0, &thrown)) == 0)
+        #expect(kk_unbox_int(kk_compareValues(0, kk_box_int(0), &thrown)) == 0)
+        #expect(kk_unbox_int(kk_compareValues(0, 0, &thrown)) == 0)
+        #expect(kk_unbox_int(kk_compareValues(0, kk_box_int(5), &thrown)) < 0)
+        #expect(kk_unbox_int(kk_compareValues(kk_box_int(5), 0, &thrown)) > 0)
+        #expect(thrown == 0)
     }
 
     // Regression (KSP-659): only the null sentinel counts as `null`, so a real
     // null orders strictly below a boxed zero (previously they compared equal).
+    @Test
     func testCompareValuesNullOrdersBelowBoxedZero() {
         var thrown = 0
-        XCTAssertLessThan(kk_unbox_int(kk_compareValues(runtimeNullSentinelInt, 0, &thrown)), 0)
-        XCTAssertGreaterThan(kk_unbox_int(kk_compareValues(0, runtimeNullSentinelInt, &thrown)), 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(kk_compareValues(runtimeNullSentinelInt, 0, &thrown)) < 0)
+        #expect(kk_unbox_int(kk_compareValues(0, runtimeNullSentinelInt, &thrown)) > 0)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesByVarargSelectors() {
         let selectors = makeArray([
             selectorPtr(selectModTen), 0,
@@ -232,14 +233,15 @@ final class RuntimeComparatorTests: XCTestCase {
         ])
         var thrown = 0
         let result = kk_compareValuesByVararg(13, 25, selectors, &thrown)
-        XCTAssertEqual(kk_unbox_int(result), -1)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(result) == -1)
+        #expect(thrown == 0)
 
         let tiedFirstKey = kk_compareValuesByVararg(13, 23, selectors, &thrown)
-        XCTAssertEqual(kk_unbox_int(tiedFirstKey), -1)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_unbox_int(tiedFirstKey) == -1)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testCompareValuesByComparatorSelector() {
         withComparatorObject(mode: 0) { comparatorRaw in
             var thrown = 0
@@ -251,8 +253,8 @@ final class RuntimeComparatorTests: XCTestCase {
                 0,
                 &thrown
             )
-            XCTAssertEqual(kk_unbox_int(result), -1)
-            XCTAssertEqual(thrown, 0)
+            #expect(kk_unbox_int(result) == -1)
+            #expect(thrown == 0)
         }
     }
 
@@ -266,26 +268,25 @@ final class RuntimeComparatorTests: XCTestCase {
 
     // MARK: - naturalOrder / reverseOrder
 
+    @Test
     func testCaseInsensitiveOrderComparatorObjectDispatchesThroughITable() {
         let comparatorRaw = kk_string_case_insensitive_order()
         let compareFnPtr = kk_itable_lookup(comparatorRaw, 0, 0)
-        XCTAssertNotEqual(compareFnPtr, 0)
+        #expect(compareFnPtr != 0)
 
         let compareFn = unsafeBitCast(compareFnPtr, to: RuntimeCollectionLambda2.self)
-        XCTAssertEqual(
-            compareFn(comparatorRaw, makeRuntimeString("alpha"), makeRuntimeString("ALPHA"), nil),
-            0
+        #expect(
+            compareFn(comparatorRaw, makeRuntimeString("alpha"), makeRuntimeString("ALPHA"), nil) == 0
         )
-        XCTAssertLessThan(
-            compareFn(comparatorRaw, makeRuntimeString("apple"), makeRuntimeString("banana"), nil),
-            0
+        #expect(
+            compareFn(comparatorRaw, makeRuntimeString("apple"), makeRuntimeString("banana"), nil) < 0
         )
-        XCTAssertGreaterThan(
-            compareFn(comparatorRaw, makeRuntimeString("Zoo"), makeRuntimeString("apple"), nil),
-            0
+        #expect(
+            compareFn(comparatorRaw, makeRuntimeString("Zoo"), makeRuntimeString("apple"), nil) > 0
         )
     }
 
+    @Test
     func testSortedWithCaseInsensitiveOrderComparatorObject() {
         let source = makeList([
             makeRuntimeString("b"),
@@ -296,11 +297,12 @@ final class RuntimeComparatorTests: XCTestCase {
         let comparatorRaw = kk_string_case_insensitive_order()
 
         let sorted = kk_list_sortedWith(source, comparatorRaw, 0, nil)
-        XCTAssertEqual(listElements(sorted).map(runtimeStringValue), ["A", "a", "b", "c"])
+        #expect(listElements(sorted).map(runtimeStringValue) == ["A", "a", "b", "c"])
     }
 
     // MARK: - sortedWith E2E
 
+    @Test
     func testSortedWithComparator() {
         let source = makeList([5, 3, 8, 1, 4])
         let sorted = kk_list_sortedWith(
@@ -309,21 +311,24 @@ final class RuntimeComparatorTests: XCTestCase {
             0,
             nil
         )
-        XCTAssertEqual(listElements(sorted), [1, 3, 4, 5, 8])
+        #expect(listElements(sorted) == [1, 3, 4, 5, 8])
     }
 
+    @Test
     func testPrimitiveListSortedAscending() {
         let source = makeList([5, 3, 8, 1, 4])
         let sorted = kk_list_sorted_primitive(source, 0)
-        XCTAssertEqual(listElements(sorted), [1, 3, 4, 5, 8])
+        #expect(listElements(sorted) == [1, 3, 4, 5, 8])
     }
 
+    @Test
     func testPrimitiveListSortedDescending() {
         let source = makeList([5, 3, 8, 1, 4])
         let sorted = kk_list_sortedDescending_primitive(source, 0)
-        XCTAssertEqual(listElements(sorted), [8, 5, 4, 3, 1])
+        #expect(listElements(sorted) == [8, 5, 4, 3, 1])
     }
 
+    @Test
     func testListSortedDescendingComparableObjectsReturnsNewSortedList() {
         let source = makeList([
             makeRuntimeString("b"),
@@ -332,28 +337,32 @@ final class RuntimeComparatorTests: XCTestCase {
         ])
         let sorted = kk_list_sortedDescending(source)
 
-        XCTAssertEqual(listElements(sorted).map(runtimeStringValue), ["c", "b", "a"])
-        XCTAssertEqual(listElements(source).map(runtimeStringValue), ["b", "a", "c"])
+        #expect(listElements(sorted).map(runtimeStringValue) == ["c", "b", "a"])
+        #expect(listElements(source).map(runtimeStringValue) == ["b", "a", "c"])
     }
 
+    @Test
     func testPrimitiveListSortedByAscending() {
         let source = makeList([22, 12, 21, 11])
         let sorted = kk_list_sortedBy_primitive(source, selectorPtr(selectModTen), 0, 0, nil)
-        XCTAssertEqual(listElements(sorted), [21, 11, 22, 12])
+        #expect(listElements(sorted) == [21, 11, 22, 12])
     }
 
+    @Test
     func testPrimitiveListSortedByDescending() {
         let source = makeList([22, 12, 21, 11])
         let sorted = kk_list_sortedByDescending_primitive(source, selectorPtr(selectModTen), 0, 0, nil)
-        XCTAssertEqual(listElements(sorted), [22, 12, 21, 11])
+        #expect(listElements(sorted) == [22, 12, 21, 11])
     }
 
+    @Test
     func testPrimitiveListSortedStability() {
         let source = makeList([2, 1, 2, 1, 2])
         let sorted = kk_list_sorted_primitive(source, 0)
-        XCTAssertEqual(listElements(sorted), [1, 1, 2, 2, 2])
+        #expect(listElements(sorted) == [1, 1, 2, 2, 2])
     }
 
+    @Test
     func testListSortedComparableObjectsReturnsNewSortedList() {
         let source = makeList([
             makeRuntimeString("b"),
@@ -361,10 +370,11 @@ final class RuntimeComparatorTests: XCTestCase {
             makeRuntimeString("c"),
         ])
         let sorted = kk_list_sorted(source)
-        XCTAssertEqual(listElements(sorted).map(runtimeStringValue), ["a", "b", "c"])
-        XCTAssertEqual(listElements(source).map(runtimeStringValue), ["b", "a", "c"])
+        #expect(listElements(sorted).map(runtimeStringValue) == ["a", "b", "c"])
+        #expect(listElements(source).map(runtimeStringValue) == ["b", "a", "c"])
     }
 
+    @Test
     func testPrimitiveListSortedFloatAndDouble() {
         let floatValues = [
             kk_box_float(Int(truncatingIfNeeded: Float(3.0).bitPattern)),
@@ -380,16 +390,15 @@ final class RuntimeComparatorTests: XCTestCase {
         let floatSorted = kk_list_sorted_primitive(makeList(floatValues), 6)
         let doubleSorted = kk_list_sorted_primitive(makeList(doubleValues), 7)
 
-        XCTAssertEqual(
-            listElements(floatSorted).map { kk_unbox_float($0) },
-            [Float(1.5).bitPattern, Float(2.0).bitPattern, Float(3.0).bitPattern].map { Int(truncatingIfNeeded: $0) }
-        )
-        XCTAssertEqual(
-            listElements(doubleSorted).map { kk_unbox_double($0) },
-            [Double(1.5).bitPattern, Double(2.0).bitPattern, Double(3.0).bitPattern].map { Int(truncatingIfNeeded: $0) }
-        )
+        let expectedFloats = [Float(1.5).bitPattern, Float(2.0).bitPattern, Float(3.0).bitPattern]
+            .map { Int(truncatingIfNeeded: $0) }
+        let expectedDoubles = [Double(1.5).bitPattern, Double(2.0).bitPattern, Double(3.0).bitPattern]
+            .map { Int(truncatingIfNeeded: $0) }
+        #expect(listElements(floatSorted).map { kk_unbox_float($0) } == expectedFloats)
+        #expect(listElements(doubleSorted).map { kk_unbox_double($0) } == expectedDoubles)
     }
 
+    @Test
     func testSortedWithReversedComparator() {
         let source = makeList([5, 3, 8, 1, 4])
         let sorted = kk_list_sortedWith(
@@ -398,23 +407,25 @@ final class RuntimeComparatorTests: XCTestCase {
             0,
             nil
         )
-        XCTAssertEqual(listElements(sorted), [8, 5, 4, 3, 1])
+        #expect(listElements(sorted) == [8, 5, 4, 3, 1])
     }
 
+    @Test
     func testSortedWithComparatorObjectDispatchesThroughVtable() {
         let source = makeList([5, 3, 8, 1, 4])
 
         withComparatorObject(mode: 0) { comparatorRaw in
             let sorted = kk_list_sortedWith(source, comparatorRaw, 0, nil)
-            XCTAssertEqual(listElements(sorted), [1, 3, 4, 5, 8])
+            #expect(listElements(sorted) == [1, 3, 4, 5, 8])
         }
 
         withComparatorObject(mode: 1) { comparatorRaw in
             let sorted = kk_list_sortedWith(source, comparatorRaw, 0, nil)
-            XCTAssertEqual(listElements(sorted), [8, 5, 4, 3, 1])
+            #expect(listElements(sorted) == [8, 5, 4, 3, 1])
         }
     }
 
+    @Test
     func testBinarySearchComparatorWithExplicitRange() {
         let source = makeList([1, 3, 5, 7, 9])
         var thrown = 0
@@ -428,8 +439,8 @@ final class RuntimeComparatorTests: XCTestCase {
             4,
             &thrown
         )
-        XCTAssertEqual(found, 2)
-        XCTAssertEqual(thrown, 0)
+        #expect(found == 2)
+        #expect(thrown == 0)
 
         thrown = 0
         let missing = kk_list_binarySearch_comparator(
@@ -441,10 +452,11 @@ final class RuntimeComparatorTests: XCTestCase {
             4,
             &thrown
         )
-        XCTAssertEqual(missing, -4)
-        XCTAssertEqual(thrown, 0)
+        #expect(missing == -4)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testBinarySearchComparatorObjectDispatchesThroughVtable() {
         let ascending = makeList([1, 3, 5, 7, 9])
         withComparatorObject(mode: 0) { comparatorRaw in
@@ -458,8 +470,8 @@ final class RuntimeComparatorTests: XCTestCase {
                 5,
                 &thrown
             )
-            XCTAssertEqual(found, 3)
-            XCTAssertEqual(thrown, 0)
+            #expect(found == 3)
+            #expect(thrown == 0)
         }
 
         let descending = makeList([9, 7, 5, 3, 1])
@@ -474,11 +486,12 @@ final class RuntimeComparatorTests: XCTestCase {
                 5,
                 &thrown
             )
-            XCTAssertEqual(found, 2)
-            XCTAssertEqual(thrown, 0)
+            #expect(found == 2)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testBinarySearchComparatorRangeValidationThrows() {
         let source = makeList([1, 3, 5, 7, 9])
         var thrown = 0
@@ -491,50 +504,57 @@ final class RuntimeComparatorTests: XCTestCase {
             2,
             &thrown
         )
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testMutableListPrimitiveSortAscending() {
         let source = makeList([5, 3, 8, 1, 4])
-        XCTAssertEqual(kk_mutable_list_sort_primitive(source, 0), 0)
-        XCTAssertEqual(listElements(source), [1, 3, 4, 5, 8])
+        #expect(kk_mutable_list_sort_primitive(source, 0) == 0)
+        #expect(listElements(source) == [1, 3, 4, 5, 8])
     }
 
+    @Test
     func testMutableListSortComparableObjectsMutatesInPlace() {
         let source = makeList([
             makeRuntimeString("b"),
             makeRuntimeString("a"),
             makeRuntimeString("c"),
         ])
-        XCTAssertEqual(kk_mutable_list_sort(source), 0)
-        XCTAssertEqual(listElements(source).map(runtimeStringValue), ["a", "b", "c"])
+        #expect(kk_mutable_list_sort(source) == 0)
+        #expect(listElements(source).map(runtimeStringValue) == ["a", "b", "c"])
     }
 
+    @Test
     func testMutableListPrimitiveSortDescending() {
         let source = makeList([5, 3, 8, 1, 4])
-        XCTAssertEqual(kk_mutable_list_sortDescending_primitive(source, 0), 0)
-        XCTAssertEqual(listElements(source), [8, 5, 4, 3, 1])
+        #expect(kk_mutable_list_sortDescending_primitive(source, 0) == 0)
+        #expect(listElements(source) == [8, 5, 4, 3, 1])
     }
 
+    @Test
     func testMutableListSortWithComparatorMutatesInPlace() {
         let source = makeList([14, 3, 23, 5, 13, 24])
-        XCTAssertEqual(kk_mutable_list_sortWith(source, comparatorPtr(comparatorByModTen), 0, nil), 0)
-        XCTAssertEqual(listElements(source), [3, 23, 13, 14, 24, 5])
+        #expect(kk_mutable_list_sortWith(source, comparatorPtr(comparatorByModTen), 0, nil) == 0)
+        #expect(listElements(source) == [3, 23, 13, 14, 24, 5])
     }
 
+    @Test
     func testMutableListPrimitiveSortByAscending() {
         let source = makeList([22, 12, 21, 11])
-        XCTAssertEqual(kk_mutable_list_sortBy_primitive(source, selectorPtr(selectModTen), 0, 0, nil), 0)
-        XCTAssertEqual(listElements(source), [21, 11, 22, 12])
+        #expect(kk_mutable_list_sortBy_primitive(source, selectorPtr(selectModTen), 0, 0, nil) == 0)
+        #expect(listElements(source) == [21, 11, 22, 12])
     }
 
+    @Test
     func testMutableListPrimitiveSortByDescending() {
         let source = makeList([22, 12, 21, 11])
-        XCTAssertEqual(kk_mutable_list_sortByDescending_primitive(source, selectorPtr(selectModTen), 0, 0, nil), 0)
-        XCTAssertEqual(listElements(source), [22, 12, 21, 11])
+        #expect(kk_mutable_list_sortByDescending_primitive(source, selectorPtr(selectModTen), 0, 0, nil) == 0)
+        #expect(listElements(source) == [22, 12, 21, 11])
     }
 
+    @Test
     func testSortedWithNullsFirstComparator() {
         let source = makeList([5, runtimeNullSentinelInt, 3, runtimeNullSentinelInt, 4, 1])
         let chain = kk_comparator_nulls_first(comparatorPtr(comparatorNatural), 0)
@@ -544,33 +564,36 @@ final class RuntimeComparatorTests: XCTestCase {
             chain,
             nil
         )
-        XCTAssertEqual(listElements(sorted), [runtimeNullSentinelInt, runtimeNullSentinelInt, 1, 3, 4, 5])
+        #expect(listElements(sorted) == [runtimeNullSentinelInt, runtimeNullSentinelInt, 1, 3, 4, 5])
     }
 
     // MARK: - Exception propagation
 
     // MARK: - Edge cases
 
+    @Test
     func testComparatorNullsFirstTrampoline() {
         let chain = kk_comparator_nulls_first(comparatorPtr(comparatorNatural), 0)
-        XCTAssertLessThan(kk_comparator_nulls_first_trampoline(chain, runtimeNullSentinelInt, 5, nil), 0)
-        XCTAssertGreaterThan(kk_comparator_nulls_first_trampoline(chain, 5, runtimeNullSentinelInt, nil), 0)
-        XCTAssertLessThan(kk_comparator_nulls_first_trampoline(chain, 3, 5, nil), 0)
-        XCTAssertEqual(kk_comparator_nulls_first_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0)
+        #expect(kk_comparator_nulls_first_trampoline(chain, runtimeNullSentinelInt, 5, nil) < 0)
+        #expect(kk_comparator_nulls_first_trampoline(chain, 5, runtimeNullSentinelInt, nil) > 0)
+        #expect(kk_comparator_nulls_first_trampoline(chain, 3, 5, nil) < 0)
+        #expect(kk_comparator_nulls_first_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil) == 0)
     }
 
+    @Test
     func testComparatorNullsLastTrampoline() {
         let chain = kk_comparator_nulls_last(comparatorPtr(comparatorNatural), 0)
-        XCTAssertGreaterThan(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, 5, nil), 0)
-        XCTAssertLessThan(kk_comparator_nulls_last_trampoline(chain, 5, runtimeNullSentinelInt, nil), 0)
-        XCTAssertGreaterThan(kk_comparator_nulls_last_trampoline(chain, 5, 3, nil), 0)
-        XCTAssertEqual(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0)
+        #expect(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, 5, nil) > 0)
+        #expect(kk_comparator_nulls_last_trampoline(chain, 5, runtimeNullSentinelInt, nil) < 0)
+        #expect(kk_comparator_nulls_last_trampoline(chain, 5, 3, nil) > 0)
+        #expect(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil) == 0)
     }
 
     // MARK: - naturalOrder / reverseOrder: runtimeNullSentinelInt 挙動 (TEST-COMP-011)
 
     // MARK: - compareBy: 全キー等値で 0 を返すこと (TEST-COMP-011)
 
+    @Test
     func testCompareByAllSelectorsEqualReturnsZero() {
         // All four slots use selectModTen.  13%10 == 23%10 == 3 for every selector,
         // so the loop exhausts without finding a non-zero result and returns 0.
@@ -582,14 +605,15 @@ final class RuntimeComparatorTests: XCTestCase {
         ])
         let closureRaw = kk_comparator_from_multi_selectors_vararg(selectors)
         // inputs differ (13 ≠ 23) but all key projections are identical
-        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil), 0)
-        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 23, 13, nil), 0)
+        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil) == 0)
+        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 23, 13, nil) == 0)
         // sanity: equal inputs still produce 0
-        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 7, 7, nil), 0)
+        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 7, 7, nil) == 0)
     }
 
     // MARK: - 参照型オブジェクトの安定ソート（原順序保持：インデックスベース検証）(TEST-COMP-011)
 
+    @Test
     func testStableSortPreservesOriginalOrderOfEqualReferenceObjects() {
         // Create three distinct RuntimeStringBox objects that all hold "b".
         // Use original positions as the assertion target so the stability check is
@@ -602,9 +626,10 @@ final class RuntimeComparatorTests: XCTestCase {
         let sorted = kk_list_sorted(source)
 
         let originalIndexesByHandle = [b0: 0, b1: 1, b2: 2]
-        XCTAssertEqual(originalIndexes(for: listElements(sorted), indexedByHandle: originalIndexesByHandle), [0, 1, 2])
+        #expect(originalIndexes(for: listElements(sorted), indexedByHandle: originalIndexesByHandle) == [0, 1, 2])
     }
 
+    @Test
     func testStableSortWithMixedElementsPreservesEqualGroupOrder() {
         // Input: [c, b_first, a, b_second, b_third]
         // Natural string order groups: a < b < c.
@@ -627,9 +652,8 @@ final class RuntimeComparatorTests: XCTestCase {
             bSecond: 3,
             bThird: 4,
         ]
-        XCTAssertEqual(
-            originalIndexes(for: listElements(sorted), indexedByHandle: originalIndexesByHandle),
-            [2, 1, 3, 4, 0]
+        #expect(
+            originalIndexes(for: listElements(sorted), indexedByHandle: originalIndexesByHandle) == [2, 1, 3, 4, 0]
         )
     }
 }

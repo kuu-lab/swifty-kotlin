@@ -1,5 +1,6 @@
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // STDLIB-ASSERT-001: Edge case coverage for Kotlin assertion APIs.
 //
@@ -12,9 +13,9 @@ import XCTest
 //  - message toString behavior (null sentinel, Int box, Bool box)
 //  - exception type discrimination
 //
-// NOTE: checkNotNull / requireNotNull runtime entry points (kk_check_not_null /
-// kk_require_not_null) are not yet implemented in Sources/Runtime/RuntimePreconditions.swift.
-// Those APIs are tracked as a known gap — see PR body for STDLIB-ASSERT-001.
+// NOTE: the old kk_check_not_null / kk_require_not_null runtime entry points were
+// removed as dead code (CLEANUP-STUB-101); new checkNotNull / requireNotNull APIs
+// are tracked separately as KSP-606.
 
 // Helpers for constructing runtime string boxes to pass as message arguments.
 private func makeRuntimeString(_ value: String) -> Int {
@@ -80,360 +81,352 @@ private let lazyStringThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) ->
     }
 }
 
-final class RuntimeAssertionEdgeCaseTests: XCTestCase {
+private func resetRuntimeAssertionEdgeCaseTestState() {
+    lazyNotInvoked_Counter = 0
+    _ = kk_assertions_reset()
+}
 
-    override func setUp() {
-        super.setUp()
-        lazyNotInvoked_Counter = 0
-        _ = kk_assertions_reset()
-    }
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeAssertionEdgeCaseTestState))
+struct RuntimeAssertionEdgeCaseTests {
 
     // MARK: - Exception type discrimination
 
     // assert(false) must throw AssertionError, NOT IllegalStateException
-    func testAssertFalseThrowsAssertionErrorNotIllegalState() {
+    @Test func testAssertFalseThrowsAssertionErrorNotIllegalState() throws {
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
-        guard let box = throwableBox(from: thrown) else {
-            XCTFail("Expected RuntimeThrowableBox"); return
-        }
-        XCTAssertEqual(box.exceptionFQName, "kotlin.AssertionError",
-                       "assert(false) must throw AssertionError")
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
+        #expect(thrown != 0)
+        let box = try #require(throwableBox(from: thrown), "Expected RuntimeThrowableBox")
+        #expect(box.exceptionFQName == "kotlin.AssertionError",
+                "assert(false) must throw AssertionError")
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
             "assert must NOT throw IllegalStateException"
         )
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
             "assert must NOT throw IllegalArgumentException"
         )
     }
 
     // require(false) must throw IllegalArgumentException, NOT AssertionError
-    func testRequireFalseThrowsIllegalArgumentNotAssertionError() {
+    @Test func testRequireFalseThrowsIllegalArgumentNotAssertionError() throws {
         var thrown = 0
         _ = kk_require(0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
-        guard let box = throwableBox(from: thrown) else {
-            XCTFail("Expected RuntimeThrowableBox"); return
-        }
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException",
-                       "require(false) must throw IllegalArgumentException")
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
+        #expect(thrown != 0)
+        let box = try #require(throwableBox(from: thrown), "Expected RuntimeThrowableBox")
+        #expect(box.exceptionFQName == "kotlin.IllegalArgumentException",
+                "require(false) must throw IllegalArgumentException")
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
             "require must NOT throw AssertionError"
         )
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
             "require must NOT throw IllegalStateException"
         )
     }
 
     // check(false) must throw IllegalStateException, NOT AssertionError
-    func testCheckFalseThrowsIllegalStateNotAssertionError() {
+    @Test func testCheckFalseThrowsIllegalStateNotAssertionError() throws {
         var thrown = 0
         _ = kk_check(0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
-        guard let box = throwableBox(from: thrown) else {
-            XCTFail("Expected RuntimeThrowableBox"); return
-        }
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException",
-                       "check(false) must throw IllegalStateException")
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
+        #expect(thrown != 0)
+        let box = try #require(throwableBox(from: thrown), "Expected RuntimeThrowableBox")
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException",
+                "check(false) must throw IllegalStateException")
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
             "check must NOT throw AssertionError"
         )
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
             "check must NOT throw IllegalArgumentException"
         )
     }
 
     // error() must throw IllegalStateException, NOT AssertionError or IllegalArgumentException
-    func testErrorAlwaysThrowsIllegalStateException() {
+    @Test func testErrorAlwaysThrowsIllegalStateException() throws {
         var thrown = 0
         let msgRaw = makeRuntimeString("boom")
         _ = kk_error(msgRaw, &thrown)
-        XCTAssertNotEqual(thrown, 0)
-        guard let box = throwableBox(from: thrown) else {
-            XCTFail("Expected RuntimeThrowableBox"); return
-        }
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException",
-                       "error() must always throw IllegalStateException")
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
+        #expect(thrown != 0)
+        let box = try #require(throwableBox(from: thrown), "Expected RuntimeThrowableBox")
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException",
+                "error() must always throw IllegalStateException")
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
             "error() must NOT throw AssertionError"
         )
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
             "error() must NOT throw IllegalArgumentException"
         )
     }
 
     // MARK: - error() message propagation
 
-    func testErrorMessageIsPreserved() throws {
+    @Test func testErrorMessageIsPreserved() throws {
         var thrown = 0
         let msgRaw = makeRuntimeString("fatal problem")
         _ = kk_error(msgRaw, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "fatal problem")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "fatal problem")
     }
 
-    func testErrorWithNullSentinelMessageYieldsNullString() throws {
+    @Test func testErrorWithNullSentinelMessageYieldsNullString() throws {
         var thrown = 0
         _ = kk_error(runtimeNullSentinelInt, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "null",
-                       "error() with null sentinel message should produce \"null\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "null",
+                "error() with null sentinel message should produce \"null\"")
     }
 
     // MARK: - assert(true) does not throw
 
-    func testAssertTrueNeverThrows() {
+    @Test func testAssertTrueNeverThrows() {
         var thrown = 0
         _ = kk_precondition_assert(1, &thrown)
-        XCTAssertEqual(thrown, 0, "assert(true) must not throw")
+        #expect(thrown == 0, "assert(true) must not throw")
     }
 
     // MARK: - require(true) / check(true) do not throw
 
-    func testRequireTrueNeverThrows() {
+    @Test func testRequireTrueNeverThrows() {
         var thrown = 0
         _ = kk_require(1, &thrown)
-        XCTAssertEqual(thrown, 0, "require(true) must not throw")
+        #expect(thrown == 0, "require(true) must not throw")
     }
 
-    func testCheckTrueNeverThrows() {
+    @Test func testCheckTrueNeverThrows() {
         var thrown = 0
         _ = kk_check(1, &thrown)
-        XCTAssertEqual(thrown, 0, "check(true) must not throw")
+        #expect(thrown == 0, "check(true) must not throw")
     }
 
     // MARK: - Lazy message NOT evaluated when condition is true
 
-    func testRequireLazyMessageNotEvaluatedWhenTrue() {
+    @Test func testRequireLazyMessageNotEvaluatedWhenTrue() {
         var thrown = 0
         _ = kk_require_lazy(1, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        XCTAssertEqual(thrown, 0, "require(true) { ... } must not throw")
-        XCTAssertEqual(lazyNotInvoked_Counter, 0,
-                       "Lazy message lambda must NOT be evaluated when condition is true")
+        #expect(thrown == 0, "require(true) { ... } must not throw")
+        #expect(lazyNotInvoked_Counter == 0,
+                "Lazy message lambda must NOT be evaluated when condition is true")
     }
 
-    func testCheckLazyMessageNotEvaluatedWhenTrue() {
+    @Test func testCheckLazyMessageNotEvaluatedWhenTrue() {
         var thrown = 0
         _ = kk_check_lazy(1, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        XCTAssertEqual(thrown, 0, "check(true) { ... } must not throw")
-        XCTAssertEqual(lazyNotInvoked_Counter, 0,
-                       "Lazy message lambda must NOT be evaluated when condition is true")
+        #expect(thrown == 0, "check(true) { ... } must not throw")
+        #expect(lazyNotInvoked_Counter == 0,
+                "Lazy message lambda must NOT be evaluated when condition is true")
     }
 
-    func testAssertLazyMessageNotEvaluatedWhenTrue() {
+    @Test func testAssertLazyMessageNotEvaluatedWhenTrue() {
         var thrown = 0
         _ = kk_precondition_assert_lazy(1, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        XCTAssertEqual(thrown, 0, "assert(true) { ... } must not throw")
-        XCTAssertEqual(lazyNotInvoked_Counter, 0,
-                       "Lazy message lambda must NOT be evaluated when condition is true")
+        #expect(thrown == 0, "assert(true) { ... } must not throw")
+        #expect(lazyNotInvoked_Counter == 0,
+                "Lazy message lambda must NOT be evaluated when condition is true")
     }
 
     // MARK: - Lazy message evaluated exactly once when condition is false
 
-    func testRequireLazyMessageEvaluatedOnceWhenFalse() {
+    @Test func testRequireLazyMessageEvaluatedOnceWhenFalse() {
         var thrown = 0
         _ = kk_require_lazy(0, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "require(false) { ... } must throw")
-        XCTAssertEqual(lazyNotInvoked_Counter, 1,
-                       "Lazy message lambda must be evaluated exactly once when condition is false")
+        #expect(thrown != 0, "require(false) { ... } must throw")
+        #expect(lazyNotInvoked_Counter == 1,
+                "Lazy message lambda must be evaluated exactly once when condition is false")
     }
 
-    func testCheckLazyMessageEvaluatedOnceWhenFalse() {
+    @Test func testCheckLazyMessageEvaluatedOnceWhenFalse() {
         var thrown = 0
         _ = kk_check_lazy(0, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "check(false) { ... } must throw")
-        XCTAssertEqual(lazyNotInvoked_Counter, 1,
-                       "Lazy message lambda must be evaluated exactly once when condition is false")
+        #expect(thrown != 0, "check(false) { ... } must throw")
+        #expect(lazyNotInvoked_Counter == 1,
+                "Lazy message lambda must be evaluated exactly once when condition is false")
     }
 
     // MARK: - Lazy message toString behavior (null sentinel -> "null")
 
-    func testRequireLazyNullSentinelMessageYieldsNull() throws {
+    @Test func testRequireLazyNullSentinelMessageYieldsNull() throws {
         var thrown = 0
         _ = kk_require_lazy(0, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "null",
-                       "null sentinel from lazy lambda should produce message \"null\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "null",
+                "null sentinel from lazy lambda should produce message \"null\"")
     }
 
-    func testCheckLazyNullSentinelMessageYieldsNull() throws {
+    @Test func testCheckLazyNullSentinelMessageYieldsNull() throws {
         var thrown = 0
         _ = kk_check_lazy(0, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "null",
-                       "null sentinel from lazy lambda should produce message \"null\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "null",
+                "null sentinel from lazy lambda should produce message \"null\"")
     }
 
     // MARK: - Lazy message with string value is included in exception
 
-    func testRequireLazyStringMessageIncludedInException() throws {
+    @Test func testRequireLazyStringMessageIncludedInException() throws {
         var thrown = 0
         _ = kk_require_lazy(0, fnPtrInt(lazyStringThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "lazy-msg",
-                       "Lazy string message must be included in IllegalArgumentException")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "lazy-msg",
+                "Lazy string message must be included in IllegalArgumentException")
     }
 
-    func testCheckLazyStringMessageIncludedInException() throws {
+    @Test func testCheckLazyStringMessageIncludedInException() throws {
         var thrown = 0
         _ = kk_check_lazy(0, fnPtrInt(lazyStringThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "lazy-msg",
-                       "Lazy string message must be included in IllegalStateException")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "lazy-msg",
+                "Lazy string message must be included in IllegalStateException")
     }
 
-    func testAssertLazyStringMessageIncludedInException() throws {
+    @Test func testAssertLazyStringMessageIncludedInException() throws {
         var thrown = 0
         _ = kk_precondition_assert_lazy(0, fnPtrInt(lazyStringThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "lazy-msg",
-                       "Lazy string message must be included in AssertionError")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "lazy-msg",
+                "Lazy string message must be included in AssertionError")
     }
 
     // MARK: - message toString with Int box (Kotlin Any?.toString())
 
-    func testErrorWithIntBoxMessageConvertsToString() throws {
+    @Test func testErrorWithIntBoxMessageConvertsToString() throws {
         var thrown = 0
         let intBoxRaw = makeRuntimeIntBox(42)
         _ = kk_error(intBoxRaw, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "42",
-                       "error() with Int box should convert to decimal string")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "42",
+                "error() with Int box should convert to decimal string")
     }
 
-    func testErrorWithBoolBoxTrueConvertsToString() throws {
+    @Test func testErrorWithBoolBoxTrueConvertsToString() throws {
         var thrown = 0
         let boolBoxRaw = makeRuntimeBoolBox(true)
         _ = kk_error(boolBoxRaw, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "true",
-                       "error() with Bool(true) box should convert to \"true\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "true",
+                "error() with Bool(true) box should convert to \"true\"")
     }
 
-    func testErrorWithBoolBoxFalseConvertsToString() throws {
+    @Test func testErrorWithBoolBoxFalseConvertsToString() throws {
         var thrown = 0
         let boolBoxRaw = makeRuntimeBoolBox(false)
         _ = kk_error(boolBoxRaw, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "false",
-                       "error() with Bool(false) box should convert to \"false\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "false",
+                "error() with Bool(false) box should convert to \"false\"")
     }
 
     // MARK: - Default messages for no-arg variants
 
-    func testRequireDefaultMessage() throws {
+    @Test func testRequireDefaultMessage() throws {
         var thrown = 0
         _ = kk_require(0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "Failed requirement.",
-                       "require(false) default message must be \"Failed requirement.\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "Failed requirement.",
+                "require(false) default message must be \"Failed requirement.\"")
     }
 
-    func testCheckDefaultMessage() throws {
+    @Test func testCheckDefaultMessage() throws {
         var thrown = 0
         _ = kk_check(0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "Check failed.",
-                       "check(false) default message must be \"Check failed.\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "Check failed.",
+                "check(false) default message must be \"Check failed.\"")
     }
 
-    func testAssertDefaultMessage() throws {
+    @Test func testAssertDefaultMessage() throws {
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "Assertion failed",
-                       "assert(false) default message must be \"Assertion failed\" (no trailing period, matching kotlin-stdlib's AssertionError(\"Assertion failed\"))")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "Assertion failed",
+                "assert(false) default message must be \"Assertion failed\" (no trailing period, matching kotlin-stdlib's AssertionError(\"Assertion failed\"))")
     }
 
     // MARK: - Exception hierarchy for exception types
 
-    func testAssertionErrorHierarchyContainsErrorAndThrowable() {
+    @Test func testAssertionErrorHierarchyContainsErrorAndThrowable() {
         let box = RuntimeAssertionErrorBox(message: "test")
         let hierarchy = box.exceptionHierarchyFQNames
         // AssertionError extends Error (not Exception)
-        XCTAssertTrue(hierarchy.contains("kotlin.Error"),
-                      "AssertionError hierarchy must contain kotlin.Error")
-        XCTAssertFalse(hierarchy.contains("kotlin.Exception"),
-                       "AssertionError hierarchy must NOT contain kotlin.Exception")
-        XCTAssertTrue(hierarchy.contains("kotlin.Throwable"),
-                      "AssertionError hierarchy must contain kotlin.Throwable")
+        #expect(hierarchy.contains("kotlin.Error"),
+                "AssertionError hierarchy must contain kotlin.Error")
+        #expect(!hierarchy.contains("kotlin.Exception"),
+                "AssertionError hierarchy must NOT contain kotlin.Exception")
+        #expect(hierarchy.contains("kotlin.Throwable"),
+                "AssertionError hierarchy must contain kotlin.Throwable")
     }
 
-    func testIllegalStateExceptionHierarchyContainsRuntimeExceptionAndException() {
+    @Test func testIllegalStateExceptionHierarchyContainsRuntimeExceptionAndException() {
         let box = RuntimeIllegalStateExceptionBox(message: "test")
         let hierarchy = box.exceptionHierarchyFQNames
-        XCTAssertTrue(hierarchy.contains("kotlin.RuntimeException"),
-                      "IllegalStateException hierarchy must contain kotlin.RuntimeException")
-        XCTAssertTrue(hierarchy.contains("kotlin.Exception"),
-                      "IllegalStateException hierarchy must contain kotlin.Exception")
-        XCTAssertFalse(hierarchy.contains("kotlin.Error"),
-                       "IllegalStateException hierarchy must NOT contain kotlin.Error")
+        #expect(hierarchy.contains("kotlin.RuntimeException"),
+                "IllegalStateException hierarchy must contain kotlin.RuntimeException")
+        #expect(hierarchy.contains("kotlin.Exception"),
+                "IllegalStateException hierarchy must contain kotlin.Exception")
+        #expect(!hierarchy.contains("kotlin.Error"),
+                "IllegalStateException hierarchy must NOT contain kotlin.Error")
     }
 
-    func testIllegalArgumentExceptionHierarchyContainsRuntimeExceptionAndException() {
+    @Test func testIllegalArgumentExceptionHierarchyContainsRuntimeExceptionAndException() {
         let box = RuntimeIllegalArgumentExceptionBox(message: "test")
         let hierarchy = box.exceptionHierarchyFQNames
-        XCTAssertTrue(hierarchy.contains("kotlin.RuntimeException"),
-                      "IllegalArgumentException hierarchy must contain kotlin.RuntimeException")
-        XCTAssertTrue(hierarchy.contains("kotlin.Exception"),
-                      "IllegalArgumentException hierarchy must contain kotlin.Exception")
-        XCTAssertFalse(hierarchy.contains("kotlin.Error"),
-                       "IllegalArgumentException hierarchy must NOT contain kotlin.Error")
+        #expect(hierarchy.contains("kotlin.RuntimeException"),
+                "IllegalArgumentException hierarchy must contain kotlin.RuntimeException")
+        #expect(hierarchy.contains("kotlin.Exception"),
+                "IllegalArgumentException hierarchy must contain kotlin.Exception")
+        #expect(!hierarchy.contains("kotlin.Error"),
+                "IllegalArgumentException hierarchy must NOT contain kotlin.Error")
     }
 
     // MARK: - Disabled assertions skip assert (already tested in RuntimeAssertTests, but confirm edge)
 
-    func testAssertLazyNotEvaluatedWhenAssertionsDisabled() {
+    @Test func testAssertLazyNotEvaluatedWhenAssertionsDisabled() {
         _ = kk_assertions_set_enabled(0)
         var thrown = 0
         _ = kk_precondition_assert_lazy(0, fnPtrInt(lazyCountingThunk), 0, &thrown)
-        XCTAssertEqual(thrown, 0, "Disabled assert(false) { ... } must not throw")
-        XCTAssertEqual(lazyNotInvoked_Counter, 0,
-                       "Lazy message must NOT be evaluated when assertions are disabled")
+        #expect(thrown == 0, "Disabled assert(false) { ... } must not throw")
+        #expect(lazyNotInvoked_Counter == 0,
+                "Lazy message must NOT be evaluated when assertions are disabled")
     }
 
     // MARK: - error() outThrown is always set (condition-independent)
 
-    func testErrorAlwaysSetsOutThrown() {
+    @Test func testErrorAlwaysSetsOutThrown() {
         // error() is unconditional — condition is irrelevant; it always throws.
         var thrown = 0
         _ = kk_error(runtimeNullSentinelInt, &thrown)
-        XCTAssertNotEqual(thrown, 0,
-                          "error() must always populate outThrown regardless of any other state")
+        #expect(thrown != 0,
+                "error() must always populate outThrown regardless of any other state")
     }
 
     // MARK: - Multiple sequential calls each produce independent exception objects
 
-    func testSequentialRequireCallsProduceIndependentObjects() {
+    @Test func testSequentialRequireCallsProduceIndependentObjects() {
         var thrown1 = 0
         var thrown2 = 0
         _ = kk_require(0, &thrown1)
         _ = kk_require(0, &thrown2)
-        XCTAssertNotEqual(thrown1, 0)
-        XCTAssertNotEqual(thrown2, 0)
-        XCTAssertNotEqual(thrown1, thrown2,
-                          "Each require(false) call must produce a distinct exception object")
+        #expect(thrown1 != 0)
+        #expect(thrown2 != 0)
+        #expect(thrown1 != thrown2,
+                "Each require(false) call must produce a distinct exception object")
     }
 
-    func testSequentialErrorCallsProduceIndependentObjects() {
+    @Test func testSequentialErrorCallsProduceIndependentObjects() {
         var thrown1 = 0
         var thrown2 = 0
         _ = kk_error(makeRuntimeString("err1"), &thrown1)
         _ = kk_error(makeRuntimeString("err2"), &thrown2)
-        XCTAssertNotEqual(thrown1, thrown2,
-                          "Each error() call must produce a distinct exception object")
+        #expect(thrown1 != thrown2,
+                "Each error() call must produce a distinct exception object")
         if let box1 = throwableBox(from: thrown1), let box2 = throwableBox(from: thrown2) {
-            XCTAssertEqual(box1.message, "err1")
-            XCTAssertEqual(box2.message, "err2")
+            #expect(box1.message == "err1")
+            #expect(box2.message == "err2")
         }
     }
 }

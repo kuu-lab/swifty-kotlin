@@ -1,9 +1,11 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class BuildKIRCodegenRegressionTests: XCTestCase {
+@Suite(.serialized)
+struct BuildKIRCodegenRegressionTests {
+    @Test
     func testBuildKIRLowersListFirstAndOrNullTerminalsToCollectionRuntimeCalls() throws {
         let source = """
         fun main(values: List<Int>) {
@@ -17,33 +19,35 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("first"))
-            XCTAssertTrue(callNames.contains("firstOrNull"))
-            XCTAssertTrue(callNames.contains("lastOrNull"))
-            XCTAssertFalse(callNames.contains("kk_list_first"))
-            XCTAssertFalse(callNames.contains("kk_list_firstOrNull"))
-            XCTAssertFalse(callNames.contains("kk_list_lastOrNull"))
+            #expect(callNames.contains("first"))
+            #expect(callNames.contains("firstOrNull"))
+            #expect(callNames.contains("lastOrNull"))
+            #expect(!(callNames.contains("kk_list_first")))
+            #expect(!(callNames.contains("kk_list_firstOrNull")))
+            #expect(!(callNames.contains("kk_list_lastOrNull")))
         }
     }
 
+    @Test
     func testABILoweringMarksSetCollectionHelpersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_list_intersect")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_list_union")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_list_subtract")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_set_toList")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_set_intersect")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_set_union")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_set_subtract")))
+        #expect(callees.contains(interner.intern("kk_list_intersect")))
+        #expect(callees.contains(interner.intern("kk_list_union")))
+        #expect(callees.contains(interner.intern("kk_list_subtract")))
+        #expect(callees.contains(interner.intern("kk_set_toList")))
+        #expect(callees.contains(interner.intern("kk_set_intersect")))
+        #expect(callees.contains(interner.intern("kk_set_union")))
+        #expect(callees.contains(interner.intern("kk_set_subtract")))
     }
 
+    @Test
     func testBuildKIRLowersListUnionToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: List<Int>, other: List<Int>) {
@@ -55,15 +59,16 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_union"))
-            XCTAssertFalse(callNames.contains("union"))
+            #expect(callNames.contains("kk_list_union"))
+            #expect(!(callNames.contains("union")))
         }
     }
 
+    @Test
     func testBuildKIRLowersSetBinaryMembersToCollectionRuntimeCalls() throws {
         let source = """
         fun main(values: Set<Int>, other: List<Int>) {
@@ -77,19 +82,20 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_set_intersect"))
-            XCTAssertTrue(callNames.contains("kk_set_union"))
-            XCTAssertTrue(callNames.contains("kk_set_subtract"))
-            XCTAssertFalse(callNames.contains("intersect"))
-            XCTAssertFalse(callNames.contains("union"))
-            XCTAssertFalse(callNames.contains("subtract"))
+            #expect(callNames.contains("kk_set_intersect"))
+            #expect(callNames.contains("kk_set_union"))
+            #expect(callNames.contains("kk_set_subtract"))
+            #expect(!(callNames.contains("intersect")))
+            #expect(!(callNames.contains("union")))
+            #expect(!(callNames.contains("subtract")))
         }
     }
 
+    @Test
     func testBuildKIRLowersListUnzipToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: List<Pair<Int, String>>) {
@@ -101,15 +107,16 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_unzip"))
-            XCTAssertFalse(callNames.contains("unzip"))
+            #expect(callNames.contains("kk_list_unzip"))
+            #expect(!(callNames.contains("unzip")))
         }
     }
 
+    @Test
     func testBuildKIRKeepsListZipWithNextOverloadsSourceBacked() throws {
         let source = """
         fun main(values: List<Int>) {
@@ -122,17 +129,18 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("__kk_list_zipWithNext"))
-            XCTAssertTrue(callNames.contains("__kk_list_zipWithNextTransform"))
-            XCTAssertFalse(callNames.contains("kk_list_zipWithNext"))
-            XCTAssertFalse(callNames.contains("kk_list_zipWithNextTransform"))
+            #expect(callNames.contains("__kk_list_zipWithNext"))
+            #expect(callNames.contains("__kk_list_zipWithNextTransform"))
+            #expect(!(callNames.contains("kk_list_zipWithNext")))
+            #expect(!(callNames.contains("kk_list_zipWithNextTransform")))
         }
     }
 
+    @Test
     func testBuildKIRLowersListWithIndexToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: List<Int>) {
@@ -144,15 +152,16 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_withIndex"))
-            XCTAssertFalse(callNames.contains("withIndex"))
+            #expect(callNames.contains("kk_list_withIndex"))
+            #expect(!(callNames.contains("withIndex")))
         }
     }
 
+    @Test
     func testBuildKIRLowersListZipToPrivateBridge() throws {
         let source = """
         fun main(left: List<Int>, right: List<String>) {
@@ -164,16 +173,17 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("__kk_list_zip"))
-            XCTAssertFalse(callNames.contains("zip"))
-            XCTAssertFalse(callNames.contains("kk_list_zip"))
+            #expect(callNames.contains("__kk_list_zip"))
+            #expect(!(callNames.contains("zip")))
+            #expect(!(callNames.contains("kk_list_zip")))
         }
     }
 
+    @Test
     func testBuildKIRLowersStringZipOverloadsToRuntimeCalls() throws {
         let source = """
         fun main(left: String, right: CharSequence) {
@@ -186,16 +196,17 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_string_zip_flat"))
-            XCTAssertTrue(callNames.contains("kk_string_zipTransform_flat"))
-            XCTAssertFalse(callNames.contains("zip"))
+            #expect(callNames.contains("kk_string_zip_flat"))
+            #expect(callNames.contains("kk_string_zipTransform_flat"))
+            #expect(!(callNames.contains("zip")))
         }
     }
 
+    @Test
     func testBuildKIRLowersCharSequenceCollectionSequenceMembersToFlatRuntimeCalls() throws {
         let source = """
         fun main(value: CharSequence, other: CharSequence) {
@@ -217,7 +228,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
@@ -235,7 +246,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 "kk_string_windowedSequence_transform_flat",
             ]
             for flatName in flatNames {
-                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
+                #expect(callNames.contains(flatName), "Missing \(flatName)")
             }
 
             let rawNames = [
@@ -252,28 +263,27 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 "kk_string_windowedSequence_transform",
             ]
             for rawName in rawNames {
-                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw CharSequence String call \(rawName)")
+                #expect(!(callNames.contains(rawName)), "Unexpected raw CharSequence String call \(rawName)")
             }
         }
     }
 
+    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
+    // KSP-410: sumBy/sumByDouble/partition/reduceOrNull/reduceRightIndexed/
+    // reduceRightIndexedOrNull/reduceRightOrNull are bundled Kotlin source
+    // (StringHOF.kt). Neither lowers to a `kk_string_*_flat` call site anymore;
+    // dropped from this table. See StringSyntheticMemberLinkTests for their
+    // "carries no C external link" coverage. mapIndexed stays here
+    // (BUG-176: Swift-backed).
+    @Test
     func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
         let source = """
         fun main(value: String) {
             value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
             value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
             value.toCollection(mutableListOf<Char>())
-            value.reduceOrNull { acc, _ -> acc }
-            value.reduceRightIndexed { _, ch, _ -> ch }
-            value.reduceRightIndexedOrNull { _, ch, _ -> ch }
-            value.reduceRightOrNull { ch, _ -> ch }
-            value.sumBy { 1 }
-            value.sumByDouble { 1.0 }
-            value.indexOfFirst { it == 'a' }
-            value.indexOfLast { it == 'b' }
             value.mapIndexed { index, _ -> index }
             value.mapNotNull { ch -> if (ch == 'a') 1 else null }
-            value.partition { ch -> ch == 'b' }
         }
         """
 
@@ -281,7 +291,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
@@ -289,29 +299,21 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 "kk_string_firstNotNullOf_flat",
                 "kk_string_firstNotNullOfOrNull_flat",
                 "kk_string_toCollection_flat",
-                "kk_string_reduceOrNull_flat",
-                "kk_string_reduceRightIndexed_flat",
-                "kk_string_reduceRightIndexedOrNull_flat",
-                "kk_string_reduceRightOrNull_flat",
-                "kk_string_sumBy_flat",
-                "kk_string_sumByDouble_flat",
-                "kk_string_indexOfFirst_flat",
-                "kk_string_indexOfLast_flat",
                 "kk_string_mapIndexed_flat",
                 "kk_string_mapNotNull_flat",
-                "kk_string_partition_flat",
             ]
             for flatName in flatNames {
-                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
+                #expect(callNames.contains(flatName), "Missing \(flatName)")
             }
 
             let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
             for rawName in rawNames {
-                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw String HOF call \(rawName)")
+                #expect(!(callNames.contains(rawName)), "Unexpected raw String HOF call \(rawName)")
             }
         }
     }
 
+    @Test
     func testBuildKIRLowersStringByteInputStreamToFlatRuntimeCalls() throws {
         let source = """
         import kotlin.text.Charsets
@@ -326,7 +328,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
@@ -335,15 +337,16 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 "kk_string_byteInputStream_charset_flat",
             ]
             for flatName in flatNames {
-                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
+                #expect(callNames.contains(flatName), "Missing \(flatName)")
             }
             let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
             for rawName in rawNames {
-                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw String stream call \(rawName)")
+                #expect(!(callNames.contains(rawName)), "Unexpected raw String stream call \(rawName)")
             }
         }
     }
 
+    @Test
     func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
@@ -353,10 +356,11 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             "kk_string_byteInputStream_flat",
             "kk_string_byteInputStream_charset_flat",
         ] {
-            XCTAssertTrue(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
+            #expect(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
         }
     }
 
+    @Test
     func testBuildKIRLowersStringEqualsToFlatRuntimeCall() throws {
         let source = """
         fun main(lhs: String, rhs: String?) {
@@ -368,24 +372,26 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_string_equals_flat"))
-            XCTAssertFalse(callNames.contains("kk_string_equals"))
+            #expect(callNames.contains("kk_string_equals_flat"))
+            #expect(!(callNames.contains("kk_string_equals")))
         }
     }
 
+    @Test
     func testABILoweringMarksStringEqualsFlatHelperAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_string_equals_flat")))
-        XCTAssertFalse(callees.contains(interner.intern("kk_string_equals")))
+        #expect(callees.contains(interner.intern("kk_string_equals_flat")))
+        #expect(!(callees.contains(interner.intern("kk_string_equals"))))
     }
 
+    @Test
     func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: Map<Int, Int>) {
@@ -397,15 +403,16 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_map_withDefault"))
-            XCTAssertFalse(callNames.contains("withDefault"))
+            #expect(callNames.contains("kk_map_withDefault"))
+            #expect(!(callNames.contains("withDefault")))
         }
     }
 
+    @Test
     func testBuildKIRLowersListWindowedToPrivateBridge() throws {
         let source = """
         fun main(values: List<Int>) {
@@ -419,50 +426,53 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("__kk_list_windowed"))
-            XCTAssertFalse(callNames.contains("windowed"))
-            XCTAssertFalse(callNames.contains("kk_list_windowed_default"))
-            XCTAssertFalse(callNames.contains("kk_list_windowed"))
-            XCTAssertFalse(callNames.contains("kk_list_windowed_partial"))
+            #expect(callNames.contains("__kk_list_windowed"))
+            #expect(!(callNames.contains("windowed")))
+            #expect(!(callNames.contains("kk_list_windowed_default")))
+            #expect(!(callNames.contains("kk_list_windowed")))
+            #expect(!(callNames.contains("kk_list_windowed_partial")))
         }
     }
 
+    @Test
     func testABILoweringMarksAtomicRuntimeHelpersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_load")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_store")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_ref_exchange")))
+        #expect(callees.contains(interner.intern("kk_atomic_int_load")))
+        #expect(callees.contains(interner.intern("kk_atomic_int_store")))
+        #expect(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
+        #expect(callees.contains(interner.intern("kk_atomic_ref_exchange")))
     }
 
+    @Test
     func testABILoweringMarksNativeRefRuntimeHelpersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_weak_ref_create")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_weak_ref_get")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_weak_ref_clear")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_cleaner_create")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_cleaner_dispose")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_gc_collect")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_gc_schedule")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_gc_target_heap_bytes")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_gc_target_heap_utilization")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_gc_max_heap_bytes")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_is_thread_state_runnable")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_gc_suspend_count")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_thread_count")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_global_object_count")))
+        #expect(callees.contains(interner.intern("kk_weak_ref_create")))
+        #expect(callees.contains(interner.intern("kk_weak_ref_get")))
+        #expect(callees.contains(interner.intern("kk_weak_ref_clear")))
+        #expect(callees.contains(interner.intern("kk_cleaner_create")))
+        #expect(callees.contains(interner.intern("kk_cleaner_dispose")))
+        #expect(callees.contains(interner.intern("kk_gc_collect")))
+        #expect(callees.contains(interner.intern("kk_gc_schedule")))
+        #expect(callees.contains(interner.intern("kk_gc_target_heap_bytes")))
+        #expect(callees.contains(interner.intern("kk_gc_target_heap_utilization")))
+        #expect(callees.contains(interner.intern("kk_gc_max_heap_bytes")))
+        #expect(callees.contains(interner.intern("kk_debugging_is_thread_state_runnable")))
+        #expect(callees.contains(interner.intern("kk_debugging_gc_suspend_count")))
+        #expect(callees.contains(interner.intern("kk_debugging_thread_count")))
+        #expect(callees.contains(interner.intern("kk_debugging_global_object_count")))
     }
 
+    @Test
     func testThisBasedMemberCallCompilesAndUsesImplicitReceiverInLowering() throws {
         let source = """
         class Vec
@@ -474,31 +484,32 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected this-based member call program to compile without errors.")
+            #expect(!(ctx.diagnostics.hasError), "Expected this-based member call program to compile without errors.")
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let combineFunction = try findKIRFunction(named: "combine", in: module, interner: ctx.interner)
-            let plusCall = try XCTUnwrap(combineFunction.body.first { instruction in
+            let plusCall = try #require(combineFunction.body.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return ctx.interner.resolve(callee) == "plus"
             })
             guard case let .call(_, _, arguments, _, _, _, _, _) = plusCall else {
-                XCTFail("Expected combine to lower to a call to plus.")
+                Issue.record("Expected combine to lower to a call to plus.")
                 return
             }
 
-            let implicitReceiverSymbol = try XCTUnwrap(combineFunction.params.first?.symbol)
-            XCTAssertEqual(arguments.count, 2)
+            let implicitReceiverSymbol = try #require(combineFunction.params.first?.symbol)
+            #expect(arguments.count == 2)
             guard case let .symbolRef(insertedReceiver)? = module.arena.expr(arguments[0]) else {
-                XCTFail("Expected first argument to be a symbolRef for implicit this receiver.")
+                Issue.record("Expected first argument to be a symbolRef for implicit this receiver.")
                 return
             }
-            XCTAssertEqual(insertedReceiver, implicitReceiverSymbol)
+            #expect(insertedReceiver == implicitReceiverSymbol)
         }
     }
 
+    @Test
     func testABILoweringInsertsBoxingCallsForPrimitiveToAnyBoundary() throws {
         let source = """
         fun acceptAny(x: Any?) = x
@@ -513,14 +524,15 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_box_int"))
-            XCTAssertTrue(callNames.contains("kk_box_bool"))
+            #expect(callNames.contains("kk_box_int"))
+            #expect(callNames.contains("kk_box_bool"))
         }
     }
 
+    @Test
     func testABILoweringBoxingCallsAreNonThrowing() throws {
         let source = """
         fun acceptAny(x: Any?) = x
@@ -534,7 +546,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let boxingThrowFlags = body.compactMap { instruction -> Bool? in
@@ -549,11 +561,12 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 }
                 return canThrow
             }
-            XCTAssertFalse(boxingThrowFlags.isEmpty)
-            XCTAssertTrue(boxingThrowFlags.allSatisfy { $0 == false })
+            #expect(!(boxingThrowFlags.isEmpty))
+            #expect(boxingThrowFlags.allSatisfy { $0 == false })
         }
     }
 
+    @Test
     func testStringStdlibThrowFlagsAreClassifiedByABI() throws {
         let source = """
         fun main() {
@@ -574,26 +587,31 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             func flags(_ primary: String, _ aliases: String...) -> [Bool]? {
                 ([primary] + aliases).compactMap { throwFlags[$0] }.first
             }
-            XCTAssertNil(throwFlags["kk_string_split_flat"])
-            XCTAssertNil(throwFlags["kk_string_split"])
-            XCTAssertNotNil(throwFlags["split"])
-            XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertNil(throwFlags["kk_string_subSequence"])
-            XCTAssertNil(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat"))
-            XCTAssertNil(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat"))
-            XCTAssertNil(throwFlags["kk_string_repeat_flat"])
-            XCTAssertNil(throwFlags["kk_string_repeat"])
-            XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
+            #expect(throwFlags["kk_string_split_flat"] == nil)
+            #expect(throwFlags["kk_string_split"] == nil)
+            #expect(throwFlags["split"] != nil)
+            // KSP-406: subSequence is bundled Kotlin source (delegates to substring),
+            // so it no longer lowers to a String-specific runtime helper.
+            #expect(throwFlags["kk_string_subSequence_flat"] == nil)
+            #expect(throwFlags["kk_string_subSequence"] == nil)
+            #expect(throwFlags["kk_string_substring_flat"] == nil)
+            #expect(throwFlags["kk_string_substring"] == nil)
+            #expect(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat") == nil)
+            #expect(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat") == nil)
+            #expect(throwFlags["kk_string_repeat_flat"] == nil)
+            #expect(throwFlags["kk_string_repeat"] == nil)
+            #expect(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true } == true)
         }
     }
 
+    @Test
     func testArrayAccessAndAssignmentLowerToRuntimeCallsWithExpectedThrowFlags() throws {
         let source = """
         fun main(): Any? {
@@ -608,22 +626,23 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
             // Size-only IntArray(n) lowers to kk_array_new_checked (throws on
             // negative size), not bare kk_array_new.
-            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
-            XCTAssertTrue(callNames.contains("kk_array_set"))
-            XCTAssertTrue(callNames.contains("kk_array_get"))
+            #expect(callNames.contains("kk_array_new_checked"))
+            #expect(callNames.contains("kk_array_set"))
+            #expect(callNames.contains("kk_array_get"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
+            #expect(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["kk_array_set"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["kk_array_get"]?.allSatisfy { $0 == true } == true)
         }
     }
 
+    @Test
     func testUShortArrayLoweringUsesSharedArrayRuntimeCalls() throws {
         let source = """
         fun main(): UShort {
@@ -638,20 +657,21 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
-            XCTAssertTrue(callNames.contains("kk_array_set"))
-            XCTAssertTrue(callNames.contains("kk_array_get"))
+            #expect(callNames.contains("kk_array_new_checked"))
+            #expect(callNames.contains("kk_array_set"))
+            #expect(callNames.contains("kk_array_get"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
+            #expect(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["kk_array_set"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["kk_array_get"]?.allSatisfy { $0 == true } == true)
         }
     }
 
+    @Test
     func testUIntArrayAccessAndFactoriesLowerToRuntimeCallsAndResolveUIntArrayType() throws {
         let source = """
         fun make() = uintArrayOf(1u, 2u)
@@ -668,30 +688,31 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let makeSymbol = try XCTUnwrap(sema.symbols.lookupByShortName(ctx.interner.intern("make")).first)
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: makeSymbol))
+            let sema = try #require(ctx.sema)
+            let makeSymbol = try #require(sema.symbols.lookupByShortName(ctx.interner.intern("make")).first)
+            let signature = try #require(sema.symbols.functionSignature(for: makeSymbol))
             guard case let .classType(classType) = sema.types.kind(of: signature.returnType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
             else {
-                XCTFail("Expected make() to return a nominal UIntArray type.")
+                Issue.record("Expected make() to return a nominal UIntArray type.")
                 return
             }
-            XCTAssertEqual(ctx.interner.resolve(symbol.name), "UIntArray")
+            #expect(ctx.interner.resolve(symbol.name) == "UIntArray")
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
-            XCTAssertTrue(callNames.contains("kk_array_set"))
-            XCTAssertTrue(callNames.contains("kk_array_get"))
+            #expect(callNames.contains("kk_array_new_checked"))
+            #expect(callNames.contains("kk_array_set"))
+            #expect(callNames.contains("kk_array_get"))
 
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let makeCallNames = extractCallees(from: makeBody, interner: ctx.interner)
-            XCTAssertTrue(makeCallNames.contains("kk_array_of"))
+            #expect(makeCallNames.contains("kk_array_of"))
         }
     }
 
+    @Test
     func testMapGetValueLoweringMarksRuntimeCallAsThrowing() throws {
         let source = """
         fun main(): Int {
@@ -705,18 +726,15 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
 
-            XCTAssertEqual(
-                throwFlags["kk_map_getValue"]?.allSatisfy { $0 == true },
-                true,
-                "kk_map_getValue should be lowered as throwing so ABI lowering wires outThrown."
-            )
+            #expect(throwFlags["kk_map_getValue"]?.allSatisfy { $0 == true } == true, "kk_map_getValue should be lowered as throwing so ABI lowering wires outThrown.")
         }
     }
 
+    @Test
     func testArrayOutOfBoundsThrownChannelReturnsEarlyBeforeSubsequentReturn() throws {
         let source = """
         fun readOutOfBounds(arr: Any?): Any? = arr[5]
@@ -742,23 +760,24 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result: CommandResult
             do {
                 result = try CommandRunner.run(executable: outputPath, arguments: [])
-                XCTFail("Expected top-level thrown channel to fail process exit.")
+                Issue.record("Expected top-level thrown channel to fail process exit.")
                 return
             } catch let CommandRunnerError.nonZeroExit(failed) {
                 result = failed
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
                 return
             }
-            XCTAssertEqual(result.exitCode, 1)
-            XCTAssertTrue(result.stderr.contains("KSWIFTK-LINK-0003"))
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
         }
     }
 
+    @Test
     func testMutableListIndexedMutationUsesThrowingABI() throws {
         let source = """
         fun main(): Any? {
@@ -774,18 +793,19 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_mutable_list_add_at"))
-            XCTAssertTrue(callNames.contains("kk_mutable_list_set"))
+            #expect(callNames.contains("kk_mutable_list_add_at"))
+            #expect(callNames.contains("kk_mutable_list_set"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_mutable_list_add_at"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_mutable_list_set"]?.allSatisfy { $0 == true }, true)
+            #expect(throwFlags["kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
         }
     }
 
+    @Test
     func testFrontendAndSemaResolveTypedDeclarationsAndEmitExpectedDiagnostics() throws {
         let source = """
         package typed.demo
@@ -816,9 +836,9 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "Typed", emit: .kirDump)
             try runToKIR(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let declarations = ast.arena.declarations()
-            XCTAssertGreaterThanOrEqual(declarations.count, 8)
+            #expect(declarations.count >= 8)
 
             var sawTypedParameter = false
             var sawFunctionReturnType = false
@@ -842,7 +862,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                     if let typeID = property.type, let typeRef = ast.arena.typeRef(typeID) {
                         sawExplicitPropertyType = true
                         if case let .named(path, _, _) = typeRef {
-                            XCTAssertFalse(path.isEmpty)
+                            #expect(!(path.isEmpty))
                         }
                     } else if ctx.interner.resolve(property.name) == "delegated" {
                         sawDelegatedPropertyWithoutType = true
@@ -852,27 +872,27 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 }
             }
 
-            XCTAssertTrue(sawTypedParameter)
-            XCTAssertTrue(sawFunctionReturnType)
-            XCTAssertTrue(sawFunctionReceiverType)
-            XCTAssertTrue(sawExplicitPropertyType)
-            XCTAssertTrue(sawDelegatedPropertyWithoutType)
+            #expect(sawTypedParameter)
+            #expect(sawFunctionReturnType)
+            #expect(sawFunctionReceiverType)
+            #expect(sawExplicitPropertyType)
+            #expect(sawDelegatedPropertyWithoutType)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.symbols.allSymbols().isEmpty)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.symbols.allSymbols().isEmpty))
+            #expect(!(sema.bindings.exprTypes.isEmpty))
             let decorateSymbol = sema.symbols.allSymbols().first(where: { symbol in
                 ctx.interner.resolve(symbol.name) == "decorate"
             })
-            XCTAssertNotNil(decorateSymbol)
+            #expect(decorateSymbol != nil)
             if let decorateSymbol {
                 let signature = sema.symbols.functionSignature(for: decorateSymbol.id)
-                XCTAssertNotNil(signature?.receiverType)
+                #expect(signature?.receiverType != nil)
             }
 
             let codes = Set(ctx.diagnostics.diagnostics.map(\.code))
-            XCTAssertTrue(codes.contains("KSWIFTK-TYPE-0002"))
-            XCTAssertTrue(codes.contains("KSWIFTK-SEMA-0001"))
+            #expect(codes.contains("KSWIFTK-TYPE-0002"))
+            #expect(codes.contains("KSWIFTK-SEMA-0001"))
         }
     }
 }

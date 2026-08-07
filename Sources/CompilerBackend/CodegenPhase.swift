@@ -50,7 +50,13 @@ final class CodegenPhase: CompilerPhase {
 
             case .executable:
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
+                // Object emission is serialized per-process on Linux because
+                // LLVM target state is not thread-safe; cross-process locking is
+                // unnecessary because each `kswiftc` process has its own LLVM
+                // context and output path. The link step uses a per-`LinkPhase`
+                // unique autolink stub path and a separate cross-process toolchain
+                // lock to protect concurrent Linux `swiftc` invocations.
+                try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
                     try backend.emitObject(
                         module: kir,
                         outputObjectPath: path,
@@ -164,21 +170,24 @@ final class CodegenPhase: CompilerPhase {
         let metadataPath = outputDir + "/metadata.bin"
 
         let targetString = "\(ctx.options.target.arch)-\(ctx.options.target.vendor)-\(ctx.options.target.os)"
-        let manifest = """
-        {
-          "formatVersion": 1,
-          "moduleName": "\(ctx.options.moduleName)",
-          "kotlinLanguageVersion": "2.3.10",
-          "compilerVersion": "0.1.0",
-          "target": "\(targetString)",
-          "objects": ["objects/\(ctx.options.moduleName)_0.o"],
-          "metadata": "metadata.bin",
-          "inlineKIRDir": "inline-kir"
+        var manifestDict: [String: Any] = [
+            "formatVersion": 1,
+            "moduleName": ctx.options.moduleName,
+            "kotlinLanguageVersion": "2.3.10",
+            "compilerVersion": "0.1.0",
+            "target": targetString,
+            "objects": ["objects/\(ctx.options.moduleName)_0.o"],
+            "metadata": "metadata.bin",
+            "inlineKIRDir": "inline-kir"
+        ]
+        if ctx.options.stdlibOnly {
+            manifestDict["libraryKind"] = "stdlib"
+            manifestDict["stdlibManifestHash"] = BundledKotlinStdlib.manifestHash()
         }
-        """
-        try manifest.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
+        let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys])
+        try manifestData.write(to: URL(fileURLWithPath: manifestPath), options: .atomic)
 
-        let metadata = makeMetadata(ctx: ctx)
+        let metadata = makeMetadata(ctx: ctx, module: module)
         try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
     }
 
@@ -200,6 +209,17 @@ final class CodegenPhase: CompilerPhase {
             return
         }
         let mangler = NameMangler()
+        let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
+        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else { continue }
+            functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
+                for: function,
+                interner: ctx.interner,
+                symbols: sema.symbols,
+                fileFacadeNamesByFileID: facadeNames
+            )
+        }
         for decl in module.arena.declarations {
             guard case let .function(function) = decl, function.isInline else {
                 continue
@@ -214,9 +234,17 @@ final class CodegenPhase: CompilerPhase {
                 types: sema.types,
                 nameResolver: { ctx.interner.resolve($0) }
             )
-            let filePath = outputDir + "/\(mangled).kirbin"
+            let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
+            let filePath = outputDir + "/\(fileName)"
+            let parameterSymbols = Set(function.params.map(\.symbol))
             let bodyLines = function.body.map { instruction in
-                serializeInlineInstruction(instruction, interner: ctx.interner)
+                serializeInlineInstruction(
+                    instruction,
+                    interner: ctx.interner,
+                    functionLinkNames: functionLinkNamesBySymbol,
+                    parameterSymbols: parameterSymbols,
+                    symbols: sema.symbols
+                )
             }.joined(separator: "\n")
             let paramSymbols = function.params.map { String($0.symbol.rawValue) }.joined(separator: ",")
             let content = """
@@ -232,7 +260,13 @@ final class CodegenPhase: CompilerPhase {
         }
     }
 
-    private func serializeInlineInstruction(_ instruction: KIRInstruction, interner: StringInterner) -> String {
+    private func serializeInlineInstruction(
+        _ instruction: KIRInstruction,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        parameterSymbols: Set<SymbolID>,
+        symbols: SymbolTable?
+    ) -> String {
         switch instruction {
         case .nop:
             return "nop"
@@ -247,7 +281,7 @@ final class CodegenPhase: CompilerPhase {
         case let .jumpIfEqual(lhs, rhs, target):
             return "jumpIfEqual lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) target=\(target)"
         case let .constValue(result, value):
-            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner))"
+            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner, functionLinkNames: functionLinkNames, parameterSymbols: parameterSymbols, symbols: symbols))"
         case let .binary(op, lhs, rhs, result):
             return "binary op=\(op) lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) result=\(result.rawValue)"
         case .returnUnit:
@@ -267,16 +301,20 @@ final class CodegenPhase: CompilerPhase {
             let thrownResultValue = thrownResult.map { String($0.rawValue) } ?? "_"
             let qualifiedSuperValue = qualifiedSuperType.map { String($0.rawValue) } ?? "_"
             let calleeName = base64Encode(interner.resolve(callee))
+            let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
+            let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
             return "call symbol=\(symbolValue) calleeB64=\(calleeName) args=[\(args)]"
                 + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
                 + " thrownResult=\(thrownResultValue) isSuperCall=\(isSuperCall ? 1 : 0)"
-                + " qualifiedSuperType=\(qualifiedSuperValue)"
+                + " qualifiedSuperType=\(qualifiedSuperValue)" + linkField
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
             let args = arguments.map { String($0.rawValue) }.joined(separator: ",")
             let symbolValue = symbol.map { String($0.rawValue) } ?? "_"
             let resultValue = result.map { String($0.rawValue) } ?? "_"
             let thrownResultValue = thrownResult.map { String($0.rawValue) } ?? "_"
             let calleeName = base64Encode(interner.resolve(callee))
+            let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
+            let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
             let dispatchStr = switch dispatch {
             case let .vtable(slot):
                 "vtable:\(slot)"
@@ -288,7 +326,7 @@ final class CodegenPhase: CompilerPhase {
             return "virtualCall symbol=\(symbolValue) calleeB64=\(calleeName)"
                 + " receiver=\(receiver.rawValue) args=[\(args)]"
                 + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
-                + " thrownResult=\(thrownResultValue) dispatch=\(dispatchStr)"
+                + " thrownResult=\(thrownResultValue) dispatch=\(dispatchStr)" + linkField
         case let .jumpIfNotNull(value, target):
             return "jumpIfNotNull value=\(value.rawValue) target=\(target)"
         case let .copy(from, to):
@@ -312,7 +350,13 @@ final class CodegenPhase: CompilerPhase {
         }
     }
 
-    private func serializeInlineExprKind(_ value: KIRExprKind, interner: StringInterner) -> String {
+    private func serializeInlineExprKind(
+        _ value: KIRExprKind,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        parameterSymbols: Set<SymbolID>,
+        symbols: SymbolTable?
+    ) -> String {
         switch value {
         case let .intLiteral(intValue):
             "int:\(intValue)"
@@ -333,9 +377,15 @@ final class CodegenPhase: CompilerPhase {
         case let .stringLiteral(text):
             "stringB64:\(base64Encode(interner.resolve(text)))"
         case let .symbolRef(symbol):
-            "symbol:\(symbol.rawValue)"
+            if parameterSymbols.contains(symbol) {
+                "symbol:\(symbol.rawValue)"
+            } else if let linkName = functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
+                "externB64:\(base64Encode(linkName))"
+            } else {
+                "symbol:\(symbol.rawValue)"
+            }
         case let .externSymbolAddress(name):
-            "extern:\(name)"
+            "externB64:\(base64Encode(interner.resolve(name)))"
         case let .temporary(raw):
             "temp:\(raw)"
         case .null:
@@ -356,28 +406,71 @@ final class CodegenPhase: CompilerPhase {
         return base + ".kklib"
     }
 
-    private func makeMetadata(ctx: CompilationContext) -> String {
+    private func makeMetadata(ctx: CompilationContext, module: KIRModule) -> String {
         guard let sema = ctx.sema else {
             return "symbols=0\n"
         }
-        let functionLinkNamesBySymbol: [SymbolID: String] = {
-            guard let kir = ctx.kir else { return [:] }
-            let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-            return kir.arena.declarations.reduce(into: [:]) { partial, decl in
-                guard case let .function(function) = decl else {
-                    return
-                }
-                partial[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                    for: function,
-                    interner: ctx.interner,
-                    symbols: ctx.sema?.symbols,
-                    fileFacadeNamesByFileID: facadeNames
-                )
+        let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
+        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
+        var inlineFunctionSymbols: Set<SymbolID> = []
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
             }
-        }()
+            functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
+                for: function,
+                interner: ctx.interner,
+                symbols: ctx.sema?.symbols,
+                fileFacadeNamesByFileID: facadeNames
+            )
+            if function.isInline {
+                inlineFunctionSymbols.insert(function.symbol)
+            }
+        }
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
             .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
+
+        let excludeSourceFileIDs: Set<Int32>
+        let includeSynthetic: Bool
+        if ctx.options.stdlibOnly || ctx.options.stdlibLibraryPath != nil {
+            excludeSourceFileIDs = []
+            includeSynthetic = false
+        } else {
+            excludeSourceFileIDs = bundledFileIDs
+            includeSynthetic = bundledFileIDs.isEmpty
+        }
+
+        let runtimeCallbackRawReturnSymbolIDs = NativeEmitter.collectRuntimeCallbackRawStringReturnSymbols(
+            module: module,
+            interner: ctx.interner,
+            typeSystem: ctx.sema?.types,
+            symbols: ctx.sema?.symbols
+        )
+
+        var objectInitializerLinkNames: [SymbolID: String] = [:]
+        var companionInitializerLinkNames: [SymbolID: String] = [:]
+        var enumStaticInitLinkNames: [SymbolID: String] = [:]
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  let linkName = functionLinkNamesBySymbol[function.symbol]
+            else {
+                continue
+            }
+            let functionName = ctx.interner.resolve(function.name)
+            if let ownerID = Self.objectInitializerOwnerSymbolID(from: functionName) {
+                objectInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            } else if let ownerID = Self.companionInitializerOwnerSymbolID(from: functionName) {
+                companionInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            } else if let ownerID = Self.enumStaticInitOwnerSymbolID(
+                from: functionName,
+                symbol: function.symbol,
+                sema: sema
+            ) {
+                enumStaticInitLinkNames[ownerID] = linkName
+            }
+        }
+
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(
             symbols: sema.symbols,
@@ -385,7 +478,15 @@ final class CodegenPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
             functionLinkNames: functionLinkNamesBySymbol,
-            excludedFileIDs: bundledFileIDs
+            inlineFunctionSymbols: inlineFunctionSymbols,
+            includeNonPublic: ctx.options.stdlibOnly,
+            includeSynthetic: includeSynthetic,
+            includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
+            excludeSourceFileIDs: excludeSourceFileIDs,
+            runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
+            objectInitializerLinkNames: objectInitializerLinkNames,
+            companionInitializerLinkNames: companionInitializerLinkNames,
+            enumStaticInitLinkNames: enumStaticInitLinkNames
         )
         return encoder.serialize(records)
     }
@@ -403,19 +504,25 @@ final class CodegenPhase: CompilerPhase {
         guard let sema = ctx.sema else {
             return []
         }
-        let functionLinkNamesBySymbol: [SymbolID: String] = {
-            guard let kir = ctx.kir else { return [:] }
-            return kir.arena.declarations.reduce(into: [:]) { partial, decl in
+        let (functionLinkNamesBySymbol, inlineFunctionSymbols): ([SymbolID: String], Set<SymbolID>) = {
+            guard let kir = ctx.kir else { return ([:], []) }
+            var linkNames: [SymbolID: String] = [:]
+            var inlineSymbols: Set<SymbolID> = []
+            for decl in kir.arena.declarations {
                 guard case let .function(function) = decl else {
-                    return
+                    continue
                 }
-                partial[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
+                linkNames[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: ctx.interner,
                     symbols: ctx.sema?.symbols,
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID
                 )
+                if function.isInline {
+                    inlineSymbols.insert(function.symbol)
+                }
             }
+            return (linkNames, inlineSymbols)
         }()
         let encoder = MetadataEncoder()
         return encoder.buildRecords(
@@ -424,7 +531,54 @@ final class CodegenPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
             functionLinkNames: functionLinkNamesBySymbol,
+            inlineFunctionSymbols: inlineFunctionSymbols,
             includeNonPublic: ctx.options.includeNonPublicReflectionMetadata
         )
+    }
+
+    /// Parses the owner symbol ID embedded in a synthetic top-level object
+    /// initializer name (`__object_init_<objectID>_<initID>`).
+    private static func objectInitializerOwnerSymbolID(from name: String) -> Int32? {
+        let prefix = "__object_init_"
+        guard name.hasPrefix(prefix) else { return nil }
+        let suffix = String(name.dropFirst(prefix.count))
+        let parts = suffix.split(separator: "_").map(String.init)
+        guard let first = parts.first else { return nil }
+        return Int32(first)
+    }
+
+    /// Parses the owner class symbol ID embedded in a synthetic companion
+    /// object initializer name (`__companion_init_<ownerID>_<companionID>_<initID>`).
+    private static func companionInitializerOwnerSymbolID(from name: String) -> Int32? {
+        let prefix = "__companion_init_"
+        guard name.hasPrefix(prefix) else { return nil }
+        let suffix = String(name.dropFirst(prefix.count))
+        let parts = suffix.split(separator: "_").map(String.init)
+        guard parts.count >= 2, let ownerID = parts.first else { return nil }
+        return Int32(ownerID)
+    }
+
+    /// Returns the owner enum class symbol for a synthetic enum static
+    /// initializer (`__enum_static_init_<ClassName>`) by looking up the
+    /// function's parent FQ name in `sema.symbols`.
+    private static func enumStaticInitOwnerSymbolID(
+        from name: String,
+        symbol: SymbolID,
+        sema: SemaModule
+    ) -> SymbolID? {
+        let prefix = "__enum_static_init_"
+        guard name.hasPrefix(prefix) else { return nil }
+        guard let functionSymbol = sema.symbols.symbol(symbol),
+              functionSymbol.fqName.count >= 2
+        else {
+            return nil
+        }
+        let ownerFQName = Array(functionSymbol.fqName.dropLast())
+        guard let ownerSymbol = sema.symbols.lookup(fqName: ownerFQName),
+              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        else {
+            return nil
+        }
+        return ownerSymbol
     }
 }

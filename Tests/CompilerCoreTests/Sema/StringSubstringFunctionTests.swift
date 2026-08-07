@@ -1,10 +1,10 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-073: Validates that `CharSequence.substring(startIndex, endIndex)`
-/// resolves through Sema for String receivers across multiple call sites and
-/// links to the runtime helper `kk_string_substring_flat` (see
-/// `Sources/Runtime/RuntimeStringStdlib.swift`).
+/// STDLIB-TEXT-FN-073: Validates that `String.substring(startIndex[, endIndex])`
+/// resolves through Sema for String receivers across multiple call sites. After
+/// KSP-406 it is bundled Kotlin source (StringSubstringSlice.kt) with no
+/// String-specific runtime helper, so the resolved symbol carries no external link.
 @Suite
 struct StringSubstringFunctionTests {
     @Test func testStringSubstringResolvesInSource() throws {
@@ -37,8 +37,7 @@ struct StringSubstringFunctionTests {
         )
     }
 
-    @Test func testSubstringTwoArgOverloadResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
+    @Test func testSubstringTwoArgOverloadIsSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -52,17 +51,18 @@ struct StringSubstringFunctionTests {
                     && signature.parameterTypes.count == 2
                     && signature.parameterTypes.allSatisfy { $0 == sema.types.intType }
             })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(
                 sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
                 "String.substring(startIndex, endIndex) should return String"
             )
+            #expect(
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "String.substring(startIndex, endIndex) is source-backed and must not link to a runtime helper"
+            )
         }
-        #expect(resolvedLink == "kk_string_substring_flat")
     }
 
-    @Test func testSubstringOneArgOverloadResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
+    @Test func testSubstringOneArgOverloadIsSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -76,12 +76,14 @@ struct StringSubstringFunctionTests {
                     && signature.parameterTypes.count == 1
                     && signature.parameterTypes[0] == sema.types.intType
             })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(
                 sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
                 "String.substring(startIndex) should return String"
             )
+            #expect(
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "String.substring(startIndex) is source-backed and must not link to a runtime helper"
+            )
         }
-        #expect(resolvedLink == "kk_string_substring_flat")
     }
 }

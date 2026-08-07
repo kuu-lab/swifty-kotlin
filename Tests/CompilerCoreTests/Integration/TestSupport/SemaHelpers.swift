@@ -1,5 +1,4 @@
 @testable import CompilerCore
-import XCTest
 
 func makeSema(
     source: String = "fun noop() {}"
@@ -8,10 +7,10 @@ func makeSema(
     try withTemporaryFile(contents: source) { path in
         let ctx = makeCompilationContext(inputs: [path])
         try runSema(ctx)
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try requireTestValue(ctx.sema, "Expected sema module after running Sema")
         result = (sema, ctx.interner)
     }
-    return try XCTUnwrap(result)
+    return try requireTestValue(result, "Expected makeSema result")
 }
 
 func memberCallExprIDs(

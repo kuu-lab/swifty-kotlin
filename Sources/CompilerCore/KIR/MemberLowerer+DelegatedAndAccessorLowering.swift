@@ -106,9 +106,14 @@ extension MemberLowerer {
             returnType = propertyType
             accessorName = interner.intern("get")
 
-            let delegateHandleExprID = arena.appendTemporary(type: sema.types.anyType
+            let delegateHandleExprID = loadDelegateHandle(
+                delegateStorageSymbol: delegateStorageSymbol,
+                ownerSymbol: ownerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
             )
-            body.append(.loadGlobal(result: delegateHandleExprID, symbol: delegateStorageSymbol))
             // call: $delegate_x.getValue(thisRef, kProperty) -> PropertyType
             let resultExprID = arena.appendTemporary(type: propertyType
             )
@@ -145,9 +150,14 @@ extension MemberLowerer {
             // call: $delegate_x.setValue(thisRef, kProperty, value)
             let valueExprID = arena.appendExpr(.symbolRef(valueParamSymbol), type: propertyType)
             body.append(.constValue(result: valueExprID, value: .symbolRef(valueParamSymbol)))
-            let delegateHandleExprID = arena.appendTemporary(type: sema.types.anyType
+            let delegateHandleExprID = loadDelegateHandle(
+                delegateStorageSymbol: delegateStorageSymbol,
+                ownerSymbol: ownerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
             )
-            body.append(.loadGlobal(result: delegateHandleExprID, symbol: delegateStorageSymbol))
             let resultExprID = arena.appendTemporary(type: sema.types.unitType
             )
             body.append(
@@ -192,6 +202,49 @@ extension MemberLowerer {
         allDecls.append(kirID)
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
         driver.ctx.clearImplicitReceiver()
+    }
+
+    /// DEBT-KIR-008: reads the delegate handle (the `Lazy`/`ObservableProperty`/
+    /// custom-delegate instance stored in `$delegate_x`) for the current access.
+    ///
+    /// Class/interface instance delegates live inside the heap-allocated object,
+    /// not in a module-global slot, so the read must go through
+    /// `kk_array_get_inbounds` at the field's computed offset — mirroring
+    /// `tryLowerStoredMemberPropertyRead` (regular stored-property reads) and
+    /// `emitFieldStore` (writes, used by the matching constructor initializer).
+    /// Falls back to `.loadGlobal` for top-level and `object`-member delegates,
+    /// which intentionally keep a single shared instance backed by a real global.
+    private func loadDelegateHandle(
+        delegateStorageSymbol: SymbolID,
+        ownerSymbol: SymbolID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let delegateType = sema.types.anyType
+        if let ownerSymbol,
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface,
+           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[delegateStorageSymbol],
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let result = arena.appendTemporary(type: delegateType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExprID, offsetExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        let result = arena.appendTemporary(type: delegateType)
+        body.append(.loadGlobal(result: result, symbol: delegateStorageSymbol))
+        return result
     }
 
     private func buildCustomDelegateGetterArgs(
@@ -460,5 +513,115 @@ extension MemberLowerer {
         allDecls.append(kirID)
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
         driver.ctx.clearImplicitReceiver()
+    }
+
+    // MARK: - BUG-141: interface property getter dispatch
+
+    /// Emits a getter accessor function (`(receiver) -> PropertyType`) that
+    /// reads a stored property from its instance field. Concrete classes and
+    /// object literals need one for every property that overrides an interface
+    /// property so its getter can be registered into the interface's itable and
+    /// dispatched through an interface-typed receiver.
+    func synthesizeStoredPropertyGetterAccessor(
+        propertySymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        allDecls: inout [KIRDeclID]
+    ) {
+        guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
+        let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey] else {
+            return
+        }
+        let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+
+        let ownerType = sema.types.make(
+            .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+        let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+        let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+        body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+        let result = arena.appendTemporary(type: propType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_get_inbounds"),
+            arguments: [receiverExpr, offsetExpr],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(result))
+        body.append(.endBlock)
+
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        let kirID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: getterSymbol,
+                    name: interner.intern("get"),
+                    params: params,
+                    returnType: propType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        allDecls.append(kirID)
+        allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
+    }
+
+    /// Emits a getter accessor stub (`(receiver) -> PropertyType`) for an
+    /// abstract interface property. The stub is never executed — interface
+    /// property reads dispatch through the itable — but it gives the dispatch
+    /// site a concrete internal function whose signature matches the registered
+    /// implementing getters, exactly as abstract interface methods emit a
+    /// unit-returning stub.
+    func synthesizeInterfacePropertyGetterStub(
+        propertySymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        allDecls: inout [KIRDeclID]
+    ) {
+        guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
+        let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+
+        let ownerType = sema.types.make(
+            .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+        let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        let defaultExpr = arena.appendExpr(.null, type: propType)
+        body.append(.constValue(result: defaultExpr, value: .null))
+        body.append(.returnValue(defaultExpr))
+        body.append(.endBlock)
+
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        let kirID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: getterSymbol,
+                    name: interner.intern("get"),
+                    params: params,
+                    returnType: propType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        allDecls.append(kirID)
+        allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 }

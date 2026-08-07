@@ -1,0 +1,208 @@
+import RuntimeABI
+
+/// Sequence lookup names for `CollectionLiteralLookupTables`.
+///
+/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
+struct SequenceLookupNames {
+    // Sequence ABI names (STDLIB-003)
+    let kkSequenceMapName: InternedString
+    let kkSequenceFilterName: InternedString
+    let kkSequenceRequireNoNullsName: InternedString
+    let kkSequenceTakeName: InternedString
+    let kkSequenceToListName: InternedString
+    let kkSequenceConstrainOnceName: InternedString
+    let kkSequenceBuilderBuildName: InternedString
+    let kkSequenceBuilderYieldName: InternedString
+    let kkSequenceBuilderYieldAllName: InternedString
+    let kkIteratorBuilderBuildName: InternedString
+    let kkIteratorBuilderHasNextName: InternedString
+    let kkIteratorBuilderNextName: InternedString
+    // Sequence ABI names (STDLIB-095/096/097)
+    let kkSequenceOfName: InternedString
+    let kkSequenceGenerateName: InternedString
+    let kkSequenceGenerateNoArgName: InternedString
+    let kkSequenceForEachName: InternedString
+    let kkSequenceFlatMapName: InternedString
+    let kkSequenceFlatMapIndexedName: InternedString
+    let kkSequenceDropName: InternedString
+    let kkSequenceDistinctName: InternedString
+    let kkSequenceZipName: InternedString
+    let kkSequenceShuffledName: InternedString
+    let kkSequenceShuffledRandomName: InternedString
+    let kkSequenceAssociateToName: InternedString
+    let kkSequenceAssociateByToName: InternedString
+    let kkSequenceAssociateWithToName: InternedString
+    let kkSequenceForEachIndexedName: InternedString
+    let kkSequenceZipWithNextName: InternedString
+    let kkSequenceZipWithNextTransformName: InternedString
+    // STDLIB-558, 559, 560: Sequence scan / runningFold / runningReduce
+    let kkSequenceScanName: InternedString
+    let kkSequenceRunningFoldName: InternedString
+    let kkSequenceRunningReduceName: InternedString
+    // STDLIB-470: Sequence terminal ops
+    let kkSequenceToSetName: InternedString
+    let kkSequenceToMapName: InternedString
+    let kkSequenceToCollectionName: InternedString
+    let kkSequenceGroupByName: InternedString
+    let kkSequenceGroupByToName: InternedString
+    let kkSequenceMaxName: InternedString
+    let kkSequenceMaxOrNullName: InternedString
+    let kkSequenceMinOrNullName: InternedString
+    let kkSequenceFlattenName: InternedString
+    let kkSequenceFoldName: InternedString
+    let kkSequenceFoldIndexedName: InternedString
+    let kkSequenceRunningFoldIndexedName: InternedString
+    let kkSequenceScanIndexedName: InternedString
+    let kkSequenceReduceIndexedName: InternedString
+    let kkSequenceReduceIndexedOrNullName: InternedString
+    let kkSequenceRunningReduceIndexedName: InternedString
+    // STDLIB-561/562: Sequence plus/minus
+    let kkSequencePlusName: InternedString
+    let kkSequencePlusElementName: InternedString
+    let kkSequenceMinusName: InternedString
+    let kkSequenceOfSingleName: InternedString
+    // STDLIB-SEQ-012: Sequence partition
+    let kkSequencePartitionName: InternedString
+    // STDLIB-SEQ-021: Sequence destination-collection filter operations
+    let kkSequenceFilterToName: InternedString
+    let kkSequenceFilterNotToName: InternedString
+    // STDLIB-SEQ-022: Sequence destination-collection mapping operations
+    let kkSequenceMapToName: InternedString
+    let kkSequenceMapNotNullToName: InternedString
+    let kkSequenceMapIndexedToName: InternedString
+    let kkSequenceFlatMapToName: InternedString
+    let kkSequenceMapIndexedNotNullToName: InternedString
+    let kkSequenceFlatMapIndexedToName: InternedString
+    let kkSequenceFilterIndexedToName: InternedString
+    let kkSequenceFilterNotNullToName: InternedString
+    let kkSequenceFilterIsInstanceToName: InternedString
+    // Sequence plus/minus member names (STDLIB-561/562)
+    let plusMemberName: InternedString
+    let plusElementName: InternedString
+    let minusElementName: InternedString
+    let minusMemberName: InternedString
+    // Sequence member names (STDLIB-003)
+    let asSequenceName: InternedString
+    let toListName: InternedString
+    let constrainOnceName: InternedString
+    let toCollectionName: InternedString
+    let toUByteArrayName: InternedString
+    let toUShortArrayName: InternedString
+    let toUIntArrayName: InternedString
+    let toULongArrayName: InternedString
+    let toCharArrayName: InternedString
+    let toBooleanArrayName: InternedString
+    let toShortArrayName: InternedString
+    let toDoubleArrayName: InternedString
+    let toFloatArrayName: InternedString
+    let toIntArrayName: InternedString
+    let toLongArrayName: InternedString
+    let toByteArrayName: InternedString
+    let toSetName: InternedString
+    let toMapName: InternedString
+    let takeName: InternedString
+    let sequenceName: InternedString
+    let iteratorBuilderName: InternedString
+    let yieldName: InternedString
+    let yieldAllName: InternedString
+    // Sequence factory names (STDLIB-097)
+    let sequenceOfName: InternedString
+    let generateSequenceName: InternedString
+
+    init(interner: StringInterner) {
+        kkSequenceMapName = interner.intern("kk_sequence_map")
+        kkSequenceFilterName = interner.intern("kk_sequence_filter")
+        kkSequenceRequireNoNullsName = interner.intern("kk_sequence_requireNoNulls")
+        kkSequenceTakeName = interner.intern("kk_sequence_take")
+        kkSequenceToListName = interner.intern("kk_sequence_to_list")
+        kkSequenceConstrainOnceName = interner.intern("kk_sequence_constrainOnce")
+        kkSequenceBuilderBuildName = interner.intern("kk_sequence_builder_build")
+        kkSequenceBuilderYieldName = interner.intern("kk_sequence_builder_yield")
+        kkSequenceBuilderYieldAllName = interner.intern("kk_sequence_builder_yieldAll")
+        kkIteratorBuilderBuildName = interner.intern("kk_iterator_builder_build")
+        kkIteratorBuilderHasNextName = interner.intern("kk_iterator_builder_hasNext")
+        kkIteratorBuilderNextName = interner.intern("kk_iterator_builder_next")
+        kkSequenceOfName = interner.intern("kk_sequence_of")
+        kkSequenceGenerateName = interner.intern("kk_sequence_generate")
+        kkSequenceGenerateNoArgName = interner.intern("kk_sequence_generate_noarg")
+        kkSequenceForEachName = interner.intern("kk_sequence_forEach")
+        kkSequenceFlatMapName = interner.intern("kk_sequence_flatMap")
+        kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")
+        kkSequenceDropName = interner.intern("kk_sequence_drop")
+        kkSequenceDistinctName = interner.intern("kk_sequence_distinct")
+        kkSequenceZipName = interner.intern("kk_sequence_zip")
+        kkSequenceShuffledName = interner.intern("kk_sequence_shuffled")
+        kkSequenceShuffledRandomName = interner.intern("kk_sequence_shuffled_random")
+        kkSequenceAssociateToName = interner.intern("kk_sequence_associateTo")
+        kkSequenceAssociateByToName = interner.intern("kk_sequence_associateByTo")
+        kkSequenceAssociateWithToName = interner.intern("kk_sequence_associateWithTo")
+        kkSequenceForEachIndexedName = interner.intern("kk_sequence_forEachIndexed")
+        kkSequenceZipWithNextName = interner.intern("kk_sequence_zipWithNext")
+        kkSequenceZipWithNextTransformName = interner.intern("kk_sequence_zipWithNextTransform")
+        kkSequenceScanName = interner.intern("kk_sequence_scan")
+        kkSequenceRunningFoldName = interner.intern("kk_sequence_runningFold")
+        kkSequenceRunningReduceName = interner.intern("kk_sequence_runningReduce")
+        kkSequenceToSetName = interner.intern("kk_sequence_toSet")
+        kkSequenceToMapName = interner.intern("kk_sequence_toMap")
+        kkSequenceToCollectionName = interner.intern("kk_sequence_toCollection")
+        kkSequenceGroupByName = interner.intern("kk_sequence_groupBy")
+        kkSequenceGroupByToName = interner.intern("kk_sequence_groupByTo")
+        kkSequenceMaxName = interner.intern("kk_sequence_max")
+        kkSequenceMaxOrNullName = interner.intern("kk_sequence_maxOrNull")
+        kkSequenceMinOrNullName = interner.intern("kk_sequence_minOrNull")
+        kkSequenceFlattenName = interner.intern("kk_sequence_flatten")
+        kkSequenceFoldName = interner.intern("kk_sequence_fold")
+        kkSequenceFoldIndexedName = interner.intern("kk_sequence_foldIndexed")
+        kkSequenceRunningFoldIndexedName = interner.intern("kk_sequence_runningFoldIndexed")
+        kkSequenceScanIndexedName = interner.intern("kk_sequence_scanIndexed")
+        kkSequenceReduceIndexedName = interner.intern("kk_sequence_reduceIndexed")
+        kkSequenceReduceIndexedOrNullName = interner.intern("kk_sequence_reduceIndexedOrNull")
+        kkSequenceRunningReduceIndexedName = interner.intern("kk_sequence_runningReduceIndexed")
+        kkSequencePlusName = interner.intern("kk_sequence_plus")
+        kkSequencePlusElementName = interner.intern("kk_sequence_plus_element")
+        kkSequenceMinusName = interner.intern("kk_sequence_minus")
+        kkSequenceOfSingleName = interner.intern("kk_sequence_of_single")
+        kkSequencePartitionName = interner.intern("kk_sequence_partition")
+        // STDLIB-SEQ-021: Sequence destination-collection filter operations
+        kkSequenceFilterToName = interner.intern("kk_sequence_filterTo")
+        kkSequenceFilterNotToName = interner.intern("kk_sequence_filterNotTo")
+        kkSequenceMapToName = interner.intern("kk_sequence_mapTo")
+        kkSequenceMapNotNullToName = interner.intern("kk_sequence_mapNotNullTo")
+        kkSequenceMapIndexedToName = interner.intern("kk_sequence_mapIndexedTo")
+        kkSequenceFlatMapToName = interner.intern("kk_sequence_flatMapTo")
+        kkSequenceMapIndexedNotNullToName = interner.intern("kk_sequence_mapIndexedNotNullTo")
+        kkSequenceFlatMapIndexedToName = interner.intern("kk_sequence_flatMapIndexedTo")
+        kkSequenceFilterIndexedToName = interner.intern("kk_sequence_filterIndexedTo")
+        kkSequenceFilterNotNullToName = interner.intern("kk_sequence_filterNotNullTo")
+        kkSequenceFilterIsInstanceToName = interner.intern("kk_sequence_filterIsInstanceTo")
+        plusMemberName = interner.intern("plus")
+        plusElementName = interner.intern("plusElement")
+        minusElementName = interner.intern("minusElement")
+        minusMemberName = interner.intern("minus")
+        asSequenceName = interner.intern("asSequence")
+        toListName = interner.intern("toList")
+        constrainOnceName = interner.intern("constrainOnce")
+        toCollectionName = interner.intern("toCollection")
+        toUByteArrayName = interner.intern("toUByteArray")
+        toUShortArrayName = interner.intern("toUShortArray")
+        toUIntArrayName = interner.intern("toUIntArray")
+        toULongArrayName = interner.intern("toULongArray")
+        toCharArrayName = interner.intern("toCharArray")
+        toBooleanArrayName = interner.intern("toBooleanArray")
+        toShortArrayName = interner.intern("toShortArray")
+        toDoubleArrayName = interner.intern("toDoubleArray")
+        toFloatArrayName = interner.intern("toFloatArray")
+        toIntArrayName = interner.intern("toIntArray")
+        toLongArrayName = interner.intern("toLongArray")
+        toByteArrayName = interner.intern("toByteArray")
+        toSetName = interner.intern("toSet")
+        toMapName = interner.intern("toMap")
+        takeName = interner.intern("take")
+        sequenceName = interner.intern("sequence")
+        iteratorBuilderName = interner.intern("iterator")
+        yieldName = interner.intern("yield")
+        yieldAllName = interner.intern("yieldAll")
+        sequenceOfName = interner.intern("sequenceOf")
+        generateSequenceName = interner.intern("generateSequence")
+    }
+}

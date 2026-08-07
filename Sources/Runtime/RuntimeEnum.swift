@@ -11,6 +11,22 @@ public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
     return 0
 }
 
+/// Boxes an enum ordinal for storage in an Any-erased `values()`/`entries`
+/// backing array, tagging the box with the entry's declared name.
+///
+/// Every other enum value (a direct reference like `Direction.NORTH`, or a
+/// `valueOf`/`$enumOrdinalToName` argument) is a raw ordinal Int. An element
+/// read back out of `values()`/`entries` must round-trip through the same
+/// `kk_unbox_int` that recovers those raw ordinals, so this produces a
+/// genuine `RuntimeIntBox` rather than a distinct representation — the name
+/// tag only affects how generic Any-printing paths render the box once the
+/// static enum type has been erased (see RuntimeIntBox.enumEntryName).
+@_cdecl("kk_enum_box_ordinal")
+public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int) -> Int {
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: namePtr))
+    return registerRuntimeObject(RuntimeIntBox(ordinal, enumEntryName: name))
+}
+
 /// Creates an `Array` of enum instances for `enumValues<T>()` and `T.values()`.
 ///
 /// The lowering stage builds an array of enum singleton objects (`RuntimeArrayBox`) and

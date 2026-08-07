@@ -228,19 +228,18 @@ extension CallLowerer {
             intType: intType,
             anyType: sema.types.anyType,
             types: sema.types,
+            symbols: sema.symbols,
             instructions: &instructions
         )
 
         if args.contains(where: \.isSpread) {
             let count = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_size"),
-                arguments: [array],
+                arg: array,
                 result: count,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             return (array, count)
         }
 
@@ -337,23 +336,19 @@ extension CallLowerer {
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
 
             let key = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_pair_first"),
-                arguments: [pair],
+                arg: pair,
                 result: key,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             let value = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_pair_second"),
-                arguments: [pair],
+                arg: pair,
                 result: value,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             instructions.append(.call(
                 symbol: nil,

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "val_reassign_error.kt",
+      "range": {
+        "start": { "line": 2, "character": 2 },
+        "end": { "line": 2, "character": 7 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0014",
+      "source": "kswiftk",
+      "message": "Val cannot be reassigned.",
+      "codeActions": [{ "title": "Add explicit type cast", "kind": "quickfix" }]
+    }
+  ]
+}

@@ -63,7 +63,8 @@ extension BuildASTPhase {
         from blockNodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        excludingTopLevelFunDecls: Bool = false
     ) -> [ExprID] {
         // Phase 1 – gather per-CST-statement token arrays, merging
         // dot-continuation lines into the previous group.
@@ -73,7 +74,8 @@ extension BuildASTPhase {
         var rawGroups: [[Token]] = []
         var filteredGroups: [[Token]] = []
         collectBlockStatementGroups(from: blockNodeID, in: arena,
-                                    rawGroups: &rawGroups, filteredGroups: &filteredGroups)
+                                    rawGroups: &rawGroups, filteredGroups: &filteredGroups,
+                                    excludingTopLevelFunDecls: excludingTopLevelFunDecls)
 
         // Phase 2 – parse each (potentially merged) token group.
         var result: [ExprID] = []
@@ -94,12 +96,19 @@ extension BuildASTPhase {
         from blockNodeID: NodeID,
         in arena: SyntaxArena,
         rawGroups: inout [[Token]],
-        filteredGroups: inout [[Token]]
+        filteredGroups: inout [[Token]],
+        excludingTopLevelFunDecls: Bool = false
     ) {
         for child in arena.children(of: blockNodeID) {
             guard case let .node(nodeID) = child else { continue }
             let node = arena.node(nodeID)
             guard isStatementLikeKind(node.kind) else { continue }
+            // Top-level `fun` declarations at script root are already recorded
+            // as real file-scope FunDecls by the caller (see
+            // FrontendPhases.buildFileAST); re-parsing them here too would
+            // additionally nest them as shadowing local functions inside the
+            // synthesized `main()` body.
+            if excludingTopLevelFunDecls, node.kind == .funDecl { continue }
 
             let rawTokens = collectTokens(from: nodeID, in: arena)
             // Strip only top-level semicolons; keep semicolons inside braces so

@@ -1,3 +1,4 @@
+import Foundation
 
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
@@ -20,7 +21,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // initializer directly (see SemaModule.bundledIndex) rather than set
         // via a later mutation, matching the existing importedInlineFunctions
         // constructor-parameter convention.
-        let bundledIndex = BundledDeclarationIndex.build(
+        var bundledIndex = BundledDeclarationIndex.build(
             ast: ast,
             symbols: symbols,
             types: types,
@@ -34,7 +35,22 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
-        sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
+        let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
+        sema.importedInlineFunctions = importedInlineFunctions
+
+        if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
+            bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
+                bundledIndex: bundledIndex,
+                stdlibLibraryPath: stdlibLibraryPath,
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+            // STDLIB-SHARED-002: SemaModule was created before imported symbols were
+            // merged into the bundled index, so update it before any type-checker
+            // queries rely on source-backed stdlib declarations.
+            sema.bundledIndex = bundledIndex
+        }
 
         registerSyntheticDelegateStubs(
             symbols: symbols,
@@ -42,11 +58,27 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner,
             bundledIndex: bundledIndex
         )
+
+        // Synthetic nominal anchors (e.g. kotlin.Comparator) register methods after
+        // library import. Apply imported class/interface layouts only after those
+        // synthetic methods exist, so vtable/itable slots can resolve.
+        applyImportedLibraryDeferredWork(
+            importDeferredWork,
+            symbols: symbols,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
+        )
+        registerCompareBySingleSelectorPostBundled(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
         )
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
@@ -67,18 +99,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         // once header registration finished.
         sema.bundledIndex = bundledIndex
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
-        let stringBuilderOwner = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("text"),
-            ctx.interner.intern("StringBuilder"),
-        ]
-        if bundledIndex.contains(ownerFQName: stringBuilderOwner, name: ctx.interner.intern("append"), arity: 1) {
-            patchSourceBackedStringBuilderSupertypes(
-                symbols: symbols,
-                types: types,
-                interner: ctx.interner
-            )
-        }
         patchSourceBackedCharIteratorReturnType(
             symbols: symbols,
             types: types,
@@ -105,14 +125,55 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> [SymbolID: KIRFunction] {
+    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
         var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
-        loadImportedLibrarySymbols(
+        let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
             importedInlineFunctions: &importedInlineFunctions
         )
-        return importedInlineFunctions
+        return (importedInlineFunctions, deferredWork)
+    }
+
+    private func mergeImportedStdlibSymbolsIntoBundledIndex(
+        bundledIndex: BundledDeclarationIndex,
+        stdlibLibraryPath: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> BundledDeclarationIndex {
+        let manifestPath = URL(fileURLWithPath: stdlibLibraryPath).appendingPathComponent("manifest.json").path
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
+              let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data),
+              let moduleName = manifest.moduleName, !moduleName.isEmpty
+        else {
+            return bundledIndex
+        }
+        let stdlibModuleName = interner.intern(moduleName)
+        var importedStdlibKeys: Set<BundledMemberKey> = []
+        for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+            guard let key = BundledDeclarationIndex.memberKey(
+                for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
+            ) else { continue }
+            importedStdlibKeys.insert(key)
+
+            // STDLIB-SHARED-012: Source-backed extension functions imported from a
+            // stdlib artifact must be attached to their receiver nominal type so
+            // collection/sequence member-call fallback resolution (which keys off
+            // parentSymbol == owner) can find them. Skip retained runtime-bridge
+            // overlaps so synthetic ABI stubs keep routing through kk_* entries.
+            guard symbol.kind == .function,
+                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
+                  let signature = symbols.functionSignature(for: symbol.id),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType))
+            else { continue }
+            symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol.id)
+        }
+        var updatedIndex = bundledIndex
+        updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
+        return updatedIndex
     }
 
     func collectAllHeaders(
@@ -135,22 +196,47 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
             return lhs.fileID.rawValue < rhs.fileID.rawValue
         }
+        // BUG-143: forward-declare every top-level nominal type first, so a
+        // signature may reference a class/interface/object declared later in the
+        // same file (or in a file collected later).
+        var predeclared: [DeclID: SymbolID] = [:]
         for file in orderedFiles {
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
-            registerFileAnnotations(
-                file: file,
-                symbols: symbols,
-                diagnostics: ctx.diagnostics,
-                interner: ctx.interner
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclared
             )
-            for declID in file.topLevelDecls {
-                collectHeader(
-                    declID: declID, file: file, ast: ast,
-                    symbols: symbols, types: types, bindings: bindings,
-                    scope: fileScope, sourceManager: ctx.sourceManager,
-                    diagnostics: ctx.diagnostics, interner: ctx.interner,
-                    ctx: ctx
-                )
+        }
+        // Type aliases are collected before the remaining headers so that their
+        // underlying type is available to signatures that mention the alias.
+        for collectsTypeAliases in [true, false] {
+            for file in orderedFiles {
+                guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+                if collectsTypeAliases {
+                    registerFileAnnotations(
+                        file: file,
+                        symbols: symbols,
+                        diagnostics: ctx.diagnostics,
+                        interner: ctx.interner
+                    )
+                }
+                for declID in file.topLevelDecls {
+                    let isTypeAlias: Bool
+                    if case .typeAliasDecl = ast.arena.decl(declID) {
+                        isTypeAlias = true
+                    } else {
+                        isTypeAlias = false
+                    }
+                    guard isTypeAlias == collectsTypeAliases else { continue }
+                    collectHeader(
+                        declID: declID, file: file, ast: ast,
+                        symbols: symbols, types: types, bindings: bindings,
+                        scope: fileScope, sourceManager: ctx.sourceManager,
+                        diagnostics: ctx.diagnostics, interner: ctx.interner,
+                        ctx: ctx, predeclaredSymbol: predeclared[declID]
+                    )
+                }
             }
         }
     }
@@ -160,6 +246,28 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem, ctx: CompilationContext
     ) {
         bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        // BUG-166: StringBuilder's Appendable/CharSequence conformance is
+        // synthetic (not written in the bundled Kotlin source's `class
+        // StringBuilder { ... }` declaration), so bindInheritanceEdges above —
+        // which recomputes every nominal's directSupertypes from its AST
+        // super-type clause and defaults to just `Any` when that clause is
+        // empty — unconditionally overwrites whatever this patch had set
+        // if it ran any earlier (e.g. before this function, as a prior
+        // version of this fix did). That left `val x: Appendable =
+        // StringBuilder()` unable to satisfy the assignment's subtype
+        // constraint (KSWIFTK-TYPE-0001) despite Appendable's own itable
+        // layout being otherwise correct. Patching here, immediately after
+        // bindInheritanceEdges and before every other validation pass and
+        // synthesizeNominalLayouts below, ensures both the constraint solver
+        // and itable slot synthesis see the complete supertype list.
+        patchSourceBackedStringBuilderSupertypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+        validateTypeParameterUpperBounds(
+            symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -222,7 +330,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
-        synthesizeNominalLayouts(symbols: symbols, types: types)
+        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

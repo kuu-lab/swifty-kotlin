@@ -602,13 +602,33 @@ extension CallTypeChecker {
                     interner: interner
                 )
             } ?? []
-            let memberCandidates = rangeSourceCandidates.isEmpty ? driver.helpers.collectMemberFunctionCandidates(
-                named: calleeName,
-                receiverType: memberLookupType,
-                sema: sema,
-                allowedOwnerSymbols: allowedOwnerSymbols,
-                interner: interner
-            ) : rangeSourceCandidates
+            let atomicSourceCandidates: [SymbolID] = if rangeSourceCandidates.isEmpty,
+                isBundledAtomicSourceMember(calleeName, interner: interner),
+                isBundledAtomicSourceReceiver(memberLookupType, sema: sema, interner: interner)
+            {
+                collectAtomicSourceExtensionCandidates(
+                    named: calleeName,
+                    receiverType: memberLookupType,
+                    sema: sema,
+                    interner: interner
+                )
+            } else {
+                []
+            }
+            let memberCandidates: [SymbolID]
+            if !rangeSourceCandidates.isEmpty {
+                memberCandidates = rangeSourceCandidates
+            } else if !atomicSourceCandidates.isEmpty {
+                memberCandidates = atomicSourceCandidates
+            } else {
+                memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: memberLookupType,
+                    sema: sema,
+                    allowedOwnerSymbols: allowedOwnerSymbols,
+                    interner: interner
+                )
+            }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -657,10 +677,16 @@ extension CallTypeChecker {
                         scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
                             guard let symbol = sema.symbols.symbol(candidate),
                                   symbol.kind == .function,
-                                  symbol.flags.contains(.synthetic),
                                   let signature = sema.symbols.functionSignature(for: candidate),
                                   let recvType = signature.receiverType
                             else { return false }
+                            // Include bundled/user Kotlin source extensions, not only
+                            // synthetic stubs, so source-backed Sequence transforms
+                            // (map, filter, etc.) are visible as member-call candidates.
+                            let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
+                            guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                                return false
+                            }
                             // Exclude property accessor functions (getter/setter)
                             // whose parent is a property symbol.  Their short name
                             // is "get"/"set" and must not pollute member lookup.
@@ -703,6 +729,21 @@ extension CallTypeChecker {
                                 sema: sema
                             )
                         }
+                    }
+                    // Bundled stdlib extension functions are conceptually members
+                    // of their receiver type (e.g. AtomicIntArray.loadAt) and must
+                    // resolve on member-style calls without an explicit import, the
+                    // same way synthetic stubs used to. Ordinary scope lookup only
+                    // finds them when imported, so as a final fallback — reached only
+                    // when the call would otherwise be unresolved — match bundled
+                    // stdlib extensions by receiver type.
+                    if scopeCandidates.isEmpty {
+                        scopeCandidates = collectBundledStdlibExtensionCandidates(
+                            named: calleeName,
+                            receiverType: memberLookupType,
+                            sema: sema,
+                            interner: interner
+                        )
                     }
                     allCandidates = scopeCandidates
                 }
@@ -915,14 +956,18 @@ extension CallTypeChecker {
         // variable bounds. Those overloads keep going through the synthetic
         // fallback and their require() bypass is tracked separately.
         let hasTrailingLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed"]
-        let hasSourceBackedCandidate = !hasTrailingLambdaArg
-            && sourceBackedCollectionMemberNames.contains(interner.resolve(calleeName))
+        // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
+        // (map, filter, etc.) must bind to the real Kotlin declaration so the
+        // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex"]
+        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed"]
+        let memberNameText = interner.resolve(calleeName)
+        let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
+            || sourceBackedTrailingLambdaMemberNames.contains(memberNameText)
+        let hasSourceBackedCandidate = isSourceBackedMemberName
+            && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
-                guard let symbol = sema.symbols.symbol(candidateID), symbol.declSite != nil else {
-                    return false
-                }
-                return (sema.symbols.externalLinkName(for: candidateID) ?? "").isEmpty
+                sema.symbols.isSourceBackedSymbol(candidateID)
             }
         // Synthetic collection members need to short-circuit before the generic
         // overload resolver so their trailing-lambda expectations stay concrete.
@@ -1027,6 +1072,7 @@ extension CallTypeChecker {
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
             blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+            hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: ctx
         )
         if let diagnostic = resolved.diagnostic {
@@ -1426,6 +1472,109 @@ extension CallTypeChecker {
         return finalType
     }
 
+    /// Whether `receiverType`'s nominal owner is one of the atomic stdlib classes
+    /// whose bundled `*At`/alias source is the live implementation. Gates the
+    /// importless bundled-extension member fallback so it never surfaces the
+    /// dead-mirror bundled sources of other stdlib families.
+    private func isAtomicMigrationReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNull = sema.types.makeNonNullable(receiverType)
+        guard let owner = driver.helpers.nominalSymbol(of: nonNull, types: sema.types),
+              let symbol = sema.symbols.symbol(owner)
+        else {
+            return false
+        }
+        let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        switch fqName {
+        case "kotlin.concurrent.atomics.AtomicInt",
+             "kotlin.concurrent.atomics.AtomicLong",
+             "kotlin.concurrent.atomics.AtomicBoolean",
+             "kotlin.concurrent.atomics.AtomicReference",
+             "kotlin.concurrent.atomics.AtomicIntArray",
+             "kotlin.concurrent.atomics.AtomicLongArray",
+             "kotlin.concurrent.AtomicInt",
+             "kotlin.concurrent.AtomicLong",
+             "kotlin.concurrent.AtomicBoolean",
+             "kotlin.concurrent.AtomicReference",
+             "kotlin.concurrent.AtomicIntArray",
+             "kotlin.concurrent.AtomicLongArray":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Finds bundled stdlib extension functions named `calleeName` whose receiver
+    /// matches `receiverType`. Bundled stdlib extensions (e.g. the atomic-array
+    /// `loadAt`/`storeAt` migration source) are conceptually members and should be
+    /// callable without an explicit import, but ordinary scope lookup only exposes
+    /// them when imported. This is used as a final member-call resolution fallback,
+    /// so it only affects calls that would otherwise be unresolved. Membership is
+    /// gated by `sema.bundledIndex` so user-declared extensions are never surfaced
+    /// here without import.
+    func collectBundledStdlibExtensionCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        requireOperator: Bool = false,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        // This importless-member fallback exists only for the atomic stdlib
+        // migration (KSP-672 and the scalar alias mirror): those bundled sources
+        // are the live implementation and their synthetic stubs are intentionally
+        // skipped. Other bundled stdlib sources (collection/sequence/text HOFs)
+        // are dead mirrors whose canonical lowering goes through runtime helpers,
+        // so surfacing them here would wrongly pre-empt that path.
+        guard isAtomicMigrationReceiver(receiverType, sema: sema, interner: interner) else {
+            return []
+        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            // Source-backed bundled stdlib extensions are not synthetic; imported
+            // stdlib artifact symbols are synthetic + importedLibrary and should
+            // still be considered here so shared-path code can resolve them.
+            if symbol.flags.contains(.synthetic), !symbol.flags.contains(.importedLibrary) {
+                return false
+            }
+            if requireOperator, !symbol.flags.contains(.operatorFunction) {
+                return false
+            }
+            // Property accessor functions share the short names get/set; their
+            // parent is a property symbol and must not pollute member lookup.
+            if let parentID = sema.symbols.parentSymbol(for: candidate),
+               let parentSym = sema.symbols.symbol(parentID),
+               parentSym.kind == .property
+            {
+                return false
+            }
+            guard let key = BundledDeclarationIndex.memberKey(
+                for: symbol,
+                symbolID: candidate,
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner
+            ), sema.bundledIndex.contains(key)
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullReceiver,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+    }
+
     private func isBundledRangeSourceMember(
         _ calleeName: InternedString,
         interner: StringInterner
@@ -1438,7 +1587,7 @@ extension CallTypeChecker {
         }
     }
 
-    private func sourceLevelRangeMemberLookupType(
+    func sourceLevelRangeMemberLookupType(
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
@@ -1583,6 +1732,94 @@ extension CallTypeChecker {
                 )
             }
             .sorted { $0.rawValue < $1.rawValue }
+    }
+
+    /// The CAS-loop update operators migrated to bundled Kotlin source
+    /// (`AtomicMigration.kt`).  Like the range-source members these live as
+    /// package-scoped extension functions in `kotlin.concurrent`, so they must
+    /// be recovered by an explicit source lookup rather than ordinary
+    /// member-call resolution.
+    private func isBundledAtomicSourceMember(
+        _ calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        switch interner.resolve(calleeName) {
+        case "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
+             "fetchAndUpdateAt", "updateAt", "updateAndFetchAt":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// True when `receiverType` is one of the atomic box types whose CAS-loop
+    /// update operators are provided by bundled Kotlin source.
+    private func isBundledAtomicSourceReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let nominal = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
+              let symbol = sema.symbols.symbol(nominal)
+        else {
+            return false
+        }
+        let fqName = symbol.fqName
+        guard fqName.count >= 2 else { return false }
+        let name = interner.resolve(fqName[fqName.count - 1])
+        switch name {
+        case "AtomicInt", "AtomicLong", "AtomicBoolean", "AtomicReference",
+             "AtomicArray", "AtomicIntArray", "AtomicLongArray", "AtomicInteger":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Recover bundled `kotlin.concurrent` extension functions (the migrated CAS
+    /// loops in `AtomicMigration.kt`) as member candidates for atomic receivers.
+    private func collectAtomicSourceExtensionCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let kotlin = interner.intern("kotlin")
+        let concurrent = interner.intern("concurrent")
+        let atomics = interner.intern("atomics")
+        let packageFQNames: [[InternedString]] = [
+            [kotlin, concurrent],
+            [kotlin, concurrent, atomics],
+        ]
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        var candidates: [SymbolID] = []
+        for packageFQName in packageFQNames {
+            let memberFQName = packageFQName + [calleeName]
+            candidates.append(contentsOf: sema.symbols.lookupAll(fqName: memberFQName)
+                .filter { candidate in
+                    // Top-level bundled extension functions declared directly in
+                    // the package (identified by their exact FQ name so class
+                    // members with the same short name are excluded). The
+                    // package symbol identity cannot be used because synthetic
+                    // atomic stubs create a distinct package symbol from the one
+                    // owning the bundled source declarations.
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          symbol.fqName == memberFQName,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                })
+        }
+        return candidates.sorted { $0.rawValue < $1.rawValue }
     }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length

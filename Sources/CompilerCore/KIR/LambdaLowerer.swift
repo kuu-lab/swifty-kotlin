@@ -1,4 +1,3 @@
-
 struct KIRCallableValueInfo {
     let symbol: SymbolID
     let callee: InternedString
@@ -37,6 +36,58 @@ final class LambdaLowerer {
             into: &instructions
         )
         return normalizedExpr
+    }
+
+    /// Best-effort scan for whether a lowered lambda body performs a call that
+    /// requires a suspend context (`.await()`/`.join()`/`delay`/`yield`/a generic
+    /// suspend-function-invoke/a Flow operation, or a call to another
+    /// already-lowered suspend function). Used to correct a lambda literal's
+    /// `isSuspend` when the contextual/expected type it was checked against is
+    /// non-suspend (e.g. `List.map`'s plain `(T) -> R` `transform` parameter)
+    /// but the body suspends anyway -- see the call sites for why trusting the
+    /// contextual type alone causes suspend calls to run without a valid
+    /// continuation.
+    private func lambdaBodyRequiresSuspend(
+        _ body: [KIRInstruction],
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> Bool {
+        let suspendIndicatorNames: Set<String> = [
+            "kk_kxmini_async_await",
+            "kk_job_join",
+            "kk_job_await_completion",
+            "kk_kxmini_delay",
+            "kk_coroutine_yield",
+            "kk_sequence_builder_yield",
+            "kk_iterator_builder_yield",
+            "kk_suspend_function_invoke_0",
+            "kk_suspend_function_invoke",
+            "kk_suspend_coroutine",
+            "kk_with_timeout",
+            "kk_with_timeout_or_null",
+            "kk_flow_collect",
+            "kk_flow_collectLatest",
+            "kk_flow_emit",
+        ]
+        for instruction in body {
+            let calleeInfo: (symbol: SymbolID?, callee: InternedString)?
+            switch instruction {
+            case let .call(symbol, callee, _, _, _, _, _, _):
+                calleeInfo = (symbol, callee)
+            case let .virtualCall(symbol, callee, _, _, _, _, _, _):
+                calleeInfo = (symbol, callee)
+            default:
+                calleeInfo = nil
+            }
+            guard let calleeInfo else { continue }
+            if suspendIndicatorNames.contains(interner.resolve(calleeInfo.callee)) {
+                return true
+            }
+            if let symbol = calleeInfo.symbol, arena.function(for: symbol)?.isSuspend == true {
+                return true
+            }
+        }
+        return false
     }
 
     func lowerLambdaLiteralExpr(
@@ -85,6 +136,8 @@ final class LambdaLowerer {
 
         // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
+        let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
+        let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
         let effectiveParamCount: Int = {
             let baseCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
                 functionType.params.count
@@ -94,14 +147,12 @@ final class LambdaLowerer {
             // For receiver lambdas (e.g., StringBuilder.() -> Unit), the receiver
             // is implicitly passed as the first parameter, but only if there's no
             // active implicit receiver in the current scope
-            let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
             return baseCount + (needsExplicitReceiver ? 1 : 0)
         }()
 
         let lambdaParameterTypes: [TypeID] = {
             var types: [TypeID] = []
             // Add receiver parameter first if needed
-            let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
             if needsExplicitReceiver, let receiverType = functionType?.receiver {
                 types.append(receiverType)
             }
@@ -126,7 +177,6 @@ final class LambdaLowerer {
             ast: ast,
             sema: sema
         )
-        let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
         let isNonCapturingLambda = captureSymbols.isEmpty && !needsClosureParam
@@ -248,9 +298,12 @@ final class LambdaLowerer {
                 normalizedParamExpr = paramExpr
             }
             driver.ctx.setLocalValue(normalizedParamExpr, for: lambdaParam.symbol)
-            // When the first parameter is the receiver (from a function-with-receiver type),
+            // When a parameter is the explicit receiver (from a function-with-receiver type),
             // set it as the implicit receiver so that member calls resolve correctly.
-            if paramIndex == 0, hasReceiverParam {
+            // For collection-HOF lambdas the closure param is first, so the receiver
+            // follows it.
+            let receiverParamIndex = needsClosureParam ? 1 : 0
+            if needsExplicitReceiver, paramIndex == receiverParamIndex {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: normalizedParamExpr)
             }
         }
@@ -331,6 +384,21 @@ final class LambdaLowerer {
         lambdaBody.append(.returnValue(loweredBody))
         lambdaBody.append(.endBlock)
 
+        // The expected/contextual function type (e.g. a plain `(T) -> R)` HOF
+        // parameter like `List.map`'s `transform`) doesn't always match what the
+        // lambda body actually does: Kotlin only requires the *parameter* to be
+        // `suspend` when the argument lambda calls suspend functions, but KSwiftK
+        // currently still permits a suspend call inside a lambda literal checked
+        // against a non-suspend expected type (matching real Kotlin's behavior for
+        // `inline` HOFs, but without requiring the HOF itself to be inlined away).
+        // If such a lambda is lowered as `isSuspend: false` anyway, it never gets
+        // picked up by CoroutineLoweringPass's CPS transform, so its suspend calls
+        // run without a valid continuation and corrupt memory at runtime instead
+        // of suspending. Detect that mismatch directly from the lowered body so
+        // the declared isSuspend always matches what the body actually needs.
+        let effectiveIsSuspend = (functionType?.isSuspend ?? false)
+            || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+
         let lambdaDecl = arena.appendDecl(
             .function(
                 KIRFunction(
@@ -339,7 +407,7 @@ final class LambdaLowerer {
                     params: functionCaptureBindings.map(\.param) + lambdaParameters,
                     returnType: lambdaReturnType,
                     body: lambdaBody,
-                    isSuspend: functionType?.isSuspend ?? false,
+                    isSuspend: effectiveIsSuspend,
                     isInline: false
                 )
             )
@@ -375,7 +443,7 @@ final class LambdaLowerer {
                     FunctionType(
                         params: lambdaParameterTypes,
                         returnType: lambdaReturnType,
-                        isSuspend: functionType?.isSuspend ?? false,
+                        isSuspend: effectiveIsSuspend,
                         nullability: .nonNull
                     )
                 )
@@ -393,10 +461,15 @@ final class LambdaLowerer {
         if !captureArgs.isEmpty {
             arena.registerLambdaCaptureArgs(lambdaSymbol, captureArgs: captureArgs)
         }
+        // Lambdas passed to runBlocking/launch/async/produce are excluded: their
+        // captures are forwarded through CoroutineLoweringPass+LauncherSupport's
+        // own launcher-continuation rewrite (BUG-049), which expects to resolve
+        // the raw lambda symbol directly rather than a kk_function_create_N
+        // boxed closure -- see the coroutineLauncherLambdaExprIDs doc comment.
         if !captureArgs.isEmpty,
            !needsClosureParam,
            !isSamConversion,
-           !(functionType?.isSuspend ?? false),
+           !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
            let functionType
         {
             if let materialized = materializeEscapingCallableValue(
@@ -915,6 +988,111 @@ final class LambdaLowerer {
         return abstractMethods[0]
     }
 
+    /// Lowers a SAM-converted callable reference (`Comparator<Int>(::myCompare)`)
+    /// into a wrapper object implementing the functional interface.  A thunk with
+    /// the lambda calling convention `(captures..., params...) -> R` is generated
+    /// so the shared SAM wrapper synthesis can delegate to the referenced callable.
+    private func lowerCallableRefSamWrapperValue(
+        _ exprID: ExprID,
+        targetSymbol: SymbolID,
+        captureArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let interfaceTypeID = sema.bindings.samInterfaceType(for: exprID),
+              case let .classType(interfaceType) = sema.types.kind(of: interfaceTypeID),
+              let samFunctionTypeID = sema.bindings.samUnderlyingFunctionType(for: exprID),
+              case let .functionType(samFunctionType) = sema.types.kind(of: samFunctionTypeID)
+        else {
+            return nil
+        }
+
+        let samMethodParamTypes = samFunctionType.params
+        let returnType = samFunctionType.returnType
+
+        let thunkName = interner.intern("kk_sam_ref_thunk_\(exprID.rawValue)")
+        let thunkSymbol = sema.symbols.define(
+            kind: .function,
+            name: thunkName,
+            fqName: [thunkName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+
+        let captureParams: [KIRParameter] = captureArguments.enumerated().map { index, captureExpr in
+            KIRParameter(
+                symbol: syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: index),
+                type: arena.exprType(captureExpr) ?? sema.types.anyType
+            )
+        }
+        let valueParams: [KIRParameter] = samMethodParamTypes.enumerated().map { index, type in
+            KIRParameter(
+                symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
+                type: type
+            )
+        }
+
+        var body: [KIRInstruction] = [.beginBlock]
+        var callArguments: [KIRExprID] = []
+        for param in captureParams + valueParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            callArguments.append(paramExpr)
+        }
+        let callResult = arena.appendTemporary(type: returnType)
+        body.append(.call(
+            symbol: targetSymbol,
+            callee: callableTargetName(for: targetSymbol, sema: sema, interner: interner),
+            arguments: callArguments,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        switch sema.types.kind(of: returnType) {
+        case .unit, .nothing(.nonNull), .nothing(.nullable):
+            body.append(.returnUnit)
+        default:
+            body.append(.returnValue(callResult))
+        }
+        body.append(.endBlock)
+
+        let thunkDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: thunkSymbol,
+                    name: thunkName,
+                    params: captureParams + valueParams,
+                    returnType: returnType,
+                    body: body,
+                    isSuspend: samFunctionType.isSuspend,
+                    isInline: false
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(thunkDecl)
+
+        let captureBindings = zip(captureParams, captureArguments).map { param, valueExpr in
+            (capturedSymbol: param.symbol, param: param, valueExpr: valueExpr, declaredType: param.type)
+        }
+
+        return lowerSamWrapperValue(
+            exprID,
+            interfaceType: interfaceType,
+            lambdaSymbol: thunkSymbol,
+            lambdaName: thunkName,
+            lambdaReturnType: returnType,
+            captureBindings: captureBindings,
+            samMethodParamTypes: samMethodParamTypes,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     func lowerCallableRefExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID?,
@@ -952,6 +1130,25 @@ final class LambdaLowerer {
             memberName: memberName,
             sema: sema
         )
+
+        // BUG-048: A callable reference in SAM-conversion position must become an
+        // object implementing the functional interface (with an itable entry), the
+        // same way a SAM-converted lambda literal does.  Lowering it as a bare
+        // callable value makes interface dispatch on the result fail at runtime.
+        if sema.bindings.isSamConversion(exprID),
+           let targetSymbol,
+           let samValue = lowerCallableRefSamWrapperValue(
+               exprID,
+               targetSymbol: targetSymbol,
+               captureArguments: captureArguments,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return samValue
+        }
 
         // REFL-003: When a callable ref is used as a collection HOF argument
         // (e.g. `list.map(::double)`), we must generate a wrapper thunk with the
@@ -1290,6 +1487,12 @@ final class LambdaLowerer {
         lambdaBody.append(.returnValue(loweredBody))
         lambdaBody.append(.endBlock)
 
+        // See the matching comment in lowerLambdaLiteralExpr: the expected/
+        // contextual functionType doesn't always match what the body actually
+        // does, so trust the lowered body over a non-suspend contextual type.
+        let effectiveIsSuspend = (functionType?.isSuspend ?? false)
+            || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+
         // Create optimized function declaration
         let lambdaDecl = arena.appendDecl(
             .function(
@@ -1299,7 +1502,7 @@ final class LambdaLowerer {
                     params: lambdaParameters, // No capture parameters
                     returnType: lambdaReturnType,
                     body: lambdaBody,
-                    isSuspend: functionType?.isSuspend ?? false,
+                    isSuspend: effectiveIsSuspend,
                     isInline: true // Mark as inline for better optimization
                 )
             )
@@ -1335,7 +1538,7 @@ final class LambdaLowerer {
                     FunctionType(
                         params: lambdaParameterTypes,
                         returnType: lambdaReturnType,
-                        isSuspend: functionType?.isSuspend ?? false,
+                        isSuspend: effectiveIsSuspend,
                         nullability: .nonNull
                     )
                 )

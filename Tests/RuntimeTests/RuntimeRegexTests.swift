@@ -1,17 +1,8 @@
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeRegexTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+@Suite(.runtimeIsolation(.all))
+struct RuntimeRegexTests {
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
@@ -47,7 +38,8 @@ final class RuntimeRegexTests: XCTestCase {
         }
     }
 
-    func testMatchResultValueAndGroupValues() {
+    @Test
+    func matchResultValueAndGroupValues() {
         let regexRaw = withFlatString("(ab)(cd)") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
@@ -55,81 +47,88 @@ final class RuntimeRegexTests: XCTestCase {
             kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
         }
 
-        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "abcd")
-        XCTAssertEqual(runtimeListStrings(kk_match_result_groupValues(matchRaw)), ["abcd", "ab", "cd"])
+        #expect(matchRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(matchRaw)) == "abcd")
+        #expect(runtimeListStrings(kk_match_result_groupValues(matchRaw)) == ["abcd", "ab", "cd"])
     }
 
     // MARK: - STDLIB-TEXT-FN-105: String.toRegex / toRegex(option) / toRegex(options)
 
-    func testStringToRegexCreatesEquivalentRegex() {
+    @Test
+    func stringToRegexCreatesEquivalentRegex() {
         let regexRaw = withFlatString("[a-z]+") { data, length, byteCount, hash in
             kk_string_toRegex_flat(data, length, byteCount, hash, nil)
         }
-        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        #expect(regexRaw != runtimeNullSentinelInt)
         let patternBack = runtimeString(kk_regex_pattern(regexRaw))
-        XCTAssertEqual(patternBack, "[a-z]+")
+        #expect(patternBack == "[a-z]+")
     }
 
-    func testStringToRegexMatchesSameAsRegexCreate() {
+    @Test
+    func stringToRegexMatchesSameAsRegexCreate() {
         let direct = withFlatString("ab+c") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
         let viaToRegex = withFlatString("ab+c") { data, length, byteCount, hash in
             kk_string_toRegex_flat(data, length, byteCount, hash, nil)
         }
-        XCTAssertEqual(
-            regexFind(direct, input: "abbbc") == runtimeNullSentinelInt,
-            regexFind(viaToRegex, input: "abbbc") == runtimeNullSentinelInt
+        #expect(
+            (regexFind(direct, input: "abbbc") == runtimeNullSentinelInt)
+                == (regexFind(viaToRegex, input: "abbbc") == runtimeNullSentinelInt)
         )
     }
 
-    func testStringToRegexWithOptionIgnoreCase() {
+    @Test
+    func stringToRegexWithOptionIgnoreCase() {
         // ordinal 0 = IGNORE_CASE
         let optionRaw = kk_box_int(0)
         let regexRaw = withFlatString("hello") { data, length, byteCount, hash in
             kk_regex_create_with_option_flat(data, length, byteCount, hash, optionRaw, nil)
         }
-        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        #expect(regexRaw != runtimeNullSentinelInt)
         let matchRaw = regexFind(regexRaw, input: "say HELLO world")
-        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "HELLO")
+        #expect(matchRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(matchRaw)) == "HELLO")
     }
 
-    func testStringToRegexWithOptionPreservesPattern() {
+    @Test
+    func stringToRegexWithOptionPreservesPattern() {
         // ordinal 1 = MULTILINE
         let optionRaw = kk_box_int(1)
         let regexRaw = withFlatString("^foo") { data, length, byteCount, hash in
             kk_regex_create_with_option_flat(data, length, byteCount, hash, optionRaw, nil)
         }
-        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_regex_pattern(regexRaw)), "^foo")
+        #expect(regexRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_regex_pattern(regexRaw)) == "^foo")
     }
 
-    func testStringToRegexWithOptionsSetIgnoreCase() {
+    @Test
+    func stringToRegexWithOptionsSetIgnoreCase() {
         // Set<RegexOption> with ordinal 0 = IGNORE_CASE
         let setRaw = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_int(0)]))
         let regexRaw = withFlatString("world") { data, length, byteCount, hash in
             kk_regex_create_with_options_flat(data, length, byteCount, hash, setRaw, nil)
         }
-        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        #expect(regexRaw != runtimeNullSentinelInt)
         let matchRaw = regexFind(regexRaw, input: "Hello WORLD!")
-        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "WORLD")
+        #expect(matchRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(matchRaw)) == "WORLD")
     }
 
-    func testStringToRegexWithEmptyOptionsSet() {
+    @Test
+    func stringToRegexWithEmptyOptionsSet() {
         let setRaw = registerRuntimeObject(RuntimeSetBox(elements: []))
         let regexRaw = withFlatString("[0-9]+") { data, length, byteCount, hash in
             kk_regex_create_with_options_flat(data, length, byteCount, hash, setRaw, nil)
         }
-        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        #expect(regexRaw != runtimeNullSentinelInt)
         let matchRaw = regexFind(regexRaw, input: "abc123def")
-        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "123")
+        #expect(matchRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(matchRaw)) == "123")
     }
 
-    func testMatchGroupCollectionGetAndRange() {
+    @Test
+    func matchGroupCollectionGetAndRange() throws {
         let regexRaw = withFlatString("(?<lhs>ab)(?<rhs>cd)") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
@@ -144,55 +143,66 @@ final class RuntimeRegexTests: XCTestCase {
             kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
         }
 
-        XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertNotEqual(rhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_group_value(lhsGroupRaw)), "ab")
-        XCTAssertEqual(runtimeString(kk_match_group_value(rhsGroupRaw)), "cd")
+        #expect(lhsGroupRaw != runtimeNullSentinelInt)
+        #expect(rhsGroupRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
+        #expect(runtimeString(kk_match_group_value(rhsGroupRaw)) == "cd")
 
         let lhsRangeRaw = kk_match_group_range(lhsGroupRaw)
         let rhsRangeRaw = kk_match_group_range(rhsGroupRaw)
 
-        guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhsRangeRaw),
-              let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhsRangeRaw),
-              let lhsRange = tryCast(lhsPtr, to: RuntimeRangeBox.self),
-              let rhsRange = tryCast(rhsPtr, to: RuntimeRangeBox.self) else {
-            return XCTFail("Expected range boxes for named groups")
-        }
+        let lhsPtr = try #require(
+            UnsafeMutableRawPointer(bitPattern: lhsRangeRaw),
+            "Expected range boxes for named groups"
+        )
+        let rhsPtr = try #require(
+            UnsafeMutableRawPointer(bitPattern: rhsRangeRaw),
+            "Expected range boxes for named groups"
+        )
+        let lhsRange = try #require(
+            tryCast(lhsPtr, to: RuntimeRangeBox.self),
+            "Expected range boxes for named groups"
+        )
+        let rhsRange = try #require(
+            tryCast(rhsPtr, to: RuntimeRangeBox.self),
+            "Expected range boxes for named groups"
+        )
 
-        XCTAssertEqual(lhsRange.first, 2)
-        XCTAssertEqual(lhsRange.last, 3)
-        XCTAssertEqual(rhsRange.first, 4)
-        XCTAssertEqual(rhsRange.last, 5)
+        #expect(lhsRange.first == 2)
+        #expect(lhsRange.last == 3)
+        #expect(rhsRange.first == 4)
+        #expect(rhsRange.last == 5)
     }
 
-    func testFlatStringRegexRuntimeAPIsUseFlattenedStringFields() {
+    @Test
+    func flatStringRegexRuntimeAPIsUseFlattenedStringFields() {
         let regexRaw = withFlatString("[a-z]+") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
 
         withFlatString("abc") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)), 1)
+            #expect(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)) == 1)
         }
         withFlatString("abc123") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)), 0)
+            #expect(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)) == 0)
         }
         withFlatString("123abc") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_contains_regex_flat(data, length, byteCount, hash, regexRaw)), 1)
+            #expect(kk_unbox_bool(kk_string_contains_regex_flat(data, length, byteCount, hash, regexRaw)) == 1)
         }
 
         let fromToRegex = withFlatString("\\d+") { data, length, byteCount, hash in
             kk_string_toRegex_flat(data, length, byteCount, hash, nil)
         }
-        XCTAssertEqual(runtimeString(kk_regex_pattern(fromToRegex)), "\\d+")
+        #expect(runtimeString(kk_regex_pattern(fromToRegex)) == "\\d+")
 
         let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
             kk_regex_create_with_option_flat(data, length, byteCount, hash, kk_box_int(3), nil)
         }
         withFlatString("a.b") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)), 1)
+            #expect(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)) == 1)
         }
         withFlatString("axb") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)), 0)
+            #expect(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)) == 0)
         }
 
         let ignoreCaseOptions = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_int(0)]))
@@ -200,11 +210,12 @@ final class RuntimeRegexTests: XCTestCase {
             kk_regex_create_with_options_flat(data, length, byteCount, hash, ignoreCaseOptions, nil)
         }
         withFlatString("HELLO") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, ignoreCaseRegex)), 1)
+            #expect(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, ignoreCaseRegex)) == 1)
         }
     }
 
-    func testFlatRegexReceiverRuntimeAPIsUseFlattenedInputFields() {
+    @Test
+    func flatRegexReceiverRuntimeAPIsUseFlattenedInputFields() {
         let wordRegex = withFlatString("[a-z]+") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
@@ -212,14 +223,14 @@ final class RuntimeRegexTests: XCTestCase {
         let findRaw = withFlatString("123abc456") { data, length, byteCount, hash in
             kk_regex_find_flat(wordRegex, data, length, byteCount, hash)
         }
-        XCTAssertNotEqual(findRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(findRaw)), "abc")
+        #expect(findRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(findRaw)) == "abc")
 
         let findAllRaw = withFlatString("ab12cd") { data, length, byteCount, hash in
             kk_regex_findAll_flat(wordRegex, data, length, byteCount, hash)
         }
         let findAllValues = runtimeListElements(findAllRaw).map { runtimeString(kk_match_result_value($0)) }
-        XCTAssertEqual(findAllValues, ["ab", "cd"])
+        #expect(findAllValues == ["ab", "cd"])
 
         let commaRegex = withFlatString(",") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
@@ -227,35 +238,35 @@ final class RuntimeRegexTests: XCTestCase {
         let splitRaw = withFlatString("a,b,c") { data, length, byteCount, hash in
             kk_string_split_regex_flat(data, length, byteCount, hash, commaRegex)
         }
-        XCTAssertEqual(runtimeListStrings(splitRaw), ["a", "b", "c"])
+        #expect(runtimeListStrings(splitRaw) == ["a", "b", "c"])
 
         let entireRaw = withFlatString("abc") { data, length, byteCount, hash in
             kk_regex_matchEntire_flat(wordRegex, data, length, byteCount, hash)
         }
-        XCTAssertNotEqual(entireRaw, runtimeNullSentinelInt)
+        #expect(entireRaw != runtimeNullSentinelInt)
         let partialRaw = withFlatString("abc123") { data, length, byteCount, hash in
             kk_regex_matchEntire_flat(wordRegex, data, length, byteCount, hash)
         }
-        XCTAssertEqual(partialRaw, runtimeNullSentinelInt)
+        #expect(partialRaw == runtimeNullSentinelInt)
 
         withFlatString("123abc") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_regex_containsMatchIn_flat(wordRegex, data, length, byteCount, hash)), 1)
+            #expect(kk_unbox_bool(kk_regex_containsMatchIn_flat(wordRegex, data, length, byteCount, hash)) == 1)
         }
         withFlatString("abc") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(wordRegex, data, length, byteCount, hash)), 1)
+            #expect(kk_unbox_bool(kk_regex_matches_flat(wordRegex, data, length, byteCount, hash)) == 1)
         }
         withFlatString("abc123") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(wordRegex, data, length, byteCount, hash)), 0)
+            #expect(kk_unbox_bool(kk_regex_matches_flat(wordRegex, data, length, byteCount, hash)) == 0)
         }
 
         let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
             kk_regex_from_literal_flat(0, data, length, byteCount, hash)
         }
         withFlatString("a.b") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)), 1)
+            #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 1)
         }
         withFlatString("axb") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)), 0)
+            #expect(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)) == 0)
         }
 
         let namedRegex = withFlatString("(?<lhs>ab)(?<rhs>cd)") { data, length, byteCount, hash in
@@ -268,7 +279,7 @@ final class RuntimeRegexTests: XCTestCase {
         let lhsGroupRaw = withFlatString("lhs") { data, length, byteCount, hash in
             kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
         }
-        XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_group_value(lhsGroupRaw)), "ab")
+        #expect(lhsGroupRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
     }
 }

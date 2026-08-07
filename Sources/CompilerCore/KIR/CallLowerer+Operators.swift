@@ -673,6 +673,23 @@ extension CallLowerer {
         case .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
             preconditionFailure("Bitwise/shift binary operators must be lowered through member-call special handling")
         }
+        if op == .equal || op == .notEqual {
+            // A values()/entries element read out of an Any-erased array is a
+            // boxed ordinal, while a direct enum reference (e.g.
+            // Direction.NORTH) is a raw one -- normalize both operands so the
+            // comparison isn't a boxed-handle-vs-raw-ordinal mismatch. See
+            // unboxIfEnumTyped.
+            let normalizedLhsID = unboxIfEnumTyped(
+                lhsID, staticType: sema.bindings.exprTypes[lhs],
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
+            let normalizedRhsID = unboxIfEnumTyped(
+                rhsID, staticType: sema.bindings.exprTypes[rhs],
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
+            instructions.append(.binary(op: kirOp, lhs: normalizedLhsID, rhs: normalizedRhsID, result: result))
+            return result
+        }
         instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))
         return result
     }
@@ -808,8 +825,9 @@ extension CallLowerer {
         } else {
             false
         }
+        let receiverUsesFlatStringABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         if indices.count == 1,
-           sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+           receiverUsesFlatStringABI
            || (receiverIsCharSequence && !receiverLooksLikeArray && boundType == sema.types.charType)
         {
             let indexID = driver.lowerExpr(
@@ -826,7 +844,9 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_get_flat"),
+                callee: interner.intern(
+                    receiverUsesFlatStringABI ? "kk_string_get_flat" : "kk_char_sequence_get"
+                ),
                 arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,
@@ -1048,18 +1068,13 @@ extension CallLowerer {
             interner: interner
         )
         let storedValueID: KIRExprID
-        if assignReceiverIsGenericArray,
-           let valueType = arena.exprType(valueID),
-           let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-               for: valueType,
-               types: sema.types,
-               requireNonNull: false
-           )
-        {
-            storedValueID = emitNonThrowingCall(
-                callee: boxCallee,
-                arg: valueID,
-                resultType: sema.types.anyType,
+        if assignReceiverIsGenericArray, let valueType = arena.exprType(valueID) {
+            storedValueID = boxValueForAnySlot(
+                valueID,
+                sourceType: valueType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
                 arena: arena,
                 into: &instructions
             )

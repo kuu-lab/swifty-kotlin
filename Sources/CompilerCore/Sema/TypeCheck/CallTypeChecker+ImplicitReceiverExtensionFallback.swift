@@ -73,4 +73,73 @@ extension CallTypeChecker {
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }
+
+    /// Scope lookup for an unqualified call also returns package-scope extension
+    /// functions that merely share the simple name but declare a receiver the
+    /// enclosing implicit receiver cannot satisfy (e.g. `AtomicInt.compareAndSet`
+    /// seen from an `AtomicBoolean` extension body).  Such candidates are not
+    /// callable without an explicit receiver, so the call has to resolve against
+    /// the implicit receiver's own members instead of failing overload
+    /// resolution.  Only recovers calls that would otherwise be reported as
+    /// errors, and only when every scope candidate was inapplicable.
+    func tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        argTypes: [TypeID],
+        range: SourceRange,
+        explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
+        scopeCandidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard let implicitReceiverType = ctx.implicitReceiverType,
+              !scopeCandidates.isEmpty,
+              args.count == argTypes.count
+        else { return nil }
+        let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
+        let everyCandidateInapplicable = scopeCandidates.allSatisfy { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else { return false }
+            return !extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullReceiver,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+        guard everyCandidateInapplicable else { return nil }
+
+        let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            sema: sema,
+            interner: ctx.interner
+        )
+        guard !memberCandidates.isEmpty else { return nil }
+        let resolvedArgs = zip(args, argTypes).map { argument, type in
+            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+        }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: memberCandidates,
+            call: CallExpr(
+                range: range,
+                calleeName: calleeName,
+                args: resolvedArgs,
+                explicitTypeArgs: explicitTypeArgs
+            ),
+            expectedType: expectedType,
+            implicitReceiverType: nonNullReceiver,
+            ctx: ctx.semaCtx
+        )
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee
+        else { return nil }
+
+        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
 }

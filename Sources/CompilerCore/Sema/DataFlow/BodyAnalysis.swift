@@ -535,9 +535,9 @@ extension DataFlowSemaPhase {
     private static let maxAliasExpansionDepth = 32
 
     /// Maximum structural recursion depth for type resolution and substitution.
-    /// Mirrors `ExpressionParser.maxRecursionDepth` to prevent stack-overflow DoS
-    /// on deeply nested generic / function types.
-    private static let maxStructuralRecursionDepth = 512
+    /// Keep one parser level available so source at the semantic boundary can
+    /// still be parsed and rejected by Sema with the semantic depth diagnostic.
+    static let maxStructuralRecursionDepth = TypeRefParserCore.maxRecursionDepth - 1
 
     private func resolveTypeAliasUnderlying(
         _ symbolID: SymbolID,

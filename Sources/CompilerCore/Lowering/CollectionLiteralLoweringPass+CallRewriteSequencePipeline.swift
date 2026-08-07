@@ -14,6 +14,23 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+    // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
+    // Kotlin source declaration and the receiver is a source Sequence object,
+    // route through normal function resolution so the source implementation runs.
+    // When the receiver is a runtime Sequence handle (RuntimeSequenceBox), keep
+    // the call in the lowering pipeline so it can be rewritten to a `kk_*` helper.
+    //
+    // flatMap/flatMapIndexed source implementations are an exception: their
+    // overloaded extension object-expressions hit a compiler itable bug, so they
+    // are rewritten to kk_sequence_flatMap/kk_sequence_flatMapIndexed below.
+    if isSourceBacked(symbol: symbol, ctx: ctx),
+       let receiverID = arguments.first,
+       !state.sequenceExprIDs.contains(receiverID.rawValue),
+       callee != lookup.flatMapName,
+       callee != lookup.flatMapIndexedName {
+        return false
+    }
+
     // --- Rewrite sequence member calls (STDLIB-003 / STDLIB-471) ---
     // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
     // Guard with state.arrayExprIDs / state.listExprIDs so we only rewrite
@@ -29,6 +46,7 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.kkListAsSequenceName || callee == lookup.kkArrayAsSequenceName
         || callee == lookup.kkSequenceMapName || callee == lookup.kkSequenceFilterName
         || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceFlatMapName
+        || callee == lookup.kkSequenceFlatMapIndexedName
         || callee == lookup.kkSequenceDropName || callee == lookup.kkSequenceDistinctName
         || callee == lookup.kkSequenceZipName
         || callee == lookup.kkSequenceConstrainOnceName
@@ -41,6 +59,13 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
+        // KSP-441〜447: asSequence は source 化済み。runtime rewrite せず元の仮想呼び出しを残す。
+        let isSourceBacked = (ctx.sema?.symbols.externalLinkName(for: symbol ?? .invalid) ?? "").isEmpty
+        if isSourceBacked {
+            loweredBody.append(instruction)
+            return true
+        }
+
         let receiverID = arguments[0]
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
@@ -65,12 +90,8 @@ extension CollectionLiteralConstructionLoweringPass {
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         } else {
-            // Receiver is not a tracked list/array literal — skip
-            // the rewrite and let virtual-call rewrite or the
-            // original symbol linkage handle it. Still mark the
-            // result as a sequence so downstream map/filter/take
-            // rewrites fire correctly for chained calls.
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
+            loweredBody.append(instruction)
+            return true
         }
     }
 
@@ -91,6 +112,23 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
+    // requireNoNulls() on sequence -> kk_sequence_requireNoNulls
+    // The bundled source iterator cannot propagate an exception thrown from
+    // hasNext(), so the runtime pipeline step (which sets outThrown) is kept.
+    if callee == lookup.requireNoNullsName, arguments.count == 1,
+       let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 0) {
+        loweredBody.append(.call(
+            symbol: nil,
+            callee: kkName,
+            arguments: arguments,
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        if let result { state.sequenceExprIDs.insert(result.rawValue) }
+        return true
+    }
+
     // map/filter on sequence → kk_sequence_map/kk_sequence_filter
     if callee == lookup.mapName || callee == lookup.filterName,
        arguments.count == 2 || arguments.count == 3
@@ -100,10 +138,52 @@ extension CollectionLiteralConstructionLoweringPass {
            !state.arrayExprIDs.contains(receiverID.rawValue)
         {
             let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 1) ?? callee
+            let expanded = expandSequenceLambdaArgument(
+                lambdaExpr: arguments[1],
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
             loweredBody.append(.call(
                 symbol: nil,
                 callee: kkName,
-                arguments: arguments,
+                arguments: [receiverID, expanded.fnPtr, expanded.closureRaw],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result { state.sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+    }
+
+    // flatMap/flatMapIndexed on sequence → kk_sequence_flatMap/kk_sequence_flatMapIndexed
+    // KSP-441: The bundled source implementation uses overloaded extension
+    // functions whose nested object-expressions hit a compiler itable bug for
+    // generic Iterator classes. Route source-backed Sequence receivers through
+    // the runtime pipeline instead, which can traverse both source Sequence
+    // objects and RuntimeSequenceBox handles.
+    if callee == lookup.flatMapName || callee == lookup.flatMapIndexedName,
+       arguments.count == 2 || arguments.count == 3
+    {
+        let receiverID = arguments[0]
+        let isRuntimeSequence = state.sequenceExprIDs.contains(receiverID.rawValue)
+            && !state.arrayExprIDs.contains(receiverID.rawValue)
+        let sourceBacked = isSourceBacked(symbol: symbol, ctx: ctx)
+        let isSourceSeq = sourceBacked && isStaticallySequenceReceiver(receiverID, module: module, ctx: ctx)
+        if isRuntimeSequence || isSourceSeq {
+            let arity = callee == lookup.flatMapIndexedName ? 2 : 1
+            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: arity) ?? callee
+            let expanded = expandSequenceLambdaArgument(
+                lambdaExpr: arguments[1],
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: kkName,
+                arguments: [receiverID, expanded.fnPtr, expanded.closureRaw],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -459,5 +539,53 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
         return false
+    }
+
+    private func isStaticallySequenceReceiver(
+        _ receiverID: KIRExprID,
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let sema = ctx.sema,
+              let typeID = module.arena.exprType(receiverID),
+              let (_, symbol) = resolveClassTypeSymbol(typeID, sema: sema),
+              let simpleName = symbol.fqName.last
+        else {
+            return false
+        }
+        return ctx.interner.resolve(simpleName) == "Sequence"
+    }
+
+    /// Decomposes a materialized Sequence HOF lambda (a `kk_function_create_N`
+    /// function object) back into the `(fnPtr, closureRaw)` pair expected by the
+    /// runtime Sequence helpers (`kk_sequence_map`, `kk_sequence_flatMap`, etc.).
+    private func expandSequenceLambdaArgument(
+        lambdaExpr: KIRExprID,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout [KIRInstruction]
+    ) -> (fnPtr: KIRExprID, closureRaw: KIRExprID) {
+        if let sema = ctx.sema,
+           let info = module.arena.callableValueInfo(for: lambdaExpr) {
+            let intType = sema.types.intType
+            let fnPtrExpr = module.arena.appendExpr(.symbolRef(info.symbol), type: intType)
+            loweredBody.append(.constValue(result: fnPtrExpr, value: .symbolRef(info.symbol)))
+            if let closureRaw = info.captureArguments.first {
+                return (fnPtrExpr, closureRaw)
+            }
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: intType)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            return (fnPtrExpr, zeroExpr)
+        }
+
+        // Fallback: pass the expression as the function pointer with a zero
+        // closure raw. This handles non-materialized callable references; for
+        // ordinary lambda literals, `callableValueInfo` is always populated.
+        let intType = ctx.sema?.types.intType
+        let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: intType)
+        if intType != nil {
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+        }
+        return (lambdaExpr, zeroExpr)
     }
 }

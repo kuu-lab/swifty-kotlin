@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun main() {
     // Basic ULongRange contains
     println(5UL in 1UL..10UL)
@@ -38,7 +37,7 @@ fun main() {
 
     // map and toList
     println((1UL..5UL).map { it * 2UL }.toList())
-    println((1UL..5UL).mapIndexed { index, value -> index + value })
+    println((1UL..5UL).mapIndexed { index, value -> index.toULong() + value })
 
     // count
     println((1UL..10UL).count())
