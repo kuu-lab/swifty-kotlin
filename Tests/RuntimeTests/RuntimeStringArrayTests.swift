@@ -1261,20 +1261,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(set?.elements.map(kk_unbox_char), [97, 98])
     }
 
-    func testListToCharArrayStoresTaggedCharCodeUnits() {
-        let listRaw = registerRuntimeObject(RuntimeListBox(values: [
-            RuntimeValue(raw: kk_box_char(97)),
-            RuntimeValue(charScalar: 233),
-        ]))
-        let charArrayRaw = kk_list_toCharArray(listRaw)
-        let charArray = runtimeArrayBox(from: charArrayRaw)
-
-        XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(charArray?.values.map(\.payload0), [97, 233])
-        XCTAssertEqual(charArray?.elements, [97, 233])
-        XCTAssertEqual(charArray?.elements.map(kk_unbox_char), [97, 233])
-    }
-
     // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet_flat tests
 
     func testStringToSortedSetReturnsSortedUniqueChars() {

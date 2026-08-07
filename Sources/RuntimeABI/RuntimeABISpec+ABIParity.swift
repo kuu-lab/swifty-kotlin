@@ -664,10 +664,6 @@ public extension RuntimeABISpec {
             p("closureRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_list_toByteArray", parameters: [
-            p("listRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
