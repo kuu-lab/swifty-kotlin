@@ -463,12 +463,19 @@ public func kk_uLongArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// DoubleArray.toList(): List<Double>
+///
+/// Boxes elements eagerly for the same reason as kk_longArray_toList above:
+/// a raw Double word holding -0.0 is bit-identical to runtimeNullSentinelInt,
+/// so generic Any-dispatch (toString/equals/`is`) would otherwise misreport it
+/// as null. kk_box_double_nonnull is safe because DoubleArray elements are
+/// never null.
 @_cdecl("kk_doubleArray_toList")
 public func kk_doubleArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_doubleArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_double_nonnull($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// FloatArray.toList(): List<Float>

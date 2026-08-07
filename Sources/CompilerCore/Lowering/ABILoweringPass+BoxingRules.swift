@@ -108,6 +108,17 @@ extension ABILoweringPass {
                         return true
                     }
                 }
+                // Floating-point arguments must be boxed at every erased `T`
+                // parameter, not just the containers above: a raw Double word
+                // is indistinguishable from an Int of the same bits, and -0.0
+                // is bit-identical to the null sentinel, so an unboxed value
+                // reaching a generic callee compares unequal to the boxed
+                // elements it is matched against (e.g. Array<Double>.contains).
+                if case let .primitive(argPrimitive, .nonNull) = argKind,
+                   argPrimitive == .double || argPrimitive == .float
+                {
+                    return true
+                }
                 return false
             }
             return false
