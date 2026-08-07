@@ -203,20 +203,20 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
             -- $SWIFT_XSWIFTC_FLAGS
+      # native SwiftPM produces a single PackageTests bundle; --test-product
+      # (SWIFT_TEST_PRODUCT) is only valid with SWIFT_BUILD_SYSTEM=swiftbuild.
+      # shard_swift_tests.sh already gates SWIFT_TEST_PRODUCT the same way.
       - name: Run RuntimeTestsParallel with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_PRODUCT: RuntimeTestsParallel
         run: bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\.' $SWIFT_XSWIFTC_FLAGS
       - name: Run KSwiftKCLITests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_PRODUCT: KSwiftKCLITests
         run: bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\.' $SWIFT_XSWIFTC_FLAGS
       - name: Run LSPServerTests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_PRODUCT: LSPServerTests
         run: bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\.' $SWIFT_XSWIFTC_FLAGS
       - name: Generate loc report
         run: |
@@ -294,9 +294,9 @@ jobs:
             echo 'KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 bash Scripts/build_swift_tests.sh -j "$worker_count" $SWIFT_XSWIFTC_FLAGS'
             echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS="$worker_count" SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests -- $SWIFT_XSWIFTC_FLAGS'
             echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- $SWIFT_XSWIFTC_FLAGS'
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=RuntimeTestsParallel SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=KSwiftKCLITests SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=LSPServerTests SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
             echo "npm install --prefix \"\$RUNNER_TEMP/jscpd\" --no-save jscpd@4.0.8"
             echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
             echo '```'
