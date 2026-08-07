@@ -1,8 +1,5 @@
 symbol fq=__local_0.a kind=local vis=private flags=_ type=Char
 symbol fq=__local_1.b kind=local vis=private flags=_ type=Char
-symbol fq=kotlin.text.digitToChar#0 kind=function vis=public flags=synthetic sig=recv=Int params=[] ret=Char
-symbol fq=kotlin.text.digitToChar#1 kind=function vis=public flags=synthetic sig=recv=Int params=[Int] ret=Char
-symbol fq=kotlin.text.digitToChar.radix kind=valueParameter vis=private flags=synthetic
 symbol fq=testDigitConversion kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Unit
 symbol fq=testDigitConversion.$0.n kind=valueParameter vis=private flags=_
 file fint_digit_to_char package=_
