@@ -1490,11 +1490,6 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_map_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapIndexed_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapNotNull_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_firstNotNullOf_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_firstNotNullOfOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexed_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexedOrNull_flat", resultType: types.intType)
@@ -1538,11 +1533,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_find_flat",
             "kk_string_findLast_flat",
             "kk_string_partition_flat",
-            "kk_string_map_flat",
-            "kk_string_mapIndexed_flat",
-            "kk_string_mapNotNull_flat",
-            "kk_string_firstNotNullOf_flat",
-            "kk_string_firstNotNullOfOrNull_flat",
             "kk_string_reduceOrNull_flat",
             "kk_string_reduceRightIndexed_flat",
             "kk_string_reduceRightIndexedOrNull_flat",

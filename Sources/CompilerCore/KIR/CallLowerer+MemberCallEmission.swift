@@ -568,12 +568,7 @@ extension CallLowerer {
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
         case "kk_string_indexOfFirst",
-             "kk_string_indexOfLast",
-             "kk_string_map",
-             "kk_string_mapIndexed",
-             "kk_string_mapNotNull",
-             "kk_string_firstNotNullOf",
-             "kk_string_firstNotNullOfOrNull":
+             "kk_string_indexOfLast":
             true
         default:
             false
@@ -1178,8 +1173,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_firstNotNullOf_flat"),
-            interner.intern("kk_string_firstNotNullOfOrNull_flat"),
             interner.intern("kk_string_zipTransform"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunked_sequence_transform"),
