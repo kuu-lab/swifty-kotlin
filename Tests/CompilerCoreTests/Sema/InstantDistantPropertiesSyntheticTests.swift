@@ -4,23 +4,16 @@ import Testing
 
 @Suite
 struct InstantDistantPropertiesSyntheticTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!ctx.diagnostics.hasError, "Expected Instant distant properties to resolve cleanly, got: \(diagnostics)")
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
     @Test
     func testInstantDistantPropertiesSyntheticTestsInventory() throws {
         let sources: [String] = [
             """
-            fun noop() {}
+            package sample0
+            import kotlin.time.*
+
+            fun flags(instant: Instant): Boolean {
+                return instant.isDistantPast || instant.isDistantFuture
+            }
             """,
         ]
         try withTemporaryFiles(contents: sources) { paths in
@@ -29,7 +22,13 @@ struct InstantDistantPropertiesSyntheticTests {
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = ctx
+
+            let path0 = paths[0]
+            let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+            #expect(
+                !path0Diagnostics.contains(where: { $0.severity == .error }),
+                "Expected Instant distant properties to resolve cleanly, got: \(path0Diagnostics)"
+            )
             // KSP-472: epochSeconds, nanosecondsOfSecond, isDistantPast, isDistantFuture,
             // plus, minus (Duration and Instant overloads), and compareTo are now Kotlin
             // source extension properties/functions/operators in Stdlib/kotlin/time/Instant.kt
@@ -232,24 +231,18 @@ struct InstantDistantPropertiesSyntheticTests {
                 #expect(sema.symbols.symbol(nowSymbol)?.declSite != nil, "Clock.System.now() should be a Kotlin source extension")
                 #expect(sema.symbols.externalLinkName(for: nowSymbol) == nil, "Clock.System.now() public API should not be a direct bridge")
             }
+
+            // === testInstantDistantPropertiesResolveInSource ===
+            do {
+
+                let flagsSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern("flags"),
+                ]))
+                let signature = try #require(sema.symbols.functionSignature(for: flagsSymbol))
+                #expect(signature.returnType == sema.types.make(.primitive(.boolean, .nonNull)))
+            }
         }
-    }
-
-    @Test
-    func testInstantDistantPropertiesResolveInSource() throws {
-
-        let source = """
-        import kotlin.time.*
-
-        fun flags(instant: Instant): Boolean {
-            return instant.isDistantPast || instant.isDistantFuture
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
-        let flagsSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("flags")]))
-        let signature = try #require(sema.symbols.functionSignature(for: flagsSymbol))
-        #expect(signature.returnType == sema.types.make(.primitive(.boolean, .nonNull)))
     }
 
 }

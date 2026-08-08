@@ -4,30 +4,16 @@ import Testing
 
 @Suite
 struct JvmJavaClassSyntheticSurfaceTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
-    ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected JVM class surface to resolve cleanly, got: \(diagnostics)"
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
     @Test
     func testJvmJavaClassSyntheticSurfaceTestsInventory() throws {
         let sources: [String] = [
             """
-            fun noop() {}
+            package sample0
+            import java.lang.Class
+
+            fun sample(value: String): Class<String> {
+                return value.javaClass
+            }
             """,
         ]
         try withTemporaryFiles(contents: sources) { paths in
@@ -36,7 +22,13 @@ struct JvmJavaClassSyntheticSurfaceTests {
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = ctx
+
+            let path0 = paths[0]
+            let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+            #expect(
+                !path0Diagnostics.contains(where: { $0.severity == .error }),
+                "Expected JVM class surface to resolve cleanly, got: \(path0Diagnostics)"
+            )
 
             // === testJavaClassRootExtensionPropertyIsRegistered ===
             do {
@@ -87,27 +79,18 @@ struct JvmJavaClassSyntheticSurfaceTests {
                 #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_any_javaClass")
                 #expect(sema.symbols.externalLinkName(for: getterSymbol) == "kk_any_javaClass")
             }
+
+            // === testJavaClassPropertyResolvesInSource ===
+            do {
+
+                let sampleSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern("sample"),
+                ]))
+
+                #expect(sema.symbols.functionSignature(for: sampleSymbol) != nil)
+            }
         }
     }
-
-    @Test
-    func testJavaClassPropertyResolvesInSource() throws {
-
-        let source = """
-        import java.lang.Class
-
-        fun sample(value: String): Class<String> {
-            return value.javaClass
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
-        let sampleSymbol = try #require(sema.symbols.lookup(
-            fqName: [interner.intern("sample")]
-        ))
-
-        #expect(sema.symbols.functionSignature(for: sampleSymbol) != nil)
-    }
-
 }
 #endif
