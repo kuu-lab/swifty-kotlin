@@ -530,10 +530,12 @@
   - 残留: `kk_freeze_object`/`kk_is_frozen` は TransferMode 用に残留
   - テスト更新: `NativeConcurrentSyntheticStubTests.swift` から削除対象のテストを除去、`NativeConcurrentAPISurfaceInventoryTests.swift` の在籍リストを 15 エントリに縮小
   - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `--filter NativeConcurrent` / `--filter RuntimeABIExternalLinkValidationTests` pass。`bash Scripts/validate_runtime_abi_links.sh` pass
-- [~] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する — PR #5030
+- [x] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する — PR #5030
   - 対象: `HeaderHelpers+SyntheticNativeDataStubs.swift` から `registerSyntheticNativeBitSetStubs` / `registerSyntheticNativeImmutableBlobStubs` / `registerSyntheticNativeVector128Stubs`（`Vector128` 型エイリアス + `vectorOf`）を削除
   - 追随削除: `HeaderHelpers+SyntheticNativeInteropStubs.swift` から上記関数の呼び出しを削除。`HeaderHelpers+SyntheticNativeInteropHelpers.swift` から `cPointerType` / `deprecatedImmutableBlobAnnotations` / `deprecatedImmutableBlobFactoryAnnotations` / `deprecatedImmutableBlobPointerAnnotations` / `appendDeprecatedImmutableBlobAnnotations` / `deprecatedNativeVector128TypeAliasAnnotations` / `deprecatedNativeVectorOfAnnotations` を削除
   - テスト削除: `NativeBitSetSurfaceTests.swift` / `NativeImmutableBlobSurfaceTests.swift` / `NativeVector128SurfaceTests.swift` / `GoldenCases/Sema/cinterop_vectorof_int.kt` + `.golden` を削除
+  - 取り残し回収: PR #5030 で用途が消えた `registerSyntheticNativeBitSetConstructor` / `registerSyntheticNativeBitSetProperty`（参照ゼロ）を削除し、`Pinned<T>.get/unpin` 登録で使い続ける `registerSyntheticNativeBitSetMemberFunction` を実態に合わせて `registerSyntheticNativeMemberFunction` へ改名
+  - 検証: `rg`/`git grep` で対象 stub・ヘルパーへの参照ゼロを確認。`swift build` / `bash Scripts/swift_test.sh --filter Golden` / `git diff --check` pass
 - [x] CLEANUP-STUB-098: Function 型の fiction ほかを削除する（`Function1.andThen`/`Function1.compose`/`Function2.curried` — 本家に存在しない Java 由来誤移植・参照ゼロ（`HeaderHelpers+SyntheticFunctionTypeStubs.swift` + `RuntimeFunctionTypes.swift`）+ `compareToOrNull`（ブリッジ未設定の死コード）+ `kotlin.jvm.isArrayOf`） — PR #5033
 - [x] CLEANUP-STUB-099: JS/Wasm 専用 opt-in マーカー6種を削除する（ExperimentalJsCollectionsApi/ExperimentalJsExport/ExperimentalJsReflectionCreateInstance/ExperimentalJsStatic/ExperimentalWasmJsInterop + ExperimentalWasmInterop — `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` 内） — PR #5035
   - 対象: `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` から
