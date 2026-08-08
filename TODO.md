@@ -550,12 +550,11 @@
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:272`（`bucket: .targetOutCleanup, name: "BigInteger"`）を削除
   - 連動整理: bundled `Sources/CompilerCore/Stdlib/java/math/BigInteger.kt`、Runtime `Sources/Runtime/RuntimeBigInteger.swift`（`kk_biginteger_*` 58件）/ `Sources/Runtime/RuntimeStringConversion.swift`（`kk_string_to_biginteger` 等3件）、`Sources/RuntimeABI/RuntimeABISpec+BigInteger.swift` / `RuntimeABISpec+String.swift` 内 BigInteger 登録 / `RuntimeABISpec+ABIParity.swift` 該当行
   - テスト影響: `Tests/CompilerCoreTests/Sema/BigIntegerSyntheticLinkTests.swift`、`StringToBigIntegerFunctionTests.swift`、`StringToBigIntegerOrNullFunctionTests.swift`、`Tests/CompilerCoreTests/Integration/KotlinCompilationBigIntegerTests.swift`、`Tests/RuntimeTests/RuntimeBigIntegerTests.swift`、Golden `big_integer_basic.golden` 等の削除または更新
-- [ ] CLEANUP-STUB-105: `HeaderHelpers+SyntheticConcurrencyStubs.swift` を削除する
-  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticConcurrencyStubs.swift`（186行）
-  - 削除内容: `registerSyntheticConcurrencyStubs(...)` および `java.lang.Thread` / `kotlin.concurrent` パッケージ内 Thread/Timer/Executor 等の synthetic 登録を削除
-  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:284`（`bucket: .targetOutCleanup, name: "Concurrency"`）を削除
-  - 連動整理: `java.util.concurrent` 互換部分は Atomic 系（CLEANUP-STUB-100/096 側）と重複しないよう整理
-  - テスト影響: `Tests/CompilerCoreTests/Sema/ConcurrencySyntheticStubTests.swift` など対象テストの削除/縮小
+- [x] CLEANUP-STUB-105: `HeaderHelpers+SyntheticConcurrencyStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticConcurrencyStubs.swift`（186行）を削除。`registerSyntheticConcurrencyStubs(...)`（`java.lang.Thread` クラス + `kotlin.concurrent.thread`）と `HeaderHelpers+SyntheticBucketedStubRegistry.swift` の `name: "Concurrency"` エントリを削除
+  - 存置: `kotlin.concurrent.Volatile`（本家 Native の実在アノテーション）は `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` へ移設
+  - 連動削除: `Sources/Runtime/RuntimeThread.swift`（`kk_thread_create` は Sema 登録削除で到達不能）、`Sources/RuntimeABI/RuntimeABISpec+Thread.swift` と `RuntimeABISpec.swift` の `threadFunctions`。Timer/Executor と `java.util.concurrent` 互換の登録は元から不在のため Atomic 系（CLEANUP-STUB-100/096）と重複なし
+  - テスト: `ConcurrencySyntheticStubTests.swift` → `VolatileAnnotationSyntheticStubTests.swift` へ縮小、`Tests/RuntimeTests/RuntimeThreadTests.swift` 削除、`ABIMismatchTests.kkThreadCreateSignature` 削除
 - [ ] CLEANUP-STUB-106: Dynamic 用 `HeaderHelpers+SyntheticDynamicStubs.swift` は削除済みのため追跡のみ
   - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticDynamicStubs.swift`（DEADCODE-CORE-009/010 で削除済み）
   - 削除内容: `registerSyntheticDynamicStubs` および `registerDynamicIterator` は既に削除されている
