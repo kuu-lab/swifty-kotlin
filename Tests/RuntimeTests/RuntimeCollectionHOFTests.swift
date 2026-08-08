@@ -1804,7 +1804,7 @@ struct RuntimeCollectionHOFTests {
         #expect(listElements(collectionCopy) == [1, 2, 3, 4])
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
-        let iterableCopy = kk_iterable_toMutableList(setSource)
+        let iterableCopy = kk_collection_toMutableList(setSource)
 
         #expect(listElements(iterableCopy) == [3, 1, 2])
         #expect(kk_unbox_bool(kk_mutable_list_add(iterableCopy, 9)) == 1)
