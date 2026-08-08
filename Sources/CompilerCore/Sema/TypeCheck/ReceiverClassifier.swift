@@ -30,10 +30,16 @@ struct ReceiverClassifier {
         } ?? false
         let isCollectionType = isCollectionLikeType(receiverType)
         let isMapReceiver = isMapLikeCollectionType(receiverType)
+        // KSP-435: a receiver explicitly typed `Iterable<T>` is a collection
+        // receiver even when its initializer was a collection literal. Treating
+        // it as a synthetic Sequence routed `Iterable` members (requireNoNulls,
+        // last, ...) to the Sequence bridges instead of the bundled Kotlin
+        // `kotlin.collections` source.
         let isSyntheticSequenceReceiver = isCollectionExpr
             && !isCollectionType
             && !isMapReceiver
             && !isListFactoryReceiver
+            && !isIterableLikeType(receiverType)
         return ReceiverClassification(
             isArrayReceiver: isArrayLikeType(receiverType),
             isIterableReceiver: isIterableLikeType(receiverType),
