@@ -247,8 +247,9 @@
   - 削除 kk_*: `RuntimeCollectionHOFArray.swift` の 20 関数（rg で列挙）
 - [ ] KSP-434: Grouping を Kotlin 化（`groupingBy`, `eachCount(To)`, `fold(To)`, `reduce(To)`, `aggregate(To)`）
   - 削除 kk_*: `RuntimeCollectionHOFGrouping.swift` の 11 関数 + `HeaderHelpers+SyntheticGroupingStubs.swift` の該当登録
-- [ ] KSP-435: Iterable/Collection 汎用を Kotlin 化（`kk_iterable_*` 12 関数, `kk_collection_*` 6 関数）
-  - ブリッジ残留: 型タグディスパッチが必要な `kk_collection_size` 等は `__kk_` 降格を検討（着手時に rg で分類し、分類根拠をタスク PR に記載）
+- [x] KSP-435: Iterable/Collection 汎用を Kotlin 化（`kk_iterable_*` 12 関数, `kk_collection_*` 6 関数）
+  - Kotlin 化: `Stdlib/kotlin/collections/Iterables.kt`（`all`/`any`/`firstNotNullOf(OrNull)`/`requireNoNulls`/`last`/`joinTo`/`joinToString`/`toCollection`/`toMutableList`/`toMutableSet`/`toHashSet`）と `Collections.kt`（`Collection.toList`/`toTypedArray`）を追加。`asSequence` は既存 `Sequences.kt` の source 実装へ委譲
+  - ブリッジ残留（`__kk_` 降格）: 実行時表現（List/Set box）で分岐が必要な `__kk_collection_size` / `__kk_collection_isEmpty`、および Sequence/未解決レシーバのフォールバック用 `__kk_iterable_*` / `__kk_collection_*`。公開 `kk_iterable_*` / `kk_collection_*` は Sources から全廃
 - [ ] KSP-436: 可変操作の最小ブリッジを確定する（MutableList/Set/Map の `add`/`remove`/`clear`/`set`/`put` 系 33 関数）
   - 原則ブリッジ残留（ストレージ直接変異）: `kk_mutable_*` を `__kk_` へ一括改名し、`removeIf`/`retainAll`/`replaceAll`/`fill`/`addAll` 系など述語・複合系のみ Kotlin 化。`CallLowerer+MemberCallEmission.swift` の該当特例を Kotlin 宣言経由に置換
 
