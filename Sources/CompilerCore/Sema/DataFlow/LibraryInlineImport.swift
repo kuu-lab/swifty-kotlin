@@ -399,7 +399,7 @@ extension DataFlowSemaPhase {
             guard let calleeEncoded = pairs["calleeB64"],
                   let calleeName = decodeBase64String(calleeEncoded),
                   let receiverRaw = pairs["receiver"], let receiver = Int32(receiverRaw),
-                  let dispatch = parseImportedInlineDispatch(pairs["dispatch"])
+                  let dispatch = parseImportedInlineDispatchKind(pairs["dispatch"] ?? "")
             else {
                 return nil
             }
@@ -411,13 +411,20 @@ extension DataFlowSemaPhase {
             } else {
                 nil
             }
+            let thrownResult: KIRExprID? = if let thrownResultRaw = pairs["thrownResult"], thrownResultRaw != "_" {
+                Int32(thrownResultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
             let canThrowRaw = pairs["canThrow"] ?? "0"
+            let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             var callSymbol: SymbolID? = nil
             if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
-               !linkName.isEmpty
+               !linkName.isEmpty,
+               let consumerSymbol = externalLinkNameToSymbol[linkName]
             {
-                callSymbol = externalLinkNameToSymbol[linkName]
+                callSymbol = consumerSymbol
             }
             return .virtualCall(
                 symbol: callSymbol,
@@ -425,8 +432,8 @@ extension DataFlowSemaPhase {
                 receiver: KIRExprID(rawValue: receiver),
                 arguments: args,
                 result: result,
-                canThrow: canThrowRaw == "1" || canThrowRaw == "true",
-                thrownResult: nil,
+                canThrow: canThrow,
+                thrownResult: thrownResult,
                 dispatch: dispatch
             )
         default:
@@ -434,33 +441,23 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Parses a serialized `virtualCall` dispatch descriptor. Slot indices and
-    /// the interface type ID are module-independent (the type ID is derived from
-    /// the interface's fully qualified name), so they carry over verbatim.
-    private func parseImportedInlineDispatch(_ token: String?) -> KIRDispatchKind? {
-        guard let token else {
-            return nil
-        }
-        let fields = token.split(separator: ":", omittingEmptySubsequences: false)
-        switch fields.first {
+    private func parseImportedInlineDispatchKind(_ token: String) -> KIRDispatchKind? {
+        let parts = token.split(separator: ":", omittingEmptySubsequences: false)
+        switch parts.first {
         case "vtable":
-            guard fields.count == 2, let slot = Int(fields[1]) else { return nil }
+            guard parts.count == 2, let slot = Int(parts[1]) else { return nil }
             return .vtable(slot: slot)
         case "itable":
-            guard fields.count == 3,
-                  let interfaceSlot = Int(fields[1]),
-                  let methodSlot = Int(fields[2])
-            else {
-                return nil
-            }
+            guard parts.count == 3,
+                  let interfaceSlot = Int(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
             return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
         case "itableDynamic":
-            guard fields.count == 3,
-                  let interfaceTypeID = Int64(fields[1]),
-                  let methodSlot = Int(fields[2])
-            else {
-                return nil
-            }
+            guard parts.count == 3,
+                  let interfaceTypeID = Int64(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
             return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         default:
             return nil

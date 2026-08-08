@@ -492,14 +492,11 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
+        if isInline, !isImported {
+            return false
+        }
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee) ?? ""
-        if externalLinkName.isEmpty {
-            return !isInline || isImported
-        }
-        if externalLinkName.hasPrefix("kk_fn_") {
-            return true
-        }
-        return isImported && isInline
+        return externalLinkName.isEmpty || externalLinkName.hasPrefix("kk_fn_")
     }
 
     /// Materialize lambda arguments bound to a function-typed *vararg*

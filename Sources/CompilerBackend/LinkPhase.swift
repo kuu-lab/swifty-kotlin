@@ -213,11 +213,16 @@ final class LinkPhase: CompilerPhase {
         fileFacadeNamesByFileID: [Int32: String]
     ) -> String? {
         let knownNames = KnownCompilerNames(interner: interner)
+        let mainNameResolved = interner.resolve(knownNames.main)
         for decl in kir.arena.declarations {
             guard case let .function(function) = decl else {
                 continue
             }
-            if function.name == knownNames.main {
+            // Compare interned IDs first; fall back to the resolved string so
+            // an entry point is found even if `main` was interned on a
+            // different code path and received a distinct `InternedString`.
+            if function.name == knownNames.main
+                || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved) {
                 return CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: interner,
