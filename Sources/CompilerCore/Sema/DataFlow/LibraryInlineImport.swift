@@ -122,14 +122,25 @@ extension DataFlowSemaPhase {
         var importLabelCounter: Int32 = 900_000
         var importExprCounter: Int32 = 900_000
         for line in bodyLines {
-            let instructions = parseImportedInlineInstructions(
+            guard let instructions = parseImportedInlineInstructions(
                 line: line,
                 parameterSymbolMapping: parameterSymbolMapping,
                 interner: interner,
                 labelCounter: &importLabelCounter,
                 exprCounter: &importExprCounter,
                 externalLinkNameToSymbol: externalLinkNameToSymbol
-            )
+            ) else {
+                // Dropping a single instruction leaves the remaining ones reading
+                // registers that are never defined, which silently miscompiles the
+                // call site. Skip the inline body entirely instead so the call
+                // keeps targeting the library function.
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0023",
+                    "Unsupported instruction in inline KIR artifact '\(path)'; the function will not be inlined",
+                    range: nil
+                )
+                return nil
+            }
             body.append(contentsOf: instructions)
         }
         if body.isEmpty {
@@ -159,10 +170,10 @@ extension DataFlowSemaPhase {
         labelCounter: inout Int32,
         exprCounter: inout Int32,
         externalLinkNameToSymbol: [String: SymbolID]
-    ) -> [KIRInstruction] {
+    ) -> [KIRInstruction]? {
         let parts = line.split(separator: " ")
         guard let opcode = parts.first else {
-            return []
+            return nil
         }
         let pairs = parseInlineKeyValuePairs(parts.dropFirst())
 
@@ -173,7 +184,7 @@ extension DataFlowSemaPhase {
                   let elseRaw = pairs["else"], let elseValue = Int32(elseRaw),
                   let resultRaw = pairs["result"], let result = Int32(resultRaw)
             else {
-                return []
+                return nil
             }
             let elseLabel = labelCounter
             let endLabel = labelCounter + 1
@@ -201,7 +212,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             externalLinkNameToSymbol: externalLinkNameToSymbol
         ) else {
-            return []
+            return nil
         }
         return [instruction]
     }
@@ -395,6 +406,73 @@ extension DataFlowSemaPhase {
                 thrownResult: nil,
                 isSuperCall: isSuperCall
             )
+        case "virtualCall":
+            guard let calleeEncoded = pairs["calleeB64"],
+                  let calleeName = decodeBase64String(calleeEncoded),
+                  let receiverRaw = pairs["receiver"], let receiver = Int32(receiverRaw),
+                  let dispatchRaw = pairs["dispatch"],
+                  let dispatch = parseImportedInlineDispatch(dispatchRaw)
+            else {
+                return nil
+            }
+            let args = parseInlineIntList(pairs["args"] ?? "[]").map { value in
+                KIRExprID(rawValue: Int32(truncatingIfNeeded: value))
+            }
+            let result: KIRExprID? = if let resultRaw = pairs["result"], resultRaw != "_" {
+                Int32(resultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let canThrowRaw = pairs["canThrow"] ?? "0"
+            var callSymbol: SymbolID? = nil
+            if let linkEncoded = pairs["linkB64"],
+               let linkName = decodeBase64String(linkEncoded),
+               !linkName.isEmpty,
+               let consumerSymbol = externalLinkNameToSymbol[linkName]
+            {
+                callSymbol = consumerSymbol
+            }
+            return .virtualCall(
+                symbol: callSymbol,
+                callee: interner.intern(calleeName),
+                receiver: KIRExprID(rawValue: receiver),
+                arguments: args,
+                result: result,
+                canThrow: canThrowRaw == "1" || canThrowRaw == "true",
+                thrownResult: nil,
+                dispatch: dispatch
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// Parses a serialized `KIRDispatchKind`. Slot indices and the
+    /// `itableDynamic` interface type ID (a stable hash of the interface's
+    /// fully qualified name) are module independent, so they survive the round
+    /// trip through a library artifact unchanged.
+    private func parseImportedInlineDispatch(_ raw: String) -> KIRDispatchKind? {
+        let fields = raw.split(separator: ":")
+        switch fields.first {
+        case "vtable":
+            guard fields.count == 2, let slot = Int(fields[1]) else { return nil }
+            return .vtable(slot: slot)
+        case "itable":
+            guard fields.count == 3,
+                  let interfaceSlot = Int(fields[1]),
+                  let methodSlot = Int(fields[2])
+            else {
+                return nil
+            }
+            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+        case "itableDynamic":
+            guard fields.count == 3,
+                  let interfaceTypeID = Int64(fields[1]),
+                  let methodSlot = Int(fields[2])
+            else {
+                return nil
+            }
+            return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         default:
             return nil
         }

@@ -136,7 +136,7 @@ struct ComparatorOverloadResolutionTests {
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2)")
             let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
             #expect(sig.parameterTypes.count == 2, "Expected 2-param signature for 2-selector compareBy")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors", "Expected 2-selector compareBy to link to kk_comparator_from_multi_selectors")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected 2-selector compareBy to be bundled Kotlin source")
         }
     }
 
@@ -164,7 +164,7 @@ struct ComparatorOverloadResolutionTests {
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2, s3)")
             let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
             #expect(sig.parameterTypes.count == 3, "Expected 3-param signature for 3-selector compareBy")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors3", "Expected 3-selector compareBy to link to kk_comparator_from_multi_selectors3")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected 3-selector compareBy to be bundled Kotlin source")
         }
     }
 
@@ -193,7 +193,12 @@ struct ComparatorOverloadResolutionTests {
             let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
             #expect(sig.parameterTypes.count == 1, "Expected single vararg parameter for 4-selector compareBy")
             #expect(sig.valueParameterIsVararg == [true])
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors_vararg", "Expected 4-selector compareBy to link to kk_comparator_from_multi_selectors_vararg")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected vararg compareBy to be bundled Kotlin source")
+            let mapping = try #require(sema.bindings.callBinding(for: callExpr)?.parameterMapping)
+            #expect(
+                (0..<4).allSatisfy { mapping[$0] == 0 },
+                "Every vararg selector argument must map to the vararg parameter; got: \(mapping)"
+            )
         }
     }
 
@@ -497,33 +502,35 @@ struct ComparatorOverloadResolutionTests {
 
     // MARK: - nullsFirst() / nullsLast()
 
-    @Test func testNullsFirstIsRegisteredAsSyntheticComparatorMember() throws {
+    @Test func testNullsFirstIsRegisteredAsSourceBackedComparatorExtension() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("nullsFirst"),
-                ]), "Expected synthetic Comparator.nullsFirst to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_nulls_first", "Expected Comparator.nullsFirst to map to kk_comparator_nulls_first")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "nullsFirst",
+                parameterCount: 0,
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected source-backed Comparator.nullsFirst to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.nullsFirst to be bundled Kotlin source")
         }
     }
 
-    @Test func testNullsLastIsRegisteredAsSyntheticComparatorMember() throws {
+    @Test func testNullsLastIsRegisteredAsSourceBackedComparatorExtension() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("nullsLast"),
-                ]), "Expected synthetic Comparator.nullsLast to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_nulls_last", "Expected Comparator.nullsLast to map to kk_comparator_nulls_last")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "nullsLast",
+                parameterCount: 0,
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected source-backed Comparator.nullsLast to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.nullsLast to be bundled Kotlin source")
         }
     }
 
@@ -547,7 +554,7 @@ struct ComparatorOverloadResolutionTests {
             }, "Expected a nullsFirst member call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsFirst() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_nulls_first", "Expected nullsFirst() to link to kk_comparator_nulls_first")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected nullsFirst() to resolve to bundled Kotlin source")
         }
     }
 
@@ -571,7 +578,7 @@ struct ComparatorOverloadResolutionTests {
             }, "Expected a nullsLast member call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsLast() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_nulls_last", "Expected nullsLast() to link to kk_comparator_nulls_last")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected nullsLast() to resolve to bundled Kotlin source")
         }
     }
 
@@ -581,11 +588,12 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("Comparator"),
-                ctx.interner.intern("nullsFirst"),
-            ]))
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "nullsFirst",
+                parameterCount: 0,
+                sema: sema,
+                interner: ctx.interner
+            ))
             let sig = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(sig.parameterTypes.isEmpty, "Expected nullsFirst() to take no parameters")
         }
@@ -597,11 +605,12 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("Comparator"),
-                ctx.interner.intern("nullsLast"),
-            ]))
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "nullsLast",
+                parameterCount: 0,
+                sema: sema,
+                interner: ctx.interner
+            ))
             let sig = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(sig.parameterTypes.isEmpty, "Expected nullsLast() to take no parameters")
         }
@@ -657,6 +666,47 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KSP-461: with several lambda arguments the parameter type has to come from
+    /// the call's explicit type argument, otherwise the implicit `it` of each
+    /// lambda stays unresolved (`KSWIFTK-SEMA-0022`).
+    @Test func testImplicitItResolvesInMultiSelectorCompareByWithExplicitTypeArgument() throws {
+        let source = """
+        data class Row(val group: Int, val name: String)
+
+        fun sample(rows: List<Row>) {
+            rows.sortedWith(compareBy<Row>({ it.group }, { it.name }))
+            rows.sortedWith(compareBy<Row>({ it.group }, { it.name }, { it.name.length }))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected implicit `it` to resolve from the explicit type argument, got: \(errors)")
+        }
+    }
+
+    /// Same inference path on a plain user function: the explicit type argument
+    /// must reach every lambda argument, not just the first one.
+    @Test func testImplicitItResolvesForUserGenericOverloadWithExplicitTypeArgument() throws {
+        let source = """
+        fun <T> pick(selector: (T) -> Int): Int = 0
+        fun <T> pick(selector1: (T) -> Int, selector2: (T) -> Int): Int = 1
+
+        fun sample() {
+            pick<Int>({ it }, { it + 1 })
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected implicit `it` to resolve in both lambdas, got: \(errors)")
         }
     }
 }

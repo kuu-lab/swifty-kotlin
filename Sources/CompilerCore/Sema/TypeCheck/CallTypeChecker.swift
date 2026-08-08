@@ -1613,13 +1613,16 @@ final class CallTypeChecker {
             }
             let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
             let funcFQName = comparisonsPkg + [calleeName]
-            let expectedExternalLink = args.count == 2
-                ? "kk_comparator_from_multi_selectors"
-                : "kk_comparator_from_multi_selectors3"
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
-                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
+                guard let sig = sema.symbols.functionSignature(for: candidate),
+                      sema.symbols.isSourceBackedSymbol(candidate)
+                else { return false }
                 return sig.parameterTypes.count == args.count &&
-                    sema.symbols.externalLinkName(for: candidate) == expectedExternalLink
+                    !sig.valueParameterIsVararg.contains(true) &&
+                    sig.parameterTypes.allSatisfy { paramType in
+                        if case .functionType = sema.types.kind(of: paramType) { return true }
+                        return false
+                    }
             }) {
                 sema.bindings.bindCall(
                     id,
@@ -1750,9 +1753,6 @@ final class CallTypeChecker {
                 nullability: .nonNull
             )))
             for arg in args {
-                if let lambdaExpr = ast.arena.expr(arg.expr), case .lambdaLiteral = lambdaExpr {
-                    sema.bindings.markCollectionHOFLambdaExpr(arg.expr)
-                }
                 _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
             }
 
@@ -1771,14 +1771,21 @@ final class CallTypeChecker {
             let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
             let funcFQName = comparisonsPkg + [calleeName]
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_comparator_from_multi_selectors_vararg"
+                guard let sig = sema.symbols.functionSignature(for: candidate),
+                      sema.symbols.isSourceBackedSymbol(candidate)
+                else { return false }
+                return sig.valueParameterIsVararg == [true]
             }) {
+                var mapping: [Int: Int] = [:]
+                for index in args.indices {
+                    mapping[index] = 0
+                }
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(
                         chosenCallee: chosen,
                         substitutedTypeArguments: [elementType],
-                        parameterMapping: [0: 0]
+                        parameterMapping: mapping
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -2258,8 +2265,13 @@ final class CallTypeChecker {
 
         if let calleeName,
            interner.resolve(calleeName) == "compareValuesBy",
-           args.count == 4 || args.count >= 6,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           args.count >= 4,
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", "compareValuesBy"],
+               ctx: ctx
+           ) != nil
         {
             let firstType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let secondType = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
@@ -2302,7 +2314,10 @@ final class CallTypeChecker {
                     _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
 
                     if let chosen = candidates.first(where: { candidate in
-                        sema.symbols.externalLinkName(for: candidate) == "kk_compareValuesByComparator"
+                        guard let sig = sema.symbols.functionSignature(for: candidate),
+                              sema.symbols.isSourceBackedSymbol(candidate)
+                        else { return false }
+                        return sig.parameterTypes.count == 4 && sig.typeParameterSymbols.count == 2
                     }) {
                         sema.bindings.bindCall(
                             id,
@@ -2318,7 +2333,7 @@ final class CallTypeChecker {
                     return sema.types.intType
                 }
             }
-            if args.count >= 6 {
+            if args.count >= 4 {
                 let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                     sema.types.makeNonNullable($0)
                 }
@@ -2331,16 +2346,26 @@ final class CallTypeChecker {
                     nullability: .nonNull
                 )))
                 for index in 2..<args.count {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[index].expr)
                     _ = driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
                 }
 
+                // 3 selectors resolve to the fixed-arity overload; 4+ to the vararg one.
+                let usesVararg = args.count > 5
                 if let chosen = candidates.first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == "kk_compareValuesByVararg"
+                    guard let sig = sema.symbols.functionSignature(for: candidate),
+                          sema.symbols.isSourceBackedSymbol(candidate)
+                    else { return false }
+                    // The comparator overload has the same arity as the two
+                    // selector one, so match on its second type parameter (`K`).
+                    return usesVararg
+                        ? sig.valueParameterIsVararg == [false, false, true]
+                        : (sig.parameterTypes.count == args.count
+                            && sig.typeParameterSymbols.count == 1
+                            && !sig.valueParameterIsVararg.contains(true))
                 }) {
                     var mapping: [Int: Int] = [0: 0, 1: 1]
                     for index in 2..<args.count {
-                        mapping[index] = 2
+                        mapping[index] = usesVararg ? 2 : index
                     }
                     sema.bindings.bindCall(
                         id,

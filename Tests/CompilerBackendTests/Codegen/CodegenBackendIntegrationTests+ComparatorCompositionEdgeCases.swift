@@ -15,11 +15,11 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareByVarargSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
-    // The fixed-arity 2/3-selector compareBy overloads (kk_comparator_from_multi_selectors,
-    // kk_comparator_from_multi_selectors3) were missing from the closure-argument expansion
-    // switch entirely, so selectors were passed as bare fnPtrs with no closureRaw slot,
-    // desyncing every argument after the first selector and crashing at runtime (SIGSEGV).
-    // Only the vararg overload (4+ selectors) was covered above.
+    // The fixed-arity 2/3-selector compareBy overloads were missing from the old
+    // closure-argument expansion switch entirely, so selectors were passed as bare
+    // fnPtrs with no closureRaw slot, desyncing every argument after the first
+    // selector and crashing at runtime (SIGSEGV). KSP-461 moved every overload to
+    // bundled Kotlin source; these tests keep the behavior covered.
     func testCodegenCompilesCompareByFixedTwoSelectors() throws {
         let source = """
         fun main() {
