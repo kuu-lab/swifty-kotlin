@@ -45,6 +45,41 @@ func pthreadSetValue<T: AnyObject>(_ key: pthread_key_t, _ value: T?) {
     }
 }
 
+/// Identifier of a suspend-entry-loop invocation ("task").
+///
+/// Values are drawn from a global monotonic counter and are never reused, so a
+/// map entry that outlives the invocation it belongs to (the async path leaves
+/// entries in place for the resume-continuation chain) can never be picked up
+/// by a later, unrelated invocation. An `ObjectIdentifier` of a per-invocation
+/// token cannot give that guarantee: the allocator reuses the address of a
+/// deallocated token, which silently aliases the two invocations and makes
+/// `RuntimeContinuationState.current` / `RuntimeCoroutineScope.current` resolve
+/// to another coroutine's state.
+struct RuntimeTaskKey: Hashable, Sendable {
+    let rawValue: UInt64
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var nextRawValue: UInt64 = 1
+
+    static func makeUnique() -> RuntimeTaskKey {
+        lock.lock()
+        let value = nextRawValue
+        nextRawValue &+= 1
+        lock.unlock()
+        return RuntimeTaskKey(rawValue: value)
+    }
+}
+
+/// Per-thread holder of the current task key. The key itself is a plain value;
+/// this box only provides pthread-TLS storage for it.
+private final class RuntimeTaskKeyBox {
+    let key: RuntimeTaskKey
+
+    init(key: RuntimeTaskKey) {
+        self.key = key
+    }
+}
+
 private final class RuntimeResumeContinuationBox: @unchecked Sendable {
     let closure: @Sendable () -> Void
 
@@ -258,7 +293,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     private var hasResumed: Bool = false
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
     private static let taskStateLock = NSLock()
-    nonisolated(unsafe) private static var taskStateMap: [ObjectIdentifier: RuntimeContinuationState] = [:]
+    nonisolated(unsafe) private static var taskStateMap: [RuntimeTaskKey: RuntimeContinuationState] = [:]
 
     /// CORO-004: Continuation-based resume model.
     ///
@@ -286,7 +321,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     /// Install continuation state for the given task key. Called at the top of the
     /// suspend-entry loop so that suspend function calls can discover the current state.
-    static func installState(_ state: RuntimeContinuationState?, forTask key: ObjectIdentifier) {
+    static func installState(_ state: RuntimeContinuationState?, forTask key: RuntimeTaskKey) {
         taskStateLock.lock()
         if let state {
             taskStateMap[key] = state
@@ -297,7 +332,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     /// Remove the task-state mapping when a suspend-entry loop finishes.
-    static func removeState(forTask key: ObjectIdentifier) {
+    static func removeState(forTask key: RuntimeTaskKey) {
         taskStateLock.lock()
         taskStateMap.removeValue(forKey: key)
         taskStateLock.unlock()
@@ -305,7 +340,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     /// Look up the continuation state installed for the current GCD dispatch work-item.
     /// Falls back to nil if the current thread is not inside a suspend-entry loop.
-    static func stateForTask(_ key: ObjectIdentifier) -> RuntimeContinuationState? {
+    static func stateForTask(_ key: RuntimeTaskKey) -> RuntimeContinuationState? {
         taskStateLock.lock()
         defer { taskStateLock.unlock() }
         return taskStateMap[key]
@@ -375,7 +410,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     /// Install the current continuation state for the given task key.
-    static func installCurrent(_ state: RuntimeContinuationState?, forTask key: ObjectIdentifier) {
+    static func installCurrent(_ state: RuntimeContinuationState?, forTask key: RuntimeTaskKey) {
         taskStateLock.lock()
         if let state {
             taskStateMap[key] = state
@@ -386,7 +421,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     /// Remove the current continuation state for the given task key.
-    static func removeCurrent(forTask key: ObjectIdentifier) {
+    static func removeCurrent(forTask key: RuntimeTaskKey) {
         taskStateLock.lock()
         taskStateMap.removeValue(forKey: key)
         taskStateLock.unlock()
@@ -834,15 +869,13 @@ private enum RuntimeJobState: Equatable, Sendable {
 enum RuntimeJobHandleTaskKey {
     private static let pthreadKey: pthread_key_t = makePthreadKey()
 
-    private final class Token {}
-
-    static var currentTaskKey: ObjectIdentifier {
-        if let existing: Token = pthreadGetValue(pthreadKey) {
-            return ObjectIdentifier(existing)
+    static var currentTaskKey: RuntimeTaskKey {
+        if let existing: RuntimeTaskKeyBox = pthreadGetValue(pthreadKey) {
+            return existing.key
         }
-        let token = Token()
-        pthreadSetValue(pthreadKey, token)
-        return ObjectIdentifier(token)
+        let box = RuntimeTaskKeyBox(key: .makeUnique())
+        pthreadSetValue(pthreadKey, box)
+        return box.key
     }
 
 }
@@ -978,9 +1011,9 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     private static let taskJobLock = NSLock()
-    nonisolated(unsafe) private static var taskJobMap: [ObjectIdentifier: RuntimeJobHandle] = [:]
+    nonisolated(unsafe) private static var taskJobMap: [RuntimeTaskKey: RuntimeJobHandle] = [:]
 
-    private static func installCurrent(_ job: RuntimeJobHandle?, forTask key: ObjectIdentifier) {
+    private static func installCurrent(_ job: RuntimeJobHandle?, forTask key: RuntimeTaskKey) {
         taskJobLock.lock()
         if let job {
             taskJobMap[key] = job
@@ -990,7 +1023,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         taskJobLock.unlock()
     }
 
-    private static func currentForTask(_ key: ObjectIdentifier) -> RuntimeJobHandle? {
+    private static func currentForTask(_ key: RuntimeTaskKey) -> RuntimeJobHandle? {
         taskJobLock.lock()
         defer { taskJobLock.unlock() }
         return taskJobMap[key]
@@ -1292,11 +1325,11 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     // suspend-entry loop without an explicit continuation handle.
     private static let taskScopeLock = NSLock()
     // Protected by taskScopeLock — all accesses go through installScope/removeScope/scopeForTask.
-    nonisolated(unsafe) private static var taskScopeMap: [ObjectIdentifier: RuntimeCoroutineScope] = [:]
+    nonisolated(unsafe) private static var taskScopeMap: [RuntimeTaskKey: RuntimeCoroutineScope] = [:]
 
     /// Install scope for the given task key. Called at the top of the
     /// suspend-entry loop so that launched children can discover their parent scope.
-    static func installScope(_ scope: RuntimeCoroutineScope?, forTask key: ObjectIdentifier) {
+    static func installScope(_ scope: RuntimeCoroutineScope?, forTask key: RuntimeTaskKey) {
         taskScopeLock.lock()
         if let scope {
             taskScopeMap[key] = scope
@@ -1307,7 +1340,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     }
 
     /// Remove the task-scope mapping when a suspend-entry loop finishes.
-    static func removeScope(forTask key: ObjectIdentifier) {
+    static func removeScope(forTask key: RuntimeTaskKey) {
         taskScopeLock.lock()
         taskScopeMap.removeValue(forKey: key)
         taskScopeLock.unlock()
@@ -1315,7 +1348,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
 
     /// Look up the scope installed for the current GCD dispatch work-item.
     /// Falls back to nil if the current thread is not inside a suspend-entry loop.
-    static func scopeForTask(_ key: ObjectIdentifier) -> RuntimeCoroutineScope? {
+    static func scopeForTask(_ key: RuntimeTaskKey) -> RuntimeCoroutineScope? {
         taskScopeLock.lock()
         defer { taskScopeLock.unlock() }
         return taskScopeMap[key]
@@ -1478,31 +1511,27 @@ private func runtimeCoroutineIsCancellationResult(_ result: Int) -> Bool {
 enum RuntimeCoroutineScopeTaskKey {
     private static let pthreadKey: pthread_key_t = makePthreadKey()
 
-    /// A lightweight sentinel whose only purpose is to provide a stable
-    /// `ObjectIdentifier` for the lifetime of a suspend-entry loop invocation.
-    private final class Token {}
-
     /// Get-or-create a task key for the current thread.
-    static var currentTaskKey: ObjectIdentifier {
-        if let existing: Token = pthreadGetValue(pthreadKey) {
-            return ObjectIdentifier(existing)
+    static var currentTaskKey: RuntimeTaskKey {
+        if let existing: RuntimeTaskKeyBox = pthreadGetValue(pthreadKey) {
+            return existing.key
         }
-        let token = Token()
-        pthreadSetValue(pthreadKey, token)
-        return ObjectIdentifier(token)
+        let box = RuntimeTaskKeyBox(key: .makeUnique())
+        pthreadSetValue(pthreadKey, box)
+        return box.key
     }
 
     /// Install a fresh task key for this thread and return it.
     /// Called at the top of each suspend-entry loop invocation.
-    static func installFreshKey() -> ObjectIdentifier {
-        let token = Token()
-        pthreadSetValue(pthreadKey, token)
-        return ObjectIdentifier(token)
+    static func installFreshKey() -> RuntimeTaskKey {
+        let box = RuntimeTaskKeyBox(key: .makeUnique())
+        pthreadSetValue(pthreadKey, box)
+        return box.key
     }
 
     /// Remove the task key for this thread.
     static func removeKey() {
-        pthreadSetValue(pthreadKey, nil as Token?)
+        pthreadSetValue(pthreadKey, nil as RuntimeTaskKeyBox?)
     }
 }
 
@@ -3401,8 +3430,8 @@ func runSuspendEntryLoopWithContinuation(
     // Shared mutable state for the task key, protected by the single-shot
     // continuation model (only one invocation of the loop body runs at a time).
     final class TaskKeyBox: @unchecked Sendable {
-        var key: ObjectIdentifier
-        init(key: ObjectIdentifier) { self.key = key }
+        var key: RuntimeTaskKey
+        init(key: RuntimeTaskKey) { self.key = key }
     }
     let taskKeyBox = TaskKeyBox(key: currentTaskKey)
 
