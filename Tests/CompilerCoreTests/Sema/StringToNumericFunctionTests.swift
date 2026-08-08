@@ -1,11 +1,12 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import RuntimeABI
 import Foundation
 import Testing
 
 /// STDLIB-TEXT-FN: Consolidated Sema coverage for `String.toInt/toLong/toShort/toByte/
-/// toFloat/toDouble` and their radix overloads. A single `runSema(ctx)` resolves all
-/// source packages and each `do` block verifies the expected runtime bridge / return type.
+/// toFloat/toDouble/toBigInteger/toBigDecimal` and their radix overloads. A single `runSema(ctx)`
+/// resolves all source packages and each `do` block verifies the expected runtime bridge / return type.
 @Suite
 struct StringToNumericFunctionTests {
     private func firstExprIDInPath(
@@ -135,6 +136,22 @@ struct StringToNumericFunctionTests {
 
             fun parseDoubleInIfBranch(text: String): Double {
                 return if (text.isNotEmpty()) text.toDouble() else 0.0
+            }
+            """,
+            """
+            package sample6
+            import java.math.BigInteger
+
+            fun parseBigInteger(raw: String): BigInteger {
+                return raw.toBigInteger()
+            }
+            """,
+            """
+            package sample7
+            import java.math.BigDecimal
+
+            fun parseBigDecimal(raw: String): BigDecimal {
+                return raw.toBigDecimal()
             }
             """,
         ]
@@ -363,6 +380,106 @@ struct StringToNumericFunctionTests {
                 let privateSymbol = sema.symbols.lookup(fqName: privateFq)
                 #expect(privateSymbol != nil)
                 #expect(sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toDouble")
+            }
+
+            // === toBigInteger ===
+            do {
+                let path = paths[6]
+                let toBigIntegerFQ = ["kotlin", "text", "toBigInteger"].map { interner.intern($0) }
+                let toBigIntegerCall = try #require(
+                    firstExprIDInPath(in: ast, path: path, ctx: ctx) { _, expr in
+                        guard case let .memberCall(_, callee, _, args, _) = expr,
+                              interner.resolve(callee) == "toBigInteger",
+                              args.isEmpty
+                        else { return false }
+                        return true
+                    },
+                    "Expected member call to toBigInteger() in sample6"
+                )
+                let toBigIntegerCallee = try #require(
+                    sema.bindings.callBinding(for: toBigIntegerCall)?.chosenCallee,
+                    "Expected call binding for toBigInteger"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: toBigIntegerCallee) == nil || sema.symbols.externalLinkName(for: toBigIntegerCallee)?.isEmpty == true,
+                    "String.toBigInteger() should resolve to standard library function (no direct external link)"
+                )
+
+                let directSymbol = try #require(
+                    sema.symbols.lookupAll(fqName: toBigIntegerFQ).first { symbolID in
+                        guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                        return signature.receiverType == sema.types.stringType && signature.parameterTypes.isEmpty
+                    }
+                )
+                let directLink = sema.symbols.externalLinkName(for: directSymbol)
+                #expect(directLink == nil || directLink?.isEmpty == true)
+
+                #expect(
+                    RuntimeABISpec.allFunctions.contains { $0.name == "__kk_string_toBigInteger" },
+                    "__kk_string_toBigInteger must be registered in RuntimeABISpec"
+                )
+
+                let bigIntegerFQ = ["java", "math", "BigInteger"].map { interner.intern($0) }
+                let bigIntegerSymbol = try #require(sema.symbols.lookup(fqName: bigIntegerFQ))
+                let expectedBigIntegerType = sema.types.make(.classType(ClassType(
+                    classSymbol: bigIntegerSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                #expect(
+                    sema.symbols.functionSignature(for: directSymbol)?.returnType == expectedBigIntegerType,
+                    "String.toBigInteger() should return java.math.BigInteger"
+                )
+            }
+
+            // === toBigDecimal ===
+            do {
+                let path = paths[7]
+                let toBigDecimalFQ = ["kotlin", "text", "toBigDecimal"].map { interner.intern($0) }
+                let toBigDecimalCall = try #require(
+                    firstExprIDInPath(in: ast, path: path, ctx: ctx) { _, expr in
+                        guard case let .memberCall(_, callee, _, args, _) = expr,
+                              interner.resolve(callee) == "toBigDecimal",
+                              args.isEmpty
+                        else { return false }
+                        return true
+                    },
+                    "Expected member call to toBigDecimal() in sample7"
+                )
+                let toBigDecimalCallee = try #require(
+                    sema.bindings.callBinding(for: toBigDecimalCall)?.chosenCallee,
+                    "Expected call binding for toBigDecimal"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: toBigDecimalCallee) == nil || sema.symbols.externalLinkName(for: toBigDecimalCallee)?.isEmpty == true,
+                    "String.toBigDecimal() should resolve to standard library function (no direct external link)"
+                )
+
+                let directSymbol = try #require(
+                    sema.symbols.lookupAll(fqName: toBigDecimalFQ).first { symbolID in
+                        guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                        return signature.receiverType == sema.types.stringType && signature.parameterTypes.isEmpty
+                    }
+                )
+                let directLink = sema.symbols.externalLinkName(for: directSymbol)
+                #expect(directLink == nil || directLink?.isEmpty == true)
+
+                #expect(
+                    RuntimeABISpec.allFunctions.first { $0.name == "__kk_string_toBigDecimal" } != nil,
+                    "__kk_string_toBigDecimal must be registered in RuntimeABISpec"
+                )
+
+                let bigDecimalFQ = ["java", "math", "BigDecimal"].map { interner.intern($0) }
+                let bigDecimalSymbol = try #require(sema.symbols.lookup(fqName: bigDecimalFQ))
+                let expectedBigDecimalType = sema.types.make(.classType(ClassType(
+                    classSymbol: bigDecimalSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                #expect(
+                    sema.symbols.functionSignature(for: directSymbol)?.returnType == expectedBigDecimalType,
+                    "String.toBigDecimal() should return java.math.BigDecimal"
+                )
             }
         }
     }
