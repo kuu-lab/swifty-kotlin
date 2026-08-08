@@ -431,8 +431,8 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
             // aggregate helpers that still lack source implementations continue
             // to call their runtime counterparts.
             #expect(callees.contains("__kk_list_get"), "callees: \(callees.sorted())")
-            #expect(callees.contains("__kk_list_size") || callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
-            #expect(callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
+            #expect(callees.contains("__kk_list_size") || callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
+            #expect(callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
             #expect(callees.contains("kk_mutable_list_add"), "callees: \(callees.sorted())")
             #expect(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
             #expect(callees.contains("kk_list_minBy"))

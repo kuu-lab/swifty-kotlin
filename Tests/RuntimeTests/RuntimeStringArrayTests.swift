@@ -714,10 +714,14 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(nil, 0, 0, 0, nil, 0, 0, 0, 1)), 1)
 
         withFlatString("") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)), 1)
             XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
+            XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
+            XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)), 0)
         }
 
         withFlatString("  \n\t") { data, length, byteCount, hash in
@@ -1736,9 +1740,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringAsIterableGenericConversionsPreserveTaggedChars() {
         let iterableRaw = flatStringAsIterable("aba")
 
-        let mutableList = runtimeListBox(from: kk_iterable_toMutableList(iterableRaw))
+        let mutableList = runtimeListBox(from: kk_collection_toMutableList(iterableRaw))
         let mutableSet = runtimeSetBox(from: kk_iterable_toMutableSet(iterableRaw))
-        let hashSet = runtimeSetBox(from: kk_iterable_toHashSet(iterableRaw))
 
         XCTAssertEqual(mutableList?.values.map(\.tag), [
             RuntimeValue.charTag,
@@ -1748,12 +1751,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(mutableList?.elements, [97, 98, 97])
         XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
         XCTAssertEqual(mutableSet?.elements, [97, 98])
-        XCTAssertEqual(hashSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(hashSet?.elements, [97, 98])
     }
 
     func testStringCharCollectionCopiesPreserveTaggedChars() {
-        let listRaw = kk_iterable_toMutableList(flatStringAsIterable("aba"))
+        let listRaw = kk_collection_toMutableList(flatStringAsIterable("aba"))
 
         let set = runtimeSetBox(from: kk_list_to_set(listRaw))
         let mutableSet = runtimeSetBox(from: kk_list_to_mutable_set(listRaw))
@@ -1810,19 +1811,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             baselineObjectCount + 1,
             "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage"
         )
-    }
-
-    func testStringAsIterableAsSequencePreservesTaggedSourceValues() {
-        let sequenceRaw = kk_iterable_asSequence(flatStringAsIterable("ab"))
-        let sequence = runtimeSequenceBox(from: sequenceRaw)
-
-        guard case let .valueSource(values)? = sequence?.steps.first else {
-            XCTFail("Expected String.asIterable().asSequence() to use RuntimeValue source storage")
-            return
-        }
-
-        XCTAssertEqual(values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(values.map(\.legacyRawValue), [97, 98])
     }
 
     func testStringAsIterableEmptyString() {

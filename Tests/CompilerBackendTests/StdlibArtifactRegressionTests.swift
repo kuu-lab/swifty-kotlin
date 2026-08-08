@@ -949,4 +949,175 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "variance test\nconsumed: hello from feeder\nstored: new value\ninvariant value\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-CHARSEQUENCE-SUBSEQUENCE: `subSequence` reached through a
+    /// value statically typed as `CharSequence` (backed by `String`) must resolve
+    /// to bundled Kotlin source (`Stdlib/kotlin/text/StringSubstringSlice.kt`) when
+    /// compiling against a prebuilt stdlib artifact, not the removed
+    /// `kk_string_subSequence_flat` runtime ABI (KSP-406). This is the shared-path
+    /// analogue of `Scripts/diff_cases/char_sequence_member_access.kt`: the flake it
+    /// guards only surfaced through `--no-stdlib --stdlib-library` linking, where an
+    /// undefined reference to `kk_string_subSequence_flat` failed the link.
+    func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun printLength(cs: CharSequence) {
+            println(cs.length)
+        }
+
+        fun main() {
+            printLength("hello")
+            val cs: CharSequence = "world!"
+            println(cs.length)
+            println(cs.get(1))
+            println(cs[2])
+            println(cs.subSequence(1, 3))
+            val sb: CharSequence = StringBuilder("abc")
+            println(sb.length)
+            println(sb.get(1))
+            println(sb[2])
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "5\n6\no\nr\nor\n3\nb\nc\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-STRING-INDENT: the indent-formatting family
+    /// (`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/
+    /// `replaceIndentByMargin`) must resolve to bundled Kotlin source
+    /// (`Stdlib/kotlin/text/StringIndentFormat.kt`) when compiling against a
+    /// prebuilt stdlib artifact, not the removed `kk_string_*_flat` runtime ABI.
+    /// This is the shared-path analogue of the `raw_string_basic`,
+    /// `string_indent`, `trim_margin` and `string_replaceindentbymargin` diff
+    /// cases, whose failure mode was an undefined reference to
+    /// `kk_string_trimIndent_flat` (and friends) at link time under
+    /// `--no-stdlib --stdlib-library`.
+    func testStringIndentFormattingThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = #"""
+        fun marker(value: String) {
+            println(value.replace("\n", "/"))
+        }
+
+        fun main() {
+            val raw = """
+                line1
+                line2
+            """.trimIndent()
+            marker(raw)
+            marker("\n    |alpha\n    |beta\n".trimMargin())
+            marker("\n    >alpha\n    >beta\n".trimMargin(">"))
+            marker("Hello\nWorld".prependIndent())
+            marker("Hello\nWorld".prependIndent(">>"))
+            marker("  Hello\n  World".replaceIndent())
+            marker("  Hello\n  World".replaceIndent("--"))
+            marker("\n    |alpha\n    |beta\n".replaceIndentByMargin())
+            marker("\n    |alpha\n    |beta\n".replaceIndentByMargin("> ", "|"))
+        }
+        """#
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                line1/line2
+                alpha/beta
+                alpha/beta
+                    Hello/    World
+                >>Hello/>>World
+                Hello/World
+                --Hello/--World
+                alpha/beta
+                > alpha/> beta
+
+                """
+            )
+        }
+    }
+
+    /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
+    /// an auto-inline overload of the bundled `kotlin.collections` source, so no
+    /// standalone body reaches the stdlib artifact. When such a call sits inside
+    /// a lambda that is itself spliced into its caller (here the `let` body),
+    /// the spliced instructions must be re-scanned for inline expansion;
+    /// otherwise the consumer keeps an undefined reference to `kk_fn_joinToString_*`
+    /// at link time (the `compiler_plugin_api` diff case failure mode).
+    func testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val options: Map<String, String> = mapOf("k" to "v", "a" to "b")
+            val summary = options.entries.let { entries ->
+                entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+            }
+            println(summary)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "a=b,k=v\n")
+        }
+    }
 }

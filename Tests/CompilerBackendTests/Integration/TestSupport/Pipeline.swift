@@ -18,7 +18,8 @@ func makeSemaModule(
 }
 
 func defaultTargetTriple() -> TargetTriple {
-    TargetTriple.hostDefault()
+    TestStdlibCache.shared.prepare()
+    return TargetTriple.hostDefault()
 }
 
 func makeCompilationContext(
