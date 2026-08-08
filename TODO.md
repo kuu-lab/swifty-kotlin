@@ -583,11 +583,7 @@
   - 呼び出し元: `HeaderHelpers.swift:1246`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:215`（`name: "FilesUtility"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 `kk_files_*`（48件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`/`RuntimeABISpec+Path.swift` 該当 ABI
   - テスト影響: diff case `files_utility.kt`、`file_isDirectory_test.kt` 等の整理
-- [ ] CLEANUP-STUB-111: `HeaderHelpers+SyntheticJsFunctionStubs.swift` を削除する
-  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsFunctionStubs.swift`（77行）
-  - 削除内容: `registerSyntheticJsFunctionStubs(...)` / `registerSyntheticJsFunction(...)` および Kotlin/JS `js(...)` 外部関数の synthetic 登録を削除
-  - 呼び出し元: `HeaderHelpers.swift:1228`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:174`（`name: "JsFunction"`）を削除
-  - テスト影響: 本家 Kotlin/JS 専用のためテストは少ない；`swift build` と Sema inventory テストの確認
+- [x] CLEANUP-STUB-111: `HeaderHelpers+SyntheticJsFunctionStubs.swift`（77行）を削除する（`registerSyntheticJsFunctionStubs(...)` / `registerSyntheticJsFunction(...)` と Kotlin/JS `js(...)` 外部関数の synthetic 登録、`HeaderHelpers.swift` の中央呼び出しおよび `HeaderHelpers+SyntheticBucketedStubRegistry.swift` の `name: "JsFunction"` エントリを削除）
 - [ ] CLEANUP-STUB-112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticLocaleConstructorStubs.swift`（401行）
   - 削除内容: `registerSyntheticLocaleConstructorStubs(...)` および `java.util.Locale` クラス・コンストラクタ / `forLanguageTag` / `getDefault` 等の登録を削除
