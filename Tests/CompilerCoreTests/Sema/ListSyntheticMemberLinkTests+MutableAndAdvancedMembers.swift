@@ -129,53 +129,67 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    /// KSP-435: the generic Iterable/Collection conversions are bundled Kotlin
+    /// source (Iterables.kt / Collections.kt), so they must resolve to a
+    /// source-backed declaration without any `kk_*` external link.
     @Test
-    func testCollectionAndIterableConversionMembersUseRuntimeExternalLinks() throws {
-        let cases: [SyntheticMemberCallCase] = [
-            .init(
-                source: """
-                fun copy(values: Collection<String>) {
-                    values.toMutableList()
-                }
-                """,
-                memberName: "toMutableList",
-                expectedExternalLink: "kk_collection_toMutableList",
-                expectedTypeShape: .classNamed("MutableList")
-            ),
-            .init(
-                source: """
-                fun copy(values: Collection<String>) {
-                    values.toTypedArray()
-                }
-                """,
-                memberName: "toTypedArray",
-                expectedExternalLink: "kk_collection_toTypedArray",
-                expectedTypeShape: .classNamed("Array")
-            ),
-            .init(
-                source: """
-                fun copy(values: Iterable<String>) {
-                    values.toMutableList()
-                }
-                """,
-                memberName: "toMutableList",
-                expectedExternalLink: "kk_iterable_toMutableList",
-                expectedTypeShape: .classNamed("MutableList")
-            ),
-            .init(
-                source: """
-                fun copy(values: Iterable<String>) {
-                    values.toMutableSet()
-                }
-                """,
-                memberName: "toMutableSet",
-                expectedExternalLink: "kk_iterable_toMutableSet",
-                expectedTypeShape: .classNamed("MutableSet")
-            ),
+    func testCollectionAndIterableConversionMembersResolveToBundledSource() throws {
+        let cases: [(source: String, memberName: String, resultClassName: String)] = [
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toList()
+            }
+            """, "toList", "List"),
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toMutableList()
+            }
+            """, "toMutableList", "MutableList"),
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toTypedArray()
+            }
+            """, "toTypedArray", "Array"),
+            ("""
+            fun copy(values: Iterable<String>) {
+                values.toMutableList()
+            }
+            """, "toMutableList", "MutableList"),
+            ("""
+            fun copy(values: Iterable<String>) {
+                values.toMutableSet()
+            }
+            """, "toMutableSet", "MutableSet"),
         ]
 
         for testCase in cases {
-            try assertSyntheticMemberCall(testCase)
+            try withTemporaryFile(contents: testCase.source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+
+                let ast = try #require(ctx.ast)
+                let sema = try #require(ctx.sema)
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == testCase.memberName
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "\(testCase.memberName) must bind to the bundled Kotlin declaration"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "\(testCase.memberName) must not keep a kk_* external link"
+                )
+                try assertSyntheticMemberType(
+                    try #require(sema.bindings.exprType(for: callExpr)),
+                    matches: .classNamed(testCase.resultClassName),
+                    sema: sema,
+                    interner: ctx.interner,
+                    memberName: testCase.memberName
+                )
+            }
         }
     }
 

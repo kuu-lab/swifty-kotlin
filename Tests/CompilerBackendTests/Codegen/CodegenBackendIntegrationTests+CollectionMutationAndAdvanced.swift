@@ -408,8 +408,8 @@ extension CodegenBackendIntegrationTests {
             // aggregate helpers that still lack source implementations continue
             // to call their runtime counterparts.
             XCTAssertTrue(callees.contains("__kk_list_get"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("__kk_list_size") || callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
+            XCTAssertTrue(callees.contains("__kk_list_size") || callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
+            XCTAssertTrue(callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
             XCTAssertTrue(callees.contains("kk_mutable_list_add"), "callees: \(callees.sorted())")
             XCTAssertTrue(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
             XCTAssertTrue(callees.contains("kk_list_minBy"))
