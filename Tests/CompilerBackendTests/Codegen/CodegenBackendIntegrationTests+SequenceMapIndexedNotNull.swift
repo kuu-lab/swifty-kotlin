@@ -24,7 +24,9 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMapIndexedNotNullRuntime", expected: "[10]\n1\n[10, 32]\n")
     }
 
-    func testCodegenSequenceMapIndexedNotNullUsesRuntimeHelper() throws {
+    /// KSP-441: `mapIndexedNotNull` comes from the bundled Kotlin transform
+    /// pipeline, which builds it on top of the source-backed `mapIndexed`.
+    func testCodegenSequenceMapIndexedNotNullUsesBundledSourceImplementation() throws {
         let source = """
         fun render(): Sequence<Int> {
             return sequenceOf(10, 20, 30).mapIndexedNotNull { index, value ->
@@ -40,7 +42,8 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_sequence_mapIndexedNotNull"))
+            XCTAssertTrue(callees.contains("mapIndexedNotNull"))
+            XCTAssertFalse(callees.contains("kk_sequence_mapIndexedNotNull"))
         }
     }
 }

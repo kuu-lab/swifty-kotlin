@@ -21,7 +21,8 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMapIndexedRuntime", expected: "[10, 21]\n2\n[10, 21, 32, 43]\n")
     }
 
-    func testCodegenSequenceMapIndexedUsesRuntimeHelper() throws {
+    /// KSP-441: `mapIndexed` comes from the bundled Kotlin transform pipeline.
+    func testCodegenSequenceMapIndexedUsesBundledSourceImplementation() throws {
         let source = """
         fun render(): Sequence<Int> {
             return sequenceOf(10, 20, 30).mapIndexed { index, value -> index + value }
@@ -35,7 +36,8 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_sequence_mapIndexed"))
+            XCTAssertTrue(callees.contains("mapIndexed"))
+            XCTAssertFalse(callees.contains("kk_sequence_mapIndexed"))
         }
     }
 }
