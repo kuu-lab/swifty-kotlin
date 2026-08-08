@@ -31,6 +31,21 @@ struct ComparisonsCompareValuesByFunctionTests {
         }
     }
 
+    /// KSP-461: the 2-selector overload shares its arity with the
+    /// `comparator + selector` one, so it must still resolve unambiguously.
+    @Test func testCompareValuesByTwoSelectorsResolvesInSource() throws {
+        let source = """
+        fun cmp(): Int =
+            compareValuesBy("ab", "cd", { s: String -> s.length }, { s: String -> s })
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!(ctx.diagnostics.hasError), "compareValuesBy (2-selector) must resolve without errors; got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     /// KSP-461: the 1-selector overload is bundled Kotlin source, so it must be
     /// registered without any runtime external link.
     @Test func testCompareValuesByOneSelectorIsSourceBacked() throws {

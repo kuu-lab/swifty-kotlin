@@ -2333,7 +2333,7 @@ final class CallTypeChecker {
                     return sema.types.intType
                 }
             }
-            if args.count >= 5 {
+            if args.count >= 4 {
                 let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                     sema.types.makeNonNullable($0)
                 }
@@ -2355,9 +2355,13 @@ final class CallTypeChecker {
                     guard let sig = sema.symbols.functionSignature(for: candidate),
                           sema.symbols.isSourceBackedSymbol(candidate)
                     else { return false }
+                    // The comparator overload has the same arity as the two
+                    // selector one, so match on its second type parameter (`K`).
                     return usesVararg
                         ? sig.valueParameterIsVararg == [false, false, true]
-                        : (sig.parameterTypes.count == args.count && !sig.valueParameterIsVararg.contains(true))
+                        : (sig.parameterTypes.count == args.count
+                            && sig.typeParameterSymbols.count == 1
+                            && !sig.valueParameterIsVararg.contains(true))
                 }) {
                     var mapping: [Int: Int] = [0: 0, 1: 1]
                     for index in 2..<args.count {
