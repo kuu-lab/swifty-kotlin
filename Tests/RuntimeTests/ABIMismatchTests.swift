@@ -205,8 +205,8 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkThrowableSuppressedExceptionsSignature() throws {
-        let spec = try requireSpec("kk_throwable_suppressedExceptions")
+    func kkThrowableSuppressedRawSignature() throws {
+        let spec = try requireSpec("__kk_throwable_suppressedRaw")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
