@@ -316,6 +316,16 @@ public func kk_itable_lookup(_ receiver: Int, _ ifaceSlot: Int, _ methodSlot: In
     return Int(bitPattern: functionPointer)
 }
 
+func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw) else {
+        return nil
+    }
+    let objectKey = UInt(bitPattern: ptr)
+    return runtimeStorage.withMetadataLock { state in
+        state.objectInterfaceSlots[objectKey]?[interfaceTypeID]
+    }
+}
+
 /// Like `kk_itable_lookup`, but for call sites where the receiver's static
 /// type was the interface itself (e.g. a function parameter typed
 /// `d: SomeInterface`) rather than a concrete class — the compiler doesn't

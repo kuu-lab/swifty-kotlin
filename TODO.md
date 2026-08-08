@@ -632,12 +632,7 @@
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
   - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
-- [ ] CLEANUP-STUB-121: `HeaderHelpers+SyntheticSerializationStubs.swift` を削除する
-  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSerializationStubs.swift`（723行）
-  - 削除内容: `registerSyntheticSerializationStubs(...)` および `kotlinx.serialization`/`kotlinx.serialization.json` の `Json`/`JsonBuilder`/`JsonConfiguration`/`Serializers` 等の登録を削除
-  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:254`（`name: "Serialization"`）を削除
-  - 連動整理: Runtime `Sources/Runtime/RuntimeSerialization.swift`（`kk_serialization_*`/`kk_json_*` 46件）、`Sources/RuntimeABI/RuntimeABISpec+Serialization.swift`
-  - テスト影響: `Tests/RuntimeTests/RuntimeSerializationTests.swift`、`Tests/CompilerCoreTests/Sema/LibMetadataSerializationTests*.swift`、diff cases `json_serialization.kt`/`dataclass_serialization.kt`/`collection_serialization.kt`/`custom_serializer.kt` の整理
+- [x] CLEANUP-STUB-121: `HeaderHelpers+SyntheticSerializationStubs.swift`（723行）と `HeaderHelpers+SyntheticBucketedStubRegistry.swift` の `name: "Serialization"` 登録を削除。連動して `Sources/Runtime/RuntimeSerialization.swift`（`kk_json_*` 22件）と `Sources/RuntimeABI/RuntimeABISpec+Serialization.swift` を削除し、唯一の消費者が JSON エンコードだった `kk_json_register_data_class_field_name` 発行（`CallLowerer` / `ObjectLiteralLowerer` / `CallLowerer+TypeOfAndMetadata` / `CallLowerer+KClassReflectMemberCalls`）も除去。`Tests/RuntimeTests/RuntimeSerializationTests.swift` と diff cases `json_serialization.kt`/`dataclass_serialization.kt`/`collection_serialization.kt`/`custom_serializer.kt` を削除（`LibMetadataSerializationTests*.swift` は lib metadata のシリアライズで kotlinx.serialization とは無関係のため存置）
 - [ ] CLEANUP-STUB-122: `HeaderHelpers+SyntheticTestStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTestStubs.swift`（184行）
   - 削除内容: `registerSyntheticTestFrameworkStubs(...)` および `kotlin.test` 注釈（`Test`/`Before`/`After`/`Ignore` 等）・`assertEquals`/`assertTrue`/`assertNull`/`fail` 等の登録を削除
