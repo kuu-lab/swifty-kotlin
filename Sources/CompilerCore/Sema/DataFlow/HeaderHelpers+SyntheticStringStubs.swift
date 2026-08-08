@@ -286,9 +286,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KSP-413: locale-aware compareTo stays a runtime bridge (ICU/Foundation
+        // collation), demoted to `__kk_` so only bundled stdlib source
+        // (StringComparison.kt) reaches it.
         registerSyntheticStringExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_string_compareTo_locale",
+            named: "__kk_string_compareTo_locale",
+            externalLinkName: "__kk_string_compareTo_locale",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -878,19 +881,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_string_compareToIgnoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-413: compareTo(other, ignoreCase) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         // KSP-401: isEmpty/isBlank/ifEmpty/ifBlank are bundled Kotlin source.
 
@@ -940,7 +932,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-192: equals(other, ignoreCase) ---
+        // --- STDLIB-192: equals(other) ---
+        // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         let nullableStringType = types.make(.stringStruct(.nullable))
 
@@ -950,20 +944,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "equals",
-            externalLinkName: "kk_string_equalsIgnoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-                ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
             packageFQName: kotlinTextPkg,
@@ -2075,34 +2055,8 @@ extension DataFlowSemaPhase {
 
         // KSP-401: String?.orEmpty() is bundled Kotlin source.
 
-        // --- STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_flat",
-            receiverType: nullableStringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_ignoreCase_flat",
-            receiverType: nullableStringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-413: CharSequence?.contentEquals is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         // --- STDLIB-TEXT-FN-011: shares kk_string_concat with the `+` operator ---
         registerSyntheticStringExtensionFunction(

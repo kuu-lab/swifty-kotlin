@@ -202,7 +202,7 @@
 - [x] KSP-412: case 変換を完遂する（`capitalize`, `replaceFirstChar` を Kotlin 化、locale 版は `__kk_` 降格） (PR #5064)
   - 既存 `StringCaseConversion.kt` が `__kk_lowercase_locale`/`__kk_uppercase_locale` 委譲パターンの見本
   - 削除 kk_*: `kk_string_capitalize`, `kk_string_replaceFirstChar` / 降格: `kk_string_lowercase_locale`, `kk_string_uppercase_locale`
-- [ ] KSP-413: 比較系を Kotlin 化（`compareToIgnoreCase`, `contentEquals`, `equals(ignoreCase)`）
+- [x] KSP-413: 比較系を Kotlin 化（`compareToIgnoreCase`, `contentEquals`, `equals(ignoreCase)`）
   - 削除 kk_*: `kk_string_compareToIgnoreCase`, `kk_string_contentEquals`, `kk_string_contentEquals_ignoreCase` / 降格: `kk_string_compareTo_locale`（locale 依存）
 - [ ] KSP-414: 数値パース（整数 radix 系）を Kotlin 化（`toInt(OrNull)(radix)`, `toLong…`, `toShort…`, `toByte…`, `toU*OrNull(radix)`, `toBoolean(Strict)(OrNull)`）
   - 削除 kk_*: `RuntimeStringConversion.swift` の該当関数（`rg -o '@_cdecl\("kk_string_to[A-Z][a-zA-Z]*(_radix)?"\)' Sources/Runtime/RuntimeStringConversion.swift` で列挙し Float/Double/BigDecimal/BigInteger を除く）
