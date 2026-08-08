@@ -16,6 +16,22 @@ final class CallLowerer {
         return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
+    /// True when the call resolved to the stdlib `kotlin.contextOf` intrinsic.
+    /// A user-declared `contextOf()` resolves to its own symbol and must keep
+    /// normal call lowering instead of being replaced by a context receiver.
+    private func isStdlibContextOfCall(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .symbol(symbol)? = sema.bindings.callableTarget(for: exprID),
+              let resolved = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
+    }
+
     /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
     /// symbol prefix (e.g. "kk_int", "kk_long", "kk_uint", "kk_ulong"),
     /// or nil if the receiver is not one of the coercion-eligible numeric
@@ -541,7 +557,8 @@ final class CallLowerer {
         if args.isEmpty,
            let callee = ast.arena.expr(calleeExpr),
            case let .nameRef(calleeName, _) = callee,
-           calleeName == interner.intern("contextOf")
+           calleeName == interner.intern("contextOf"),
+           isStdlibContextOfCall(exprID, sema: sema, interner: interner)
         {
             let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             if let contextValue = driver.ctx.contextReceiverValue(matching: boundType, sema: sema) {
