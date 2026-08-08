@@ -428,8 +428,9 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
     `__kk_lock_withLock` bridge（fnPtr + closure env + `outThrown`）へ委譲する。
 - **c-soft コア残留（6）**: `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`,
   `kk_read_write_lock_read`, `kk_read_write_lock_write`。suspend 継続・待機解放・pthread rwlock コアと不可分のため (c) 残置。
-- **(a) cleanup 候補（scope 外）**: `kk_read_write_lock_create` は CLEANUP-STUB-100（未使用重複）として別途整理。
-  `kk_reentrant_read_write_lock_new` と `HeaderHelpers+SyntheticReadWriteLockStubs.swift` の compatibility stub も本 PR 対象外。
+- **(a) cleanup 済み**: 未使用重複だった `kk_reentrant_read_write_lock_new`（`HeaderHelpers+SyntheticReadWriteLockStubs.swift` の
+  コンストラクタ登録・Runtime 実体・ABI 登録）は CLEANUP-STUB-100 で削除済み。`ReentrantReadWriteLock` のコンストラクタ
+  ブリッジは `kk_read_write_lock_create` に一本化した。
 
 移行に伴い generic 高階関数 `fun <T> f(action: () -> T): T` が Unit 本体ラムダから `T` を推論できないコンパイラバグ
 （`KSWIFTK-TYPE-0001`/`KSWIFTK-SEMA-0002`）を同 PR で修正した。ただし `launch { }` 本体からキャプチャ付き suspend 呼び出しを
