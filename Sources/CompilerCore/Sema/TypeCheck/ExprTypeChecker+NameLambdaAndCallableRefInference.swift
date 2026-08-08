@@ -1105,8 +1105,19 @@ extension ExprTypeChecker {
             // or `box.run2 { myValue }` fails to infer `R`). Substitute the
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
+            // Explicit annotations that replaced unsubstituted type parameters
+            // (`{ p: P -> ... }` against `(T) -> Any?`) must not be thrown away by
+            // returning `expectedType` verbatim: the leaked `T` would come back as
+            // a lower bound for the very type variable the call is solving.
+            let annotationsReplacedUnsubstitutedParameters =
+                annotatedParameterTypes != nil
+                    && expectedFunctionType.params.count == parameterTypes.count
+                    && zip(parameterTypes, expectedFunctionType.params).contains { resolved, declared in
+                        resolved != declared && typeMentionsTypeParameter(declared, sema: sema)
+                    }
             let shouldReturnResolvedFunctionType =
                 expectedReturnIsUnconstrainedTypeParam
+                || annotationsReplacedUnsubstitutedParameters
                 || (expectedFunctionType.receiver != nil && expectedReturnIsTypeParam)
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(

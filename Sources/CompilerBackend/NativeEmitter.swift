@@ -207,8 +207,8 @@ struct NativeEmitter {
                 let name = parameter.name.lowercased()
                 // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
                 // kk_function_invoke, which uses the flat intptr callback ABI.
-                // selFn/cFn: comparator selector/comparator function pointers passed to
-                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_comparator_from_selector).
+                // selFn/cFn: selector/comparator function pointers passed to
+                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_list_sortedBy).
                 if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" || name.hasSuffix("fn") {
                     positions.append(kirIndex)
                 }

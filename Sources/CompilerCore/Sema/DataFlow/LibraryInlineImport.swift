@@ -395,6 +395,73 @@ extension DataFlowSemaPhase {
                 thrownResult: nil,
                 isSuperCall: isSuperCall
             )
+        case "virtualCall":
+            guard let calleeEncoded = pairs["calleeB64"],
+                  let calleeName = decodeBase64String(calleeEncoded),
+                  let receiverRaw = pairs["receiver"], let receiver = Int32(receiverRaw),
+                  let dispatch = parseImportedInlineDispatch(pairs["dispatch"])
+            else {
+                return nil
+            }
+            let args = parseInlineIntList(pairs["args"] ?? "[]").map { value in
+                KIRExprID(rawValue: Int32(truncatingIfNeeded: value))
+            }
+            let result: KIRExprID? = if let resultRaw = pairs["result"], resultRaw != "_" {
+                Int32(resultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let canThrowRaw = pairs["canThrow"] ?? "0"
+            var callSymbol: SymbolID? = nil
+            if let linkEncoded = pairs["linkB64"],
+               let linkName = decodeBase64String(linkEncoded),
+               !linkName.isEmpty
+            {
+                callSymbol = externalLinkNameToSymbol[linkName]
+            }
+            return .virtualCall(
+                symbol: callSymbol,
+                callee: interner.intern(calleeName),
+                receiver: KIRExprID(rawValue: receiver),
+                arguments: args,
+                result: result,
+                canThrow: canThrowRaw == "1" || canThrowRaw == "true",
+                thrownResult: nil,
+                dispatch: dispatch
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// Parses a serialized `virtualCall` dispatch descriptor. Slot indices and
+    /// the interface type ID are module-independent (the type ID is derived from
+    /// the interface's fully qualified name), so they carry over verbatim.
+    private func parseImportedInlineDispatch(_ token: String?) -> KIRDispatchKind? {
+        guard let token else {
+            return nil
+        }
+        let fields = token.split(separator: ":", omittingEmptySubsequences: false)
+        switch fields.first {
+        case "vtable":
+            guard fields.count == 2, let slot = Int(fields[1]) else { return nil }
+            return .vtable(slot: slot)
+        case "itable":
+            guard fields.count == 3,
+                  let interfaceSlot = Int(fields[1]),
+                  let methodSlot = Int(fields[2])
+            else {
+                return nil
+            }
+            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+        case "itableDynamic":
+            guard fields.count == 3,
+                  let interfaceTypeID = Int64(fields[1]),
+                  let methodSlot = Int(fields[2])
+            else {
+                return nil
+            }
+            return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         default:
             return nil
         }

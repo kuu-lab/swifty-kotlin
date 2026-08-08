@@ -1023,6 +1023,63 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
+    /// KSP-461: comparator factories crossing the shared stdlib artifact
+    /// boundary. Two failure modes are covered:
+    ///
+    /// - `compareBy(vararg selectors)` is a real (non-inlined) imported call, so
+    ///   its lambda arguments must be wrapped into runtime function values;
+    ///   passing raw lambda symbols crashed inside `kk_function_invoke`.
+    /// - `compareValuesBy(a, b, comparator, selector)` is imported as inline
+    ///   KIR whose body dispatches `Comparator.compare` through a
+    ///   `virtualCall`; that opcode had no importer counterpart, so the
+    ///   instruction was silently dropped and the call returned garbage.
+    func testComparatorFactoriesThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        data class Person(val name: String, val age: Int)
+
+        fun main() {
+            val people = listOf(Person("cid", 30), Person("amy", 25), Person("bob", 25))
+            val byAgeThenName = compareBy({ p: Person -> p.age }, { p: Person -> p.name })
+            println(people.sortedWith(byAgeThenName).map { it.name })
+            println(listOf("banana", "fig", "apple").sortedWith(compareBy<String>({ it.length }, { it })))
+            println(compareValuesBy(13, 25, compareBy<Int> { it }) { it % 10 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                [amy, bob, cid]
+                [fig, apple, banana]
+                -1
+
+                """
+            )
+        }
+    }
+
     /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
     /// an auto-inline overload of the bundled `kotlin.collections` source, so no
     /// standalone body reaches the stdlib artifact. When such a call sits inside

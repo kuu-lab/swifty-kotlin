@@ -288,8 +288,17 @@
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
-- [ ] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
-  - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+- [x] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
+  - Kotlin 化: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparators.kt` に `compareValues`/`compareValuesBy`（selector・vararg・Comparator+selector）、`compareBy`/`compareByDescending`（selector・vararg・Comparator+selector）、`Comparator<T>.reversed`、`nullsFirst`/`nullsLast`（Comparator 引数・自然順・レシーバ形）を実装。`maxOf`/`minOf` の Comparator オーバーロード（`comparisons/Comparisons.kt`）は inline を外して通常関数として emit し、consumer 側で本体が解決されるようにした
+  - 削除 kk_*: `RuntimeComparator.swift` の comparator factory / trampoline / `compareValues` ブリッジおよび `kk_compare_with_comparator` を削除（`RuntimeABISpec+Comparator.swift` の宣言も同時削除）。比較コアは `__kk_comparable_compareTo` へ降格
+  - 残留（意図的）: `kk_string_case_insensitive_order` / `_trampoline`。`String.Companion` の `val` をソース宣言できない（BUG-036/BUG-154）ため、シングルトン生成と itable 動的登録を Swift 側に残す。`kk_primitive_compareTo` は `RuntimeComparator.swift` 外（`RuntimeCollectionHelpers.swift`）のプリミティブ `compareTo` 演算子コアのため対象外
+  - 併せて修正したコンパイラバグ（いずれも Comparator 移行で顕在化）:
+    1. 関数型 vararg に渡した非 spread ラムダが raw なラムダシンボルのまま配列へ詰められ、`kk_function_invoke` の一様 ABI と食い違ってクラッシュ（`materializeVarargFunctionValueArguments` を追加）
+    2. 明示型引数なしの multi-selector `compareBy` で、明示注釈付きラムダが未置換の型パラメータを含む expected type をそのまま返し conflicting bounds になる
+    3. ラムダ引数の expected type 計算で、arity 不一致・明示型引数の個数不一致・vararg 兄弟オーバーロードが候補に残り、暗黙 `it` が型付かない
+    4. ライブラリ（`.kklib`）からインポートした inline KIR に `virtualCall` のパーサが無く、命令が黙って捨てられていた（インターフェース dispatch を含む inline 関数が誤った値を返す）
+  - 回帰: `Scripts/diff_cases/ksp461_comparator_inference.kt` 新設、`Tests/CompilerBackendTests/StdlibArtifactRegressionTests.swift` に共有 stdlib artifact 経由の Comparator ケース追加、`CodegenBackendIntegrationTests+ComparatorCompositionEdgeCases.swift` 拡充、Sema 期待値をソースバック前提へ更新
+  - 検証: `swift build` / `bash Scripts/swift_test.sh` / `--filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` / `bash Scripts/validate_runtime_abi_links.sh` / `git diff --check` green
 
 #### kotlin.random [M7 実行体]
 
