@@ -347,7 +347,8 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 namePrefix: "kk_function_value_adapter",
-                symbolIDOffsetBase: -720_000
+                symbolIDOffsetBase: -720_000,
+                erasedFunctionType: functionType
            )
         {
             let adaptedExpr = arena.appendExpr(

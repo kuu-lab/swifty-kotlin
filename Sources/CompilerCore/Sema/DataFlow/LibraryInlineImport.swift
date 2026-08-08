@@ -135,6 +135,7 @@ extension DataFlowSemaPhase {
         if body.isEmpty {
             body = [.returnUnit]
         }
+        body = body.map(shiftImportedInlineExprIDs)
 
         return KIRFunction(
             symbol: importedSymbol,
@@ -145,6 +146,64 @@ extension DataFlowSemaPhase {
             isSuspend: isSuspend,
             isInline: true
         )
+    }
+
+    /// Expression IDs in an inline KIR artifact are the ones the library used
+    /// when it was compiled, so they would otherwise alias unrelated
+    /// expressions of the importing module — inline expansion looks types and
+    /// expression kinds up by ID in the importing arena and would read whatever
+    /// happens to sit at the same index. Shifting them out of that range keeps
+    /// an imported body's expressions unresolvable there, which is the correct
+    /// answer: the artifact carries no expression types.
+    private static let importedInlineExprIDBase: Int32 = 4_000_000
+
+    private func shiftImportedInlineExprIDs(_ instruction: KIRInstruction) -> KIRInstruction {
+        func shift(_ id: KIRExprID) -> KIRExprID {
+            KIRExprID(rawValue: Self.importedInlineExprIDBase &+ id.rawValue)
+        }
+        switch instruction {
+        case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
+             .beginFinallyGuard, .endFinallyGuard:
+            return instruction
+        case let .jumpIfEqual(lhs, rhs, target):
+            return .jumpIfEqual(lhs: shift(lhs), rhs: shift(rhs), target: target)
+        case let .constValue(result, value):
+            return .constValue(result: shift(result), value: value)
+        case let .binary(op, lhs, rhs, result):
+            return .binary(op: op, lhs: shift(lhs), rhs: shift(rhs), result: shift(result))
+        case let .unary(op, operand, result):
+            return .unary(op: op, operand: shift(operand), result: shift(result))
+        case let .nullAssert(operand, result):
+            return .nullAssert(operand: shift(operand), result: shift(result))
+        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+            return .call(
+                symbol: symbol, callee: callee, arguments: arguments.map(shift),
+                result: result.map(shift), canThrow: canThrow, thrownResult: thrownResult.map(shift),
+                isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+            )
+        case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+            return .virtualCall(
+                symbol: symbol, callee: callee, receiver: shift(receiver),
+                arguments: arguments.map(shift), result: result.map(shift),
+                canThrow: canThrow, thrownResult: thrownResult.map(shift), dispatch: dispatch
+            )
+        case let .jumpIfNotNull(value, target):
+            return .jumpIfNotNull(value: shift(value), target: target)
+        case let .copy(from, to):
+            return .copy(from: shift(from), to: shift(to))
+        case let .storeGlobal(value, symbol):
+            return .storeGlobal(value: shift(value), symbol: symbol)
+        case let .loadGlobal(result, symbol):
+            return .loadGlobal(result: shift(result), symbol: symbol)
+        case let .rethrow(value):
+            return .rethrow(value: shift(value))
+        case let .returnIfEqual(lhs, rhs):
+            return .returnIfEqual(lhs: shift(lhs), rhs: shift(rhs))
+        case let .returnValue(value):
+            return .returnValue(shift(value))
+        case let .nonLocalReturn(value):
+            return .nonLocalReturn(value.map(shift))
+        }
     }
 
     private func importedInlineParameterSymbol(functionSymbol: SymbolID, index: Int) -> SymbolID {

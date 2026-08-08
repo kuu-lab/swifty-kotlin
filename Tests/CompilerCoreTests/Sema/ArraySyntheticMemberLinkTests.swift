@@ -39,15 +39,12 @@ struct ArraySyntheticMemberLinkTests {
     // despite the identically named List members already resolving correctly.
     // See CallTypeChecker+ArrayMemberFallback.swift.
 
-    @Test func testArrayMapIndexedFallbackMarksResultAsCollection() throws {
-        // NOTE: like the pre-existing `map`/`filter` Array fallback, mapIndexed's
-        // static result type is erased to `Any` (not `List<R>`) at the Sema
-        // layer — see `arrayMemberResultType`'s default case in
-        // CallTypeChecker+ArrayMemberFallback.swift. `isCollectionExpr` is the
-        // out-of-band signal downstream KIR/runtime dispatch relies on instead.
-        // Declaring `sample()`'s return type as `List<Int>` here would make this
-        // a negative (type-mismatch) test instead, so the result is simply
-        // used via a local `val`, not returned under a narrower type.
+    @Test func testArrayMapIndexedInfersListResult() throws {
+        // KSP-433: mapIndexed moved to bundled Kotlin source (ArrayHOF.kt), so it
+        // resolves as an ordinary `Array<T>.mapIndexed(...): List<R>` extension
+        // instead of going through `tryArrayMemberFallback`, whose result type
+        // was erased to `Any` with `isCollectionExpr` as the out-of-band signal
+        // for downstream KIR/runtime dispatch.
         let source = """
         fun sample() {
             val values = arrayOf(1, 2, 3)
@@ -71,14 +68,19 @@ struct ArraySyntheticMemberLinkTests {
             return ctx.interner.resolve(callee) == "mapIndexed"
         }, "Expected Array.mapIndexed member call")
 
-        #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.mapIndexed result to be marked as a collection (List) expression")
+        let resultType = try #require(sema.bindings.exprType(for: callExpr))
+        guard case let .classType(resultClass) = sema.types.kind(of: resultType),
+              let resultSymbol = sema.symbols.symbol(resultClass.classSymbol)
+        else {
+            Issue.record("Expected Array.mapIndexed to return a List class type")
+            return
+        }
+        #expect(ctx.interner.resolve(resultSymbol.name) == "List")
     }
 
-    @Test func testArrayFilterNotNullFallbackAcceptsZeroArgumentsAndMarksCollection() throws {
-        // See the mapIndexed test above: the Array fallback's result type is
-        // erased to `Any`, so this uses a local `val` rather than a `List<Int>`
-        // return type to avoid asserting a stronger type guarantee than the
-        // fallback actually provides.
+    @Test func testArrayFilterNotNullAcceptsZeroArgumentsAndInfersListResult() throws {
+        // See the mapIndexed test above: filterNotNull is bundled Kotlin source
+        // (ArrayFilterHOF.kt) since KSP-433, so its result is a real `List<T>`.
         let source = """
         fun sample() {
             val values: Array<Int?> = arrayOf(1, null, 2)
@@ -102,7 +104,14 @@ struct ArraySyntheticMemberLinkTests {
             return ctx.interner.resolve(callee) == "filterNotNull"
         }, "Expected Array.filterNotNull member call")
 
-        #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.filterNotNull result to be marked as a collection (List) expression")
+        let resultType = try #require(sema.bindings.exprType(for: callExpr))
+        guard case let .classType(resultClass) = sema.types.kind(of: resultType),
+              let resultSymbol = sema.symbols.symbol(resultClass.classSymbol)
+        else {
+            Issue.record("Expected Array.filterNotNull to return a List class type")
+            return
+        }
+        #expect(ctx.interner.resolve(resultSymbol.name) == "List")
     }
 
     @Test func testArrayFirstOrNullFallbackInfersNullableElementType() throws {
