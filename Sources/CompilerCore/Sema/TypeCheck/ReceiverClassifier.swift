@@ -30,15 +30,18 @@ struct ReceiverClassifier {
         } ?? false
         let isCollectionType = isCollectionLikeType(receiverType)
         let isMapReceiver = isMapLikeCollectionType(receiverType)
-        // A receiver whose *static* type is `Iterable<T>` (e.g. a `val x:
-        // Iterable<Int> = setOf(...)` widening) is not a synthetic
-        // object-expression Sequence even though `isCollectionExpr` can be
-        // true here (propagated from the initializer). Without this
-        // exclusion such a receiver was misclassified as a synthetic
-        // Sequence, which made `isSequenceReceiver` true and caused calls
-        // like `reduce`/`fold` to resolve against the bundled
-        // `Sequence<T>` source declaration instead of the real element
-        // type's own (e.g. `Set`'s) implementation.
+        // KSP-435: a receiver whose *static* type is `Iterable<T>` (e.g. a
+        // `val x: Iterable<Int> = setOf(...)` widening) is a collection
+        // receiver, not a synthetic object-expression Sequence, even though
+        // `isCollectionExpr` can be true here (propagated from the
+        // initializer). Without this exclusion such a receiver was
+        // misclassified as a synthetic Sequence, which made
+        // `isSequenceReceiver` true and routed both aggregate HOFs
+        // (`reduce`/`fold` resolving against the bundled `Sequence<T>`
+        // source instead of the real element type's own implementation) and
+        // plain `Iterable` members (`requireNoNulls`, `last`, ...) to the
+        // Sequence bridges instead of the bundled Kotlin `kotlin.collections`
+        // source.
         let isSyntheticSequenceReceiver = isCollectionExpr
             && !isCollectionType
             && !isMapReceiver

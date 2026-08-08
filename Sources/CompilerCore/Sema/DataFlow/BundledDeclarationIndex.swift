@@ -265,21 +265,16 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // List.filter / aggregate HOFs / joinToString are bundled as Kotlin source, but
-        // those implementations are only valid for concrete List receivers. Keep the
-        // runtime bridge for nominal Iterable<T> receivers until Iterable has
-        // its own Kotlin source (KSP-435).
+        // List.filter / aggregate HOFs are bundled as Kotlin source, but those
+        // implementations are only valid for concrete List receivers. Keep the
+        // runtime bridge for nominal Iterable<T> receivers until they get their
+        // own Kotlin source. joinTo/joinToString/any/all/last/... moved to
+        // Stdlib/kotlin/collections/Iterables.kt in KSP-435.
         switch interner.resolve(key.name) {
         case "filter",
              "reduce", "reduceIndexed",
              "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
             return key.arity == 1
-        case "joinToString":
-            // List.joinToString is source-backed, but non-List Iterable receivers
-            // still need the runtime bridge. The bundled index aliases the List
-            // source key to Iterable, so treat this as an intentional retained
-            // overlap keyed only by arity (signatures differ by receiver type).
-            return key.arity == 3
         default:
             return false
         }

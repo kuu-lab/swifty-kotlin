@@ -3611,6 +3611,24 @@ extension CallTypeChecker {
                     }
                 }
             }
+            // KSP-435: any/all/last/requireNoNulls on a nominal Collection/Iterable
+            // receiver are bundled Kotlin source (Stdlib/kotlin/collections/Iterables.kt).
+            // The name-keyed fast path above only computes a result type, so the call
+            // would otherwise stay unresolved and lower to the bare member name.
+            if sema.bindings.callBindings[id] == nil,
+               !isSequenceReceiver, isCollectionReceiver,
+               ["any", "all", "last", "requireNoNulls"].contains(calleeStr)
+            {
+                let iterableSourceTypeArguments = calleeStr == "requireNoNulls"
+                    ? [sema.types.makeNonNullable(collectionElementType)]
+                    : [collectionElementType]
+                if bindBundledIterableSourceFunction(typeArguments: iterableSourceTypeArguments) {
+                    for argument in args
+                    where ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(argument.expr)
+                    }
+                }
+            }
             if let sourceBackedSequenceAggregateTypeArguments {
                 bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments)
             }
