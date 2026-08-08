@@ -378,6 +378,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
         self.spillSlots = spillSlots
         self.launcherArgs = launcherArgs
         self.delayTimers = delayTimers
+        RuntimeLiveHandles.register(self)
     }
 
     func configureUninterceptedCoroutine(entryPointRaw: Int, completionContinuation: Int) {
@@ -402,6 +403,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     deinit {
+        RuntimeLiveHandles.unregister(self)
         let timers = releaseAllDelayTimers()
         for timer in timers {
             timer.setEventHandler(handler: nil)
@@ -648,6 +650,14 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// (`kk_kxmini_async_await`) and the synchronous `awaitResult()` fallback both
     /// register here so completion never blocks on a task-level semaphore.
     private var completionResumers: [@Sendable (Int, Int) -> Void] = []
+
+    init() {
+        RuntimeLiveHandles.register(self)
+    }
+
+    deinit {
+        RuntimeLiveHandles.unregister(self)
+    }
 
     /// CORO-004: Register a resumer invoked when this task completes. If the task is
     /// already complete, the resumer runs immediately on the calling thread.
@@ -998,6 +1008,14 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// Lets a suspend-aware `Job.join()` caller resume via its continuation instead
     /// of blocking a GCD thread on `completionSemaphore`.
     private var joinResumers: [@Sendable (Int) -> Void] = []
+
+    init() {
+        RuntimeLiveHandles.register(self)
+    }
+
+    deinit {
+        RuntimeLiveHandles.unregister(self)
+    }
 
     static var current: RuntimeJobHandle? {
         get {
@@ -1374,6 +1392,11 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
 
     init(isSupervisor: Bool = false) {
         self.isSupervisor = isSupervisor
+        RuntimeLiveHandles.register(self)
+    }
+
+    deinit {
+        RuntimeLiveHandles.unregister(self)
     }
 
     func registerChild(_ handle: Int) {
@@ -2726,10 +2749,7 @@ public func kk_coroutine_scope_register_child(_ scopeHandle: Int, _ childHandle:
 public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
     var isSupervisor = false
-    if ctx.jobHandleRaw != 0,
-       let ptr = UnsafeMutableRawPointer(bitPattern: ctx.jobHandleRaw),
-       let job = tryCast(ptr, to: RuntimeJobHandle.self)
-    {
+    if let job = runtimeJobHandle(from: ctx.jobHandleRaw) {
         isSupervisor = job.isSupervisorMarker
     }
     let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor)
