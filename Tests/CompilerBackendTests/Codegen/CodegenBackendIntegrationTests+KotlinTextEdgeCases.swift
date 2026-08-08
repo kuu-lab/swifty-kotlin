@@ -1,13 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-//
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
-extension CodegenBackendIntegrationTests {
+@Suite(.serialized)
+struct CodegenBackendKotlinTextEdgeCasesTests {
 
-    func testKotlinTextStringSearchDefaultArgumentsAndImplicitReceiver() throws {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test func testKotlinTextStringSearchDefaultArgumentsAndImplicitReceiver() throws {
         let source = """
         fun String.findDelimiter(delimiter: String): Int = indexOf(delimiter)
 
@@ -33,7 +91,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextSplitEdgeCases() throws {
+    @Test func testKotlinTextSplitEdgeCases() throws {
         let source = """
         fun main() {
             // empty string with single-char delimiter
@@ -80,7 +138,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextSplitWithLimitEdgeCases() throws {
+    @Test func testKotlinTextSplitWithLimitEdgeCases() throws {
         let source = """
         fun main() {
             println("a,b,c,d".split(",", limit = 2))
@@ -102,7 +160,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextSplitToSequenceEdgeCases() throws {
+    @Test func testKotlinTextSplitToSequenceEdgeCases() throws {
         let source = """
         fun main() {
             // empty string
@@ -133,7 +191,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextToMutableListEdgeCases() throws {
+    @Test func testKotlinTextToMutableListEdgeCases() throws {
         let source = """
         fun main() {
             // empty string -> empty mutable list
@@ -185,7 +243,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextFirstNotNullOfEdgeCases() throws {
+    @Test func testKotlinTextFirstNotNullOfEdgeCases() throws {
         let source = """
         fun firstFromSequence(value: CharSequence): String {
             return value.firstNotNullOf<String> { ch -> if (ch == 'b') "bee" else null }
@@ -215,7 +273,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextFirstNotNullOfOrNullEdgeCases() throws {
+    @Test func testKotlinTextFirstNotNullOfOrNullEdgeCases() throws {
         let source = """
         fun firstFromSequence(value: CharSequence): String? {
             return value.firstNotNullOfOrNull<String> { ch -> if (ch == 'b') "bee" else null }
@@ -241,7 +299,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReduceRightIndexedEdgeCases() throws {
+    @Test func testKotlinTextReduceRightIndexedEdgeCases() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char {
             return value.reduceRightIndexed { index, ch, acc -> if (index == 1) ch else acc }
@@ -271,7 +329,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReduceRightIndexedOrNullEdgeCases() throws {
+    @Test func testKotlinTextReduceRightIndexedOrNullEdgeCases() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char? {
             return value.reduceRightIndexedOrNull { index, ch, acc -> if (index == 1) ch else acc }
@@ -297,7 +355,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReduceRightOrNullEdgeCases() throws {
+    @Test func testKotlinTextReduceRightOrNullEdgeCases() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char? {
             return value.reduceRightOrNull { ch, acc -> if (ch == 'b') ch else acc }
@@ -323,7 +381,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReduceOrNullEdgeCases() throws {
+    @Test func testKotlinTextReduceOrNullEdgeCases() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char? {
             return value.reduceOrNull { acc, ch -> if (ch == 'b') ch else acc }
@@ -348,19 +406,18 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+            let expected =
                 """
                 b
                 a
                 x
                 """
                 + "\n"
-            )
+            #expect(out == expected)
         }
     }
 
-    func testKotlinTextSumByEdgeCases() throws {
+    @Test func testKotlinTextSumByEdgeCases() throws {
         let source = """
         fun sumFromSequence(value: CharSequence): Int {
             return value.sumBy { if (it == 'a') 10 else 1 }
@@ -386,7 +443,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextSumByDoubleEdgeCases() throws {
+    @Test func testKotlinTextSumByDoubleEdgeCases() throws {
         let source = """
         fun sumFromSequence(value: CharSequence): Double {
             return value.sumByDouble { if (it == 'a') 1.5 else 0.25 }
@@ -412,7 +469,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceEdgeCases() throws {
+    @Test func testKotlinTextReplaceEdgeCases() throws {
         let source = """
         fun main() {
             // replace in empty string
@@ -459,7 +516,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceRangeEdgeCases() throws {
+    @Test func testKotlinTextReplaceRangeEdgeCases() throws {
         let source = """
         fun main() {
             // normal replace range
@@ -502,7 +559,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceAfterEdgeCases() throws {
+    @Test func testKotlinTextReplaceAfterEdgeCases() throws {
         let source = """
         fun main() {
             println("a:b:c".replaceAfter(":", "X", "MISS"))
@@ -538,7 +595,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceAfterLastEdgeCases() throws {
+    @Test func testKotlinTextReplaceAfterLastEdgeCases() throws {
         let source = """
         fun main() {
             println("a:b:c".replaceAfterLast(":", "X", "MISS"))
@@ -576,7 +633,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceBeforeEdgeCases() throws {
+    @Test func testKotlinTextReplaceBeforeEdgeCases() throws {
         let source = """
         fun main() {
             println("a:b:c".replaceBefore(":", "X", "MISS"))
@@ -614,7 +671,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceBeforeLastEdgeCases() throws {
+    @Test func testKotlinTextReplaceBeforeLastEdgeCases() throws {
         let source = """
         fun main() {
             println("a:b:c".replaceBeforeLast(":", "X", "MISS"))
@@ -654,7 +711,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextReplaceIndentByMarginEdgeCases() throws {
+    @Test func testKotlinTextReplaceIndentByMarginEdgeCases() throws {
         let source = """
         fun marker(value: String) {
             println(value.replace("\\n", "/"))
@@ -692,7 +749,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextSubstringEdgeCases() throws {
+    @Test func testKotlinTextSubstringEdgeCases() throws {
         let source = """
         fun main() {
             // normal substring
@@ -753,7 +810,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextSubSequenceEdgeCases() throws {
+    @Test func testKotlinTextSubSequenceEdgeCases() throws {
         let source = """
         @Suppress("KSWIFTK-SEMA-DEPRECATED")
         fun main() {
@@ -816,7 +873,7 @@ extension CodegenBackendIntegrationTests {
     }
 
 
-    func testKotlinTextCodePointCountEdgeCases() throws {
+    @Test func testKotlinTextCodePointCountEdgeCases() throws {
         let source = """
         fun main() {
             val text = "a😀b"
@@ -873,7 +930,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextTrimEdgeCases() throws {
+    @Test func testKotlinTextTrimEdgeCases() throws {
         let source = """
         fun main() {
             // trim on empty string
@@ -921,7 +978,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextTrimPredicateEdgeCases() throws {
+    @Test func testKotlinTextTrimPredicateEdgeCases() throws {
         let source = """
         fun main() {
             println("[" + "xxhelloxy".trim { it == 'x' || it == 'y' } + "]")
@@ -947,7 +1004,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextPadEdgeCases() throws {
+    @Test func testKotlinTextPadEdgeCases() throws {
         let source = """
         fun main() {
             // padStart: already at desired length (no-op)
@@ -995,7 +1052,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextIndexOfEdgeCases() throws {
+    @Test func testKotlinTextIndexOfEdgeCases() throws {
         let source = """
         fun main() {
             // indexOf: found
@@ -1052,7 +1109,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase (positional 3-arg API)
-    func testKotlinTextIndexOfIgnoreCaseEdgeCases() throws {
+    @Test func testKotlinTextIndexOfIgnoreCaseEdgeCases() throws {
         let source = """
         fun main() {
             println("Hello".indexOf("hello", 0, true))
@@ -1074,7 +1131,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextLastIndexOfCharEdgeCases() throws {
+    @Test func testKotlinTextLastIndexOfCharEdgeCases() throws {
         let source = """
         fun main() {
             val text: CharSequence = "Kotlin"
@@ -1110,7 +1167,7 @@ extension CodegenBackendIntegrationTests {
     }
 
 
-    func testKotlinTextIndexOfFirstPredicateEdgeCases() throws {
+    @Test func testKotlinTextIndexOfFirstPredicateEdgeCases() throws {
         let source = """
         fun findInParam(s: String): Int {
             return s.indexOfFirst { it == 'l' }
@@ -1153,7 +1210,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextChunkedEdgeCases() throws {
+    @Test func testKotlinTextChunkedEdgeCases() throws {
         let source = """
         fun main() {
             // normal chunked
@@ -1208,7 +1265,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextChunkedSequenceTransformEdgeCases() throws {
+    @Test func testKotlinTextChunkedSequenceTransformEdgeCases() throws {
         let source = """
         fun main() {
             val lengths: kotlin.sequences.Sequence<Int> =
@@ -1237,7 +1294,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextChunkedSequenceEdgeCases() throws {
+    @Test func testKotlinTextChunkedSequenceEdgeCases() throws {
         let source = """
         fun render(value: CharSequence, size: Int): List<String> {
             return value.chunkedSequence(size).toList()
@@ -1273,7 +1330,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextWindowedSequenceEdgeCases() throws {
+    @Test func testKotlinTextWindowedSequenceEdgeCases() throws {
         let source = """
         fun render(value: CharSequence, size: Int, step: Int, partial: Boolean): List<String> {
             return value.windowedSequence(size, step, partial).toList()
@@ -1303,7 +1360,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextWindowedSequenceTransformEdgeCases() throws {
+    @Test func testKotlinTextWindowedSequenceTransformEdgeCases() throws {
         let source = """
         fun lengths(value: CharSequence): List<Int> {
             return value.windowedSequence(3, 2, true) { it.length }.toList()
@@ -1333,7 +1390,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextIndexOfAnyCharsEdgeCases() throws {
+    @Test func testKotlinTextIndexOfAnyCharsEdgeCases() throws {
         let source = """
         fun firstAny(value: CharSequence, chars: CharArray, start: Int, ignore: Boolean): Int {
             return value.indexOfAny(chars, start, ignore)
@@ -1363,7 +1420,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextIndexOfAnyStringsEdgeCases() throws {
+    @Test func testKotlinTextIndexOfAnyStringsEdgeCases() throws {
         let source = """
         fun firstAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Int {
             return value.indexOfAny(strings, start, ignore)
@@ -1394,7 +1451,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // STDLIB-TEXT-FN-021: indexOfAny with default arguments (startIndex=0, ignoreCase=false)
-    func testKotlinTextIndexOfAnyDefaultArgs() throws {
+    @Test func testKotlinTextIndexOfAnyDefaultArgs() throws {
         let source = """
         fun main() {
             val text = "Kotlin"
@@ -1419,8 +1476,7 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+            let expected =
                 """
                 0
                 2
@@ -1430,11 +1486,11 @@ extension CodegenBackendIntegrationTests {
                 1
                 """
                 + "\n"
-            )
+            #expect(out == expected)
         }
     }
 
-    func testKotlinTextLastIndexOfAnyCharsEdgeCases() throws {
+    @Test func testKotlinTextLastIndexOfAnyCharsEdgeCases() throws {
         let source = """
         fun lastAny(value: CharSequence, chars: CharArray, start: Int, ignore: Boolean): Int {
             return value.lastIndexOfAny(chars, start, ignore)
@@ -1466,7 +1522,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextLastIndexOfAnyStringsEdgeCases() throws {
+    @Test func testKotlinTextLastIndexOfAnyStringsEdgeCases() throws {
         let source = """
         fun lastAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Int {
             return value.lastIndexOfAny(strings, start, ignore)
@@ -1500,7 +1556,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextFindAnyOfStringsEdgeCases() throws {
+    @Test func testKotlinTextFindAnyOfStringsEdgeCases() throws {
         let source = """
         fun findAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Pair<Int, String>? {
             return value.findAnyOf(strings, start, ignore)
@@ -1539,7 +1595,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextFindLastAnyOfStringsEdgeCases() throws {
+    @Test func testKotlinTextFindLastAnyOfStringsEdgeCases() throws {
         let source = """
         fun findLastAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Pair<Int, String>? {
             return value.findLastAnyOf(strings, start, ignore)
@@ -1582,7 +1638,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextLinesEdgeCases() throws {
+    @Test func testKotlinTextLinesEdgeCases() throws {
         let source = """
         fun main() {
             // empty string
@@ -1626,7 +1682,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextRemovePrefixSuffixEdgeCases() throws {
+    @Test func testKotlinTextRemovePrefixSuffixEdgeCases() throws {
         let source = """
         fun main() {
             // removePrefix: present
@@ -1679,7 +1735,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextRemovePrefixSuffixCharSequenceEdgeCases() throws {
+    @Test func testKotlinTextRemovePrefixSuffixCharSequenceEdgeCases() throws {
         let source = """
         fun trimPrefix(value: CharSequence): String {
             return value.removePrefix("foo")
@@ -1728,7 +1784,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextIfBlankEdgeCases() throws {
+    @Test func testKotlinTextIfBlankEdgeCases() throws {
         let source = """
         fun choose(value: CharSequence): String {
             return value.ifBlank { "fallback" }
@@ -1758,7 +1814,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextIfEmptyEdgeCases() throws {
+    @Test func testKotlinTextIfEmptyEdgeCases() throws {
         let source = """
         fun choose(value: CharSequence): String {
             return value.ifEmpty { "fallback" }
@@ -1788,7 +1844,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextCharSequenceZipWithNextEdgeCases() throws {
+    @Test func testKotlinTextCharSequenceZipWithNextEdgeCases() throws {
         let source = """
         fun pairCount(value: CharSequence): Int {
             return value.zipWithNext().size
@@ -1829,7 +1885,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextTakeDropEdgeCases() throws {
+    @Test func testKotlinTextTakeDropEdgeCases() throws {
         let source = """
         fun main() {
             // take: normal
@@ -1905,7 +1961,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextTakeNegativeThrows() throws {
+    @Test func testKotlinTextTakeNegativeThrows() throws {
         // Kotlin spec: take(n) with n < 0 throws
         // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
@@ -1921,7 +1977,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "KotlinTextTakeNegativeThrows", expected: "iae-take\n")
     }
 
-    func testKotlinTextDropNegativeThrows() throws {
+    @Test func testKotlinTextDropNegativeThrows() throws {
         // Kotlin spec: drop(n) with n < 0 throws
         // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
@@ -1937,7 +1993,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "KotlinTextDropNegativeThrows", expected: "iae-drop\n")
     }
 
-    func testKotlinTextTakeLastNegativeThrows() throws {
+    @Test func testKotlinTextTakeLastNegativeThrows() throws {
         // Kotlin spec: takeLast(n) with n < 0 throws
         // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
@@ -1953,7 +2009,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "KotlinTextTakeLastNegativeThrows", expected: "iae-takeLast\n")
     }
 
-    func testKotlinTextDropLastNegativeThrows() throws {
+    @Test func testKotlinTextDropLastNegativeThrows() throws {
         // Kotlin spec: dropLast(n) with n < 0 throws
         // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
@@ -1969,7 +2025,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "KotlinTextDropLastNegativeThrows", expected: "iae-dropLast\n")
     }
 
-    func testKotlinTextCaseConversionEdgeCases() throws {
+    @Test func testKotlinTextCaseConversionEdgeCases() throws {
         let source = """
         fun main() {
             // lowercase
@@ -2012,7 +2068,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextCaseInsensitiveOrderEdgeCases() throws {
+    @Test func testKotlinTextCaseInsensitiveOrderEdgeCases() throws {
         let source = """
         fun main() {
             println(String.CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA"))
@@ -2041,7 +2097,7 @@ extension CodegenBackendIntegrationTests {
     // backed by a module-init global (initialized once via
     // `kk_string_case_insensitive_order()`); the runtime also caches the
     // singleton handle, cleared on `kk_runtime_force_reset` for test isolation.
-    func testKotlinTextCaseInsensitiveOrderIsReferentiallyStable() throws {
+    @Test func testKotlinTextCaseInsensitiveOrderIsReferentiallyStable() throws {
         let source = """
         fun main() {
             val a = String.CASE_INSENSITIVE_ORDER
@@ -2061,7 +2117,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testKotlinTextCharSequenceZipEdgeCases() throws {
+    @Test func testKotlinTextCharSequenceZipEdgeCases() throws {
         let source = """
         fun merge(a: String, b: CharSequence): List<String> {
             return a.zip(b) { x, y -> "" + x + y }
@@ -2118,7 +2174,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
-    func testKotlinTextToCollectionEdgeCases() throws {
+    @Test func testKotlinTextToCollectionEdgeCases() throws {
         let source = """
         fun main() {
             val list = mutableListOf<Char>('x')
@@ -2158,7 +2214,7 @@ extension CodegenBackendIntegrationTests {
     // End-to-end execution coverage — the runtime/Sema layers are tested in
     // isolation elsewhere; this asserts the full compile-and-run pipeline
     // produces a sorted, deduplicated set that honours the `Set` surface.
-    func testKotlinTextToSortedSetEdgeCases() throws {
+    @Test func testKotlinTextToSortedSetEdgeCases() throws {
         let source = """
         fun main() {
             // Basic: sorted ascending and deduplicated ('l' appears twice).
@@ -2210,3 +2266,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif
