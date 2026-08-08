@@ -256,18 +256,20 @@ jobs:
           echo "npm install failed after 3 attempts" >&2
           exit 1
       - name: Run jscpd
-        run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
-      - name: Observe jscpd report (Sources and Tests)
         run: |
           report_dir="$(mktemp -d)"
-          jscpd --config .jscpd.json --silent --reporters json --output "$report_dir" --exitCode 0
+          set +e
+          jscpd --config .jscpd-ci.json --output "$report_dir"
+          jscpd_exit=$?
+          set -e
+          if [ -f "$report_dir/jscpd-report.json" ]; then
           node - "$report_dir/jscpd-report.json" <<'NODE'
           const fs = require("fs");
           const reportPath = process.argv[2];
           const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
           const total = report.statistics.total;
           const lines = [
-            "## jscpd observed duplication (Sources + Tests)",
+            "## jscpd observed duplication (Sources)",
             "",
             "| Metric | Value |",
             "|---|---:|",
@@ -284,6 +286,8 @@ jobs:
             `jscpd observed duplication: ${total.clones} clones, ${total.duplicatedLines} duplicated lines (${total.percentage}%)`
           );
           NODE
+          fi
+          exit $jscpd_exit
       - name: Reproduce hints
         if: always()
         run: |
@@ -298,7 +302,7 @@ jobs:
             echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
             echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
             echo "npm install --prefix \"\$RUNNER_TEMP/jscpd\" --no-save jscpd@4.0.8"
-            echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
+            echo 'jscpd --config .jscpd-ci.json --output /tmp/kswiftk-jscpd-report'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
