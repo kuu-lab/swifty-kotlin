@@ -1,8 +1,8 @@
 /// Higher-order string functions still Swift-backed after KSP-410.
-/// BUG-170: mapNotNull/firstNotNullOf(OrNull) stay Swift-backed until the
-/// lone-generic-from-nullable-lambda inference bug is fixed (TODO.md BUG-170).
-/// BUG-171: map/mapIndexed stay Swift-backed until the generic-return
-/// Char/Boolean boxing bug is fixed (TODO.md BUG-171).
+/// BUG-175: mapNotNull/firstNotNullOf(OrNull) stay Swift-backed until the
+/// lone-generic-from-nullable-lambda inference bug is fixed (TODO.md BUG-175).
+/// BUG-176: map/mapIndexed stay Swift-backed until the generic-return
+/// Char/Boolean boxing bug is fixed (TODO.md BUG-176).
 public extension RuntimeABISpec {
     static let stringHOFFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(

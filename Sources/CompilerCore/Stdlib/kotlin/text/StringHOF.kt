@@ -5,7 +5,7 @@ import kswiftk.internal.*
 // MIGRATION-TEXT-008 / KSP-410
 // String higher-order functions migrated from Swift runtime (RuntimeStringHOF.swift).
 //
-// BUG-169: a bundled top-level function's parameter whose type is itself a
+// BUG-174: a bundled top-level function's parameter whose type is itself a
 // function type with a NAMED label on one of its own parameters (e.g.
 // `(acc: Char, Char) -> Char` or `(value: Char) -> Boolean`), when invoked
 // by name inside the body, fails Sema resolution ("Unresolved function") —
@@ -19,9 +19,9 @@ import kswiftk.internal.*
 // filterIndexed/onEachIndexed/reduce*/fold* signature below therefore drops
 // the upstream stdlib's documentation-only labels (`acc:`, `index:`,
 // `value:`) while keeping the same parameter order and types. See TODO.md
-// BUG-169 for the minimal repro.
+// BUG-174 for the minimal repro.
 //
-// BUG-170: none of the functions here return a bare, unbounded generic `R`
+// BUG-175: none of the functions here return a bare, unbounded generic `R`
 // inferred from a nullable-returning (`R?`) lambda body shaped like
 // `{ x -> if (cond) y else null }` without an explicit type argument or
 // expected type at the call site — mapNotNull/firstNotNullOf/
@@ -29,11 +29,11 @@ import kswiftk.internal.*
 // that exact (very common) call shape and stay Swift-side too. The
 // already-shipped `List<T>.mapNotNull` (two type parameters, `T` fixed from
 // the receiver) is unaffected, so this looks specific to inferring a *lone*
-// type parameter purely from a nullable lambda return. See TODO.md BUG-170
+// type parameter purely from a nullable lambda return. See TODO.md BUG-175
 // for the minimal repro.
 //
-// BUG-171: map/mapIndexed stay Swift-side (RuntimeStringHOF.swift) — NOT
-// because of BUG-169/170, but because a bundled function of shape
+// BUG-176: map/mapIndexed stay Swift-side (RuntimeStringHOF.swift) — NOT
+// because of BUG-174/170, but because a bundled function of shape
 // `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns the WRONG
 // VALUES (raw unboxed scalars instead of boxed elements, e.g.
 // `"abc".map { it }` prints `[97, 98, 99]` instead of `[a, b, c]`) whenever
@@ -44,10 +44,10 @@ import kswiftk.internal.*
 // transform's result into a `List<R>`: the identical accumulator shape
 // (`fold`/`reduce`, where `R` is returned bare rather than stored in a
 // list) is unaffected. This is silent data corruption, not a compile/link
-// failure, so unlike BUG-169 it cannot be avoided by a source-level
+// failure, so unlike BUG-174 it cannot be avoided by a source-level
 // workaround in this file (the bad unbox is baked into the lambda's own
 // compiled body by ABI lowering, before `map` ever sees the value). See
-// TODO.md BUG-171 for the minimal repro.
+// TODO.md BUG-176 for the minimal repro.
 //
 // CharSequence-receiver functions read the length via the
 // __string_struct_get_length bridge (matching the established pattern in

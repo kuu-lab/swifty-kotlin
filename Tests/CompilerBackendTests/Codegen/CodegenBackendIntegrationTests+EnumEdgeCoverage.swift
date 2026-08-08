@@ -42,7 +42,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    /// BUG-172: `values()`/`entries` stored each element as a pre-baked name
+    /// BUG-178: `values()`/`entries` stored each element as a pre-baked name
     /// string instead of a genuinely boxed ordinal (see
     /// `appendEnumOrdinalArrayCreation` /
     /// `CallLowerer+EnumStdlib.lowerEnumEntryCollectionCallExpr`). Printing an

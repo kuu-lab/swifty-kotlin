@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 @Suite struct CodegenBackendSequenceToCollectionTests {
-    private let pipelineHelper = CodegenBackendTestSupport(name: "SequenceToCollectionPipeline", testClosure: { _ in })
+    private let pipelineHelper = CodegenBackendTestSupport()
 
     private func assertKotlinOutput(
         _ source: String,

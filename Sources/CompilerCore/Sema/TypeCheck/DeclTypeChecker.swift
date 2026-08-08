@@ -186,6 +186,19 @@ final class DeclTypeChecker {
 
         if let delegateExpr = property.delegateExpression {
             var delegateLocals: LocalBindings = [:]
+            // DEBT-KIR-008/BUG-170: a stdlib delegate factory's trailing lambda
+            // (delegateBody) is parsed as a separate FunctionBody from
+            // delegateExpression specifically so KIR lowering can repackage it
+            // into a standalone synthetic function, so ordinary call-argument
+            // inference never visits it -- identifier references inside it
+            // (e.g. a captured `this`-implicit property) never got an
+            // identifierSymbols binding at all and silently lowered to `.unit`
+            // in KIR. `typeCheckDelegate` type-checks the body itself (for any
+            // known stdlib delegate kind, not just `.lazy`: BUG-151 made
+            // `.observable`/`.vetoable`'s three synthetic callback parameters
+            // resolvable by name via `SyntheticSymbolScheme
+            // .delegateLambdaParameterSymbol`, so binding them as locals here no
+            // longer risks a spurious "unresolved reference" diagnostic).
             inferredPropertyType = typeCheckDelegate(
                 delegateExpr, isVar: property.isVar,
                 fallbackRange: property.range,
@@ -193,50 +206,10 @@ final class DeclTypeChecker {
                 inferredPropertyType: inferredPropertyType,
                 ctx: ctx,
                 locals: &delegateLocals,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                delegateBody: property.delegateBody,
+                delegateBodyParams: property.delegateBodyParams
             )
-
-            // Delegate bodies are parsed separately from delegateExpression, so
-            // they must be type-checked explicitly. Besides validating the body,
-            // this records the identifier bindings KIR needs for implicit member
-            // access and for observable/vetoable callback parameters.
-            if let delegateBody = property.delegateBody {
-                let delegateKind = StdlibDelegateKind.detect(
-                    delegateExpr: delegateExpr, ast: ctx.ast, interner: ctx.interner
-                )
-                if delegateKind == .lazy
-                    || delegateKind == .observable
-                    || delegateKind == .vetoable
-                {
-                    var bodyLocals: LocalBindings = [:]
-                    if delegateKind == .observable || delegateKind == .vetoable {
-                        let valueType = inferredPropertyType ?? sema.types.anyType
-                        let parameterTypes = [sema.types.anyType, valueType, valueType]
-                        let underscore = ctx.interner.intern("_")
-                        for (index, name) in property.delegateBodyParams.enumerated()
-                            where index < parameterTypes.count && name != underscore
-                        {
-                            bodyLocals[name] = (
-                                parameterTypes[index],
-                                SyntheticSymbolScheme.delegateLambdaParameterSymbol(
-                                    for: symbol, at: index
-                                ),
-                                false,
-                                true
-                            )
-                        }
-                    }
-                    let expectedBodyType: TypeID? = switch delegateKind {
-                    case .observable: sema.types.unitType
-                    case .vetoable: sema.types.booleanType
-                    default: inferredPropertyType
-                    }
-                    _ = inferFunctionBodyType(
-                        delegateBody, ctx: accessorCtx, locals: &bodyLocals,
-                        expectedType: expectedBodyType
-                    )
-                }
-            }
         }
 
         let finalPropertyType = inferredPropertyType

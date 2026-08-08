@@ -794,10 +794,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BUG-173: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
+        // BUG-185: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
         // Regex): Boolean`. This stub previously omitted the operator flag (defaulting to plain
         // `[.synthetic]`); corrected here to match. Note `regex in "text"` still does not resolve
-        // correctly via the `in` operator even with this flag set — see BUG-173 in TODO.md for the
+        // correctly via the `in` operator even with this flag set — see BUG-185 in TODO.md for the
         // deeper (still open) candidate-discovery gap in `inferContainsCallBinding`. Direct calls
         // (`"text".contains(regex)`) are unaffected and work correctly either way.
         registerSyntheticStringExtensionFunction(
@@ -1123,12 +1123,12 @@ extension DataFlowSemaPhase {
         // KSP-410: filterIndexed/onEachIndexed and the whole reduce/fold
         // family are bundled Kotlin source (StringHOF.kt); no synthetic
         // stub registration.
-        // BUG-170: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay as
-        // synthetic stubs (see TODO.md BUG-170).
-        // BUG-171: map/mapIndexed also stay as synthetic stubs — a bundled
+        // BUG-175: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay as
+        // synthetic stubs (see TODO.md BUG-175).
+        // BUG-176: map/mapIndexed also stay as synthetic stubs — a bundled
         // `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns
         // raw unboxed scalars instead of boxed elements whenever `R`
-        // resolves to `Char`/`Boolean` (see TODO.md BUG-171).
+        // resolves to `Char`/`Boolean` (see TODO.md BUG-176).
         let charToNullableAnyType = types.make(.functionType(FunctionType(
             params: [charType],
             returnType: types.nullableAnyType,

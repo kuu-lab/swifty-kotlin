@@ -178,10 +178,10 @@ private func assertAggregateStringList(
 
 @Suite(.serialized)
 struct RuntimeStringHOFTests {
-    // BUG-171: map/mapIndexed stay Swift-backed — a bundled Kotlin
+    // BUG-176: map/mapIndexed stay Swift-backed — a bundled Kotlin
     // `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns raw
     // unboxed scalars instead of boxed elements whenever `R` resolves to
-    // `Char`/`Boolean`. See TODO.md BUG-171 and the
+    // `Char`/`Boolean`. See TODO.md BUG-176 and the
     // Scripts/diff_cases/string_indexed_hof.kt regression guard.
     @Test
     func testStringMapFlatReturnsMappedList() {

@@ -1312,7 +1312,7 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
-        // BUG-172: boxes a values()/entries element as a genuine ordinal Int
+        // BUG-178: boxes a values()/entries element as a genuine ordinal Int
         // (tagged with its declared name for generic Any-printing) instead of
         // a pre-baked name string.
         RuntimeABIFunctionSpec(
@@ -1883,8 +1883,8 @@ public extension RuntimeABISpec {
         // KSP-410: filterIndexed/onEachIndexed/reduce family are bundled
         // Kotlin source (StringHOF.kt); their flat ABI entries were
         // removed.
-        // BUG-170: mapNotNull/firstNotNullOf(OrNull) stay Swift-backed.
-        // BUG-171: map/mapIndexed also stay Swift-backed.
+        // BUG-175: mapNotNull/firstNotNullOf(OrNull) stay Swift-backed.
+        // BUG-176: map/mapIndexed also stay Swift-backed.
         RuntimeABIFunctionSpec(
             name: "kk_string_map_flat",
             parameters: [

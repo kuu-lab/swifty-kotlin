@@ -169,7 +169,7 @@ struct MemberRuntimeDispatchTests {
         // KSP-410: filter/count/any/all/none/filterNot/find/findLast/onEach/
         // partition/sumBy/sumByDouble/filterIndexed/onEachIndexed/reduce
         // family/fold family are bundled Kotlin source. map/mapIndexed are
-        // excluded (BUG-171 keeps them Swift-backed).
+        // excluded (BUG-176 keeps them Swift-backed).
         let ksp410Cases: [(String, Int)] = [
             ("filter", 1),
             ("filterNot", 1),

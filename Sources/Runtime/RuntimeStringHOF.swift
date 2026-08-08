@@ -7,18 +7,18 @@
 // reduceRight/reduceRightOrNull/reduceRightIndexed/reduceRightIndexedOrNull/
 // fold/foldIndexed/foldRight/foldRightIndexed) moved to bundled Kotlin
 // source (Stdlib/kotlin/text/StringHOF.kt) — all avoid named labels in
-// their function-type parameters (workaround for BUG-169, see TODO.md).
-// BUG-170: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay here because
+// their function-type parameters (workaround for BUG-174, see TODO.md).
+// BUG-175: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay here because
 // inferring a lone generic `R` from a nullable-returning (`R?`) lambda body
 // without an explicit type argument/expected type fails with "Type
-// constraint could not be satisfied". See TODO.md BUG-170.
-// BUG-171: map/mapIndexed stay here because a bundled `fun <R> X.f(transform:
+// constraint could not be satisfied". See TODO.md BUG-175.
+// BUG-176: map/mapIndexed stay here because a bundled `fun <R> X.f(transform:
 // (Char) -> R): List<R>` silently returns raw unboxed scalars instead of
 // boxed elements whenever `R` resolves to `Char`/`Boolean` (e.g.
 // `"abc".map { it }` prints `[97, 98, 99]` instead of `[a, b, c]`). Not
 // String-specific (reproduces with any receiver) and not avoidable from
 // Kotlin source — the bad unbox is inside the lambda's own compiled body.
-// See TODO.md BUG-171.
+// See TODO.md BUG-176.
 
 import Foundation
 
@@ -525,7 +525,7 @@ public func __kk_string_joinToString(
     kk_string_joinToString(strListRaw, separatorRaw, prefixRaw, postfixRaw)
 }
 
-// MARK: - BUG-171: map / mapIndexed (blocked, see file header)
+// MARK: - BUG-176: map / mapIndexed (blocked, see file header)
 
 @_cdecl("kk_string_map")
 public func kk_string_map(
@@ -594,7 +594,7 @@ public func kk_string_mapIndexed_flat(
     kk_string_mapIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
-// MARK: - BUG-170: mapNotNull / firstNotNullOf(OrNull) (blocked, see file header)
+// MARK: - BUG-175: mapNotNull / firstNotNullOf(OrNull) (blocked, see file header)
 
 @_cdecl("kk_string_mapNotNull")
 public func kk_string_mapNotNull(
