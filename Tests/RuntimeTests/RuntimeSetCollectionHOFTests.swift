@@ -51,26 +51,26 @@ private let setThrowingHOF: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
 /// `.serialized` because tests share `gSetHOFState`. Must not call
 /// `kk_runtime_force_reset()`: Swift Testing suites run concurrently in one
 /// process, and a global reset deallocates handles owned by other suites.
-@Suite(.serialized)
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: { gSetHOFState.reset() }))
 struct RuntimeSetCollectionHOFTests {
     // NOTE: Deliberately does NOT call `kk_runtime_force_reset()` here.
     // `Testing` suites in this target run concurrently with each other in a
     // single shared process (unlike XCTest classes, which SwiftPM's
     // `--parallel` isolates into separate worker processes), so a
-    // process-wide reset in `init()` races with every other `@Suite`'s
-    // in-flight tests and deallocates heap objects/handles out from under
-    // them (observed: `RuntimeNativePrimitiveByteArraySettersTests` crashing
-    // with "invalid array handle" when this suite's reset fired mid-test).
-    // `.serialized` only serializes this suite's own tests against each
-    // other, not against unrelated concurrently-running suites, so it does
-    // not make the reset safe. None of the tests below depend on the global
-    // heap/handle table being empty — each allocates and inspects only its
-    // own set/array/list handles — so the reset was unnecessary. Only the
-    // suite-local `gSetHOFState` (already synchronized via its own lock)
-    // needs resetting between tests. See TODO.md BUG-024.
-    init() {
-        gSetHOFState.reset()
-    }
+    // process-wide reset races with every other `@Suite`'s in-flight tests
+    // and deallocates heap objects/handles out from under them. This suite
+    // never resets anything itself, but that alone isn't enough: a plain
+    // `.serialized` trait only serializes this suite's own tests against
+    // each other, not against unrelated concurrently-running suites that
+    // reset (or otherwise free) GC-managed objects, so this suite's own
+    // set/array/list handles could still be invalidated mid-test by another
+    // suite's GC activity (observed: `kk_set_maxOrNull` "invalid set handle"
+    // panic under a full `swift_test.sh` run — BUG-191). `.runtimeIsolation`
+    // closes that gap by holding the same process-wide GC semaphore every
+    // other migrated suite acquires before mutating shared runtime state, so
+    // this suite's handles stay alive for the duration of each test — see
+    // `RuntimeCollectionHOFTests.swift` for the identical precedent. See
+    // TODO.md BUG-191.
 
     // MARK: - filter
 
