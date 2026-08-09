@@ -1357,34 +1357,6 @@ extension AnnotationSemanticTests {
         return try #require(sema.symbols.propertyType(for: propertySymbol))
     }
 
-    func runSemaCollectingDiagnostics(
-        _ source: String,
-        frontendFlags: [String] = []
-    ) -> CompilationContext {
-        let ctx = makeAnnotationSemanticContext(source, frontendFlags: frontendFlags)
-        do {
-            try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted by each test.
-        }
-        return ctx
-    }
-
-    private func makeAnnotationSemanticContext(
-        _ source: String,
-        frontendFlags: [String]
-    ) -> CompilationContext {
-        let fakePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
-        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-        return ctx
-    }
-
-    func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {
-        ctx.diagnostics.diagnostics.filter { $0.code == code }
-    }
-
     @Test func testCompilerOptInAndExtensionFunctionTypeAnnotations() throws {
         let sources: [String] = [
             // testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias
