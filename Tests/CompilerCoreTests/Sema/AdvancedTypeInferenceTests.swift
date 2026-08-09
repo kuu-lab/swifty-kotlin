@@ -5,63 +5,61 @@ import Testing
 
 @Suite
 struct AdvancedTypeInferenceTests {
-    @Test func testExperimentalTypeInferenceInfersCustomBuilderElementTypeWithoutExpectedType() throws {
-        let source = """
-        import kotlin.experimental.ExperimentalTypeInference
+    @Test func testExperimentalTypeInference() throws {
+        let sources: [String] = [
+            // testExperimentalTypeInferenceInfersCustomBuilderElementTypeWithoutExpectedType
+            """
+            package sample0
+            import kotlin.experimental.ExperimentalTypeInference
 
-        @ExperimentalTypeInference
-        fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = TODO()
+            @ExperimentalTypeInference
+            fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = TODO()
 
-        fun demo(): Int {
-            val xs = collect {
-                add(1)
-                add(2)
+            fun demo(): Int {
+                val xs = collect {
+                    add(1)
+                    add(2)
+                }
+                return xs[0]
             }
-            return xs[0]
+            """,
+
+            // testExperimentalTypeInferenceAnnotationIsAvailableWithoutCompilerFlags
+            """
+            package sample1
+            import kotlin.experimental.ExperimentalTypeInference
+
+            @ExperimentalTypeInference
+            fun <T> annotatedCollect(builderAction: MutableList<T>.() -> Unit): List<T> = TODO()
+
+            fun demo() {}
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                frontendFlags: [
+                    "new-inference",
+                    "unrestricted-builder-inference",
+                    "ProperTypeInferenceConstraintsProcessing",
+                ]
+            )
+            try runSema(ctx)
+
+            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected custom builder inference to succeed, got: \(diagnostics)"
+            )
+
+            let sample1Diags = diagnosticsForPath(paths[1], in: ctx)
+            #expect(
+                !sample1Diags.contains(where: { $0.severity == .error }),
+                "Expected annotation-driven builder inference to succeed, got: \(sample1Diags)"
+            )
         }
-        """
-
-        let path = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt")
-            .path
-        let ctx = makeCompilationContext(
-            inputs: [path],
-            frontendFlags: [
-                "new-inference",
-                "unrestricted-builder-inference",
-                "ProperTypeInferenceConstraintsProcessing",
-            ]
-        )
-        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
-
-        try runSema(ctx)
-        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
-
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected custom builder inference to succeed, got: \(diagnostics)"
-        )
-    }
-
-    @Test func testExperimentalTypeInferenceAnnotationIsAvailableWithoutCompilerFlags() throws {
-        let source = """
-        import kotlin.experimental.ExperimentalTypeInference
-
-        @ExperimentalTypeInference
-        fun <T> annotatedCollect(builderAction: MutableList<T>.() -> Unit): List<T> = TODO()
-
-        fun demo() {}
-        """
-
-        let ctx = makeContextFromSource(source)
-
-        try runSema(ctx)
-        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
-
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected annotation-driven builder inference to succeed, got: \(diagnostics)"
-        )
     }
 }
 #endif
