@@ -353,7 +353,11 @@ extension CollectionLiteralLoweringSupport {
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
                     || callee == lookup.kkMapOfName {
             mapExprIDs.insert(result.rawValue)
-        } else if lookup.arrayOfFactoryNames.contains(callee) || callee == lookup.kkArrayNewName {
+        } else if lookup.arrayOfFactoryNames.contains(callee)
+            || callee == lookup.kkArrayNewName
+            // CallLowerer may already lower intArrayOf/arrayOf to kk_array_of before this pass.
+            || callee == lookup.kkArrayOfName
+        {
             arrayExprIDs.insert(result.rawValue)
         }
     }
@@ -440,8 +444,8 @@ extension CollectionLiteralLoweringSupport {
         {
             if let result {
                 let isSourceBacked = {
-                    guard let sema, let symbol, let resolved = sema.symbols.symbol(symbol) else { return false }
-                    return resolved.declSite != nil && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+                    guard let sema, let symbol, sema.symbols.symbol(symbol) != nil else { return false }
+                    return sema.symbols.isSourceBackedSymbol(symbol)
                 }()
                 if !isSourceBacked {
                     sequenceExprIDs.insert(result.rawValue)

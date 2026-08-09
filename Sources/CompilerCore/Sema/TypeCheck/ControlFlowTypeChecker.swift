@@ -29,7 +29,7 @@ final class ControlFlowTypeChecker {
         ).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.flags.contains(.operatorFunction),
-                  !symbol.flags.contains(.synthetic),
+                  (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                   let signature = sema.symbols.functionSignature(for: candidate)
             else {
                 return false

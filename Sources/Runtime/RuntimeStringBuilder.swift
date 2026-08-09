@@ -101,6 +101,46 @@ public func __kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int
     runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
 }
 
+// BUG-172: Appendable.append(Char) and Appendable.append(CharSequence?, Int, Int)
+// have no externalLinkName on their synthetic Appendable-interface stub (only the
+// CharSequence? overload does, via __kk_string_builder_append_obj above), so a call
+// through the bare `Appendable` interface type falls through to itable dispatch.
+// StringBuilder instances bypass kk_object_new construction (see BUG-044 note above)
+// and never register itable entries, so that dispatch always panics with "method not
+// found in vtable/itable". Give these two overloads their own direct native bridges,
+// mirroring the existing __kk_string_builder_append_obj wiring.
+@_cdecl("__kk_string_builder_append_char")
+public func __kk_string_builder_append_char(_ sbRaw: Int, _ charRaw: Int) -> Int {
+    runtimeStringBuilderAppend(sbRaw, value: runtimeCharacterFromRaw(charRaw))
+}
+
+@_cdecl("__kk_string_builder_append_range")
+public func __kk_string_builder_append_range(
+    _ sbRaw: Int,
+    _ valueRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let stringRaw = valueRaw == runtimeNullSentinelInt ? runtimeMakeStringRaw("null") : valueRaw
+    guard let source = runtimeStringFromRaw(stringRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
+    }
+    let utf16 = source.utf16
+    let length = utf16.count
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(length)"
+        )
+        return sbRaw
+    }
+    let substringRaw = runtimeMakeStringRaw(
+        runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
+    )
+    return __kk_string_builder_append_obj(sbRaw, substringRaw)
+}
+
 @_cdecl("__kk_string_builder_append_obj_flat")
 public func __kk_string_builder_append_obj_flat(
     _ sbRaw: Int,

@@ -59,7 +59,7 @@ extension CallLowerer {
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("__string_struct_get_length")
+            return interner.intern("__kk_string_struct_get_length")
         }
         if memberName == "length",
            let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
@@ -157,8 +157,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_partition")
             case "subList":
                 return interner.intern("kk_list_subList")
-            case "toTypedArray":
-                return interner.intern("kk_list_toTypedArray")
             case "binarySearch":
                 if hasHOFLambdaArg && argumentCount == 2 {
                     return interner.intern("kk_list_binarySearch_compare")
@@ -364,6 +362,8 @@ extension CallLowerer {
                 return interner.intern("kk_array_filterNot")
             case "filterNotNull":
                 return interner.intern("kk_array_filterNotNull")
+            case "asSequence":
+                return interner.intern("kk_array_asSequence")
             // NOTE: branches on `hofArity` (source-level arg count), not the raw
             // `argumentCount` parameter above — `argumentCount` can arrive with
             // the receiver already prepended by some call sites (see the
@@ -404,7 +404,7 @@ extension CallLowerer {
             case "toList":
                 return interner.intern("kk_set_toList")
             case "toTypedArray":
-                return interner.intern("kk_collection_toTypedArray")
+                return interner.intern("__kk_collection_toTypedArray")
             case "contains":
                 return interner.intern("kk_set_contains")
             case "containsAll":
@@ -533,6 +533,13 @@ extension CallLowerer {
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
             || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        // Bare Iterable/Collection/Set interfaces are also matched by
+        // isConcreteCollectionLikeType, so the gate above excludes them. That is
+        // intentional for general HOF routing: Set must fall through to the
+        // isSetLikeType block / CollectionLiteral Set-HOF rewrite (kk_set_*), not
+        // kk_sequence_* (mapNotNull/flatMap/count on a set handle would return empty
+        // or 0). joinTo/joinToString used to need a bare-interface special case
+        // here; they now resolve to the bundled Kotlin source (KSP-435).
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
@@ -679,9 +686,9 @@ extension CallLowerer {
             case interner.intern("singleOrNull"):
                 return interner.intern("kk_sequence_singleOrNull")
             case interner.intern("any"):
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_any" : "kk_sequence_any")
+                return interner.intern("kk_sequence_any")
             case interner.intern("all"):
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_all" : "kk_sequence_all")
+                return interner.intern("kk_sequence_all")
             case interner.intern("none"):
                 return interner.intern("kk_sequence_none")
             case interner.intern("mapNotNull"):
@@ -741,7 +748,7 @@ extension CallLowerer {
             case interner.intern("randomOrNull"):
                 return interner.intern("kk_sequence_randomOrNull")
             case lastName:
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_last" : "kk_sequence_last")
+                return interner.intern("kk_sequence_last")
             case interner.intern("lastOrNull"):
                 return interner.intern("kk_sequence_lastOrNull")
             case countName:
@@ -756,15 +763,11 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toCollection")
             case interner.intern("toMutableList"):
                 return toMutableListRuntimeCalleeForSequenceOrIterableFallback(
-                    chosenCallee: nil,
                     useIterableFallback: useIterableRuntimeForCollectionFallback,
-                    sema: sema,
                     interner: interner
                 )
             case interner.intern("toMutableSet"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_iterable_toMutableSet"
-                    : "kk_sequence_toMutableSet")
+                return interner.intern("kk_sequence_toMutableSet")
             case interner.intern("toSortedSet"):
                 return interner.intern("kk_sequence_toSortedSet")
             case interner.intern("toHashSet"):
@@ -880,8 +883,12 @@ extension CallLowerer {
                 return interner.intern("kk_set_size")
             case .array?:
                 return interner.intern("kk_array_size")
-            case .list?, .collection?:
+            case .list?:
                 return interner.intern("__kk_list_size")
+            case .collection?:
+                // A bare `Collection<T>` receiver can be backed by either a list
+                // or a set box, so it needs the type-tag dispatching bridge.
+                return interner.intern("__kk_collection_size")
             default:
                 break
             }
@@ -915,14 +922,14 @@ extension CallLowerer {
         case "firstNotNullOf":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?, .array?:
-                return interner.intern("kk_iterable_firstNotNullOf")
+                return interner.intern("__kk_iterable_firstNotNullOf")
             default:
                 break
             }
         case "firstNotNullOfOrNull":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?, .array?:
-                return interner.intern("kk_iterable_firstNotNullOfOrNull")
+                return interner.intern("__kk_iterable_firstNotNullOfOrNull")
             default:
                 break
             }
@@ -944,7 +951,7 @@ extension CallLowerer {
         case "requireNoNulls":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_iterable_requireNoNulls")
+                return interner.intern("__kk_iterable_requireNoNulls")
             default:
                 break
             }

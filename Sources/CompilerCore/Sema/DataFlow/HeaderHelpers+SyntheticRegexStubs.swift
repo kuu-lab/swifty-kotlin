@@ -1,5 +1,11 @@
 
 /// Synthetic stubs for Regex, MatchResult, and related methods (STDLIB-100/101/103).
+///
+/// KSP-486: the MatchResult / MatchGroup / MatchGroupCollection / Destructured
+/// member layer is declared in Kotlin
+/// (`Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`), so only the
+/// opaque `MatchResult` / `MatchResult.Destructured` anchors and the Regex
+/// engine entry points are registered here.
 extension DataFlowSemaPhase {
     func registerSyntheticRegexStubs(
         symbols: SymbolTable,
@@ -11,12 +17,12 @@ extension DataFlowSemaPhase {
         // --- Class symbols ---
         let regexSymbol = ensureClassSymbol(named: "Regex", in: kotlinTextPkg, symbols: symbols, interner: interner)
         let matchResultSymbol = ensureClassSymbol(named: "MatchResult", in: kotlinTextPkg, symbols: symbols, interner: interner)
-        let matchGroupCollectionSymbol = ensureClassSymbol(named: "MatchGroupCollection", in: kotlinTextPkg, symbols: symbols, interner: interner)
-        let matchGroupSymbol = ensureClassSymbol(named: "MatchGroup", in: kotlinTextPkg, symbols: symbols, interner: interner)
 
         // --- STDLIB-TEXT-TYPE-010: MatchResult.Destructured nested class ---
+        // Members live in Kotlin; only the type anchor is needed here so that the
+        // bundled `kotlin.text.MatchResult.Destructured` extensions can resolve.
         let matchResultFQName = symbols.symbol(matchResultSymbol)?.fqName ?? kotlinTextPkg + [interner.intern("MatchResult")]
-        let matchResultDestructuredSymbol = ensureNestedClassSymbol(
+        _ = ensureNestedClassSymbol(
             named: "Destructured",
             inFQName: matchResultFQName,
             parentSymbol: matchResultSymbol,
@@ -32,19 +38,7 @@ extension DataFlowSemaPhase {
             classSymbol: matchResultSymbol, args: [], nullability: .nonNull
         )))
         let nullableMatchResultType = types.makeNullable(matchResultType)
-        let matchResultDestructuredType = types.make(.classType(ClassType(
-            classSymbol: matchResultDestructuredSymbol, args: [], nullability: .nonNull
-        )))
-        let matchGroupCollectionType = types.make(.classType(ClassType(
-            classSymbol: matchGroupCollectionSymbol, args: [], nullability: .nonNull
-        )))
-        let matchGroupType = types.make(.classType(ClassType(
-            classSymbol: matchGroupSymbol, args: [], nullability: .nonNull
-        )))
-        let nullableMatchGroupType = types.makeNullable(matchGroupType)
         let stringType = types.stringType
-        let intType = types.intType
-        let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
         let listMatchResultType = makeListType(
             symbols: symbols, types: types, interner: interner,
             elementType: matchResultType
@@ -84,159 +78,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-103: Regex.pattern ---
-        registerRegexMemberProperty(
-            named: "pattern",
-            externalLinkName: "kk_regex_pattern",
-            ownerSymbol: regexSymbol,
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-097: Regex.groupNames: Set<String> ---
-        let setStringType = makeSetType(
-            symbols: symbols, types: types, interner: interner,
-            elementType: stringType
-        ) ?? listStringType
-        registerRegexMemberProperty(
-            named: "groupNames",
-            externalLinkName: "kk_regex_group_names",
-            ownerSymbol: regexSymbol,
-            returnType: setStringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-101: MatchResult.value / MatchResult.groupValues ---
-        registerRegexMemberProperty(
-            named: "value",
-            externalLinkName: "kk_match_result_value",
-            ownerSymbol: matchResultSymbol,
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerRegexMemberProperty(
-            named: "groupValues",
-            externalLinkName: "kk_match_result_groupValues",
-            ownerSymbol: matchResultSymbol,
-            returnType: listStringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- MatchResult.groups: MatchGroupCollection ---
-        registerRegexMemberProperty(
-            named: "groups",
-            externalLinkName: "kk_match_result_groups",
-            ownerSymbol: matchResultSymbol,
-            returnType: matchGroupCollectionType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- MatchGroupCollection.get(name: String): MatchGroup? ---
-        registerRegexMemberFunction(
-            named: "get",
-            externalLinkName: "kk_match_group_collection_get",
-            ownerSymbol: matchGroupCollectionSymbol,
-            ownerType: matchGroupCollectionType,
-            parameters: [("name", stringType, false, false)],
-            returnType: nullableMatchGroupType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- MatchGroup.value: String ---
-        registerRegexMemberProperty(
-            named: "value",
-            externalLinkName: "kk_match_group_value",
-            ownerSymbol: matchGroupSymbol,
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- MatchGroup.range: IntRange (modeled as Int at runtime) ---
-        registerRegexMemberProperty(
-            named: "range",
-            externalLinkName: "kk_match_group_range",
-            ownerSymbol: matchGroupSymbol,
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-095: MatchResult.range ---
-        registerRegexMemberProperty(
-            named: "range",
-            externalLinkName: "kk_match_result_range",
-            ownerSymbol: matchResultSymbol,
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-095: MatchResult.component1() ---
-        registerRegexMemberFunction(
-            named: "component1",
-            externalLinkName: "kk_match_result_component1",
-            ownerSymbol: matchResultSymbol,
-            ownerType: matchResultType,
-            parameters: [],
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-095: MatchResult.component2() ---
-        registerRegexMemberFunction(
-            named: "component2",
-            externalLinkName: "kk_match_result_component2",
-            ownerSymbol: matchResultSymbol,
-            ownerType: matchResultType,
-            parameters: [],
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-095: MatchResult.next() ---
-        registerRegexMemberFunction(
-            named: "next",
-            externalLinkName: "kk_match_result_next",
-            ownerSymbol: matchResultSymbol,
-            ownerType: matchResultType,
-            parameters: [],
-            returnType: nullableMatchResultType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-095: MatchGroupCollection.get(index: Int) ---
-        registerRegexMemberFunction(
-            named: "get",
-            externalLinkName: "kk_match_group_collection_get_at",
-            ownerSymbol: matchGroupCollectionSymbol,
-            ownerType: matchGroupCollectionType,
-            parameters: [("index", intType, false, false)],
-            returnType: nullableMatchGroupType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-TYPE-008: MatchGroupCollection.size: Int ---
-        registerRegexMemberProperty(
-            named: "size",
-            externalLinkName: "kk_match_group_collection_size",
-            ownerSymbol: matchGroupCollectionSymbol,
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- STDLIB-350: Regex.matchEntire ---
         registerRegexMemberFunction(
             named: "matchEntire",
@@ -264,23 +105,9 @@ extension DataFlowSemaPhase {
         setRegexOptionEntryTypes(
             enumSymbol: regexOptionSymbol,
             enumType: regexOptionType,
-            symbols: symbols
+            symbols: symbols,
+            interner: interner
         )
-
-        // --- STDLIB-REGEX-096: Regex.options: Set<RegexOption> ---
-        if let setRegexOptionType = makeSetType(
-            symbols: symbols, types: types, interner: interner,
-            elementType: regexOptionType
-        ) {
-            registerRegexMemberProperty(
-                named: "options",
-                externalLinkName: "kk_regex_options",
-                ownerSymbol: regexSymbol,
-                returnType: setRegexOptionType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
 
         // --- STDLIB-480: Regex(pattern, option) constructor ---
         registerRegexTopLevelFunction(
@@ -409,42 +236,6 @@ extension DataFlowSemaPhase {
             parameters: [("literal", stringType)],
             returnType: regexType,
             types: types,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-TYPE-010: MatchResult.Destructured members ---
-
-        // MatchResult.Destructured.match: MatchResult
-        registerRegexMemberProperty(
-            named: "match",
-            externalLinkName: "kk_match_result_destructured_match",
-            ownerSymbol: matchResultDestructuredSymbol,
-            returnType: matchResultType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MatchResult.Destructured.component1()..component9(): String
-        for index in 1...9 {
-            registerRegexMemberFunction(
-                named: "component\(index)",
-                externalLinkName: "kk_match_result_destructured_component\(index)",
-                ownerSymbol: matchResultDestructuredSymbol,
-                ownerType: matchResultDestructuredType,
-                parameters: [],
-                returnType: stringType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // MatchResult.destructured: MatchResult.Destructured
-        registerRegexMemberProperty(
-            named: "destructured",
-            externalLinkName: "kk_match_result_destructured",
-            ownerSymbol: matchResultSymbol,
-            returnType: matchResultDestructuredType,
             symbols: symbols,
             interner: interner
         )
@@ -742,22 +533,44 @@ extension DataFlowSemaPhase {
 
     /// Set propertyType on each enum entry so that resolveClassNameMemberValue
     /// (which checks `.field` + propertyType) can resolve `RegexOption.XXX`.
+    /// If the enum was imported as a nominal anchor its entries are missing, so
+    /// synthesise them here as well. Mark each entry as a compile-time constant
+    /// ordinal so the shared stdlib path emits `intLiteral` values that the
+    /// runtime regex functions can `kk_unbox_int` correctly.
     private func setRegexOptionEntryTypes(
         enumSymbol: SymbolID,
         enumType: TypeID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) {
         guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        let children = symbols.children(ofFQName: enumInfo.fqName)
-        for child in children {
-            guard let childSym = symbols.symbol(child),
-                  childSym.kind == .field
-            else {
-                continue
+        let entries = [
+            "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL", "LITERAL",
+            "UNIX_LINES", "COMMENTS", "CANON_EQ",
+        ]
+        let enumFQName = enumInfo.fqName
+        for (ordinal, entry) in entries.enumerated() {
+            let entryName = interner.intern(entry)
+            let entryFQName = enumFQName + [entryName]
+            let entrySymbol: SymbolID
+            if let existing = symbols.lookup(fqName: entryFQName) {
+                entrySymbol = existing
+            } else {
+                entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryName,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(enumSymbol, for: entrySymbol)
             }
-            if symbols.propertyType(for: child) == nil {
-                symbols.setPropertyType(enumType, for: child)
+            if symbols.propertyType(for: entrySymbol) == nil {
+                symbols.setPropertyType(enumType, for: entrySymbol)
             }
+            symbols.insertFlags([.constValue], for: entrySymbol)
+            symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
         }
     }
 

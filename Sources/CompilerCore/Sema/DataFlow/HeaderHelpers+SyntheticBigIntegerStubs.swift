@@ -572,6 +572,7 @@ extension DataFlowSemaPhase {
             FunctionSignature(
                 parameterTypes: parameters.map(\.type),
                 returnType: ownerType,
+                canThrow: canThrow,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
@@ -640,6 +641,7 @@ extension DataFlowSemaPhase {
                 parameterTypes: parameters.map(\.type),
                 returnType: returnType,
                 isSuspend: false,
+                canThrow: canThrow,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)

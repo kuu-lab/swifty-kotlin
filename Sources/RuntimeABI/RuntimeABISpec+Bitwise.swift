@@ -121,26 +121,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // STDLIB-BIT-007: Additional bit manipulation functions
-        RuntimeABIFunctionSpec(
-            name: "kk_int_rotateLeft",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_rotateRight",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
+        // KSP-642: rotateLeft / rotateRight moved to bundled Kotlin source.
         RuntimeABIFunctionSpec(
             name: "kk_int_highestOneBit",
             parameters: [
@@ -200,26 +181,6 @@ public extension RuntimeABISpec {
             name: "kk_long_countTrailingZeroBits",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_rotateLeft",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_rotateRight",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
             ],
             returnType: .intptr,
             section: "Bitwise",

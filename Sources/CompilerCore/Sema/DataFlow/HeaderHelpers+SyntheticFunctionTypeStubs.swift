@@ -37,19 +37,21 @@ extension DataFlowSemaPhase {
         let interfaceName = interner.intern("Function\(arity)")
         let interfaceFQName = packageFQName + [interfaceName]
 
-        // 既に存在する場合はスキップ
-        if symbols.lookup(fqName: interfaceFQName) != nil {
-            return
+        // STDLIB-SHARED-013: The interface may have been imported as a synthetic
+        // nominal anchor, but its `invoke` method and type parameters are not
+        // serialized. Re-register the members even when the interface exists.
+        let interfaceSymbol: SymbolID = if let existing = symbols.lookup(fqName: interfaceFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .interface,
+                name: interfaceName,
+                fqName: interfaceFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
         }
-
-        let interfaceSymbol = symbols.define(
-            kind: .interface,
-            name: interfaceName,
-            fqName: interfaceFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
 
         // 型パラメータの定義
         var typeParamSymbols: [SymbolID] = []
