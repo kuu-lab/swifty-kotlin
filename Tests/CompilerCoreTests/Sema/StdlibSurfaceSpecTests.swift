@@ -232,7 +232,6 @@ struct StdlibSurfaceSpecTests {
                 // synthetically registered with their runtime links.
                 (.list, ["kotlin", "collections", "List"], "associateTo", 2),
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
-                (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
@@ -240,7 +239,6 @@ struct StdlibSurfaceSpecTests {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "minBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "partition", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),

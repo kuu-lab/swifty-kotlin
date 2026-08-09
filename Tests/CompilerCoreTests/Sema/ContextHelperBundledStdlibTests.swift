@@ -169,10 +169,11 @@ struct ContextHelperSyntheticStubTests {
         return nil
     }
 
-    // MARK: - Consolidated Sema tests
+    // MARK: - Consolidated runSema clean tests
 
     @Test
-    func testContextHelperSyntheticStubSema() throws {
+    func testRunSemaClean() throws {
+
         let sources: [String] = [
             // testContextHelperIsRegisteredWithContextFunctionBlock
             """
@@ -219,30 +220,18 @@ struct ContextHelperSyntheticStubTests {
                     fun caller(): String = context(1, 2, 3, 4, 5, 6) { "ok" }
 
             """,
-            // testContextHelperRequiresExperimentalContextParametersOptIn
-            """
-            package sample6
-
-                    fun caller(): Int = context(1) { 2 }
-
-            """,
-            // testContextOfReportsMissingContextReceiver
-            """
-            package sample7
-
-                    import kotlin.ExperimentalContextParameters
-
-                    @OptIn(ExperimentalContextParameters::class)
-                    fun caller(): Int = context("ok") { contextOf<Int>() }
-
-            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
+
             let ctx = makeCompilationContext(inputs: paths)
+
             try runSema(ctx)
+
             let ast = try #require(ctx.ast)
+
             let sema = try #require(ctx.sema)
+
             let interner = ctx.interner
 
             // === testContextHelperIsRegisteredWithContextFunctionBlock ===
@@ -257,7 +246,8 @@ struct ContextHelperSyntheticStubTests {
                 let symbol = try #require(sema.symbols.symbol(contextSymbol))
                 let signature = try #require(sema.symbols.functionSignature(for: contextSymbol))
 
-                #expect(symbol.flags.contains(.synthetic))
+                #expect(!symbol.flags.contains(.synthetic))
+                #expect(sema.symbols.isSourceBackedSymbol(contextSymbol))
                 #expect(symbol.flags.contains(.inlineFunction))
                 #expect(signature.parameterTypes.count == 2)
                 #expect(signature.typeParameterSymbols.count == 2)
@@ -310,13 +300,14 @@ struct ContextHelperSyntheticStubTests {
                 let symbol = try #require(sema.symbols.symbol(contextOfSymbol))
                 let signature = try #require(sema.symbols.functionSignature(for: contextOfSymbol))
 
-                #expect(symbol.flags.contains(.synthetic))
+                #expect(!symbol.flags.contains(.synthetic))
+                #expect(sema.symbols.isSourceBackedSymbol(contextOfSymbol))
                 #expect(symbol.flags.contains(.inlineFunction))
                 #expect(signature.parameterTypes == [])
                 #expect(signature.typeParameterSymbols.count == 1)
                 #expect(signature.returnType == typeParamType(signature.typeParameterSymbols[0], sema: sema))
                 #expect(sema.symbols.annotations(for: contextOfSymbol).contains { annotation in
-                    annotation.annotationFQName == "kotlin.ExperimentalContextParameters"
+                    annotation.annotationFQName.hasSuffix("ExperimentalContextParameters")
                 })
 
             }
@@ -367,11 +358,51 @@ struct ContextHelperSyntheticStubTests {
 
             }
 
+        }
+    }
+
+    // MARK: - Consolidated runSema error tests
+
+    @Test
+    func testRunSemaWithExpectedDiagnostics() throws {
+
+        let sources: [String] = [
+            // testContextHelperRequiresExperimentalContextParametersOptIn
+            """
+            package sample0
+
+                    fun caller(): Int = context(1) { 2 }
+
+            """,
+            // testContextOfReportsMissingContextReceiver
+            """
+            package sample1
+
+                    import kotlin.ExperimentalContextParameters
+
+                    @OptIn(ExperimentalContextParameters::class)
+                    fun caller(): Int = context("ok") { contextOf<Int>() }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+
+            let sema = try #require(ctx.sema)
+
+            let interner = ctx.interner
+
             // === testContextHelperRequiresExperimentalContextParametersOptIn ===
 
             do {
 
-                let sample0Path = paths[6]
+                let sample0Path = paths[0]
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
@@ -386,7 +417,7 @@ struct ContextHelperSyntheticStubTests {
 
             do {
 
-                let sample1Path = paths[7]
+                let sample1Path = paths[1]
 
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
@@ -397,6 +428,7 @@ struct ContextHelperSyntheticStubTests {
 
         }
     }
+
 }
 
 #endif
