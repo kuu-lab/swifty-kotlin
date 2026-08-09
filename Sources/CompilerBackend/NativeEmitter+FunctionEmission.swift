@@ -1906,7 +1906,19 @@ extension NativeEmitter {
                case let .symbolRef(targetSymbol) = resultExpr,
                let globalPointer = globalVariables[targetSymbol]
             {
-                _ = bindings.buildStore(builder, value: storedValue, pointer: globalPointer)
+                // Global slots hold the runtime's raw i64 handle.  A flat
+                // string aggregate has to be bridged back first, otherwise the
+                // 32-byte struct is written over the slot and its neighbours.
+                var globalValue = storedValue
+                if isStringAggregateType(module.arena.exprType(result)),
+                   bindings.isAggregateStructValue(storedValue)
+                {
+                    globalValue = bridgeStringAggregateToRuntimeRaw(
+                        storedValue,
+                        suffix: "store_result_global_\(result.rawValue)"
+                    ) ?? storedValue
+                }
+                _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
             }
             if let alloca = copyTargetAllocas[result.rawValue] {
                 _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)
