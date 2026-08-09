@@ -329,102 +329,91 @@ struct StandaloneClassReferenceTests {
         }
     }
 
-    @Test func testDirectKClassCastEmitsThrowingRuntimeCall() throws {
-        let source = """
-        fun castString(value: Any?): String = String::class.cast(value)
-        """
+    /// KSP-496: `cast`/`safeCast` are bundled Kotlin extensions
+    /// (Stdlib/kotlin/reflect/KClassBasicAPI.kt), so call sites must delegate to
+    /// them instead of being special-cased into a direct runtime call.
+    private func expectBundledReflectDelegation(
+        source: String,
+        functions: [String],
+        extensionName: String,
+        runtimeCallee: String
+    ) throws {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "castString", in: module, interner: ctx.interner)
-            #expect(
-                body.contains { instruction in
-                    guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                    return ctx.interner.resolve(callee) == "__kk_kclass_cast" && canThrow
-                },
-                "Expected String::class.cast to lower to throwing __kk_kclass_cast"
-            )
-        }
-    }
-
-    @Test func testKClassCastViaLocalAndParameterEmitRuntimeCall() throws {
-        let source = """
-        import kotlin.reflect.KClass
-
-        fun castViaLocal(value: Any?): String {
-            val klass = String::class
-            return klass.cast(value)
-        }
-
-        fun <T : Any> castWithClass(klass: KClass<T>, value: Any?): T = klass.cast(value)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            for functionName in ["castViaLocal", "castWithClass"] {
+            for functionName in functions {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                let callees = extractCallees(from: body, interner: ctx.interner)
                 #expect(
-                    body.contains { instruction in
-                        guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                        return ctx.interner.resolve(callee) == "__kk_kclass_cast" && canThrow
-                    },
-                    "Expected \(functionName) to lower to throwing __kk_kclass_cast"
+                    callees.contains(extensionName),
+                    "Expected \(functionName) to call the bundled Kotlin \(extensionName) extension"
+                )
+                #expect(
+                    !callees.contains(runtimeCallee),
+                    "Expected \(functionName) not to emit \(runtimeCallee) directly"
                 )
             }
         }
     }
 
-    @Test func testDirectKClassSafeCastEmitsNonThrowingRuntimeCall() throws {
-        let source = """
-        fun safeCastString(value: Any?): String? = String::class.safeCast(value)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "safeCastString", in: module, interner: ctx.interner)
-            #expect(
-                body.contains { instruction in
-                    guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                    return ctx.interner.resolve(callee) == "__kk_kclass_safeCast" && !canThrow
-                },
-                "Expected String::class.safeCast to lower to non-throwing __kk_kclass_safeCast"
-            )
-        }
+    @Test func testDirectKClassCastDelegatesToBundledExtension() throws {
+        try expectBundledReflectDelegation(
+            source: """
+            fun castString(value: Any?): String = String::class.cast(value)
+            """,
+            functions: ["castString"],
+            extensionName: "cast",
+            runtimeCallee: "__kk_kclass_cast"
+        )
     }
 
-    @Test func testKClassSafeCastViaLocalAndParameterEmitRuntimeCall() throws {
-        let source = """
-        import kotlin.reflect.KClass
+    @Test func testKClassCastViaLocalAndParameterDelegateToBundledExtension() throws {
+        try expectBundledReflectDelegation(
+            source: """
+            import kotlin.reflect.KClass
 
-        fun safeCastViaLocal(value: Any?): String? {
-            val klass = String::class
-            return klass.safeCast(value)
-        }
-
-        fun <T : Any> safeCastWithClass(klass: KClass<T>, value: Any?): T? = klass.safeCast(value)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            for functionName in ["safeCastViaLocal", "safeCastWithClass"] {
-                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                #expect(
-                    body.contains { instruction in
-                        guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                        return ctx.interner.resolve(callee) == "__kk_kclass_safeCast" && !canThrow
-                    },
-                    "Expected \(functionName) to lower to non-throwing __kk_kclass_safeCast"
-                )
+            fun castViaLocal(value: Any?): String {
+                val klass = String::class
+                return klass.cast(value)
             }
-        }
+
+            fun <T : Any> castWithClass(klass: KClass<T>, value: Any?): T = klass.cast(value)
+            """,
+            functions: ["castViaLocal", "castWithClass"],
+            extensionName: "cast",
+            runtimeCallee: "__kk_kclass_cast"
+        )
+    }
+
+    @Test func testDirectKClassSafeCastDelegatesToBundledExtension() throws {
+        try expectBundledReflectDelegation(
+            source: """
+            fun safeCastString(value: Any?): String? = String::class.safeCast(value)
+            """,
+            functions: ["safeCastString"],
+            extensionName: "safeCast",
+            runtimeCallee: "__kk_kclass_safeCast"
+        )
+    }
+
+    @Test func testKClassSafeCastViaLocalAndParameterDelegateToBundledExtension() throws {
+        try expectBundledReflectDelegation(
+            source: """
+            import kotlin.reflect.KClass
+
+            fun safeCastViaLocal(value: Any?): String? {
+                val klass = String::class
+                return klass.safeCast(value)
+            }
+
+            fun <T : Any> safeCastWithClass(klass: KClass<T>, value: Any?): T? = klass.safeCast(value)
+            """,
+            functions: ["safeCastViaLocal", "safeCastWithClass"],
+            extensionName: "safeCast",
+            runtimeCallee: "__kk_kclass_safeCast"
+        )
     }
 }
 #endif

@@ -20,7 +20,9 @@ func runtimeApplyMapElement(
         runtimeSetThrown(outThrown, thrown)
         return (0, thrown)
     }
-    return (maybeUnbox(result), 0)
+    // See kk_array_map: `result` is already boxed for its Any-typed return and
+    // must stay boxed for later generic (list/sequence) consumption.
+    return (result, 0)
 }
 
 @inline(__always)
@@ -158,7 +160,8 @@ func applyMapIndexedStep(
             runtimeSetThrown(outThrown, thrown)
             return []
         }
-        mapped.append(maybeUnbox(result))
+        // See kk_array_map: keep the transform's already-boxed result as-is.
+        mapped.append(result)
     }
     return mapped
 }

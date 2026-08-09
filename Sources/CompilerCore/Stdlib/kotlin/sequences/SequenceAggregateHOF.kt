@@ -31,14 +31,15 @@ public fun <T, R> Sequence<T>.fold(initial: R, operation: (R, T) -> R): R {
 }
 
 public fun <T> Sequence<T>.reduce(operation: (T, T) -> T): T {
-    var accumulator: T? = null
-    var first = true
-    for (elem in this) {
-        if (first) { accumulator = elem; first = false }
-        else { accumulator = operation(accumulator!!, elem) }
+    val elements = this.toList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(accumulator, elements[i])
+        i += 1
     }
-    if (first) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    return accumulator!!
+    return accumulator
 }
 
 public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
