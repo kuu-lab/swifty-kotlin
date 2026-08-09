@@ -251,12 +251,12 @@ struct RangeSyntheticInterfaceTests {
 
                 let expectedComparableBoundForClosedRange = sema.types.make(.classType(ClassType(
                     classSymbol: comparableSymbol,
-                    args: [.in(closedRangeTypeParamType)],
+                    args: [.invariant(closedRangeTypeParamType)],
                     nullability: .nonNull
                 )))
                 let expectedComparableBoundForFloatingPointRange = sema.types.make(.classType(ClassType(
                     classSymbol: comparableSymbol,
-                    args: [.in(closedFloatingPointRangeTypeParamType)],
+                    args: [.invariant(closedFloatingPointRangeTypeParamType)],
                     nullability: .nonNull
                 )))
 
