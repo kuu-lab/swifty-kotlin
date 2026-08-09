@@ -25,14 +25,16 @@ struct BoxingCalleeTableTests {
         }
     }
 
-    /// `.long`/`.ulong` box callees when the source TypeKind is provably
-    /// non-null: `runtimeNullSentinelInt` (Int64.min) collides bit-for-bit
-    /// with a legitimate value of those two 64-bit types (Long.MIN_VALUE /
-    /// ULong 2^63), so a non-null source routes to a callee that boxes
-    /// unconditionally instead of one that treats that bit pattern as null.
+    /// `.long`/`.ulong`/`.double` box callees when the source TypeKind is
+    /// provably non-null: `runtimeNullSentinelInt` (Int64.min) collides
+    /// bit-for-bit with a legitimate value of those 64-bit types
+    /// (Long.MIN_VALUE / ULong 2^63 / Double -0.0), so a non-null source
+    /// routes to a callee that boxes unconditionally instead of one that
+    /// treats that bit pattern as null.
     private let nonNullBoxOverrides: [PrimitiveType: String] = [
         .long: "kk_box_long_nonnull",
         .ulong: "kk_box_ulong_nonnull",
+        .double: "kk_box_double_nonnull",
     ]
 
     @Test
