@@ -34,7 +34,8 @@ extension DataFlowSemaPhase {
         parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
         returnType: TypeID,
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        canThrow: Bool = false
     ) {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else {
             return
@@ -47,6 +48,7 @@ extension DataFlowSemaPhase {
             parameters: parameters,
             returnType: returnType,
             externalLinkName: externalLinkName,
+            canThrow: canThrow,
             symbols: symbols,
             interner: interner
         )

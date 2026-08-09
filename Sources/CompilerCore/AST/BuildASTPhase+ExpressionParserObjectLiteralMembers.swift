@@ -137,6 +137,7 @@ extension BuildASTPhase.ExpressionParser {
         var setter: PropertyAccessorDecl?
         var delegateExpression: ExprID?
         var delegateBody: FunctionBody?
+        var delegateBodyParams: [InternedString] = []
 
         if !suffixTokens.isEmpty {
             switch suffixTokens[0].kind {
@@ -146,7 +147,10 @@ extension BuildASTPhase.ExpressionParser {
                     return nil
                 }
                 delegateExpression = parsedDelegateExpr
-                delegateBody = objectLiteralDelegateBody(from: parsedDelegateExpr)
+                if let parsedDelegateBody = objectLiteralDelegateBody(from: parsedDelegateExpr) {
+                    delegateBodyParams = parsedDelegateBody.params
+                    delegateBody = parsedDelegateBody.body
+                }
 
             case .softKeyword(.get), .softKeyword(.set):
                 guard let accessors = parseObjectLiteralAccessors(from: suffixTokens) else {
@@ -170,7 +174,8 @@ extension BuildASTPhase.ExpressionParser {
             getter: getter,
             setter: setter,
             delegateExpression: delegateExpression,
-            delegateBody: delegateBody
+            delegateBody: delegateBody,
+            delegateBodyParams: delegateBodyParams
         )
     }
 
@@ -397,7 +402,7 @@ extension BuildASTPhase.ExpressionParser {
         return .block(bodyExprs, range)
     }
 
-    private func objectLiteralDelegateBody(from exprID: ExprID) -> FunctionBody? {
+    private func objectLiteralDelegateBody(from exprID: ExprID) -> (params: [InternedString], body: FunctionBody)? {
         guard let expr = astArena.expr(exprID) else {
             return nil
         }
@@ -413,7 +418,7 @@ extension BuildASTPhase.ExpressionParser {
 
         guard let trailingLambdaExprID,
               let lambdaExpr = astArena.expr(trailingLambdaExprID),
-              case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr
+              case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr
         else {
             return nil
         }
@@ -427,13 +432,13 @@ extension BuildASTPhase.ExpressionParser {
             if let trailingExpr {
                 exprs.append(trailingExpr)
             }
-            return .block(exprs, range)
+            return (params, .block(exprs, range))
 
         default:
             guard let range = astArena.exprRange(bodyExprID) else {
                 return nil
             }
-            return .expr(bodyExprID, range)
+            return (params, .expr(bodyExprID, range))
         }
     }
 

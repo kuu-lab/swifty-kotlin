@@ -129,7 +129,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
                 if let classSym = sema.symbols.symbol(classSymbol) {
-                    let helperName = ctx.interner.intern("$enumOrdinalToName")
+                    let helperName = ctx.interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
                     let fqName = classSym.fqName + [helperName]
                     if let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
                         sema.symbols.symbol(id).map { $0.kind == .function } ?? false
@@ -181,7 +181,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        let helperName = interner.intern("$enumOrdinalToName")
+        let helperName = interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
         let fqName = classSym.fqName + [helperName]
         guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
             sema.symbols.symbol(id).map { $0.kind == .function } ?? false
@@ -267,6 +267,17 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
     }
 
     private func enumClassAncestor(of symbol: SymbolID, sema: SemaModule) -> SymbolID? {
+        // A declared return type is authoritative: a function nested in an enum
+        // (e.g. a companion member `EnumClass.f(): Int`) does not produce an
+        // enum ordinal just because an enum class is one of its ancestors.
+        if let signature = sema.symbols.functionSignature(for: symbol) {
+            guard let (classType, returnSym) = resolveClassTypeSymbol(signature.returnType, sema: sema),
+                  returnSym.kind == .enumClass
+            else {
+                return nil
+            }
+            return classType.classSymbol
+        }
         var current: SymbolID? = symbol
         while let candidate = current {
             guard let info = sema.symbols.symbol(candidate) else { return nil }

@@ -10,6 +10,7 @@ extension ABILoweringPass {
         boxingCalleeTable: BoxingCalleeTable,
         callee: InternedString?,
         interner: StringInterner,
+        boxTypeParamArguments: Bool = false,
         newBody: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var boxedArguments = arguments
@@ -35,7 +36,8 @@ extension ABILoweringPass {
                 types: types,
                 interner: interner,
                 boxingCalleeTable: boxingCalleeTable,
-                symbols: symbols
+                symbols: symbols,
+                boxTypeParamBoundary: boxTypeParamArguments
             ) {
                 let boxedResult = module.arena.appendTemporary(type: paramType)
                 emitBoxCallWithValueClassTag(

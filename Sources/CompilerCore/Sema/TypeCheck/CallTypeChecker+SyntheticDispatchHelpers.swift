@@ -146,6 +146,30 @@ extension CallTypeChecker {
         }
     }
 
+    /// Resolves a synthetic `AtomicIntArray` / `AtomicLongArray` class symbol
+    /// visible under `name`, accepting either the legacy `kotlin.concurrent`
+    /// package or the newer `kotlin.concurrent.atomics` package.
+    func syntheticAtomicArrayClassSymbol(
+        _ name: InternedString,
+        className: String,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let interner = ctx.interner
+        let kotlin = interner.intern("kotlin")
+        let concurrent = interner.intern("concurrent")
+        let atomics = interner.intern("atomics")
+        let classNameStr = interner.intern(className)
+        let legacyFQ = [kotlin, concurrent, classNameStr]
+        let atomicsFQ = [kotlin, concurrent, atomics, classNameStr]
+        return ctx.cachedScopeLookup(name).first { candidate in
+            guard let sym = ctx.cachedSymbol(candidate),
+                  sym.kind == .class,
+                  sym.flags.contains(.synthetic)
+            else { return false }
+            return sym.fqName == legacyFQ || sym.fqName == atomicsFQ
+        }
+    }
+
     /// Returns the visible stdlib function symbol for source-backed stdlib
     /// declarations that still need compiler special-casing.
     ///

@@ -350,6 +350,6 @@ extension DataFlowSemaPhase {
 
         registerConstructor(parameterTypes: [], externalLinkName: "__kk_emptySet")
         registerConstructor(parameterTypes: [types.intType], externalLinkName: "__kk_emptySet")
-        registerConstructor(parameterTypes: [collectionType], externalLinkName: "kk_iterable_toMutableSet")
+        registerConstructor(parameterTypes: [collectionType], externalLinkName: "__kk_iterable_toMutableSet")
     }
 }
