@@ -16,9 +16,21 @@ struct NativeEmitter {
         "kk_println_newline",
     ]
 
+    /// Quick lookup for runtime ABI function specs by symbol name.
+    static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
+        Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+    }()
+
     struct LLVMFunction {
         let value: LLVMCAPIBindings.LLVMValueRef
         let type: LLVMCAPIBindings.LLVMTypeRef
+    }
+
+    /// Lookup key used to resolve internal functions by either their KIR name
+    /// or generated C symbol name plus user parameter count.
+    struct FunctionLookupKey: Hashable {
+        let name: String
+        let parameterCount: Int
     }
 
     struct DebugInfoContext {
@@ -79,12 +91,36 @@ struct NativeEmitter {
     }
 
     private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
-        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee()
+        Self.collectRuntimeCallbackRawABISymbols(module: module, interner: interner, symbols: symbols)
+    }
+
+    static func collectRuntimeCallbackRawStringReturnSymbols(
+        module: KIRModule,
+        interner: StringInterner,
+        typeSystem: TypeSystem?,
+        symbols: SymbolTable? = nil
+    ) -> Set<SymbolID> {
+        let rawSymbols = collectRuntimeCallbackRawABISymbols(module: module, interner: interner, symbols: symbols)
+        guard let typeSystem else { return [] }
+        return Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration else { return nil }
+            guard rawSymbols.contains(function.symbol) else { return nil }
+            guard case .stringStruct = typeSystem.kind(of: function.returnType) else { return nil }
+            return function.symbol
+        })
+    }
+
+    static func collectRuntimeCallbackRawABISymbols(
+        module: KIRModule,
+        interner: StringInterner,
+        symbols: SymbolTable? = nil
+    ) -> Set<SymbolID> {
+        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee(interner: interner)
         guard !callbackArgumentPositionsByCallee.isEmpty else {
             return []
         }
 
-        var symbols: Set<SymbolID> = []
+        var rawSymbols: Set<SymbolID> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration else {
                 continue
@@ -97,7 +133,7 @@ struct NativeEmitter {
                     }
                     for position in callbackPositions where arguments.indices.contains(position) {
                         if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
-                            symbols.insert(symbol)
+                            rawSymbols.insert(symbol)
                         }
                     }
 
@@ -106,7 +142,7 @@ struct NativeEmitter {
                 }
             }
         }
-        guard !symbols.isEmpty else {
+        guard !rawSymbols.isEmpty else {
             return []
         }
 
@@ -120,7 +156,8 @@ struct NativeEmitter {
         var rawCallbackKeys: Set<FunctionABIKey> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
-                  symbols.contains(function.symbol)
+                  rawSymbols.contains(function.symbol),
+                  Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner)
             else {
                 continue
             }
@@ -134,18 +171,32 @@ struct NativeEmitter {
                 continue
             }
             let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
-            if rawCallbackKeys.contains(key) {
-                symbols.insert(function.symbol)
+            if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner) {
+                rawSymbols.insert(function.symbol)
             }
         }
-        return symbols
+        return rawSymbols
     }
 
-    private func runtimeCallbackArgumentPositionsByCallee() -> [InternedString: [Int]] {
+    private static func isSyntheticCallbackFunction(
+        _ function: KIRFunction,
+        symbols: SymbolTable?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbols else { return true }
+        guard let symbolInfo = symbols.symbol(function.symbol) else { return false }
+        return symbolInfo.flags.contains(.synthetic)
+    }
+
+    private static func runtimeCallbackArgumentPositionsByCallee(
+        interner: StringInterner
+    ) -> [InternedString: [Int]] {
         var positionsByCallee: [InternedString: [Int]] = [:]
         for spec in RuntimeABISpec.allFunctions {
             if spec.name == "kk_object_register_itable_method"
-                || spec.name == "kk_object_register_vtable_method" {
+                || spec.name == "kk_object_register_vtable_method"
+                || spec.name.hasPrefix("__kk_kfunction_create")
+                || spec.name == "__kk_kconstructor_create" {
                 continue
             }
             var positions: [Int] = []
@@ -156,7 +207,9 @@ struct NativeEmitter {
                 let name = parameter.name.lowercased()
                 // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
                 // kk_function_invoke, which uses the flat intptr callback ABI.
-                if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" {
+                // selFn/cFn: comparator selector/comparator function pointers passed to
+                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_comparator_from_selector).
+                if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" || name.hasSuffix("fn") {
                     positions.append(kirIndex)
                 }
                 if abiIndex + 3 < spec.parameters.count,
@@ -237,6 +290,111 @@ struct NativeEmitter {
         }
     }
 
+    /// Returns a stable C-compatible LLVM global slot name for the given symbol.
+    /// For globals with a known fully-qualified name (e.g. properties and object
+    /// singletons) the name is derived from that FQN so that a precompiled
+    /// library and its consumers refer to the same storage. Otherwise it falls
+    /// back to the raw symbol identifier for backwards compatibility.
+    fileprivate func stableGlobalSlotName(for symbol: SymbolID) -> String {
+        if let sym = symbols?.symbol(symbol) {
+            let fqn = sym.fqName.compactMap { interner.resolve($0) }.joined(separator: ".")
+            if !fqn.isEmpty {
+                let sanitized = fqn.map { c in
+                    c.isLetter || c.isNumber || c == "_" ? String(c) : "_"
+                }.joined()
+                return "kk_global_root_slot_\(sanitized)"
+            }
+        }
+        return "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))"
+    }
+
+    /// Returns true for imported-library symbols that are expected to be
+    /// backed by a global variable in the linked object (properties, fields,
+    /// backing fields, and top-level objects). Companion objects are excluded
+    /// because their functions are emitted as static-like receivers and they
+    /// do not allocate a singleton global.
+    private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
+        guard let sym = symbols?.symbol(symbol),
+              sym.flags.contains(.importedLibrary)
+        else {
+            return false
+        }
+        switch sym.kind {
+        case .property, .field, .backingField:
+            return true
+        case .object:
+            // Top-level object singletons have a global instance.
+            // Companion objects (parent is a class/interface/enum) do not.
+            if let parentID = symbols?.parentSymbol(for: symbol),
+               let parent = symbols?.symbol(parentID),
+               parent.kind != .package {
+                return false
+            }
+            // Synthetic singleton stubs (e.g. kotlin.system.System) have no
+            // backing state and no initializer, so their global slot is never
+            // emitted. Returning zero for their symbolRef is safe because the
+            // only uses are as receivers for static-like runtime bridges that
+            // discard the receiver.
+            if symbols?.objectInitializerSymbol(for: symbol) == nil,
+               symbols?.externalLinkName(for: symbol)?.isEmpty != false,
+               symbols?.nominalLayout(for: symbol)?.instanceFieldCount == 0 {
+                return false
+            }
+            return true
+        case .class, .interface, .enumClass, .annotationClass, .typeAlias,
+             .function, .constructor, .typeParameter, .valueParameter,
+             .local, .label, .package:
+            return false
+        }
+    }
+
+    /// Ensures that any imported-library global referenced by `loadGlobal`,
+    /// `storeGlobal`, or `symbolRef` has an LLVM global declaration in the
+    /// current module. Without this, the backend silently emits zero for
+    /// references to globals defined in a precompiled `.kklib` (e.g.
+    /// `Uuid.Companion.NIL`) because those globals are not present in the
+    /// current module's KIR global declarations.
+    private func ensureImportedGlobalReferences(
+        module: KIRModule,
+        llvmModule: LLVMCAPIBindings.LLVMModuleRef,
+        int64Type: LLVMCAPIBindings.LLVMTypeRef,
+        globalVariables: inout [SymbolID: LLVMCAPIBindings.LLVMValueRef]
+    ) {
+        var referencedSymbols: Set<SymbolID> = []
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else {
+                continue
+            }
+            for instruction in function.body {
+                switch instruction {
+                case let .loadGlobal(_, symbol), let .storeGlobal(_, symbol):
+                    referencedSymbols.insert(symbol)
+                case let .constValue(_, .symbolRef(symbol)):
+                    referencedSymbols.insert(symbol)
+                default:
+                    break
+                }
+            }
+        }
+        for expr in module.arena.expressions {
+            if case let .symbolRef(symbol) = expr {
+                referencedSymbols.insert(symbol)
+            }
+        }
+        for symbol in referencedSymbols {
+            guard globalVariables[symbol] == nil,
+                  shouldEmitImportedGlobalReference(for: symbol)
+            else {
+                continue
+            }
+            let slotName = stableGlobalSlotName(for: symbol)
+            if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+                bindings.setExternalLinkage(llvmGlobal)
+                globalVariables[symbol] = llvmGlobal
+            }
+        }
+    }
+
     func buildModule() throws -> (
         context: LLVMCAPIBindings.LLVMContextRef,
         module: LLVMCAPIBindings.LLVMModuleRef
@@ -288,22 +446,49 @@ struct NativeEmitter {
         }
 
         // Create LLVM global variables for each KIR global declaration.
+        // Globals that back properties/singletons shared across .kklib modules
+        // are named by their stable fully-qualified name so a consumer object
+        // can reference the same storage defined in the library object.
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
         for declaration in module.arena.declarations {
             guard case let .global(global) = declaration else {
                 continue
             }
-            let slotName = "kk_global_root_slot_\(max(0, Int(global.symbol.rawValue)))"
+            let slotName = stableGlobalSlotName(for: global.symbol)
+            let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
-                bindings.setInternalLinkage(llvmGlobal)
-                if let zero = bindings.constInt(int64Type, value: 0) {
-                    bindings.setInitializer(llvmGlobal, value: zero)
+                if isImported {
+                    // Imported globals are defined in another object file.
+                    bindings.setExternalLinkage(llvmGlobal)
+                } else {
+                    // Use linkonce_odr so multiple compilation units (e.g. a
+                    // precompiled stdlib .kklib and a consuming module) can each
+                    // contain a tentative definition of the same global; the
+                    // linker keeps one copy and all references resolve to it.
+                    bindings.setLinkOnceODRLinkage(llvmGlobal)
+                    if let zero = bindings.constInt(int64Type, value: 0) {
+                        bindings.setInitializer(llvmGlobal, value: zero)
+                    }
                 }
                 llvmGlobalVariables[global.symbol] = llvmGlobal
             }
         }
 
+        // Imported-library globals (e.g. `Uuid.Companion.NIL`) are referenced by
+        // `loadGlobal`/`symbolRef` in the consumer module but are not present in
+        // the consumer's KIR global declarations because they live in the
+        // precompiled `.kklib`. Emit external declarations for them so the backend
+        // resolves them to the library definition instead of returning zero.
+        ensureImportedGlobalReferences(
+            module: module,
+            llvmModule: llvmModule,
+            int64Type: int64Type,
+            globalVariables: &llvmGlobalVariables
+        )
+
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
+        var internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)] = [:]
+        var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
         var emittableFunctions: [(KIRFunction, String)] = []
 
         for declaration in module.arena.declarations {
@@ -351,6 +536,11 @@ struct NativeEmitter {
                 bindings.setLinkOnceODRLinkage(functionValue)
             }
             internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
+            internalSignatures[function.symbol] = (function.params.map(\.type), function.returnType)
+            let functionLookupKey = FunctionLookupKey(name: interner.resolve(function.name), parameterCount: function.params.count)
+            let cSymbolLookupKey = FunctionLookupKey(name: functionName, parameterCount: function.params.count)
+            internalFunctionsByLookupKey[functionLookupKey, default: []].append(function)
+            internalFunctionsByLookupKey[cSymbolLookupKey, default: []].append(function)
             emittableFunctions.append((function, functionName))
         }
 
@@ -378,6 +568,8 @@ struct NativeEmitter {
                         typeLowering: typeLowering,
                         outThrownPointerType: outThrownPointerType,
                         internalFunctions: internalFunctions,
+                        internalSignatures: internalSignatures,
+                        internalFunctionsByLookupKey: internalFunctionsByLookupKey,
                         globalVariables: llvmGlobalVariables,
                         runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
                         usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,

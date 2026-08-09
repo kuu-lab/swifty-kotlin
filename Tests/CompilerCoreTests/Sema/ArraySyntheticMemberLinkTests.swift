@@ -537,7 +537,12 @@ struct ArraySyntheticMemberLinkTests {
             #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
         }
 
-        // === testArrayMapIndexedFallbackMarksResultAsCollection ===
+        // === testArrayMapIndexedInfersListResult ===
+        // KSP-433: mapIndexed moved to bundled Kotlin source (ArrayHOF.kt), so it
+        // resolves as an ordinary `Array<T>.mapIndexed(...): List<R>` extension
+        // instead of going through `tryArrayMemberFallback`, whose result type
+        // was erased to `Any` with `isCollectionExpr` as the out-of-band signal
+        // for downstream KIR/runtime dispatch.
         do {
             #expect(
                 !ctx.diagnostics.hasError,
@@ -547,10 +552,19 @@ struct ArraySyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "mapIndexed"
             }, "Expected Array.mapIndexed member call")
-            #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.mapIndexed result to be marked as a collection (List) expression")
+            let resultType = try #require(sema.bindings.exprType(for: callExpr))
+            guard case let .classType(resultClass) = sema.types.kind(of: resultType),
+                  let resultSymbol = sema.symbols.symbol(resultClass.classSymbol)
+            else {
+                Issue.record("Expected Array.mapIndexed to return a List class type")
+                return
+            }
+            #expect(ctx.interner.resolve(resultSymbol.name) == "List")
         }
 
-        // === testArrayFilterNotNullFallbackAcceptsZeroArgumentsAndMarksCollection ===
+        // === testArrayFilterNotNullAcceptsZeroArgumentsAndInfersListResult ===
+        // See the mapIndexed case above: filterNotNull is bundled Kotlin source
+        // (ArrayFilterHOF.kt) since KSP-433, so its result is a real `List<T>`.
         do {
             #expect(
                 !ctx.diagnostics.hasError,
@@ -560,7 +574,14 @@ struct ArraySyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "filterNotNull"
             }, "Expected Array.filterNotNull member call")
-            #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.filterNotNull result to be marked as a collection (List) expression")
+            let resultType = try #require(sema.bindings.exprType(for: callExpr))
+            guard case let .classType(resultClass) = sema.types.kind(of: resultType),
+                  let resultSymbol = sema.symbols.symbol(resultClass.classSymbol)
+            else {
+                Issue.record("Expected Array.filterNotNull to return a List class type")
+                return
+            }
+            #expect(ctx.interner.resolve(resultSymbol.name) == "List")
         }
 
         // === testArrayFirstOrNullFallbackInfersNullableElementType ===

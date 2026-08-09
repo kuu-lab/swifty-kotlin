@@ -964,64 +964,7 @@ public func kk_string_asSequence_flat(
     runtimeStringAsSequence(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash))
 }
 
-@_cdecl("kk_string_contentEquals_flat")
-public func kk_string_contentEquals_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ otherData: UnsafePointer<UInt8>?,
-    _ otherLength: Int,
-    _ otherByteCount: Int,
-    _ otherHash: Int
-) -> Int {
-    if data == nil || otherData == nil {
-        return (data == nil && otherData == nil) ? 1 : 0
-    }
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
-    return source == other ? 1 : 0
-}
-
-@_cdecl("kk_string_contentEquals_ignoreCase_flat")
-public func kk_string_contentEquals_ignoreCase_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ otherData: UnsafePointer<UInt8>?,
-    _ otherLength: Int,
-    _ otherByteCount: Int,
-    _ otherHash: Int,
-    _ ignoreCaseRaw: Int
-) -> Int {
-    if data == nil || otherData == nil {
-        return (data == nil && otherData == nil) ? 1 : 0
-    }
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
-    if ignoreCaseRaw != 0 {
-        return source.caseInsensitiveCompare(other) == .orderedSame ? 1 : 0
-    }
-    return source == other ? 1 : 0
-}
-
-@_cdecl("kk_string_equalsIgnoreCase_flat")
-public func kk_string_equalsIgnoreCase_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ otherData: UnsafePointer<UInt8>?,
-    _ otherLength: Int,
-    _ otherByteCount: Int,
-    _ otherHash: Int,
-    _ ignoreCaseRaw: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
-    if ignoreCaseRaw == 0 {
-        return source == other ? 1 : 0
-    }
-    return source.caseInsensitiveCompare(other) == .orderedSame ? 1 : 0
-}
+// KSP-413: contentEquals / equals(ignoreCase) are bundled Kotlin source
+// (Stdlib/kotlin/text/StringComparison.kt); the kk_string_contentEquals_flat /
+// kk_string_contentEquals_ignoreCase_flat / kk_string_equalsIgnoreCase_flat
+// bridges were removed.

@@ -304,7 +304,7 @@ extension NativeEmitter {
 
         let lowered: LLVMCAPIBindings.LLVMValueRef?
         switch calleeName {
-        case "__string_struct_get_length", "kk_string_struct_get_length", "length":
+        case "__kk_string_struct_get_length", "kk_string_struct_get_length", "length":
             guard argumentValues.count == 1,
                   state.typeLowering != nil
             else {
@@ -807,6 +807,27 @@ extension NativeEmitter {
                     pointer: globalPtr,
                     name: "global_load_\(symbol.rawValue)"
                 ) ?? state.zeroValue
+            }
+            // Imported library artifact functions are not internal to the current module,
+            // but they may be referenced as function pointers (e.g. for vtable/itable
+            // registration). Resolve them by their external link name.
+            if let symbols = self.symbols,
+               let signature = symbols.functionSignature(for: symbol),
+               let linkName = symbols.externalLinkName(for: symbol),
+               !linkName.isEmpty,
+               let externFn = declareExternalFunction(
+                   linkName,
+                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
+                   true
+               ),
+               let functionPointer = bindings.buildPtrToInt(
+                   state.builder,
+                   value: externFn.value,
+                   type: state.int64Type,
+                   name: "extern_fn_ptr_\(symbol.rawValue)"
+               )
+            {
+                return functionPointer
             }
             return state.zeroValue
         case let .temporary(raw):

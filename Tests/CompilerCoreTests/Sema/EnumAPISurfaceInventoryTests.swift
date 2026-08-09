@@ -172,5 +172,157 @@ struct EnumAPISurfaceInventoryTests {
             }
         }
     }
+
+    // BUG: Nested enum classes (declared inside another class/interface/object,
+    // e.g. `class Outer { enum class Color { RED, GREEN } }`) never got ANY of
+    // the Enum stdlib surface synthesized at all. MemberHeaderCollection's
+    // nested-class path only registered the entry FIELDS themselves and never
+    // called collectSyntheticEnumEntryProperties / collectSyntheticEnumValuesMember,
+    // unlike HeaderCollection's top-level enum-class path.
+    @Test func testNestedEnumClassGetsNameOrdinalProperties() throws {
+        let source = """
+        class Outer {
+            enum class Color { RED, GREEN }
+        }
+        fun noop() {}
+        """
+        let (sema, interner) = try makeSema(source: source)
+        let colorSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Color"),
+        ]))
+        #expect(sema.symbols.symbol(colorSymbol)?.kind == .enumClass)
+
+        for propName in ["name", "ordinal"] {
+            let propSymbol = try #require(sema.symbols.lookup(fqName: [
+                interner.intern("Outer"),
+                interner.intern("Color"),
+                interner.intern(propName),
+            ]))
+            #expect(sema.symbols.symbol(propSymbol)?.kind == .property)
+            #expect(sema.symbols.parentSymbol(for: propSymbol) == colorSymbol)
+        }
+    }
+
+    // BUG: see testNestedEnumClassGetsNameOrdinalProperties. `values()` must be
+    // registered directly on the nested enum class itself (not its companion),
+    // mirroring testEnumValuesIsRegisteredDirectlyOnEnumClass's top-level case.
+    @Test func testNestedEnumClassValuesIsRegisteredDirectlyOnNestedEnumClass() throws {
+        let source = """
+        class Outer {
+            enum class Direction { NORTH, SOUTH, EAST, WEST }
+        }
+        fun noop() {}
+        """
+        let (sema, interner) = try makeSema(source: source)
+        let directionSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Direction"),
+        ]))
+        #expect(sema.symbols.symbol(directionSymbol)?.kind == .enumClass)
+
+        let valuesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Direction"),
+            interner.intern("values"),
+        ]))
+        let valuesInfo = try #require(sema.symbols.symbol(valuesSymbol))
+        #expect(valuesInfo.kind == .function)
+        #expect(sema.symbols.parentSymbol(for: valuesSymbol) == directionSymbol)
+
+        let signature = try #require(sema.symbols.functionSignature(for: valuesSymbol))
+        #expect(signature.receiverType == nil, "values() must be receiver-less so it resolves as a static member")
+        #expect(signature.parameterTypes.isEmpty)
+
+        guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
+            Issue.record("Outer.Direction.values() should return Array<Outer.Direction>"); return
+        }
+        let arraySymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("Array"),
+        ]))
+        #expect(returnClassType.classSymbol == arraySymbol)
+        guard let firstArg = returnClassType.args.first, case let .invariant(elementType) = firstArg else {
+            Issue.record("Array<Outer.Direction> should carry Outer.Direction as its single invariant type argument"); return
+        }
+        guard case let .classType(elementClassType) = sema.types.kind(of: elementType) else {
+            Issue.record("Array<Outer.Direction>'s element type should be the Outer.Direction class type"); return
+        }
+        #expect(elementClassType.classSymbol == directionSymbol)
+    }
+
+    // BUG: see testNestedEnumClassGetsNameOrdinalProperties. When a nested enum
+    // class has no explicit `companion object`, MemberHeaderCollection must
+    // synthesize an implicit one (mirroring HeaderCollection's top-level
+    // `else if declaration.kind == .enumClass` branch) so `valueOf`/`entries`
+    // have somewhere to live.
+    @Test func testNestedEnumClassGetsImplicitCompanionWithValueOfAndEntries() throws {
+        let source = """
+        class Outer {
+            enum class Color { RED, BLUE }
+        }
+        fun noop() {}
+        """
+        let (sema, interner) = try makeSema(source: source)
+        let colorSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Color"),
+        ]))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: colorSymbol))
+        #expect(sema.symbols.symbol(companionSymbol)?.kind == .object)
+        #expect(sema.symbols.symbol(companionSymbol)?.flags.contains(.synthetic) == true)
+
+        let valueOfSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Color"),
+            interner.intern("Companion"),
+            interner.intern("valueOf"),
+        ]))
+        #expect(sema.symbols.symbol(valueOfSymbol)?.kind == .function)
+
+        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("enums"),
+            interner.intern("EnumEntries"),
+        ]))
+        let entriesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Color"),
+            interner.intern("Companion"),
+            interner.intern("entries"),
+        ]))
+        let entriesType = try #require(sema.symbols.propertyType(for: entriesSymbol))
+        guard case let .classType(entriesClassType) = sema.types.kind(of: entriesType) else {
+            Issue.record("Outer.Color.entries should have EnumEntries<Outer.Color> type"); return
+        }
+        #expect(entriesClassType.classSymbol == enumEntriesSymbol)
+    }
+
+    // Nested interfaces route their own nested classes through the very same
+    // collectNestedClassOrInterfaceHeader that classes/objects use, so an enum
+    // class nested inside an interface must get identical treatment.
+    @Test func testEnumClassNestedInsideInterfaceGetsFullSurface() throws {
+        let source = """
+        interface Outer {
+            enum class Color { RED, BLUE }
+        }
+        fun noop() {}
+        """
+        let (sema, interner) = try makeSema(source: source)
+        let colorSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"),
+            interner.intern("Color"),
+        ]))
+        #expect(sema.symbols.symbol(colorSymbol)?.kind == .enumClass)
+        #expect(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"), interner.intern("Color"), interner.intern("name"),
+        ]) != nil)
+        #expect(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"), interner.intern("Color"), interner.intern("values"),
+        ]) != nil)
+        #expect(sema.symbols.lookup(fqName: [
+            interner.intern("Outer"), interner.intern("Color"), interner.intern("Companion"), interner.intern("entries"),
+        ]) != nil)
+    }
 }
 #endif
