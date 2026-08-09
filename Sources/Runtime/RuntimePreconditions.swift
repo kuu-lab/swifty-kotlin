@@ -207,13 +207,15 @@ func runtimePreconditionMessage(from rawValue: Int) -> String {
     return "<object \(pointer)>"
 }
 
-// MARK: - synchronized (STDLIB-325)
+// MARK: - synchronized (STDLIB-325 / KSP-618)
 
 /// Runtime support for kotlin.synchronized(lock, block).
 /// Uses NSRecursiveLock-based per-object locking. The lock argument is used as a key
 /// to obtain a reentrant lock, and the block lambda is executed under that lock.
-@_cdecl("kk_synchronized")
-public func kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+/// The public `synchronized` layer is Kotlin source (Stdlib/kotlin/Synchronized.kt)
+/// delegating to this demoted bridge.
+@_cdecl("__kk_synchronized")
+public func __kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let nsLock = runtimeGetOrCreateLock(for: lock)
     nsLock.lock()

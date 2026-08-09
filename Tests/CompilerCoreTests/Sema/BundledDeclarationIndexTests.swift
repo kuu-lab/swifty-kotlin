@@ -154,7 +154,7 @@ struct BundledDeclarationIndexTests {
             )
         }
 
-        for (member, linkName) in [("any", "kk_iterable_any"), ("all", "kk_iterable_all")] {
+        for (member, linkName) in [("any", "__kk_iterable_any"), ("all", "__kk_iterable_all")] {
             let name = ctx.interner.intern(member)
             let syntheticPredicateMembers = matchingFunctions(
                 owner: iterableOwner,
@@ -171,16 +171,16 @@ struct BundledDeclarationIndexTests {
             )
         }
 
+        // KSP-435: Iterable.any() is bundled Kotlin source (Iterables.kt).
         let anyZeroArgSynthetic = matchingFunctions(
             owner: iterableOwner,
             name: ctx.interner.intern("any"),
             arity: 0,
             sema: sema
         ).contains {
-            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
-                sema.symbols.externalLinkName(for: $0) == "kk_iterable_any"
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
         }
-        #expect(anyZeroArgSynthetic, "Expected Iterable.any() synthetic stub to remain")
+        #expect(!anyZeroArgSynthetic, "Expected Iterable.any() synthetic stub to be removed")
 
         let syntheticCountLinks = sema.symbols.allSymbols().filter { symbol in
             guard let linkName = sema.symbols.externalLinkName(for: symbol.id) else {
@@ -206,18 +206,18 @@ struct BundledDeclarationIndexTests {
             "Expected bundled List.joinToString to suppress the synthetic default stub"
         )
 
+        // KSP-435: Iterable.joinToString is bundled Kotlin source (Iterables.kt).
         let iterableJoinDefaults = matchingFunctions(
             owner: iterableOwner,
             name: joinToStringName,
             arity: 3,
             sema: sema
         ).filter {
-            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
-                sema.symbols.externalLinkName(for: $0) == "kk_iterable_joinToString"
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
         }
         #expect(
-            !iterableJoinDefaults.isEmpty,
-            "Expected Iterable.joinToString synthetic default stub to be retained for non-List Iterable receivers"
+            iterableJoinDefaults.isEmpty,
+            "Expected bundled Iterable.joinToString to suppress the synthetic default stub"
         )
 
         let listJoinTransforms = matchingFunctions(

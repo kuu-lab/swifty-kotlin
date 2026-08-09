@@ -305,15 +305,6 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        emitDataClassFieldRegistration(
-            objectSymbol: objectSymbol,
-            classID: typeID,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
-
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(
             objectSymbol: objectSymbol,
