@@ -266,8 +266,6 @@ package struct KnownCompilerNames {
     let simpleName: InternedString
     let qualifiedName: InternedString
     let isInstanceName: InternedString
-    let kClassCastName: InternedString
-    let kClassSafeCastName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
     let primaryConstructorName: InternedString
@@ -457,8 +455,6 @@ package struct KnownCompilerNames {
         simpleName = interner.intern("simpleName")
         qualifiedName = interner.intern("qualifiedName")
         isInstanceName = interner.intern("isInstance")
-        kClassCastName = interner.intern("cast")
-        kClassSafeCastName = interner.intern("safeCast")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
         primaryConstructorName = interner.intern("primaryConstructor")

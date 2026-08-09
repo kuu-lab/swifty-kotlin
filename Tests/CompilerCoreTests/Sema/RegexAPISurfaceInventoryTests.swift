@@ -209,37 +209,16 @@ struct RegexAPISurfaceInventoryTests {
                        "Regex.replace(input, transform) must link to kk_regex_replace_lambda")
     }
 
-    // MARK: - 4. Regex properties
+    // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
 
-    @Test func testRegexPatternPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "Regex", "pattern"],
-            sema: sema,
-            interner: interner
+    @Test func testRegexAccessorsAreNoLongerRuntimeLinked() throws {
+        let (sema, _) = try makeSema()
+        let removed = ["kk_regex_pattern", "kk_regex_options", "kk_regex_group_names"]
+        let present = registeredLinkNames(sema: sema).intersection(removed)
+        #expect(
+            present.isEmpty,
+            Comment(rawValue: "Regex.pattern/options/groupNames are Kotlin source now; stale links: \(present)")
         )
-        #expect(link == "kk_regex_pattern", "Regex.pattern must link to kk_regex_pattern")
-    }
-
-    @Test func testRegexOptionsPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "Regex", "options"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_regex_options", "Regex.options must link to kk_regex_options")
-    }
-
-    @Test func testRegexGroupNamesPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "Regex", "groupNames"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_regex_group_names",
-                       "Regex.groupNames must link to kk_regex_group_names")
     }
 
     // MARK: - 5. Companion methods (fromLiteral)
@@ -257,154 +236,56 @@ struct RegexAPISurfaceInventoryTests {
         )
     }
 
-    // MARK: - 6. MatchResult properties and functions
+    // MARK: - 6-8. MatchResult / MatchGroup layer (KSP-486: Kotlin source)
 
-    @Test func testMatchResultValueIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        // MatchResult.value has multiple registrations (on MatchResult and MatchGroup);
-        // verify the MatchResult one exists.
-        let fq = ["kotlin", "text", "MatchResult", "value"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
+    /// The whole MatchResult / MatchGroup / MatchGroupCollection / Destructured
+    /// public layer lives in `__bundled_kotlin/text/MatchResult.kt`; only the raw
+    /// match-position `__kk_*` bridges remain in the runtime.
+    @Test func testMatchResultLayerIsNoLongerRuntimeLinked() throws {
+        let (sema, _) = try makeSema()
+        var removed: Set<String> = [
+            "kk_match_result_value",
+            "kk_match_result_range",
+            "kk_match_result_groups",
+            "kk_match_result_groupValues",
+            "kk_match_result_component1",
+            "kk_match_result_component2",
+            "kk_match_result_next",
+            "kk_match_result_destructured",
+            "kk_match_result_destructured_match",
+            "kk_match_group_collection_get",
+            "kk_match_group_collection_get_at",
+            "kk_match_group_collection_size",
+            "kk_match_group_value",
+            "kk_match_group_range",
+        ]
+        for index in 1 ... 9 {
+            removed.insert("kk_match_result_destructured_component\(index)")
+        }
+        let present = registeredLinkNames(sema: sema).intersection(removed)
         #expect(
-            links.contains("kk_match_result_value"),
-            Comment(rawValue: "MatchResult.value must link to kk_match_result_value; found: \(links)")
+            present.isEmpty,
+            Comment(rawValue: "MatchResult/MatchGroup layer is Kotlin source now; stale links: \(present)")
         )
     }
 
-    @Test func testMatchResultRangeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "range"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_result_range"),
-            Comment(rawValue: "MatchResult.range must link to kk_match_result_range; found: \(links)")
-        )
-    }
-
-    @Test func testMatchResultGroupsIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchResult", "groups"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_result_groups",
-                       "MatchResult.groups must link to kk_match_result_groups")
-    }
-
-    @Test func testMatchResultGroupValuesIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchResult", "groupValues"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_result_groupValues",
-                       "MatchResult.groupValues must link to kk_match_result_groupValues")
-    }
-
-    @Test func testMatchResultComponent1IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchResult", "component1"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_result_component1",
-                       "MatchResult.component1() must link to kk_match_result_component1")
-    }
-
-    @Test func testMatchResultComponent2IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchResult", "component2"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_result_component2",
-                       "MatchResult.component2() must link to kk_match_result_component2")
-    }
-
-    @Test func testMatchResultNextIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchResult", "next"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_result_next",
-                       "MatchResult.next() must link to kk_match_result_next")
-    }
-
-    // MARK: - 7. MatchGroupCollection
-
-    @Test func testMatchGroupCollectionGetByNameIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_group_collection_get"),
-            Comment(rawValue: "MatchGroupCollection.get(name) must link to kk_match_group_collection_get; found: \(links)")
-        )
-    }
-
-    @Test func testMatchGroupCollectionGetByIndexIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_group_collection_get_at"),
-            Comment(rawValue: "MatchGroupCollection.get(index) must link to kk_match_group_collection_get_at; found: \(links)")
-        )
-    }
-
-    @Test func testMatchGroupCollectionHasBothGetOverloads() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        #expect(
-            syms.count >= 2,
-            "MatchGroupCollection.get must have at least 2 overloads (by-name and by-index)"
-        )
-    }
-
-    @Test func testMatchGroupCollectionSizeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchGroupCollection", "size"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_group_collection_size",
-                       "MatchGroupCollection.size must link to kk_match_group_collection_size")
-    }
-
-    // MARK: - 8. MatchGroup properties
-
-    @Test func testMatchGroupValueIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchGroup", "value"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_group_value",
-                       "MatchGroup.value must link to kk_match_group_value")
-    }
-
-    @Test func testMatchGroupRangeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "text", "MatchGroup", "range"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_match_group_range",
-                       "MatchGroup.range must link to kk_match_group_range")
+    /// The remaining raw bridges must stay wired, since the Kotlin layer calls them.
+    @Test func testRawMatchDataBridgesAreRegistered() throws {
+        let (sema, _) = try makeSema()
+        let bridges: Set<String> = [
+            "__kk_match_result_group_count",
+            "__kk_match_result_group_value",
+            "__kk_match_result_group_start",
+            "__kk_match_result_group_end",
+            "__kk_match_result_group_index_of_name",
+            "__kk_match_result_next",
+            "__kk_match_result_destructured",
+            "__kk_match_result_destructured_match",
+            "__kk_regex_pattern",
+            "__kk_regex_option_mask",
+        ]
+        let missing = bridges.subtracting(registeredLinkNames(sema: sema))
+        #expect(missing.isEmpty, Comment(rawValue: "Missing raw match-data bridges: \(missing)"))
     }
 
     // MARK: - 9. String extension: replaceFirst / split with Regex
@@ -742,26 +623,8 @@ struct RegexAPISurfaceInventoryTests {
             (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll_flat"),
             (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire_flat"),
             (["kotlin", "text", "Regex", "replace"], "kk_regex_replace_lambda"),
-            // Properties
-            (["kotlin", "text", "Regex", "pattern"], "kk_regex_pattern"),
-            (["kotlin", "text", "Regex", "options"], "kk_regex_options"),
-            (["kotlin", "text", "Regex", "groupNames"], "kk_regex_group_names"),
             // Companion
             (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal_flat"),
-            // MatchResult
-            (["kotlin", "text", "MatchResult", "value"], "kk_match_result_value"),
-            (["kotlin", "text", "MatchResult", "range"], "kk_match_result_range"),
-            (["kotlin", "text", "MatchResult", "groups"], "kk_match_result_groups"),
-            (["kotlin", "text", "MatchResult", "groupValues"], "kk_match_result_groupValues"),
-            (["kotlin", "text", "MatchResult", "component1"], "kk_match_result_component1"),
-            (["kotlin", "text", "MatchResult", "component2"], "kk_match_result_component2"),
-            (["kotlin", "text", "MatchResult", "next"], "kk_match_result_next"),
-            // MatchGroup
-            (["kotlin", "text", "MatchGroup", "value"], "kk_match_group_value"),
-            (["kotlin", "text", "MatchGroup", "range"], "kk_match_group_range"),
-            // MatchGroupCollection
-            (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get"),
-            (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get_at"),
             // String extensions
             (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
             (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
@@ -783,6 +646,11 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     // MARK: - Helpers
+
+    /// Every external link name registered in the symbol table after sema.
+    private func registeredLinkNames(sema: SemaModule) -> Set<String> {
+        Set(sema.symbols.allSymbols().compactMap { sema.symbols.externalLinkName(for: $0.id) })
+    }
 
     private func allExprIDs(
         in ast: ASTModule,

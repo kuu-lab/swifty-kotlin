@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendNumericBoundariesTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testNumericBoundaryUnsignedCompanionConstants() throws {
         let source = """
         fun main() {
@@ -49,6 +111,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundaryConversionTruncation() throws {
         let source = """
         fun main() {
@@ -94,6 +157,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundaryFloatToInt() throws {
         let source = """
         fun main() {
@@ -137,6 +201,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundaryUIntArithmeticWraps() throws {
         let source = """
         fun main() {
@@ -156,6 +221,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundaryUnsignedNarrowingConversions() throws {
         let source = """
         fun main() {
@@ -185,6 +251,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundarySignedUnsignedReinterpretation() throws {
         // Regression for kk_int_to_uint / kk_long_to_uint / kk_uint_to_int /
         // kk_ulong_to_int: these used to be identity functions, so a negative
@@ -219,6 +286,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundaryIntToCharTruncates() throws {
         let source = """
         fun main() {
@@ -240,6 +308,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testNumericBoundaryCharArithmeticBasics() throws {
         let source = """
         fun main() {
@@ -269,4 +338,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-
+#endif

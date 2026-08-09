@@ -1297,6 +1297,12 @@ public final class BindingTable {
     /// lowering needs this durable side-channel to know what type to load a
     /// captured field back as.
     public private(set) var capturedLocalTypesBySymbol: [SymbolID: TypeID] = [:]
+    /// Maps a destructuring declaration (or `for (a, b) in ...`) expression to the
+    /// `componentN` function chosen per position. Names like `component1` are
+    /// shared by several declarations (Pair, user extensions, bundled stdlib
+    /// extensions), so KIR lowering must dispatch on the resolved symbol rather
+    /// than re-resolving by name.
+    public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
 
     public init() {}
 
@@ -1345,6 +1351,14 @@ public final class BindingTable {
 
     public func bindCatchClause(_ catchBodyExpr: ExprID, binding: CatchClauseBinding) {
         catchClauseBindings[catchBodyExpr] = binding
+    }
+
+    public func bindDestructuringComponentCallee(_ expr: ExprID, index: Int, symbol: SymbolID) {
+        destructuringComponentCallees[expr, default: [:]][index] = symbol
+    }
+
+    public func destructuringComponentCallee(for expr: ExprID, index: Int) -> SymbolID? {
+        destructuringComponentCallees[expr]?[index]
     }
 
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {

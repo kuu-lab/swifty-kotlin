@@ -83,6 +83,12 @@ struct RuntimeABIExternalLinkValidationTests {
                 failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
                 continue
             }
+            // Constructors allocate the instance, so their ABI shape (nullable message
+            // pointer, allocation return) does not follow the value-parameter mapping
+            // used for functions. Arity is still validated above.
+            guard !declaration.isConstructor else {
+                continue
+            }
             let expectedParameterTypes = expectedRuntimeABIParameterTypes(for: declaration)
             let expectedReturnType = expectedRuntimeABIReturnType(for: declaration)
             for spec in specs {
@@ -149,7 +155,7 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
-            "__string_struct_get_length",
+            "__kk_string_struct_get_length",
         ]
     }
 
@@ -198,6 +204,7 @@ struct RuntimeABIExternalLinkValidationTests {
         let valueParameterTypes: [String]
         let valueParameterIsVararg: [Bool]
         let returnType: String?
+        let isConstructor: Bool
         let relativePath: String
     }
 
@@ -260,23 +267,26 @@ struct RuntimeABIExternalLinkValidationTests {
                 continue
             }
 
-            guard !pendingLinkNames.isEmpty else {
-                continue
-            }
+            // Constructors carry their own lowering (the runtime allocates the
+            // object) and have no `fun` header to derive a signature from, so
+            // their annotations must not leak onto the next function below.
             if isConstructorDeclaration(line) {
-                // Constructor bridges are not modeled by this signature check;
-                // consume the pending annotations so they are not misattributed
-                // to the next function declaration in the same file.
                 pendingLinkNames.removeAll()
                 pendingScope = nil
                 continue
             }
-            guard let functionHeader = functionHeader(startingAt: index, in: lines),
+
+            guard !pendingLinkNames.isEmpty,
+                  let functionHeader = functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
                 continue
             }
-            let hasReceiver = (pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader)
+            // A constructor allocates the instance instead of receiving one, so it has no
+            // receiver parameter even though it is declared inside a class scope.
+            let isConstructor = headerIsConstructor(functionHeader)
+            let hasReceiver = !isConstructor
+                && ((pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
@@ -288,6 +298,7 @@ struct RuntimeABIExternalLinkValidationTests {
                         valueParameterTypes: signature.valueParameterTypes,
                         valueParameterIsVararg: signature.valueParameterIsVararg,
                         returnType: signature.returnType,
+                        isConstructor: isConstructor,
                         relativePath: relativePath
                     )
                 )
@@ -300,12 +311,12 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func isConstructorDeclaration(_ line: String) -> Bool {
-        guard let constructorRange = line.range(of: "constructor") else {
-            return false
-        }
-        return line[constructorRange.upperBound...]
-            .drop(while: { $0 == " " })
-            .first == "("
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("//") && !trimmed.hasPrefix("*") else { return false }
+        guard let range = trimmed.range(of: "constructor(") else { return false }
+        let prefix = trimmed[..<range.lowerBound]
+        return prefix.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            .allSatisfy { ["public", "internal", "private", "protected"].contains(String($0)) }
     }
 
     private func ksSymbolNameArgument(in line: String) -> String? {
@@ -329,9 +340,16 @@ struct RuntimeABIExternalLinkValidationTests {
                 break
             }
         }
-        return header.contains(" fun ") || header.trimmingCharacters(in: .whitespaces).hasPrefix("fun ")
-            ? header
-            : nil
+        let trimmed = header.trimmingCharacters(in: .whitespaces)
+        if header.contains(" fun ") || trimmed.hasPrefix("fun ") {
+            return header
+        }
+        return headerIsConstructor(header) ? header : nil
+    }
+
+    private func headerIsConstructor(_ header: String) -> Bool {
+        let trimmed = header.trimmingCharacters(in: .whitespaces)
+        return header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
     }
 
     private struct FunctionSignatureInfo {
@@ -346,10 +364,14 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
-        guard let funRange = header.range(of: "fun ") else {
+        let suffix: Substring
+        if let funRange = header.range(of: "fun ") {
+            suffix = header[funRange.upperBound...]
+        } else if let constructorRange = header.range(of: "constructor") {
+            suffix = header[constructorRange.upperBound...]
+        } else {
             return nil
         }
-        let suffix = header[funRange.upperBound...]
         guard let openParen = suffix.firstIndex(of: "(") else {
             return nil
         }

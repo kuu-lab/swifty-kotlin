@@ -205,6 +205,12 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// KSP-652: the `OpenEndRange<T>` declaration is source-backed by
+    /// `Stdlib/kotlin/ranges/Ranges.kt`, which reuses this shell on bundle load (the
+    /// `.synthetic` flag is cleared then). The shell has to stay because `rangeUntil` and the
+    /// concrete range conformances are registered before bundled headers are collected and need
+    /// the symbol to already exist; its members stay compiler-side residuals for the same
+    /// reason as the `ClosedRange` ones. See `HeaderHelpers+SyntheticRangeInterfaceStubs.swift`.
     private func registerSyntheticOpenEndRangeStub(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],

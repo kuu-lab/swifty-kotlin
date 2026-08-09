@@ -29,6 +29,26 @@ struct RuntimeArrayBoundsTests {
         #expect(outThrown == 0)
     }
 
+    /// kk_array_get_inbounds must read a single element, not materialise the
+    /// whole backing store per access: it is the hot path for object field
+    /// reads, and copying made every read O(size). A quadratic implementation
+    /// turns this scan into ~10^10 element copies and never finishes.
+    @Test
+    func testArrayGetInboundsIsConstantTimePerElement() {
+        let count = 100_000
+        let array = kk_array_new(count)
+        var outThrown = 0
+        for index in 0..<count {
+            #expect(kk_array_set(array, index, index * 2, &outThrown) == index * 2)
+        }
+
+        var sum = 0
+        for index in 0..<count {
+            sum += kk_array_get_inbounds(array, index)
+        }
+        #expect(sum == count * (count - 1))
+    }
+
     @Test
     func testArrayOutOfBoundsSetsThrownChannel() {
         let array = kk_array_new(1)
