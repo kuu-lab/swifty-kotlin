@@ -7,7 +7,7 @@ import kswiftk.internal.*
 private fun ksp401StringFromCharSequence(value: CharSequence): String {
     val builder = StringBuilder()
     var i = 0
-    while (i < __string_struct_get_length(value)) {
+    while (i < __kk_string_struct_get_length(value)) {
         builder.append(value[i])
         i++
     }
@@ -18,13 +18,13 @@ private fun ksp401IsWhitespace(value: Char): Boolean {
     return value == ' ' || value == '\t' || value == '\n' || value == '\r'
 }
 
-public fun CharSequence.isEmpty(): Boolean = __string_struct_get_length(this) == 0
+public fun CharSequence.isEmpty(): Boolean = __kk_string_struct_get_length(this) == 0
 
-public fun CharSequence.isNotEmpty(): Boolean = __string_struct_get_length(this) != 0
+public fun CharSequence.isNotEmpty(): Boolean = __kk_string_struct_get_length(this) != 0
 
 public fun CharSequence.isBlank(): Boolean {
     var i = 0
-    while (i < __string_struct_get_length(this)) {
+    while (i < __kk_string_struct_get_length(this)) {
         if (!ksp401IsWhitespace(this[i])) return false
         i++
     }

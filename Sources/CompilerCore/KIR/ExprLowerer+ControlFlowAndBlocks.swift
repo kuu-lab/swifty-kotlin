@@ -171,7 +171,7 @@ extension ExprLowerer {
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
                         emitNonThrowingCall(
-                            callee: interner.intern("__string_struct_get_length"),
+                            callee: interner.intern("__kk_string_struct_get_length"),
                             arg: receiverExprID,
                             result: result,
                             into: &instructions
