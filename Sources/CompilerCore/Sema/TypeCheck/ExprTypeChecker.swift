@@ -179,8 +179,16 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedType)
-                // Emit subtype constraint: return value must conform to expected (function) return type
-                if let expectedType {
+                // Emit subtype constraint: return value must conform to expected (function) return type.
+                // Range expressions keep their runtime representation separate from the
+                // source-level range interface (they infer as the scalar element type),
+                // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
+                // the local-declaration rule in LocalDeclTypeChecker.
+                let returnsRangeExpr = sema.bindings.isRangeExpr(value)
+                    && (expectedType.map {
+                        driver.helpers.isRangeLikeType($0, sema: sema, interner: interner)
+                    } ?? false)
+                if let expectedType, !returnsRangeExpr {
                     driver.emitSubtypeConstraint(
                         left: resolved,
                         right: expectedType,

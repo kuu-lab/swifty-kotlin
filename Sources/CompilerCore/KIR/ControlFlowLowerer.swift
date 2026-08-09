@@ -192,6 +192,12 @@ final class ControlFlowLowerer {
             iterableType: iterableType,
             sema: sema,
             interner: interner
+        ) ?? resolveDirectRangeIteratorOperator(
+            iterableExpr: iterableExpr,
+            iterableType: iterableType,
+            ast: ast,
+            sema: sema,
+            interner: interner
         )
 
         let iteratorID = arena.appendTemporary(type: sema.types.anyType)
@@ -770,6 +776,57 @@ final class ControlFlowLowerer {
             }
         }
         return nil
+    }
+
+    /// KSP-452: a direct range expression (`for (i in 1..10)`, `downTo`, `until`,
+    /// `step`) is typed as its element primitive plus a semantic range marker
+    /// rather than as `kotlin.ranges.IntRange`, so the class-based lookup in
+    /// `resolveCustomIteratorOperator` cannot see the bundled `iterator()`
+    /// operator. Resolve it against the nominal range class instead, so a direct
+    /// range loop uses the same `.iterator()` chain as a range held in an
+    /// `IntRange` / `LongRange` / `CharRange` typed value. Unsigned ranges keep
+    /// the legacy `kk_uint_range_*` / `kk_ulong_range_*` intrinsics: they have no
+    /// bundled iterator yet.
+    private func resolveDirectRangeIteratorOperator(
+        iterableExpr: ExprID,
+        iterableType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> CustomIteratorResolution? {
+        guard sema.bindings.isRangeExpr(iterableExpr)
+            || ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast)
+        else {
+            return nil
+        }
+        let nonNullType = sema.types.makeNonNullable(iterableType)
+        let rangeClassName: String
+        if sema.bindings.isCharRangeExpr(iterableExpr) || nonNullType == sema.types.charType {
+            rangeClassName = "CharRange"
+        } else if nonNullType == sema.types.longType {
+            rangeClassName = "LongRange"
+        } else if nonNullType == sema.types.intType {
+            rangeClassName = "IntRange"
+        } else {
+            return nil
+        }
+        guard let rangeClassSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern(rangeClassName),
+        ]) else {
+            return nil
+        }
+        let rangeType = sema.types.make(.classType(ClassType(
+            classSymbol: rangeClassSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        return resolveCustomIteratorOperator(
+            iterableType: rangeType,
+            sema: sema,
+            interner: interner
+        )
     }
 
     /// Resolves user-defined `operator fun iterator()` on the iterable type,

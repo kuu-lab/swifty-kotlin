@@ -13,9 +13,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // KSP-635: abs/sign/min/max and the PI/E constants live in bundled
-        // Kotlin source (Stdlib/kotlin/math/Math.kt).
-
         registerSyntheticMathTopLevelFunction(
             named: "sqrt",
             packageFQName: kotlinMathPkg,
@@ -561,7 +558,6 @@ extension DataFlowSemaPhase {
         )
 
         // STDLIB-MATH-004: official kotlin.math extension property surface.
-        // absoluteValue / sign are Kotlin source (KSP-635).
         for property in [
             (name: "ulp", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_double_ulp"),
             (name: "ulp", receiverType: floatType, returnType: floatType, linkName: "kk_float_ulp"),

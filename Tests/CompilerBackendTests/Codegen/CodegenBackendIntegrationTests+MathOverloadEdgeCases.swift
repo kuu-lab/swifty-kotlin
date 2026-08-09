@@ -89,7 +89,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
     }
 
     @Test
-    func testCodegenMathExtensionPropertiesLowerToRuntimeHelpers() throws {
+    func testCodegenMathExtensionPropertiesLowerToSourceBackedAccessors() throws {
         let source = """
         import kotlin.math.*
 
@@ -127,6 +127,8 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             for expected in [
+                "absoluteValue",
+                "sign",
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
@@ -137,6 +139,8 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             for extensionHelper in [
+                "absoluteValue",
+                "sign",
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
@@ -145,6 +149,77 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                     "Extension property helper \(extensionHelper) must not be emitted as a top-level initializer"
                 )
             }
+
+            for removedHelper in [
+                "kk_math_abs_int",
+                "kk_math_abs_long",
+                "kk_math_abs_float",
+                "kk_math_abs",
+                "kk_math_sign_int",
+                "kk_math_sign_long",
+                "kk_math_sign_float",
+                "kk_math_sign",
+            ] {
+                #expect(
+                    !calls.contains(where: { $0.0 == removedHelper }),
+                    "\(removedHelper) is Kotlin-source backed and must not be called, got \(calls)"
+                )
+            }
+        }
+    }
+
+    @Test
+    func testCodegenMathMinMaxOverloadsLowerToSourceBackedCalls() throws {
+        let source = """
+        import kotlin.math.*
+
+        fun sample(
+            d1: Double, d2: Double,
+            f1: Float, f2: Float,
+            i1: Int, i2: Int,
+            l1: Long, l2: Long,
+            ui1: UInt, ui2: UInt,
+            ul1: ULong, ul2: ULong
+        ) {
+            val maxD = max(d1, d2)
+            val maxF = max(f1, f2)
+            val maxI = max(i1, i2)
+            val maxL = max(l1, l2)
+            val maxUI = max(ui1, ui2)
+            val maxUL = max(ul1, ul2)
+            val minD = min(d1, d2)
+            val minF = min(f1, f2)
+            val minI = min(i1, i2)
+            val minL = min(l1, l2)
+            val minUI = min(ui1, ui2)
+            val minUL = min(ul1, ul2)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "MathMinMaxOverloads", emit: .kirDump)
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
+            let calls = body.compactMap { instruction -> (String, Int)? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
+                    return nil
+                }
+                return (ctx.interner.resolve(callee), arguments.count)
+            }
+
+            for expected in ["max", "min"] {
+                #expect(
+                    calls.filter { $0 == expected && $1 == 2 }.count == 6,
+                    "Expected six source-backed \(expected) overload calls, got \(calls)"
+                )
+            }
+
+            #expect(
+                !calls.contains(where: { $0.0.hasPrefix("kk_math_max") || $0.0.hasPrefix("kk_math_min") }),
+                "min/max are Kotlin-source backed and must not call kk_math_* helpers, got \(calls)"
+            )
         }
     }
 
@@ -260,7 +335,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
     // PARITY-SEMA-003: kotlin.math.abs(x) called via FQN (no import) must lower identically to the import path.
     @Test
-    func testCodegenFQNMathCallsLowerToRuntimeHelpers() throws {
+    func testCodegenFQNMathCallsLowerLikeImportedCalls() throws {
         let source = """
         fun sample(i: Int, d: Double) {
             val absI = kotlin.math.abs(i)
@@ -280,12 +355,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 return ctx.interner.resolve(callee)
             }
 
-            #expect(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
-            // KSP-635: abs is bundled Kotlin source, so no runtime bridge is emitted.
             #expect(
-                !callees.contains(where: { $0.hasPrefix("kk_math_abs") }),
-                "FQN abs must not lower to a runtime bridge, got \(callees)"
+                callees.filter { $0 == "abs" }.count == 2,
+                "FQN abs(Int)/abs(Double) must lower to the Kotlin-source abs, got \(callees)"
             )
+            #expect(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
         }
     }
 

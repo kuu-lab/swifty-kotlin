@@ -125,7 +125,10 @@ struct MathSyntheticTopLevelLinkTests {
                 guard let expr = ast.arena.expr(exprID) else { continue }
                 guard case let .call(calleeExpr, _, _, _) = expr else { continue }
                 guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else { continue }
-                guard isUserSourceExpr(exprID, in: ctx) else { continue }
+                // Bundled stdlib sources share the arena; keep user-file calls only.
+                guard ast.arena.exprRange(exprID)?.start.file == ast.sortedFiles.last?.fileID else {
+                    continue
+                }
                 let name = ctx.interner.resolve(calleeName)
                 callByName[name, default: []].append(exprID)
                 if name == "abs" {
@@ -135,14 +138,15 @@ struct MathSyntheticTopLevelLinkTests {
 
             #expect(absCalls.count == 2, "Expected int and double abs calls")
 
-            // KSP-635: abs comes from bundled Kotlin source, so it resolves to a
-            // kotlin.math symbol without an external runtime link.
             for absCall in absCalls {
                 let chosenCallee = try #require(
                     sema.bindings.callBinding(for: absCall)?.chosenCallee,
                     "Expected chosen callee for abs"
                 )
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "abs is Kotlin-source backed and must not carry a runtime link"
+                )
             }
 
             let expectedOrder: [(String, String)] = [
@@ -154,7 +158,8 @@ struct MathSyntheticTopLevelLinkTests {
             ]
             var consumedByName: [String: Int] = [:]
 
-            for (name, expectedLink) in expectedOrder {
+            for expected in expectedOrder {
+                let (name, expectedLink) = expected
                 let callExpr: ExprID = {
                     let selectedIndex = consumedByName[name, default: 0]
                     consumedByName[name] = selectedIndex + 1
@@ -226,7 +231,15 @@ struct MathSyntheticTopLevelLinkTests {
 
     @Test func testMathExtensionPropertySymbolsUseOfficialShape() throws {
         let (sema, interner) = try makeSema()
-        let expected: [(String, TypeID, TypeID, String)] = [
+        let expected: [(String, TypeID, TypeID, String?)] = [
+            ("absoluteValue", sema.types.doubleType, sema.types.doubleType, nil),
+            ("absoluteValue", sema.types.floatType, sema.types.floatType, nil),
+            ("absoluteValue", sema.types.intType, sema.types.intType, nil),
+            ("absoluteValue", sema.types.longType, sema.types.longType, nil),
+            ("sign", sema.types.doubleType, sema.types.doubleType, nil),
+            ("sign", sema.types.floatType, sema.types.floatType, nil),
+            ("sign", sema.types.intType, sema.types.intType, nil),
+            ("sign", sema.types.longType, sema.types.intType, nil),
             ("ulp", sema.types.doubleType, sema.types.doubleType, "kk_double_ulp"),
             ("ulp", sema.types.floatType, sema.types.floatType, "kk_float_ulp"),
         ]
@@ -292,6 +305,10 @@ struct MathSyntheticTopLevelLinkTests {
             ] {
                 #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
             }
+            #expect(
+                !resolvedLinks.contains { $0.hasPrefix("kk_math_") },
+                "absoluteValue/sign are Kotlin-source backed, got \(resolvedLinks)"
+            )
         }
     }
 

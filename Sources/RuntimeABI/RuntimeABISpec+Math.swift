@@ -304,6 +304,7 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
+        // STDLIB-500~509: Float overloads
         RuntimeABIFunctionSpec(
             name: "kk_math_sin_float",
             parameters: [

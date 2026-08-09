@@ -67,8 +67,7 @@ struct MathAPITargetInventoryTests {
 
     private static let targetSignatures = Set(targetSignatureList)
 
-    /// KSP-635: implemented in bundled Kotlin source (`Stdlib/kotlin/math/Math.kt`),
-    /// so these carry no synthetic runtime link.
+    // KSP-635: migrated to Sources/CompilerCore/Stdlib/kotlin/math/Math.kt.
     private static let sourceBackedSignatures: Set<String> = [
         "val E: Double",
         "val PI: Double",
@@ -222,29 +221,30 @@ struct MathAPITargetInventoryTests {
         }
     }
 
-    @Test func testSourceBackedInventoryEntriesHaveNoSyntheticLink() throws {
+    @Test func testSourceBackedInventoryEntriesHaveNoRuntimeMathLink() throws {
         let (sema, interner) = try makeSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for signature in Self.sourceBackedSignatures.sorted() {
             let name = Self.declarationName(signature)
             let symbols = sema.symbols.lookupAll(fqName: mathPrefix + [interner.intern(name)])
-            #expect(!symbols.isEmpty, "Expected \(signature) to be declared in bundled Kotlin source")
-            for symbol in symbols {
-                #expect(
-                    sema.symbols.externalLinkName(for: symbol) == nil,
-                    "Expected \(signature) to have no synthetic runtime link"
-                )
-            }
+            #expect(!symbols.isEmpty, "Expected \(signature) to be declared by kotlin/math/Math.kt")
+            let mathRuntimeLinks = symbols
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+                .filter { $0.hasPrefix("kk_math_") }
+            #expect(
+                mathRuntimeLinks.isEmpty,
+                "Expected \(signature) to stay Kotlin-source backed, got \(mathRuntimeLinks.sorted())"
+            )
         }
     }
 
     @Test func testKnownGapsCoverEveryUnimplementedTargetSignature() {
-        let implemented = Set(Self.implementedLinksBySignature.keys)
+        let implemented = Set(Self.implementedLinksBySignature.keys).union(Self.sourceBackedSignatures)
         let gaps = Self.knownGapSignaturesByTodo.values.reduce(into: Set<String>()) { result, signatures in
             result.formUnion(signatures)
         }
 
-        #expect(Self.targetSignatures.subtracting(implemented).subtracting(Self.sourceBackedSignatures) == gaps)
+        #expect(Self.targetSignatures.subtracting(implemented) == gaps)
         let v = Self.knownGapSignaturesByTodo.keys.allSatisfy { $0.hasPrefix("STDLIB-MATH-") }
         #expect(v)
     }

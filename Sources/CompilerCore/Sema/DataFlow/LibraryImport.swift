@@ -857,16 +857,26 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Member properties with custom getters also carry a precompiled getter
-        // link name. Restore a synthetic accessor so reads route through it.
+        // Member and top-level properties with custom getters also carry a
+        // precompiled getter link name. Restore a synthetic accessor so reads
+        // route through it instead of through a global slot the artifact never
+        // allocates.
+        // A nominal owner is restored by restoreImportedParentSymbol before this
+        // runs, so an owner that is absent or a package means the property is
+        // top-level and its getter takes no receiver.
+        let getterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
         if record.propertyGetterExternalLinkName != nil,
            record.propertyReceiverTypeSignature == nil,
-           let ownerSymbol = symbols.parentSymbol(for: symbol),
-           let ownerInfo = symbols.symbol(ownerSymbol),
-           (ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object)
+           getterOwnerInfo == nil || getterOwnerInfo?.kind == .package
+               || getterOwnerInfo?.kind == .class || getterOwnerInfo?.kind == .interface
+               || getterOwnerInfo?.kind == .object
         {
             symbols.setPropertyHasCustomGetter(true, for: symbol)
-            let ownerType = types.make(.classType(ClassType(classSymbol: ownerSymbol, args: [], nullability: .nonNull)))
+            let ownerType: TypeID? = getterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
             let getName = interner.intern("get")
             let getterFQName = record.fqName + [getName]
             let getterSymbol = symbols.define(
