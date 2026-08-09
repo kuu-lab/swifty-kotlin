@@ -85,6 +85,28 @@ struct ReceiverClassifier {
             ]
     }
 
+    /// BUG-167: True for the `kotlin.collections` iterable *interfaces*, whose
+    /// `iterator()` exists only as a synthetic stub (so Sema binds no loop
+    /// iteration operators) and whose concrete iterator is only known at
+    /// runtime. Concrete types such as `List<T>` are deliberately excluded.
+    func isIterableInterfaceType(_ type: TypeID) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let interfaceNames = [
+            interner.intern("Iterable"),
+            interner.intern("MutableIterable"),
+            interner.intern("Collection"),
+            interner.intern("MutableCollection"),
+        ]
+        let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
+        if symbol.fqName.count == 3, Array(symbol.fqName.prefix(2)) == kotlinCollections {
+            return interfaceNames.contains(symbol.fqName[2])
+        }
+        // Fall back to simple name match only for synthetic symbols (no FQN)
+        return symbol.fqName.isEmpty && interfaceNames.contains(symbol.name)
+    }
+
     func isSequenceLikeType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
