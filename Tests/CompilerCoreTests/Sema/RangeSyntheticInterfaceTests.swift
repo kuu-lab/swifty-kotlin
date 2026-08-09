@@ -54,14 +54,17 @@ struct RangeSyntheticInterfaceTests {
         #expect(sema.types.nominalTypeParameterVariances(for: closedRangeSymbol) == [.invariant])
         #expect(sema.types.nominalTypeParameterVariances(for: closedFloatingPointRangeSymbol) == [.invariant])
 
+        // KSP-652: the bounds come from `T : Comparable<T>` in
+        // `Stdlib/kotlin/ranges/Ranges.kt`, so the argument is the plain use-site (invariant)
+        // projection rather than the `in` projection the synthetic patch used to install.
         let expectedComparableBoundForClosedRange = sema.types.make(.classType(ClassType(
             classSymbol: comparableSymbol,
-            args: [.in(closedRangeTypeParamType)],
+            args: [.invariant(closedRangeTypeParamType)],
             nullability: .nonNull
         )))
         let expectedComparableBoundForFloatingPointRange = sema.types.make(.classType(ClassType(
             classSymbol: comparableSymbol,
-            args: [.in(closedFloatingPointRangeTypeParamType)],
+            args: [.invariant(closedFloatingPointRangeTypeParamType)],
             nullability: .nonNull
         )))
 
@@ -137,6 +140,65 @@ struct RangeSyntheticInterfaceTests {
         #expect(lessThanOrEqualsSignature.receiverType == closedFloatingPointRangeInterfaceType)
         #expect(lessThanOrEqualsSignature.parameterTypes == [closedFloatingPointRangeTypeParamType, closedFloatingPointRangeTypeParamType])
         #expect(lessThanOrEqualsSignature.returnType == sema.types.booleanType)
+    }
+
+    /// KSP-652: `ClosedRange`, `ClosedFloatingPointRange` and `OpenEndRange` are declared in
+    /// `Sources/CompilerCore/Stdlib/kotlin/ranges/Ranges.kt`. The source declarations reuse the
+    /// synthetic shell symbols on bundle load, which clears the `.synthetic` flag, so the
+    /// registered interfaces must be source-backed rather than synthetic.
+    @Test func testRangeInterfaceDeclarationsAreSourceBacked() throws {
+        let (sema, interner) = try makeSema()
+
+        let rangesFQName = ["kotlin", "ranges"].map { interner.intern($0) }
+        for name in ["ClosedRange", "ClosedFloatingPointRange", "OpenEndRange"] {
+            let fqName = rangesFQName + [interner.intern(name)]
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: fqName),
+                Comment(rawValue: "Expected kotlin.ranges.\(name) to be registered")
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+            #expect(symbol.kind == .interface, Comment(rawValue: "kotlin.ranges.\(name) should be an interface"))
+            #expect(
+                !symbol.flags.contains(.synthetic),
+                Comment(rawValue: "kotlin.ranges.\(name) should be source-backed by Stdlib/kotlin/ranges/Ranges.kt")
+            )
+            #expect(
+                sema.types.nominalTypeParameterSymbols(for: symbolID).count == 1,
+                Comment(rawValue: "kotlin.ranges.\(name) should keep its single type parameter")
+            )
+        }
+    }
+
+    @Test func testOpenEndRangeSymbolIsRegisteredWithComparableUpperBound() throws {
+        let (sema, interner) = try makeSema()
+
+        let openEndRangeFQName = ["kotlin", "ranges", "OpenEndRange"].map { interner.intern($0) }
+        let comparableFQName = ["kotlin", "Comparable"].map { interner.intern($0) }
+
+        let openEndRangeSymbol = try #require(sema.symbols.lookup(fqName: openEndRangeFQName))
+        let comparableSymbol = try #require(sema.symbols.lookup(fqName: comparableFQName))
+
+        let typeParamSymbol = try #require(sema.types.nominalTypeParameterSymbols(for: openEndRangeSymbol).first)
+        let typeParamType = sema.types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        // The bound comes from `T : Comparable<T>` in `Stdlib/kotlin/ranges/Ranges.kt`.
+        let expectedBound = sema.types.make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
+
+        #expect(sema.types.nominalTypeParameterVariances(for: openEndRangeSymbol) == [.invariant])
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParamSymbol) == [expectedBound])
+
+        for name in ["start", "endExclusive", "contains", "isEmpty"] {
+            #expect(
+                sema.symbols.lookup(fqName: openEndRangeFQName + [interner.intern(name)]) != nil,
+                Comment(rawValue: "Expected OpenEndRange.\(name) to stay available")
+            )
+        }
     }
 
     @Test func testClosedRangeAndClosedFloatingPointRangeResolveInSource() throws {

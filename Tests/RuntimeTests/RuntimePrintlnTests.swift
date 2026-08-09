@@ -66,10 +66,21 @@ struct RuntimePrintlnTests {
         #expect(output == "?")
     }
 
-    @Test func todoNoArgUsesDefaultMessage() {
-        var thrown = 0
-        _ = kk_todo_noarg(&thrown)
+    @Test func notImplementedErrorNoArgUsesDefaultMessage() {
+        let thrown = __kk_not_implemented_error_new()
         let rendered = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         #expect(rendered == "Throwable(NotImplementedError: An operation is not implemented.)")
+    }
+
+    @Test func notImplementedErrorWithMessageUsesGivenMessage() {
+        let message = "An operation is not implemented: later"
+        let messageRaw = message.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: message.utf8.count) { ptr in
+                Int(bitPattern: kk_string_from_utf8(ptr, Int32(message.utf8.count)))
+            }
+        }
+        let thrown = __kk_not_implemented_error_new_message(messageRaw)
+        let rendered = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
+        #expect(rendered == "Throwable(NotImplementedError: An operation is not implemented: later)")
     }
 }

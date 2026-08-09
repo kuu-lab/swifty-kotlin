@@ -1732,5 +1732,36 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
+        // Runtime-backed Sequence / Iterator itable bridges (STDLIB-ARTIFACT-019)
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_box_iterator",
+            parameters: [
+                RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Sequence",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_iterator_hasNext",
+            parameters: [
+                RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Sequence",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_iterator_next",
+            parameters: [
+                RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Sequence",
+            isThrowing: false
+        ),
     ]
 }
