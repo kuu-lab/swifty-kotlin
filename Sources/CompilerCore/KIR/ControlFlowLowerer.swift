@@ -150,6 +150,27 @@ final class ControlFlowLowerer {
             )
         }
 
+        // BUG-167: Iterables whose `iterator()` can only be resolved at runtime
+        // (see usesDynamicIteratorDispatch) get no LoopIterationBinding from
+        // Sema, so — like arrays above — they would fall into the range
+        // intrinsics below, which reinterpret the collection object as a range
+        // and yield garbage elements (or none at all). Lower them like an
+        // explicit `val it = xs.iterator()` loop instead.
+        if usesDynamicIteratorDispatch(iterableType, sema: sema, interner: interner) {
+            return lowerDynamicIteratorForExpr(
+                exprID,
+                iterableExpr: iterableExpr,
+                bodyExpr: bodyExpr,
+                label: label,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
         let iterableID = driver.lowerExpr(
             iterableExpr,
@@ -391,6 +412,160 @@ final class ControlFlowLowerer {
 
         if let loopVariableSymbol {
             driver.ctx.setLocalValue(elementID, for: loopVariableSymbol)
+        }
+
+        driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
+        _ = driver.lowerExpr(
+            bodyExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        _ = driver.ctx.popLoopControl()
+        instructions.append(.jump(continueLabel))
+        instructions.append(.label(breakLabel))
+
+        if let loopVariableSymbol {
+            if let previousLoopValue {
+                driver.ctx.setLocalValue(previousLoopValue, for: loopVariableSymbol)
+            } else {
+                driver.ctx.clearLocalValue(for: loopVariableSymbol)
+            }
+        }
+
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
+    /// BUG-167: True when `for (x in type)` must resolve `iterator()`
+    /// dynamically because neither `bindLoopIterationOperators` nor
+    /// `resolveCustomIteratorOperator` can bind it: the `kotlin.collections`
+    /// iterable interfaces (whose `iterator()` is only a synthetic stub), and
+    /// source-declared classes implementing `Iterable` whose `iterator()`
+    /// override carries no `.operatorFunction` flag of its own (it inherits
+    /// `operator` from the interface declaration). Types that do bind an
+    /// iterator — and the concrete runtime-backed collections, which the
+    /// collection-literal pass rewrites to their own iterator intrinsics —
+    /// never reach here.
+    private func usesDynamicIteratorDispatch(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullType = sema.types.makeNonNullable(type)
+        if ReceiverClassifier(sema: sema, interner: interner).isIterableInterfaceType(nonNullType) {
+            return true
+        }
+        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
+              !symbol.flags.contains(.synthetic),
+              resolveCustomIteratorOperator(
+                  iterableType: nonNullType,
+                  sema: sema,
+                  interner: interner
+              ) == nil,
+              let iterableSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("Iterable"),
+              ])
+        else {
+            return false
+        }
+        return kirTransitiveInterfaceSupertypes(of: classType.classSymbol, sema: sema)
+            .contains(iterableSymbol)
+    }
+
+    /// BUG-167: Lowers `for (x in iterable)` for an iterable whose `iterator()`
+    /// is only known at runtime. `kk_range_iterator` resolves the concrete
+    /// iterator (runtime collection box or `Iterable` itable dispatch), so
+    /// `hasNext()`/`next()` go through the generic `kk_iterator_*` intrinsics
+    /// (which handle every iterator representation) and the element is unboxed
+    /// into the loop variable's primitive type — the same shape an explicit
+    /// `val it = iterable.iterator()` loop lowers to.
+    private func lowerDynamicIteratorForExpr(
+        _ exprID: ExprID,
+        iterableExpr: ExprID,
+        bodyExpr: ExprID,
+        label: InternedString?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+        let iterableID = driver.lowerExpr(
+            iterableExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let iteratorID = arena.appendTemporary(type: sema.types.anyType)
+        emitNonThrowingCall(
+            callee: interner.intern("kk_range_iterator"),
+            arg: iterableID,
+            result: iteratorID,
+            into: &instructions
+        )
+
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let breakLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.label(continueLabel))
+
+        let hasNextID = arena.appendTemporary(type: boolType)
+        emitNonThrowingCall(
+            callee: interner.intern("kk_iterator_hasNext"),
+            arg: iteratorID,
+            result: hasNextID,
+            into: &instructions
+        )
+        let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
+        instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
+
+        let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
+        let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
+        let loopVarType = sema.bindings.flowElementType(forExpr: exprID)
+            ?? loopVariableSymbol.flatMap { sema.symbols.propertyType(for: $0) }
+            ?? sema.types.anyType
+        let nextValueID = arena.appendTemporary(type: loopVarType)
+        if let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+            for: loopVarType,
+            types: sema.types,
+            requireNonNull: true
+        ) {
+            let boxedID = arena.appendTemporary(type: sema.types.anyType)
+            emitNonThrowingCall(
+                callee: interner.intern("kk_iterator_next"),
+                arg: iteratorID,
+                result: boxedID,
+                into: &instructions
+            )
+            emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: boxedID,
+                result: nextValueID,
+                into: &instructions
+            )
+        } else {
+            emitNonThrowingCall(
+                callee: interner.intern("kk_iterator_next"),
+                arg: iteratorID,
+                result: nextValueID,
+                into: &instructions
+            )
+        }
+        if let loopVariableSymbol {
+            driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
         }
 
         driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
@@ -1570,6 +1745,10 @@ final class ControlFlowLowerer {
             sema: sema,
             interner: interner
         )
+        // BUG-167: `kk_range_*` only understands range and list iterators, so a
+        // dynamically resolved `iterator()` needs the generic intrinsics.
+        let dynamicIterator = customIterator == nil
+            && usesDynamicIteratorDispatch(iterableType, sema: sema, interner: interner)
 
         let iteratorID = arena.appendTemporary(type: sema.types.anyType)
         if let customIter = customIterator {
@@ -1627,7 +1806,7 @@ final class ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_range_hasNext"),
+                callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "kk_range_hasNext"),
                 arguments: [iteratorID],
                 result: hasNextID,
                 canThrow: false,
@@ -1661,7 +1840,7 @@ final class ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_range_next"),
+                callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "kk_range_next"),
                 arguments: [iteratorID],
                 result: nextValueID,
                 canThrow: false,

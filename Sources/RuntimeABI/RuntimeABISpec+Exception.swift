@@ -508,8 +508,11 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Exception"
         ),
+        // KSP-618: synchronized(lock) { } is Kotlin source delegating to this
+        // demoted bridge; the block arrives as a function pointer + closure
+        // environment pair with the usual outThrown channel.
         RuntimeABIFunctionSpec(
-            name: "kk_synchronized",
+            name: "__kk_synchronized",
             parameters: [
                 RuntimeABIParameter(name: "lock", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -614,7 +617,7 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_message",
+            name: "__kk_throwable_message",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
@@ -623,7 +626,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_cause",
+            name: "__kk_throwable_cause",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
@@ -651,7 +654,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-EXCEPT-105: Advanced exception handling
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_initCause",
+            name: "__kk_throwable_setCause",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
@@ -661,7 +664,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_addSuppressed",
+            name: "__kk_throwable_appendSuppressed",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
                 RuntimeABIParameter(name: "suppressedRaw", type: .intptr),
@@ -671,16 +674,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_getSuppressed",
-            parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_throwable_suppressedExceptions",
+            name: "__kk_throwable_suppressedRaw",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],

@@ -8,7 +8,8 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         namePrefix: String,
-        symbolIDOffsetBase: Int64
+        symbolIDOffsetBase: Int64,
+        erasedFunctionType: FunctionType? = nil
     ) -> KIRCallableValueInfo? {
         let callableType = arena.exprType(loweredArgID) ?? sema.bindings.exprTypes[argExprID] ?? sema.types.anyType
         let nonNullCallableType = sema.types.makeNonNullable(callableType)
@@ -31,10 +32,35 @@ extension CallLowerer {
             allValueTypes.append(receiverType)
         }
         allValueTypes.append(contentsOf: functionType.params)
+
+        // When the callee declares the parameter with erased types -- e.g.
+        // `fun <T, R> Array<T>.map(transform: (T) -> R)` -- the values crossing
+        // the function-value ABI are `Any` handles, while the lambda literal was
+        // compiled against the instantiated types (`(Double) -> Double`). The
+        // adapter is that erasure boundary: it keeps the erased signature and
+        // converts on both sides, so a boxed element reaches `{ it * 2 }` as a
+        // raw `Double` and the raw result is boxed again before the generic
+        // caller stores it into a `List<R>`.
+        var erasedValueTypes: [TypeID] = []
+        if let erasedFunctionType {
+            if erasedFunctionType.receiver != nil, functionType.receiver != nil {
+                erasedValueTypes.append(erasedFunctionType.receiver ?? sema.types.anyType)
+            }
+            erasedValueTypes.append(contentsOf: erasedFunctionType.params)
+        }
+        func erasedValueType(at index: Int) -> TypeID? {
+            guard erasedValueTypes.indices.contains(index) else { return nil }
+            let erased = erasedValueTypes[index]
+            guard isErasedRepresentationType(erased, sema: sema) else { return nil }
+            return erased
+        }
+
         let valueParams: [KIRParameter] = allValueTypes.enumerated().map { index, type in
-            KIRParameter(
+            let isErasedPrimitiveParam = erasedValueType(at: index) != nil
+                && isNonNullPrimitiveType(type, sema: sema)
+            return KIRParameter(
                 symbol: SymbolID(rawValue: Int32(clamping: symbolIDOffsetBase - Int64(argExprID.rawValue) * 16 - Int64(index))),
-                type: type
+                type: isErasedPrimitiveParam ? sema.types.anyType : type
             )
         }
 
@@ -51,10 +77,29 @@ extension CallLowerer {
             body: &body
         )
 
-        for param in valueParams {
+        let boxingCalleeTable = BoxingCalleeTable(interner: interner)
+        for (index, param) in valueParams.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
-            callArguments.append(paramExpr)
+            let lambdaParamType = allValueTypes[index]
+            guard param.type != lambdaParamType,
+                  let unboxCallee = boxingCalleeTable.unboxCallee(
+                      for: lambdaParamType, types: sema.types, requireNonNull: true
+                  )
+            else {
+                callArguments.append(paramExpr)
+                continue
+            }
+            let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
+            body.append(.call(
+                symbol: nil,
+                callee: unboxCallee,
+                arguments: [paramExpr],
+                result: unboxedExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            callArguments.append(unboxedExpr)
         }
 
         let callResult = arena.appendTemporary(type: functionType.returnType
@@ -76,6 +121,19 @@ extension CallLowerer {
         }
         body.append(.endBlock)
 
+        // Declaring an erased primitive result as `Any` makes ABILoweringPass
+        // box the returned value, so `Double`/`Char` results keep their identity
+        // once the generic caller stores them into an erased slot.
+        let adapterReturnType: TypeID = {
+            guard let erasedReturnType = erasedFunctionType?.returnType,
+                  isErasedRepresentationType(erasedReturnType, sema: sema),
+                  isNonNullPrimitiveType(functionType.returnType, sema: sema)
+            else {
+                return functionType.returnType
+            }
+            return sema.types.anyType
+        }()
+
         // `functionType.isSuspend` reflects the *expected* (contextual) type the
         // argument lambda was checked against -- e.g. a plain `(T) -> R)` HOF
         // parameter like `List.map`'s `transform`. A lambda literal passed there
@@ -93,7 +151,7 @@ extension CallLowerer {
                     symbol: adapterSymbol,
                     name: adapterName,
                     params: [closureParam] + valueParams,
-                    returnType: functionType.returnType,
+                    returnType: adapterReturnType,
                     body: body,
                     isSuspend: calleeIsSuspend,
                     isInline: false
@@ -108,5 +166,18 @@ extension CallLowerer {
             captureArguments: callableInfo.captureArguments,
             hasClosureParam: true
         )
+    }
+
+    /// True for types represented as an erased `Any` handle at runtime: type
+    /// parameters and `Any`/`Any?`.
+    private func isErasedRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case .typeParam = sema.types.kind(of: type) { return true }
+        let nonNull = sema.types.makeNonNullable(type)
+        return nonNull == sema.types.anyType
+    }
+
+    private func isNonNullPrimitiveType(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case .primitive(_, .nonNull) = sema.types.kind(of: type) { return true }
+        return false
     }
 }
