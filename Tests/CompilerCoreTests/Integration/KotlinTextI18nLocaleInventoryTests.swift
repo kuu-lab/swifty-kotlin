@@ -16,8 +16,8 @@ import Testing
 //   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
 //   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
 //   - String.toIntOrNull(radix)            → kk_string_toIntOrNull_radix
-//   - String.format(format, vararg args)   → kk_string_format_flat  (platform fmt, no locale overload)
-//   - String.Companion.format(locale, format, vararg args) → kk_string_format_locale_flat
+//   - String.format(format, vararg args)   → __kk_string_format_flat  (platform fmt, no locale overload)
+//   - String.Companion.format(locale, format, vararg args) → __kk_string_format_locale_flat
 //   - Char.uppercase()                     → __kk_char_uppercase_string  (returns String per Kotlin spec)
 //   - Char.uppercase(Locale)               → __kk_char_uppercase_locale
 //   - Char.lowercase()                     → __kk_char_lowercase_string  (returns String per Kotlin spec)

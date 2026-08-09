@@ -668,7 +668,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_format_flat",
+            name: "__kk_string_format_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -683,7 +683,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_format_locale_flat",
+            name: "__kk_string_format_locale_flat",
             parameters: [
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
