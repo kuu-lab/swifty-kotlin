@@ -1288,9 +1288,29 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured.
         let isBoundReceiver = receiver != nil && unboundClassType == nil
 
+        // BUG-164: callable references must also support SAM-conversion to a
+        // functional interface expected type, the same way lambda literals do.
+        let expectedFunctionType: TypeID?
+        let expectedSamInterfaceType: TypeID?
+        if let expectedType {
+            if case .functionType = sema.types.kind(of: expectedType) {
+                expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+                expectedFunctionType = sema.types.make(.functionType(samFT))
+                expectedSamInterfaceType = expectedType
+            } else {
+                expectedFunctionType = nil
+                expectedSamInterfaceType = nil
+            }
+        } else {
+            expectedFunctionType = nil
+            expectedSamInterfaceType = nil
+        }
+
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
-            expectedType: expectedType,
+            expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             sema: sema
         )
@@ -1304,20 +1324,23 @@ extension ExprTypeChecker {
                 sema: sema
             )
             let resultType: TypeID
-            if let expectedType,
-               case .functionType = sema.types.kind(of: expectedType)
-            {
+            if let expectedFunctionType {
                 driver.emitSubtypeConstraint(
                     left: inferredType,
-                    right: expectedType,
+                    right: expectedFunctionType,
                     range: range,
                     solver: ConstraintSolver(),
                     sema: sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                resultType = expectedType
+                resultType = expectedSamInterfaceType ?? expectedFunctionType
             } else {
                 resultType = inferredType
+            }
+            if let expectedSamInterfaceType {
+                sema.bindings.markSamConversion(id)
+                sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
+                sema.bindings.bindSamUnderlyingFunctionType(id, type: inferredType)
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

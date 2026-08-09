@@ -328,10 +328,12 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         // SAM constructor calls: `Transformer { ... }` — the single lambda
-        // argument is already marked as a SAM conversion.  Lower the lambda
-        // directly; the SAM wrapper is produced by LambdaLowerer.
+        // argument is already marked as a SAM conversion and no call binding
+        // exists for the constructor.  Lower the lambda directly; the SAM
+        // wrapper is produced by LambdaLowerer.
         if args.count == 1,
-           sema.bindings.isSamConversion(args[0].expr)
+           sema.bindings.isSamConversion(args[0].expr),
+           sema.bindings.callBinding(for: exprID) == nil
         {
             return driver.lowerExpr(
                 args[0].expr,
