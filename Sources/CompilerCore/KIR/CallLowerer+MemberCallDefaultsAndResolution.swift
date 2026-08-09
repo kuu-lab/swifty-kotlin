@@ -231,7 +231,6 @@ extension CallLowerer {
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
