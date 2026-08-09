@@ -1,7 +1,8 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 /// Regression coverage for KSP-466: `/` and `%` on ULong performed plain signed
 /// Int64 division/modulo, which is wrong once a value's high bit is set (any
@@ -10,7 +11,32 @@ import XCTest
 /// exhibit the bug because it is always zero-extended into the shared 64-bit
 /// container. This is the same root-cause family as the ULong comparison/
 /// toString sign-misinterpretation bug.
-final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
+@Suite
+struct CodegenBackendUnsignedDivisionAndModuloTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testUnsignedDivisionAndModuloHighBitSetULong() throws {
         let source = """
         fun main() {
@@ -31,6 +57,7 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testUnsignedDivisionAndModuloULongMaxValueBoundary() throws {
         let source = """
         fun main() {
@@ -53,6 +80,7 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testUnsignedDivisionAndModuloMemberCallForms() throws {
         // div()/rem()/floorDiv()/mod() are explicit member-call forms of the
         // same operators, lowered through a separate CallLowerer code path
@@ -80,6 +108,7 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testUnsignedCompoundAssignDivisionAndModulo() throws {
         let source = """
         fun main() {
@@ -101,6 +130,7 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testUnsignedArrayElementCompoundAssignDivisionAndModulo() throws {
         let source = """
         fun main() {
@@ -122,6 +152,7 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testUnsignedDivisionAndModuloByZeroThrows() throws {
         let source = """
         fun main() {
@@ -149,6 +180,7 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testUnsignedDivisionAndModuloUIntUnaffected() throws {
         // UInt is zero-extended into the shared 64-bit container, so it never
         // exhibited this bug -- this test locks in that the fix leaves it correct.
@@ -170,3 +202,40 @@ final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
         )
     }
 }
+
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+#endif
