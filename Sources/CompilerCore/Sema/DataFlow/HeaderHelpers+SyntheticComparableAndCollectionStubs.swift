@@ -132,51 +132,9 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
-        registerIterableAsSequenceMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex
-        )
-        registerIterableJoinToMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            skipStats: skipStats
-        )
-        registerIterableFirstNotNullOfMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
-        registerIterableFirstNotNullOfOrNullMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
         registerIterableReduceIndexedMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
-        registerIterableAllMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableAnyMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableLastMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableJoinToStringMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            skipStats: skipStats
         )
         registerIterableReduceMember(
             symbols: symbols, types: types, interner: interner,
@@ -377,13 +335,6 @@ extension DataFlowSemaPhase {
             bundledIndex: bundledIndex
         )
 
-        registerCollectionToListMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
-        )
-
         // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions
         if let mutableListSym = symbols.lookup(
             fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]
@@ -406,27 +357,6 @@ extension DataFlowSemaPhase {
                 mutableListSymbol: mutableListSym,
                 mutableSetSymbol: mutableSetSym,
                 sequenceSymbol: sequenceSymbol
-            )
-            registerCollectionToMutableListMember(
-                symbols: symbols, types: types, interner: interner,
-                kotlinCollectionsPkg: kotlinCollectionsPkg,
-                collectionInterfaceSymbol: collectionInterfaceSymbol,
-                mutableListSymbol: mutableListSym
-            )
-            registerIterableToMutableListMember(
-                symbols: symbols, types: types, interner: interner,
-                iterableInterfaceSymbol: iterableInterfaceSymbol,
-                mutableListSymbol: mutableListSym
-            )
-            registerIterableToMutableSetMember(
-                symbols: symbols, types: types, interner: interner,
-                iterableInterfaceSymbol: iterableInterfaceSymbol,
-                mutableSetSymbol: mutableSetSym
-            )
-            registerIterableToHashSetMember(
-                symbols: symbols, types: types, interner: interner,
-                iterableInterfaceSymbol: iterableInterfaceSymbol,
-                mutableSetSymbol: mutableSetSym
             )
         }
 
@@ -477,11 +407,6 @@ extension DataFlowSemaPhase {
         registerSyntheticArrayStubs(
             symbols: symbols, types: types, interner: interner,
             skipStats: skipStats
-        )
-        registerCollectionToTypedArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
         )
         registerMutableCollectionArrayAddAllMembers(
             symbols: symbols,

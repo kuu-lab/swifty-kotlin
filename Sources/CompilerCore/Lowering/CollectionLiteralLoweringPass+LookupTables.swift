@@ -363,15 +363,6 @@ struct CollectionLiteralLookupTables {
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-    var kkListToTypedArrayName: InternedString { arrayLookup.kkListToTypedArrayName }
-    var kkListToCharArrayName: InternedString { arrayLookup.kkListToCharArrayName }
-    var kkListToBooleanArrayName: InternedString { arrayLookup.kkListToBooleanArrayName }
-    var kkListToShortArrayName: InternedString { arrayLookup.kkListToShortArrayName }
-    var kkListToDoubleArrayName: InternedString { arrayLookup.kkListToDoubleArrayName }
-    var kkListToFloatArrayName: InternedString { arrayLookup.kkListToFloatArrayName }
-    var kkListToIntArrayName: InternedString { arrayLookup.kkListToIntArrayName }
-    var kkListToLongArrayName: InternedString { arrayLookup.kkListToLongArrayName }
-    var kkListToByteArrayName: InternedString { arrayLookup.kkListToByteArrayName }
     var kkListToUByteArrayName: InternedString { arrayLookup.kkListToUByteArrayName }
     var kkListToUShortArrayName: InternedString { arrayLookup.kkListToUShortArrayName }
     var kkListToUIntArrayName: InternedString { arrayLookup.kkListToUIntArrayName }
@@ -396,6 +387,7 @@ struct CollectionLiteralLookupTables {
     var kkArrayFlatMapName: InternedString { arrayLookup.kkArrayFlatMapName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
+    var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
     var kkArrayMapIndexedName: InternedString { arrayLookup.kkArrayMapIndexedName }
     var kkArrayFilterIndexedName: InternedString { arrayLookup.kkArrayFilterIndexedName }
     var kkArrayMapNotNullName: InternedString { arrayLookup.kkArrayMapNotNullName }

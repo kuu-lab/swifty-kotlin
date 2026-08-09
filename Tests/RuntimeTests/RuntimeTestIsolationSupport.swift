@@ -484,3 +484,62 @@ func durationInWholeSeconds(_ handle: Int) -> Int { kk_duration_inWholeNanosecon
 func durationInWholeMinutes(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 60_000_000_000 }
 func durationInWholeHours(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 3_600_000_000_000 }
 func durationInWholeDays(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 86_400_000_000_000 }
+
+// MARK: - TimeMark operation helpers (KSP-648)
+
+// kk_time_mark_elapsed_now / has_passed_now / has_not_passed_now / plus_duration /
+// minus_duration / minus_mark / compare were removed: those operations are now Kotlin
+// source (Sources/CompilerCore/Stdlib/kotlin/time/TimeMark.kt) built on the remaining
+// __kk_time_mark_* reading bridges. These helpers mirror that Kotlin implementation —
+// including its saturating reading arithmetic — so the Runtime tests keep covering the
+// bridges and the semantics they feed.
+private func timeMarkNegateNanos(_ value: Int) -> Int { value == Int.min ? Int.max : -value }
+
+private func timeMarkAddNanos(_ lhs: Int, _ rhs: Int) -> Int {
+    if rhs > 0, lhs > Int.max - rhs { return Int.max }
+    if rhs < 0, lhs < Int.min - rhs { return Int.min }
+    return lhs + rhs
+}
+
+func timeMarkElapsedNow(_ markRaw: Int) -> Int {
+    durationFromNanoseconds(timeMarkAddNanos(
+        __kk_time_mark_now_reading_nanos(),
+        timeMarkNegateNanos(__kk_time_mark_reading_nanos(markRaw))
+    ))
+}
+
+func timeMarkHasPassedNow(_ markRaw: Int) -> Int {
+    kk_duration_inWholeNanoseconds(timeMarkElapsedNow(markRaw)) >= 0 ? 1 : 0
+}
+
+func timeMarkHasNotPassedNow(_ markRaw: Int) -> Int {
+    kk_duration_inWholeNanoseconds(timeMarkElapsedNow(markRaw)) < 0 ? 1 : 0
+}
+
+func timeMarkPlusDuration(_ markRaw: Int, _ durationRaw: Int) -> Int {
+    __kk_time_mark_from_reading_nanos(timeMarkAddNanos(
+        __kk_time_mark_reading_nanos(markRaw),
+        kk_duration_inWholeNanoseconds(durationRaw)
+    ))
+}
+
+func timeMarkMinusDuration(_ markRaw: Int, _ durationRaw: Int) -> Int {
+    __kk_time_mark_from_reading_nanos(timeMarkAddNanos(
+        __kk_time_mark_reading_nanos(markRaw),
+        timeMarkNegateNanos(kk_duration_inWholeNanoseconds(durationRaw))
+    ))
+}
+
+func timeMarkMinusMark(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    durationFromNanoseconds(timeMarkAddNanos(
+        __kk_time_mark_reading_nanos(lhsRaw),
+        timeMarkNegateNanos(__kk_time_mark_reading_nanos(rhsRaw))
+    ))
+}
+
+func timeMarkCompare(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    let diffNanos = kk_duration_inWholeNanoseconds(timeMarkMinusMark(lhsRaw, rhsRaw))
+    if diffNanos < 0 { return -1 }
+    if diffNanos > 0 { return 1 }
+    return 0
+}

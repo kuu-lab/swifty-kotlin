@@ -533,7 +533,7 @@ import Testing
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             var inlineFns: [SymbolID: KIRFunction] = [:]
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,

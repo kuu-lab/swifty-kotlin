@@ -183,7 +183,7 @@ public func kk_range_toIntArray(_ rangeRaw: Int) -> Int {
 @_cdecl("kk_ulong_range_count")
 public func kk_ulong_range_count(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_count") { range in
-        RuntimeUnsignedRangeHOFKind.count(range)
+        runtimeUnsignedRangeCount(range)
     }
 }
 
@@ -314,6 +314,16 @@ public func kk_itable_lookup(_ receiver: Int, _ ifaceSlot: Int, _ methodSlot: In
         return 0
     }
     return Int(bitPattern: functionPointer)
+}
+
+func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw) else {
+        return nil
+    }
+    let objectKey = UInt(bitPattern: ptr)
+    return runtimeStorage.withMetadataLock { state in
+        state.objectInterfaceSlots[objectKey]?[interfaceTypeID]
+    }
 }
 
 /// Like `kk_itable_lookup`, but for call sites where the receiver's static
