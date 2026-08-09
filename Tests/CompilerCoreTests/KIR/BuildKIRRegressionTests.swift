@@ -569,5 +569,41 @@ struct BuildKIRRegressionTests {
         }
     }
 
+    func topLevelExpressionBodyExprID(
+        named functionName: String,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> ExprID? {
+        ast.files
+            .flatMap(\.topLevelDecls)
+            .compactMap { declID -> ExprID? in
+                guard let decl = ast.arena.decl(declID),
+                      case let .funDecl(funDecl) = decl,
+                      interner.resolve(funDecl.name) == functionName,
+                      case let .expr(exprID, _) = funDecl.body
+                else {
+                    return nil
+                }
+                return exprID
+            }
+            .first
+    }
+
+    func symbolNames(
+        for arguments: [KIRExprID],
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [String] {
+        arguments.compactMap { argument in
+            guard case let .symbolRef(symbolID)? = module.arena.expr(argument),
+                  let symbol = sema.symbols.symbol(symbolID)
+            else {
+                return nil
+            }
+            return interner.resolve(symbol.name)
+        }
+    }
+
 }
 #endif
