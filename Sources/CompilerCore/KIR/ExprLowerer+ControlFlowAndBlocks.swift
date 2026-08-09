@@ -183,7 +183,7 @@ extension ExprLowerer {
                 // Collection properties: size, isEmpty
                 if memberStr == "size" {
                     emitNonThrowingCall(
-                        callee: interner.intern("kk_collection_size"),
+                        callee: interner.intern("__kk_collection_size"),
                         arg: receiverExprID,
                         result: result,
                         into: &instructions
@@ -192,7 +192,7 @@ extension ExprLowerer {
                 }
                 if memberStr == "isEmpty" {
                     emitNonThrowingCall(
-                        callee: interner.intern("kk_collection_isEmpty"),
+                        callee: interner.intern("__kk_collection_isEmpty"),
                         arg: receiverExprID,
                         result: result,
                         into: &instructions

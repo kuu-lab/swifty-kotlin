@@ -51,612 +51,575 @@ struct ComparatorOverloadResolutionTests {
 
     // MARK: - compareBy { } single-selector overload
 
-    @Test func testCompareByLambdaOverloadSelectsSourceBackedVariant() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it * 2 }
-            listOf(3, 1, 2).sortedWith(cmp)
+    // MARK: - Path-aware expression search helpers
+
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { return exprID }
         }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                else { return false }
-                return ctx.interner.resolve(calleeName) == "compareBy"
-            }, "Expected a call to compareBy")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy { }")
-            let symbol = try #require(sema.symbols.symbol(chosenCallee))
-            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "comparisons", "compareBy"], "Expected compareBy<Int> { } to resolve to the bundled stdlib compareBy")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareBy<Int> { } to be source-backed without a runtime comparator link")
-        }
+        return nil
     }
 
-    @Test func testCompareByLambdaProducesComparatorReturnType() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<String> { it.length }
-            listOf("banana", "apple").sortedWith(cmp)
+    private func allExprIDs(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        var result: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { result.append(exprID) }
         }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        return result
+    }
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+    // MARK: - Consolidated overload resolution tests
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                else { return false }
-                return ctx.interner.resolve(calleeName) == "compareBy"
-            })
+    @Test
+    func testComparatorOverloadResolutions() throws {
 
-            let exprType = try #require(sema.bindings.exprTypes[callExpr])
-            guard case let .classType(ct) = sema.types.kind(of: exprType) else {
-                Issue.record("Expected compareBy result to be a class type (Comparator<T>)")
-                return
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+            """
+            fun sample0() {
+                val cmp = compareBy<Int> { it * 2 }
+                listOf(3, 1, 2).sortedWith(cmp)
             }
-            let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator"], "Expected compareBy { } to return kotlin.Comparator<T>")
-        }
-    }
-
-    // MARK: - compareBy(selector1, selector2, ...) multi-selector varargs
-
-    @Test func testCompareByTwoSelectorsResolvesToMultiSelectorOverload() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<String>({ it.length }, { it })
-            listOf("banana", "apple", "fig").sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(allExprIDs(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, args, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "compareBy" && args.count == 2
-                }.first, "Expected 2-selector compareBy call")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2)")
-            let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
-            #expect(sig.parameterTypes.count == 2, "Expected 2-param signature for 2-selector compareBy")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors", "Expected 2-selector compareBy to link to kk_comparator_from_multi_selectors")
-        }
-    }
-
-    @Test func testCompareByThreeSelectorsResolvesToMultiSelectorOverload() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<String>({ it.length }, { it.first() }, { it.last() })
-            listOf("banana", "apple", "fig").sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(allExprIDs(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, args, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "compareBy" && args.count == 3
-                }.first, "Expected 3-selector compareBy call")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2, s3)")
-            let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
-            #expect(sig.parameterTypes.count == 3, "Expected 3-param signature for 3-selector compareBy")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors3", "Expected 3-selector compareBy to link to kk_comparator_from_multi_selectors3")
-        }
-    }
-
-    @Test func testCompareByFourSelectorsResolvesToVarargMultiSelectorOverload() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int>({ it / 100 }, { it % 100 / 10 }, { it % 10 }, { -it })
-            listOf(231, 132, 121, 221).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(allExprIDs(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, args, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "compareBy" && args.count == 4
-                }.first, "Expected 4-selector compareBy call")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(vararg selectors)")
-            let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
-            #expect(sig.parameterTypes.count == 1, "Expected single vararg parameter for 4-selector compareBy")
-            #expect(sig.valueParameterIsVararg == [true])
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors_vararg", "Expected 4-selector compareBy to link to kk_comparator_from_multi_selectors_vararg")
-        }
-    }
-
-    // MARK: - thenBy { } chained
-
-    @Test func testThenByIsRegisteredAsSyntheticComparatorMember() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sourceBackedComparatorExtension(
-                named: "thenBy",
-                sema: sema,
-                interner: ctx.interner
-            ), "Expected source-backed Comparator.thenBy to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenBy to be source-backed")
-        }
-    }
-
-    @Test func testThenByChainedOnCompareByResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<String> { it.length }.thenBy { it }
-            listOf("banana", "apple").sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "thenBy"
-            }, "Expected a thenBy member call")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenBy to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenBy to be source-backed")
-        }
-    }
-
-    // MARK: - thenByDescending { } chained
-
-    @Test func testThenByDescendingIsRegisteredAsSyntheticComparatorMember() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sourceBackedComparatorExtension(
-                named: "thenByDescending",
-                sema: sema,
-                interner: ctx.interner
-            ), "Expected source-backed Comparator.thenByDescending to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenByDescending to be source-backed")
-        }
-    }
-
-    @Test func testThenByDescendingChainedOnCompareByResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<String> { it.length }.thenByDescending { it }
-            listOf("banana", "apple").sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "thenByDescending"
-            }, "Expected a thenByDescending member call")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenByDescending to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenByDescending to be source-backed")
-        }
-    }
-
-    @Test func testThenByDescendingReturnTypeIsComparator() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it % 10 }.thenByDescending { it / 10 }
-            listOf(231, 114, 123).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "thenByDescending"
-            })
-
-            let exprType = try #require(sema.bindings.exprTypes[callExpr])
-            guard case let .classType(ct) = sema.types.kind(of: exprType) else {
-                Issue.record("Expected thenByDescending result to be Comparator<T>")
-                return
+            """,
+            """
+            fun sample1() {
+                val cmp = compareBy<String> { it.length }
+                listOf("banana", "apple").sortedWith(cmp)
             }
-            let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator"], "Expected thenByDescending to return kotlin.Comparator<T>")
-        }
-    }
-
-    // MARK: - Comparator.reversed()
-
-    @Test func testReversedIsRegisteredAsSyntheticComparatorMember() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sourceBackedComparatorExtension(
-                named: "reversed",
-                parameterCount: 0,
-                sema: sema,
-                interner: ctx.interner
-            ), "Expected source-backed Comparator.reversed to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.reversed to be source-backed")
-        }
-    }
-
-    @Test func testReversedCallOnComparatorResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it }.reversed()
-            listOf(3, 1, 2).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "reversed"
-            }, "Expected a reversed member call")
-
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reversed() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected reversed() to be source-backed")
-        }
-    }
-
-    @Test func testReversedReturnTypeIsComparator() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it }.reversed()
-            listOf(3, 1, 2).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "reversed"
-            })
-
-            let exprType = try #require(sema.bindings.exprTypes[callExpr])
-            guard case let .classType(ct) = sema.types.kind(of: exprType) else {
-                Issue.record("Expected reversed() result to be Comparator<T>")
-                return
+            """,
+            """
+            fun sample2() {
+                val cmp = compareBy<String>({ it.length }, { it })
+                listOf("banana", "apple", "fig").sortedWith(cmp)
             }
-            let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator"], "Expected reversed() to return kotlin.Comparator<T>")
-        }
-    }
+            """,
+            """
+            fun sample3() {
+                val cmp = compareBy<String>({ it.length }, { it.first() }, { it.last() })
+                listOf("banana", "apple", "fig").sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample4() {
+                val cmp = compareBy<Int>({ it / 100 }, { it % 100 / 10 }, { it % 10 }, { -it })
+                listOf(231, 132, 121, 221).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample6() {
+                val cmp = compareBy<String> { it.length }.thenBy { it }
+                listOf("banana", "apple").sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample8() {
+                val cmp = compareBy<String> { it.length }.thenByDescending { it }
+                listOf("banana", "apple").sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample9() {
+                val cmp = compareBy<Int> { it % 10 }.thenByDescending { it / 10 }
+                listOf(231, 114, 123).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample11() {
+                val cmp = compareBy<Int> { it }.reversed()
+                listOf(3, 1, 2).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample12() {
+                val cmp = compareBy<Int> { it }.reversed()
+                listOf(3, 1, 2).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample15() {
+                val cmp = naturalOrder<Int>()
+                listOf(3, 1, 2).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample16() {
+                val cmp = reverseOrder<Int>()
+                listOf(3, 1, 2).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample21() {
+                val cmp = compareBy<Int> { it }.nullsFirst()
+                listOf(3, 1, 2).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample22() {
+                val cmp = compareBy<Int> { it }.nullsLast()
+                listOf(3, 1, 2).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample25() {
+                val cmp = compareBy<Int> { it % 10 }
+                    .thenBy { it / 10 }
+                    .reversed()
+                listOf(231, 114, 123).sortedWith(cmp)
+            }
+            """,
+            """
+            fun sample26() {
+                val a = compareBy<Int> { it }.nullsFirst()
+                val b = compareBy<Int> { it }.nullsLast()
+                listOf(3, 1, 2).sortedWith(a)
+                listOf(3, 1, 2).sortedWith(b)
+            }
+            """,
+            """
+            fun sample27(values: List<Int?>) {
+                val a = compareBy<Int?> { it }.nullsFirst()
+                val b = compareBy<Int?> { it }.nullsLast()
+                values.sortedWith(a)
+                values.sortedWith(b)
+            }
+            """,
+        ]
 
-    // MARK: - naturalOrder() / reverseOrder()
-
-    @Test func testNaturalOrderIsRegisteredAsSyntheticTopLevelFunction() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("comparisons"),
-                    ctx.interner.intern("naturalOrder"),
-                ]), "Expected source-backed naturalOrder to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected naturalOrder() to be source-backed")
-        }
-    }
-
-    @Test func testReverseOrderIsRegisteredAsSyntheticTopLevelFunction() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("comparisons"),
-                    ctx.interner.intern("reverseOrder"),
-                ]), "Expected source-backed reverseOrder to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected reverseOrder() to be source-backed")
-        }
-    }
-
-    @Test func testNaturalOrderCallResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = naturalOrder<Int>()
-            listOf(3, 1, 2).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected comparator tests to type-check without diagnostics: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            // paths[0] is the noop source; paths[1...] map to the original sample sources.
 
-            let callExpr = try #require(allExprIDs(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, _, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "naturalOrder"
-                }.first, "Expected a naturalOrder() call")
+            // === testCompareByLambdaOverloadSelectsSourceBackedVariant ===
 
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected naturalOrder() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected naturalOrder() to be source-backed")
-        }
-    }
+            do {
 
-    @Test func testReverseOrderCallResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = reverseOrder<Int>()
-            listOf(3, 1, 2).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[1], ctx: ctx) { _, expr in
+                               guard case let .call(calleeExpr, _, _, _) = expr,
+                                     case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                               else { return false }
+                               return interner.resolve(calleeName) == "compareBy"
+                           }, "Expected a call to compareBy")
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy { }")
+                           let symbol = try #require(sema.symbols.symbol(chosenCallee))
+                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", "compareBy"], "Expected compareBy<Int> { } to resolve to the bundled stdlib compareBy")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareBy<Int> { } to be source-backed without a runtime comparator link")
 
-            let callExpr = try #require(allExprIDs(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, _, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "reverseOrder"
-                }.first, "Expected a reverseOrder() call")
+            }
 
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reverseOrder() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected reverseOrder() to be source-backed")
-        }
-    }
+            // === testCompareByLambdaProducesComparatorReturnType ===
 
-    @Test func testNaturalOrderSignatureHasNoParameters() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            do {
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("comparisons"),
-                ctx.interner.intern("naturalOrder"),
-            ]))
-            let sig = try #require(sema.symbols.functionSignature(for: symbolID))
-            #expect(sig.parameterTypes.isEmpty, "Expected naturalOrder() to take no parameters")
-        }
-    }
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[2], ctx: ctx) { _, expr in
+                               guard case let .call(calleeExpr, _, _, _) = expr,
+                                     case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                               else { return false }
+                               return interner.resolve(calleeName) == "compareBy"
+                           })
 
-    @Test func testReverseOrderSignatureHasNoParameters() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                           let exprType = try #require(sema.bindings.exprTypes[callExpr])
+                           guard case let .classType(ct) = sema.types.kind(of: exprType) else {
+                               Issue.record("Expected compareBy result to be a class type (Comparator<T>)")
+                               return
+                           }
+                           let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
+                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"], "Expected compareBy { } to return kotlin.Comparator<T>")
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("comparisons"),
-                ctx.interner.intern("reverseOrder"),
-            ]))
-            let sig = try #require(sema.symbols.functionSignature(for: symbolID))
-            #expect(sig.parameterTypes.isEmpty, "Expected reverseOrder() to take no parameters")
-        }
-    }
+            }
 
-    // MARK: - nullsFirst() / nullsLast()
+            // === testCompareByTwoSelectorsResolvesToMultiSelectorOverload ===
 
-    @Test func testNullsFirstIsRegisteredAsSyntheticComparatorMember() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            do {
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("nullsFirst"),
-                ]), "Expected synthetic Comparator.nullsFirst to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_nulls_first", "Expected Comparator.nullsFirst to map to kk_comparator_nulls_first")
-        }
-    }
+                           let callExpr = try #require(allExprIDs(in: ast, path: paths[3], ctx: ctx) { _, expr in
+                                   guard case let .call(calleeExpr, _, args, _) = expr,
+                                         case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                                   else { return false }
+                                   return interner.resolve(calleeName) == "compareBy" && args.count == 2
+                               }.first, "Expected 2-selector compareBy call")
 
-    @Test func testNullsLastIsRegisteredAsSyntheticComparatorMember() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2)")
+                           let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                           #expect(sig.parameterTypes.count == 2, "Expected 2-param signature for 2-selector compareBy")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors", "Expected 2-selector compareBy to link to kk_comparator_from_multi_selectors")
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("nullsLast"),
-                ]), "Expected synthetic Comparator.nullsLast to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_nulls_last", "Expected Comparator.nullsLast to map to kk_comparator_nulls_last")
-        }
-    }
+            }
 
-    @Test func testNullsFirstCallOnComparatorResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it }.nullsFirst()
-            listOf(3, 1, 2).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            // === testCompareByThreeSelectorsResolvesToMultiSelectorOverload ===
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+            do {
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "nullsFirst"
-            }, "Expected a nullsFirst member call")
+                           let callExpr = try #require(allExprIDs(in: ast, path: paths[4], ctx: ctx) { _, expr in
+                                   guard case let .call(calleeExpr, _, args, _) = expr,
+                                         case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                                   else { return false }
+                                   return interner.resolve(calleeName) == "compareBy" && args.count == 3
+                               }.first, "Expected 3-selector compareBy call")
 
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsFirst() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_nulls_first", "Expected nullsFirst() to link to kk_comparator_nulls_first")
-        }
-    }
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2, s3)")
+                           let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                           #expect(sig.parameterTypes.count == 3, "Expected 3-param signature for 3-selector compareBy")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors3", "Expected 3-selector compareBy to link to kk_comparator_from_multi_selectors3")
 
-    @Test func testNullsLastCallOnComparatorResolvesCorrectly() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it }.nullsLast()
-            listOf(3, 1, 2).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            }
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+            // === testCompareByFourSelectorsResolvesToVarargMultiSelectorOverload ===
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "nullsLast"
-            }, "Expected a nullsLast member call")
+            do {
 
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsLast() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_nulls_last", "Expected nullsLast() to link to kk_comparator_nulls_last")
-        }
-    }
+                           let callExpr = try #require(allExprIDs(in: ast, path: paths[5], ctx: ctx) { _, expr in
+                                   guard case let .call(calleeExpr, _, args, _) = expr,
+                                         case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                                   else { return false }
+                                   return interner.resolve(calleeName) == "compareBy" && args.count == 4
+                               }.first, "Expected 4-selector compareBy call")
 
-    @Test func testNullsFirstSignatureHasNoParameters() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(vararg selectors)")
+                           let sig = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                           #expect(sig.parameterTypes.count == 1, "Expected single vararg parameter for 4-selector compareBy")
+                           #expect(sig.valueParameterIsVararg == [true])
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_multi_selectors_vararg", "Expected 4-selector compareBy to link to kk_comparator_from_multi_selectors_vararg")
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("Comparator"),
-                ctx.interner.intern("nullsFirst"),
-            ]))
-            let sig = try #require(sema.symbols.functionSignature(for: symbolID))
-            #expect(sig.parameterTypes.isEmpty, "Expected nullsFirst() to take no parameters")
-        }
-    }
+            }
 
-    @Test func testNullsLastSignatureHasNoParameters() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            // === testThenByIsRegisteredAsSyntheticComparatorMember ===
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("Comparator"),
-                ctx.interner.intern("nullsLast"),
-            ]))
-            let sig = try #require(sema.symbols.functionSignature(for: symbolID))
-            #expect(sig.parameterTypes.isEmpty, "Expected nullsLast() to take no parameters")
-        }
-    }
+            do {
 
-    // MARK: - Chained composition: compareBy + thenBy + reversed
+                           let symbolID = try #require(sourceBackedComparatorExtension(
+                               named: "thenBy",
+                               sema: sema,
+                               interner: interner
+                           ), "Expected source-backed Comparator.thenBy to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenBy to be source-backed")
 
-    @Test func testChainedCompareByThenByReversedResolvesCleanly() throws {
-        let source = """
-        fun sample() {
-            val cmp = compareBy<Int> { it % 10 }
-                .thenBy { it / 10 }
-                .reversed()
-            listOf(231, 114, 123).sortedWith(cmp)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            }
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for chained compareBy.thenBy.reversed(), got: \(ctx.diagnostics.diagnostics)")
-        }
-    }
+            // === testThenByChainedOnCompareByResolvesCorrectly ===
 
-    @Test func testNullsFirstAndNullsLastReturnComparatorType() throws {
-        let source = """
-        fun sample() {
-            val a = compareBy<Int> { it }.nullsFirst()
-            val b = compareBy<Int> { it }.nullsLast()
-            listOf(3, 1, 2).sortedWith(a)
-            listOf(3, 1, 2).sortedWith(b)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            do {
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for nullsFirst/nullsLast usage, got: \(ctx.diagnostics.diagnostics)")
-        }
-    }
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[6], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "thenBy"
+                           }, "Expected a thenBy member call")
 
-    @Test func testNullableCompareBySelectorCanFeedNullsFirstAndLast() throws {
-        let source = """
-        fun sample(values: List<Int?>) {
-            val a = compareBy<Int?> { it }.nullsFirst()
-            val b = compareBy<Int?> { it }.nullsLast()
-            values.sortedWith(a)
-            values.sortedWith(b)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenBy to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenBy to be source-backed")
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(ctx.diagnostics.diagnostics)")
+            }
+
+            // === testThenByDescendingIsRegisteredAsSyntheticComparatorMember ===
+
+            do {
+
+                           let symbolID = try #require(sourceBackedComparatorExtension(
+                               named: "thenByDescending",
+                               sema: sema,
+                               interner: interner
+                           ), "Expected source-backed Comparator.thenByDescending to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenByDescending to be source-backed")
+
+            }
+
+            // === testThenByDescendingChainedOnCompareByResolvesCorrectly ===
+
+            do {
+
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[7], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "thenByDescending"
+                           }, "Expected a thenByDescending member call")
+
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenByDescending to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenByDescending to be source-backed")
+
+            }
+
+            // === testThenByDescendingReturnTypeIsComparator ===
+
+            do {
+
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[8], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "thenByDescending"
+                           })
+
+                           let exprType = try #require(sema.bindings.exprTypes[callExpr])
+                           guard case let .classType(ct) = sema.types.kind(of: exprType) else {
+                               Issue.record("Expected thenByDescending result to be Comparator<T>")
+                               return
+                           }
+                           let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
+                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"], "Expected thenByDescending to return kotlin.Comparator<T>")
+
+            }
+
+            // === testReversedIsRegisteredAsSyntheticComparatorMember ===
+
+            do {
+
+                           let symbolID = try #require(sourceBackedComparatorExtension(
+                               named: "reversed",
+                               parameterCount: 0,
+                               sema: sema,
+                               interner: interner
+                           ), "Expected source-backed Comparator.reversed to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.reversed to be source-backed")
+
+            }
+
+            // === testReversedCallOnComparatorResolvesCorrectly ===
+
+            do {
+
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[9], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "reversed"
+                           }, "Expected a reversed member call")
+
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reversed() to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected reversed() to be source-backed")
+
+            }
+
+            // === testReversedReturnTypeIsComparator ===
+
+            do {
+
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[10], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "reversed"
+                           })
+
+                           let exprType = try #require(sema.bindings.exprTypes[callExpr])
+                           guard case let .classType(ct) = sema.types.kind(of: exprType) else {
+                               Issue.record("Expected reversed() result to be Comparator<T>")
+                               return
+                           }
+                           let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
+                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"], "Expected reversed() to return kotlin.Comparator<T>")
+
+            }
+
+            // === testNaturalOrderIsRegisteredAsSyntheticTopLevelFunction ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                                   interner.intern("kotlin"),
+                                   interner.intern("comparisons"),
+                                   interner.intern("naturalOrder"),
+                               ]), "Expected source-backed naturalOrder to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected naturalOrder() to be source-backed")
+
+            }
+
+            // === testReverseOrderIsRegisteredAsSyntheticTopLevelFunction ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                                   interner.intern("kotlin"),
+                                   interner.intern("comparisons"),
+                                   interner.intern("reverseOrder"),
+                               ]), "Expected source-backed reverseOrder to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected reverseOrder() to be source-backed")
+
+            }
+
+            // === testNaturalOrderCallResolvesCorrectly ===
+
+            do {
+
+                           let callExpr = try #require(allExprIDs(in: ast, path: paths[11], ctx: ctx) { _, expr in
+                                   guard case let .call(calleeExpr, _, _, _) = expr,
+                                         case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                                   else { return false }
+                                   return interner.resolve(calleeName) == "naturalOrder"
+                               }.first, "Expected a naturalOrder() call")
+
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected naturalOrder() to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected naturalOrder() to be source-backed")
+
+            }
+
+            // === testReverseOrderCallResolvesCorrectly ===
+
+            do {
+
+                           let callExpr = try #require(allExprIDs(in: ast, path: paths[12], ctx: ctx) { _, expr in
+                                   guard case let .call(calleeExpr, _, _, _) = expr,
+                                         case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                                   else { return false }
+                                   return interner.resolve(calleeName) == "reverseOrder"
+                               }.first, "Expected a reverseOrder() call")
+
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reverseOrder() to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected reverseOrder() to be source-backed")
+
+            }
+
+            // === testNaturalOrderSignatureHasNoParameters ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                               interner.intern("kotlin"),
+                               interner.intern("comparisons"),
+                               interner.intern("naturalOrder"),
+                           ]))
+                           let sig = try #require(sema.symbols.functionSignature(for: symbolID))
+                           #expect(sig.parameterTypes.isEmpty, "Expected naturalOrder() to take no parameters")
+
+            }
+
+            // === testReverseOrderSignatureHasNoParameters ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                               interner.intern("kotlin"),
+                               interner.intern("comparisons"),
+                               interner.intern("reverseOrder"),
+                           ]))
+                           let sig = try #require(sema.symbols.functionSignature(for: symbolID))
+                           #expect(sig.parameterTypes.isEmpty, "Expected reverseOrder() to take no parameters")
+
+            }
+
+            // === testNullsFirstIsRegisteredAsSyntheticComparatorMember ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                                   interner.intern("kotlin"),
+                                   interner.intern("Comparator"),
+                                   interner.intern("nullsFirst"),
+                               ]), "Expected synthetic Comparator.nullsFirst to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_nulls_first", "Expected Comparator.nullsFirst to map to kk_comparator_nulls_first")
+
+            }
+
+            // === testNullsLastIsRegisteredAsSyntheticComparatorMember ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                                   interner.intern("kotlin"),
+                                   interner.intern("Comparator"),
+                                   interner.intern("nullsLast"),
+                               ]), "Expected synthetic Comparator.nullsLast to be registered")
+                           #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_nulls_last", "Expected Comparator.nullsLast to map to kk_comparator_nulls_last")
+
+            }
+
+            // === testNullsFirstCallOnComparatorResolvesCorrectly ===
+
+            do {
+
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[13], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "nullsFirst"
+                           }, "Expected a nullsFirst member call")
+
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsFirst() to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_nulls_first", "Expected nullsFirst() to link to kk_comparator_nulls_first")
+
+            }
+
+            // === testNullsLastCallOnComparatorResolvesCorrectly ===
+
+            do {
+
+                           let callExpr = try #require(firstExprID(in: ast, path: paths[14], ctx: ctx) { _, expr in
+                               guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                               return interner.resolve(callee) == "nullsLast"
+                           }, "Expected a nullsLast member call")
+
+                           let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsLast() to resolve to a callee")
+                           #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_nulls_last", "Expected nullsLast() to link to kk_comparator_nulls_last")
+
+            }
+
+            // === testNullsFirstSignatureHasNoParameters ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                               interner.intern("kotlin"),
+                               interner.intern("Comparator"),
+                               interner.intern("nullsFirst"),
+                           ]))
+                           let sig = try #require(sema.symbols.functionSignature(for: symbolID))
+                           #expect(sig.parameterTypes.isEmpty, "Expected nullsFirst() to take no parameters")
+
+            }
+
+            // === testNullsLastSignatureHasNoParameters ===
+
+            do {
+
+                           let symbolID = try #require(sema.symbols.lookup(fqName: [
+                               interner.intern("kotlin"),
+                               interner.intern("Comparator"),
+                               interner.intern("nullsLast"),
+                           ]))
+                           let sig = try #require(sema.symbols.functionSignature(for: symbolID))
+                           #expect(sig.parameterTypes.isEmpty, "Expected nullsLast() to take no parameters")
+
+            }
+
+            // === testChainedCompareByThenByReversedResolvesCleanly ===
+
+            do {
+
+                           #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for chained compareBy.thenBy.reversed(), got: \(ctx.diagnostics.diagnostics)")
+
+            }
+
+            // === testNullsFirstAndNullsLastReturnComparatorType ===
+
+            do {
+
+                           #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for nullsFirst/nullsLast usage, got: \(ctx.diagnostics.diagnostics)")
+
+            }
+
+            // === testNullableCompareBySelectorCanFeedNullsFirstAndLast ===
+
+            do {
+
+                           #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(ctx.diagnostics.diagnostics)")
+
+            }
+
         }
     }
 }
