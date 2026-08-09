@@ -20,6 +20,7 @@ fi
 RUNS="${1:-5}"
 TMPDIR="${TMPDIR:-/tmp}"
 OUT_DIR="$(mktemp -d "$TMPDIR/kswiftk-bundled-injection.XXXXXX")"
+ARTIFACT_DIR="$OUT_DIR/KSwiftKStdlib.kklib"
 trap 'rm -rf "$OUT_DIR"' EXIT
 
 extract_subphase() {
@@ -29,6 +30,33 @@ extract_subphase() {
         $0 ~ "^" p "[[:space:]]" { want=1; next }
         want && /^  bundled-stdlib[[:space:]]/ { print $2; want=0; exit }
     ' "$file"
+}
+
+measure_artifact_build() {
+    local artifact_dir="$1"
+    local stderr_file="$2"
+    local start end
+    start=$(date +%s%N)
+    "$KSWIFTC" --stdlib-only --emit library -o "$artifact_dir" 2>"$stderr_file" || {
+        cat "$stderr_file" >&2
+        exit 1
+    }
+    end=$(date +%s%N)
+    awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f", (e - s) / 1000000 }'
+}
+
+measure_shared_candidate_compile() {
+    local artifact_dir="$1"
+    local output="$2"
+    local stderr_file="$3"
+    local start end
+    start=$(date +%s%N)
+    "$KSWIFTC" --no-stdlib --stdlib-library "$artifact_dir" "$HELLO_KT" -o "$output" 2>"$stderr_file" || {
+        cat "$stderr_file" >&2
+        exit 1
+    }
+    end=$(date +%s%N)
+    awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f", (e - s) / 1000000 }'
 }
 
 lex_values=()
@@ -80,3 +108,10 @@ if (( $(awk -v t="$total_median" 'BEGIN { print (t >= 137.29) ? 1 : 0 }') )); th
 else
     printf 'Trigger (>= 137.29 ms): not reached\n' >&2
 fi
+
+printf '\nShared stdlib artifact measurement:\n'
+artifact_build_ms="$(measure_artifact_build "$ARTIFACT_DIR" "$OUT_DIR/artifact_build.stderr")"
+printf '  Artifact build (stdlib-only .kklib): %s ms\n' "$artifact_build_ms"
+
+shared_compile_ms="$(measure_shared_candidate_compile "$ARTIFACT_DIR" "$OUT_DIR/shared.out" "$OUT_DIR/shared.stderr")"
+printf '  Shared candidate compile (hello.kt): %s ms\n' "$shared_compile_ms"

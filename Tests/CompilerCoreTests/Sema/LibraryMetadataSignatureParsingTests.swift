@@ -41,7 +41,7 @@ struct LibraryMetadataSignatureParsingTests {
             let interner = StringInterner()
             var inlineFns: [SymbolID: KIRFunction] = [:]
 
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
@@ -94,7 +94,7 @@ struct LibraryMetadataSignatureParsingTests {
             let interner = StringInterner()
             var inlineFns: [SymbolID: KIRFunction] = [:]
 
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
@@ -144,7 +144,7 @@ struct LibraryMetadataSignatureParsingTests {
             let interner = StringInterner()
             var inlineFns: [SymbolID: KIRFunction] = [:]
 
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,

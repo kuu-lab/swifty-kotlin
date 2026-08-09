@@ -43,12 +43,19 @@ extension DataFlowSemaPhase {
         )
 
         // kotlin.enums.EnumEntries<T> — List-like read-only container for enum entries
-        _ = ensureEnumEntriesInterface(
+        let enumEntriesInterfaceSymbol = ensureEnumEntriesInterface(
             symbols: symbols,
             types: types,
             interner: interner,
             kotlinEnumsPkg: kotlinEnumsPkg,
             kotlinCollectionsPkg: kotlinCollectionsPkg
+        )
+        registerEnumEntriesGetOperator(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinEnumsPkg: kotlinEnumsPkg,
+            enumEntriesSymbol: enumEntriesInterfaceSymbol
         )
 
         // enumValues<T>(): Array<T> — top-level inline reified
@@ -212,6 +219,60 @@ extension DataFlowSemaPhase {
         types.setNominalSupertypeTypeArgs([.out(tParamType)], for: enumEntriesSymbol, supertype: listInterfaceSymbol)
 
         return enumEntriesSymbol
+    }
+
+    /// Registers `operator fun get(index: Int): T` on `EnumEntries<T>`.
+    ///
+    /// `EnumEntries<T>` has no declared members or supertypes (see
+    /// `ensureEnumEntriesInterface`), so without an owned `get`, indexed access
+    /// (`entries[0]`) finds no `operator fun get` candidate in Sema and the KIR
+    /// indexed-access lowering falls back to the generic built-in path, which
+    /// always emits `kk_array_get` regardless of the receiver's actual runtime
+    /// representation. `entries`'s runtime representation is a `RuntimeListBox`
+    /// (`kk_enum_make_entries_list`), not a `RuntimeArrayBox`, so that fallback
+    /// panics at runtime (BUG-172). Mirrors `registerListGetOperator` and reuses
+    /// the same `__kk_list_get` bridge, since both share the same backing store.
+    private func registerEnumEntriesGetOperator(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinEnumsPkg: [InternedString],
+        enumEntriesSymbol: SymbolID
+    ) {
+        let enumEntriesFQName = kotlinEnumsPkg + [interner.intern("EnumEntries")]
+        let tParamFQName = enumEntriesFQName + [interner.intern("T")]
+        guard let tParamSymbol = symbols.lookup(fqName: tParamFQName) else { return }
+
+        let getName = interner.intern("get")
+        let getFQName = enumEntriesFQName + [getName]
+        guard symbols.lookup(fqName: getFQName) == nil else { return }
+
+        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: enumEntriesSymbol,
+            args: [.out(tParamType)],
+            nullability: .nonNull
+        )))
+        let getSymbol = symbols.define(
+            kind: .function,
+            name: getName,
+            fqName: getFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction]
+        )
+        symbols.setParentSymbol(enumEntriesSymbol, for: getSymbol)
+        symbols.setExternalLinkName("__kk_list_get", for: getSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [types.intType],
+                returnType: tParamType,
+                typeParameterSymbols: [tParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: getSymbol
+        )
     }
 
     private func registerEnumValuesFunction(
