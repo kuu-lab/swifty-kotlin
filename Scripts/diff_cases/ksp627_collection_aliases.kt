@@ -5,8 +5,8 @@
 // forms), mutation and alias-typed declarations — against kotlinc.
 // Two constructs are intentionally left out because they are broken independently
 // of this migration (both reproduce on master): subclassing
-// (`class Tags : LinkedHashSet<String>()`, BUG-183) and assigning a LinkedHashSet
-// to a `MutableSet` binding under `--stdlib-library` (BUG-184).
+// (`class Tags : LinkedHashSet<String>()`, BUG-185) and assigning a LinkedHashSet
+// to a `MutableSet` binding under `--stdlib-library` (BUG-186).
 
 fun fillList(target: ArrayList<Int>) {
     target.add(1)

@@ -426,8 +426,6 @@ enum MemberRuntimeDispatch {
 
         case ("windowed", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_flat")
-        case ("compareTo", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareToIgnoreCase_flat")
 
         case ("windowed", 3):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_partial_flat")

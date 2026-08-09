@@ -24,7 +24,7 @@ public typealias LinkedHashMap<K, V> = MutableMap<K, V>
  * Insertion-ordered mutable set.
  *
  * Construction is lowered to the runtime set entry points (`__kk_emptySet` for
- * the empty/capacity forms, `kk_iterable_toMutableSet` for the copy form) by
+ * the empty/capacity forms, `__kk_iterable_toMutableSet` for the copy form) by
  * `CollectionLiteralLoweringPass`, so the constructors carry no Kotlin body.
  */
 public open class LinkedHashSet<E> : MutableSet<E> {

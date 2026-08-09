@@ -323,7 +323,7 @@ struct RuntimeCollectionHOFThrowTests {
             #expect(blockThrowable.message == blockThrowableMessage)
             #expect(blockThrowable.suppressed == [closeThrowable])
 
-            let suppressed = kk_throwable_getSuppressed(outThrown)
+            let suppressed = __kk_throwable_suppressedRaw(outThrown)
             #expect(kk_array_size(suppressed) == 1)
             var thrown = 0
             #expect(kk_array_get(suppressed, 0, &thrown) == closeThrowable)
