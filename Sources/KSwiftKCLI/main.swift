@@ -22,6 +22,10 @@ func printCLIError(_ error: CLIParseError) {
         print("Unsupported diagnostics format: \(value)")
     case let .unknownOption(option):
         print("Unknown option: \(option)")
+    case let .incompatibleStdlibOptions(message):
+        print(message)
+    case .stdlibOnlyRequiresLibraryEmit:
+        print("--stdlib-only requires --emit library")
     }
 }
 

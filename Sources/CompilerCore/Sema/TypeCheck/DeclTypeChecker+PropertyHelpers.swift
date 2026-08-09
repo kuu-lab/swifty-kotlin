@@ -23,11 +23,22 @@ extension DeclTypeChecker {
             expectedType: inferredPropertyType
         )
         if let declaredType = inferredPropertyType {
-            driver.emitSubtypeConstraint(
-                left: getterType, right: declaredType,
-                range: getter.range, solver: solver,
-                sema: sema, diagnostics: diagnostics
-            )
+            // Range expressions infer as their scalar element type rather than the
+            // source-level range interface, so `val r: IntRange get() = a..b` skips
+            // the nominal subtype check like the equivalent expression-bodied
+            // function and local declaration do.
+            let bodyIsRangeExpr = {
+                guard case let .expr(bodyExprID, _) = getter.body else { return false }
+                return sema.bindings.isRangeExpr(bodyExprID)
+                    && driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
+            }()
+            if !bodyIsRangeExpr {
+                driver.emitSubtypeConstraint(
+                    left: getterType, right: declaredType,
+                    range: getter.range, solver: solver,
+                    sema: sema, diagnostics: diagnostics
+                )
+            }
             return inferredPropertyType
         }
         return getterType

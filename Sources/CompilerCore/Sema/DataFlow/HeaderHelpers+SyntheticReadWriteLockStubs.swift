@@ -48,7 +48,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-
     private func registerReadWriteLockReadExtension(
         ownerSymbol: SymbolID,
         ownerType: TypeID,

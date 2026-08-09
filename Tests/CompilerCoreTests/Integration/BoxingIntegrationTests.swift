@@ -176,7 +176,7 @@ struct BoxingIntegrationTests {
 
         let boxCalls = testFunc.body.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                return ctx.interner.resolve(callee) == "kk_box_double"
+                return ctx.interner.resolve(callee) == "kk_box_double_nonnull"
             }
             return false
         }
@@ -210,7 +210,7 @@ struct BoxingIntegrationTests {
 
         let boxingCalls = testFunc.body.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                return ctx.interner.resolve(callee) == "kk_box_double"
+                return ctx.interner.resolve(callee) == "kk_box_double_nonnull"
             }
             return false
         }
