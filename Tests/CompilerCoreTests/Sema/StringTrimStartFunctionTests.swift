@@ -4,24 +4,21 @@ import Testing
 @Suite
 struct StringTrimStartFunctionTests {
     @Test
-    func testTrimStartNoArgResolvesInSource() throws {
+    func testTrimStartResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripLeadingWhitespace(s: String): String {
             return s.trimStart()
         }
-        """)
-        try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
-    }
 
-    @Test
-    func testTrimStartWithPredicateResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun stripLeadingX(s: String): String {
             return s.trimStart { it == 'x' }
         }
         """)
         try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected String.trimStart overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
     }
 }

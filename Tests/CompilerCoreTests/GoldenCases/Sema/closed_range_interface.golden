@@ -18,7 +18,7 @@ symbol fq=golden.sema.uintClosedRangeValue kind=function vis=public flags=_ sig=
 symbol fq=golden.sema.ulongClosedRangeStart kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<ULong>] ret=ULong
 symbol fq=golden.sema.ulongClosedRangeStart.$5.range kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.ulongClosedRangeValue kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.ranges.ClosedRange<ULong>
-symbol fq=kotlin.ranges.ClosedRange kind=interface vis=public flags=synthetic
+symbol fq=kotlin.ranges.ClosedRange kind=interface vis=public flags=_
 symbol fq=kotlin.ranges.ClosedRange.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.ranges.ClosedRange.contains kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.ranges.ClosedRange<kotlin.ranges.ClosedRange.T> params=[kotlin.ranges.ClosedRange.T] ret=Boolean type=(kotlin.ranges.ClosedRange.T) -> Boolean
 symbol fq=kotlin.ranges.ClosedRange.contains.value kind=valueParameter vis=private flags=synthetic

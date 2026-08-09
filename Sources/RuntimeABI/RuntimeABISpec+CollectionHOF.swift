@@ -84,7 +84,7 @@ public extension RuntimeABISpec {
             RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ]
         let requireNoNullsSpec = RuntimeABIFunctionSpec(
-            name: "kk_iterable_requireNoNulls",
+            name: "__kk_iterable_requireNoNulls",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -111,7 +111,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let firstNotNullOfSpec = RuntimeABIFunctionSpec(
-            name: "kk_iterable_firstNotNullOf",
+            name: "__kk_iterable_firstNotNullOf",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -122,7 +122,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let firstNotNullOfOrNullSpec = RuntimeABIFunctionSpec(
-            name: "kk_iterable_firstNotNullOfOrNull",
+            name: "__kk_iterable_firstNotNullOfOrNull",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -133,7 +133,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let iterableAllSpec = RuntimeABIFunctionSpec(
-            name: "kk_iterable_all",
+            name: "__kk_iterable_all",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -144,7 +144,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let iterableAnySpec = RuntimeABIFunctionSpec(
-            name: "kk_iterable_any",
+            name: "__kk_iterable_any",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -155,7 +155,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let iterableLastSpec = RuntimeABIFunctionSpec(
-            name: "kk_iterable_last",
+            name: "__kk_iterable_last",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),

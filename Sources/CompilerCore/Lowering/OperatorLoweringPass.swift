@@ -694,9 +694,8 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             }
             // Skip synthetic stubs (e.g., kotlin.text.StringBuilder.toString),
             // which are already lowered via normal member-call pathways.
-            // Members imported from a library artifact are also flagged
-            // synthetic, but they are real compiled overrides and must be
-            // called directly (otherwise `println(x)` prints `<object 0x...>`).
+            // Library-imported declarations are real source declarations that
+            // merely carry the synthetic flag, so they stay eligible.
             guard !sym.flags.contains(.synthetic) || sym.flags.contains(.importedLibrary) else {
                 return false
             }

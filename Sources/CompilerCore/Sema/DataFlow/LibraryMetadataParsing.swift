@@ -86,6 +86,7 @@ extension DataFlowSemaPhase {
                 isSuspend: metadataRecord.isSuspend,
                 isInline: metadataRecord.isInline,
                 isOperator: metadataRecord.isOperator,
+                isOverride: metadataRecord.isOverride,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 canThrow: metadataRecord.canThrow,

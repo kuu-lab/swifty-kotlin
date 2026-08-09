@@ -1,5 +1,14 @@
 
 extension DataFlowSemaPhase {
+    /// KSP-652: the `ClosedRange<T>` / `ClosedFloatingPointRange<T>` declarations are
+    /// source-backed by `Stdlib/kotlin/ranges/Ranges.kt`, which reuses the shells registered
+    /// here on bundle load (the `.synthetic` flag is cleared then).
+    ///
+    /// The members and the concrete `IntRange`/`LongRange`/`CharRange`/`UIntRange`/`ULongRange`
+    /// conformances stay compiler-side residuals per `docs/stdlib-pipeline.md` (c): the
+    /// conformances are wired before bundled headers are collected, so interface-typed member
+    /// calls have to keep resolving to these stubs rather than to itable slots that the
+    /// pre-bundle wiring cannot populate. Moving them to Kotlin belongs with KSP-451.
     func registerSyntheticRangeInterfaceStubs(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
