@@ -46,7 +46,7 @@ struct MemberRuntimeDispatchTests {
 
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
-            (.iterable, "firstNotNullOf", 1, "kk_iterable_firstNotNullOf"),
+            (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),
             (.set, "map", 1, "kk_list_map"),
             (.sequence, "firstNotNullOf", 1, "kk_sequence_firstNotNullOf"),
         ]

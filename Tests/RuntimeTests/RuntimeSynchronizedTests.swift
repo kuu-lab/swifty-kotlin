@@ -84,7 +84,7 @@ private func runtime_synchronized_reentrant_lambda(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let result = kk_synchronized(closureRaw, synchronizedNestedFnPtr, synchronizedNestedClosureRaw, outThrown)
+    let result = __kk_synchronized(closureRaw, synchronizedNestedFnPtr, synchronizedNestedClosureRaw, outThrown)
     if outThrown?.pointee ?? 0 != 0 {
         return 0
     }
@@ -109,7 +109,7 @@ struct RuntimeSynchronizedTests {
             to: Int.self
         )
         var thrown = 0
-        let result = kk_synchronized(101, fn, 0, &thrown)
+        let result = __kk_synchronized(101, fn, 0, &thrown)
 
         #expect(thrown == 0)
         #expect(result == 123)
@@ -125,7 +125,7 @@ struct RuntimeSynchronizedTests {
             to: Int.self
         )
         var thrown = 0
-        let result = kk_synchronized(202, fn, 0, &thrown)
+        let result = __kk_synchronized(202, fn, 0, &thrown)
 
         #expect(result == 0)
         #expect(thrown != 0)
@@ -143,7 +143,7 @@ struct RuntimeSynchronizedTests {
         )
         var thrown = 0
         let sentinel = 4242
-        let result = kk_synchronized(303, fn, sentinel, &thrown)
+        let result = __kk_synchronized(303, fn, sentinel, &thrown)
 
         #expect(thrown == 0)
         #expect(result == 77)
@@ -168,7 +168,7 @@ struct RuntimeSynchronizedTests {
         )
         var thrown = 0
         let lockKey = 404
-        let result = kk_synchronized(lockKey, outerFn, lockKey, &thrown)
+        let result = __kk_synchronized(lockKey, outerFn, lockKey, &thrown)
 
         #expect(thrown == 0)
         #expect(result == 124)

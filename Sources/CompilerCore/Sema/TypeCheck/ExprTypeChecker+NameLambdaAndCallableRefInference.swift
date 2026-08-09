@@ -1075,31 +1075,17 @@ extension ExprTypeChecker {
                 }
                 return true
             }()
-            // A bounded callee type parameter is no more solvable here than an
-            // unbounded one -- nothing but the parameter itself is its subtype --
-            // so constrain the body against the parameter's upper bound (carrying
-            // over `T?`'s nullability) instead of the parameter. Checking the
-            // parameter directly rejects every body type, e.g.
-            // `fun <R : Any> f(t: (Char) -> R?)` called with `{ 1 }`.
-            let localExpectedReturnType: TypeID? = {
-                guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
-                    return expectedFunctionType.returnType
-                }
-                guard expectedFunctionType.receiver == nil,
-                      let bound = sema.symbols.typeParameterUpperBounds(for: tp.symbol).first,
-                      sema.symbols.typeParameterUpperBounds(for: tp.symbol).count == 1
-                else {
-                    return nil
-                }
-                return tp.nullability == .nonNull ? bound : sema.types.makeNullable(bound)
-            }()
+            // A bounded type parameter (`fun <R : Any> f(g: () -> R)`) cannot be
+            // constrained locally either — `Int <: R` is never satisfiable while
+            // `R` is still a placeholder, and the upper bound is verified by the
+            // overload resolver once `R` is inferred (`checkTypeParameterBounds`).
             let shouldSkipSubtypeConstraint =
                 expectedFunctionType.returnType == sema.types.unitType
-                || localExpectedReturnType == nil
-            if !shouldSkipSubtypeConstraint, let localExpectedReturnType {
+                || expectedReturnIsTypeParam
+            if !shouldSkipSubtypeConstraint {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
-                    right: localExpectedReturnType,
+                    right: expectedFunctionType.returnType,
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
                     sema: sema,
