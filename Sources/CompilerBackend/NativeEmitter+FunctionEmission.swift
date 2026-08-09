@@ -3482,7 +3482,6 @@ extension NativeEmitter {
         case "__getTimeMicros": "kk_system_getTimeMicros"
         case "__getTimeMillis": "kk_system_getTimeMillis"
         case "__getTimeNanos": "kk_system_getTimeNanos"
-        case "__synchronized": "kk_synchronized"
         case "__doubleToBits": "kk_double_toBits"
         case "__doubleToRawBits": "kk_double_toRawBits"
         case "__floatToBits": "kk_float_toBits"

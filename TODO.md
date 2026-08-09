@@ -426,7 +426,7 @@
 - [ ] KSP-615: readLine/readln/readlnOrNull を Kotlin 化する（削除 kk_* 3 → 残留 `__kk_readline_raw`。null 許容/例外分岐は Kotlin 側）
 - [ ] KSP-616: TODO() を Kotlin 化する（削除 kk_* 2: `kk_todo`, `kk_todo_noarg`。ブリッジ不要 — NotImplementedError へ委譲。KSP-605 と runtime 同居ファイル注意）
 - [ ] KSP-617: exitProcess/getTime 系を `__kk_` 降格する（`kk_system_exitProcess`, `kk_system_getTimeMillis/Micros/Nanos`, `kk_system_currentTimeMillis`, `kk_system_nanoTime`, `kk_system_process_start_nanos` — OS 窓口の改名 + 公開層 .kt 化。**併せて到達不能デッドコード `kk_system_measureTimeMillis/measureTimeMicros/measureNanoTime` 3関数を削除**（`StdlibSpecialCallKind` 優先で構造的に呼ばれない）。diff: getTimeMillis 系追加）
-- [ ] KSP-618: synchronized を整理する（`kk_synchronized` → `__kk_synchronized` 降格 + 公開層 Kotlin 化。diff: synchronized ケース新規）
+- [x] KSP-618: synchronized を整理する（`kk_synchronized` → `__kk_synchronized` 降格 + 公開層 Kotlin 化。diff: synchronized ケース新規）
 - [ ] KSP-619: kotlin.io 例外を Kotlin 化する（`FileSystemException` 基底を前倒し実装 + `AccessDeniedException`/`FileAlreadyExistsException`。ブリッジ残留ゼロ・特例ゼロ。**併せて BUG-016（RuntimeFileIO が型でなくメッセージ文字列の汎用 Throwable を送出 — 型付き catch 不成立の疑い）を実クラス送出へ修正**。実装先 `kotlin/io/FileSystemException.kt`。diff: 型付き catch ケース新規）
 
 #### collections

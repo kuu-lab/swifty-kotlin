@@ -1497,7 +1497,7 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
-            "kk_synchronized",
+            "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
         ].contains(name)
     }
@@ -1511,7 +1511,7 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
-            "kk_synchronized",
+            "__kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }
 

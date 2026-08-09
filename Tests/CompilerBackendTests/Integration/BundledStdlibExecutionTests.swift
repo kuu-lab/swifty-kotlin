@@ -188,6 +188,37 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-618 regression: kotlin.synchronized is bundled Kotlin source delegating to the
+    // demoted __kk_synchronized bridge. The block reaches the wrapper as a boxed function
+    // value, so the closure-thunk expansion must recover its (fnPtr, closureRaw) pair —
+    // otherwise a capturing block either crashes or loses its captures.
+    @Test
+    func testSynchronizedMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val lock = object {}
+                var counter = 0
+                val result = synchronized(lock) {
+                    counter += 1
+                    val nested = synchronized(lock) { counter + 40 }
+                    nested + 1
+                }
+                println(result)
+                println(counter)
+                val text: String = synchronized(lock) { "hello" }
+                println(text)
+                try {
+                    synchronized(lock) { throw IllegalStateException("boom") }
+                } catch (e: Throwable) {
+                    println(e.message ?: "missing")
+                }
+            }
+            """,
+            expectedOutput: "42\n1\nhello\nboom\n"
+        )
+    }
+
     // KSP-677 regression: Semaphore.withPermit is bundled Kotlin source (a generic suspend
     // extension composing the c-soft acquire/release kernel).
     @Test
