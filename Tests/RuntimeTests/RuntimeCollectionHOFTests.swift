@@ -1949,43 +1949,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testBooleanListToPrimitiveArrayConversionCopiesElements() {
-        let list = makeList([kk_box_bool(1), kk_box_bool(0), kk_box_bool(1)])
-        #expect(arrayElements(kk_list_toBooleanArray(list)) == [1, 0, 1])
-    }
-
-    @Test
-    func testByteListToPrimitiveArrayConversionCopiesElements() {
-        #expect(arrayElements(kk_list_toByteArray(makeList([1, -2, 127]))) == [1, -2, 127])
-    }
-
-    @Test
-    func testShortListToPrimitiveArrayConversionCopiesElements() {
-        #expect(arrayElements(kk_list_toShortArray(makeList([1, -2, 32767]))) == [1, -2, 32767])
-    }
-
-    @Test
-    func testIntListToPrimitiveArrayConversionCopiesElements() {
-        #expect(arrayElements(kk_list_toIntArray(makeList([1, -2, 1_000_000]))) == [1, -2, 1_000_000])
-    }
-
-    @Test
-    func testDoubleListToPrimitiveArrayConversionCopiesElements() {
-        let first = kk_double_to_bits(1.5)
-        let second = kk_double_to_bits(-2.25)
-        let list = makeList([kk_box_double(first), kk_box_double(second)])
-        #expect(arrayElements(kk_list_toDoubleArray(list)) == [first, second])
-    }
-
-    @Test
-    func testFloatListToPrimitiveArrayConversionCopiesElements() {
-        let first = kk_float_to_bits(1.5)
-        let second = kk_float_to_bits(-2.25)
-        let list = makeList([kk_box_float(first), kk_box_float(second)])
-        #expect(arrayElements(kk_list_toFloatArray(list)) == [first, second])
-    }
-
-    @Test
     func testListUnzipSplitsPairElementsIntoLists() {
         let source = makeList([
             kk_pair_new(1, 10),

@@ -106,7 +106,16 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> [TypeRefID] {
-        let tokens = collectTokens(from: nodeID, in: arena)
+        let allTokens = collectTokens(from: nodeID, in: arena)
+        // Context receivers are declaration modifiers, so they always precede `fun`.
+        // Restricting the scan keeps a `context(...)` function type in the parameter
+        // list — or a function literally named `context` — from being mistaken for
+        // a declaration-level context receiver.
+        let tokens = if let funIndex = allTokens.firstIndex(where: { $0.kind == .keyword(.fun) }) {
+            Array(allTokens[..<funIndex])
+        } else {
+            allTokens
+        }
         guard let contextIndex = tokens.firstIndex(where: { $0.kind == .softKeyword(.context) }) else {
             return []
         }

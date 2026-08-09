@@ -105,6 +105,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
 
+        // `kk_array_get` reads an element out of both generic `Array<T>` (boxed
+        // elements) and the primitive arrays (raw elements), so it needs the
+        // same unboxing as the accessors above only for the generic receiver;
+        // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
+        let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
+
         // kk_op_rangeUntil backs the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
@@ -347,6 +353,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
+                        boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
                         newBody: &newBody
                     )
                 } else {
@@ -437,8 +444,18 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // resolveUnboxForCall cannot handle these because they have no
                 // FunctionSignature entry. Unbox using the KIR result type as the target.
                 var effectiveUnbox: (InternedString, TypeID)? = resolvedUnbox
+                let needsErasedResultUnbox =
+                    collectionElementAccessorCallees.contains(effectiveCallee)
+                    || (effectiveCallee == genericArrayGetCallee
+                        && isGenericArrayReceiver(
+                            boxedArguments.first,
+                            module: module,
+                            types: types,
+                            symbols: symbols,
+                            interner: ctx.interner
+                        ))
                 if effectiveUnbox == nil,
-                   collectionElementAccessorCallees.contains(effectiveCallee),
+                   needsErasedResultUnbox,
                    let result, let types,
                    let resultType = module.arena.exprType(result)
                 {
