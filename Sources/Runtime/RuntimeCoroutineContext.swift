@@ -270,10 +270,7 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
     {
         return ctx.exceptionHandler.map { Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained($0).toOpaque())) }
     }
-    if keyRaw != 0,
-       let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
-       tryCast(ptr, to: RuntimeJobHandle.self) != nil
-    {
+    if runtimeJobHandle(from: keyRaw) != nil {
         guard ctx.jobHandleRaw == keyRaw else { return nil }
         return keyRaw
     }
@@ -339,10 +336,7 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         }
         return next
     }
-    if keyRaw != 0,
-       let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
-       tryCast(ptr, to: RuntimeJobHandle.self) != nil
-    {
+    if runtimeJobHandle(from: keyRaw) != nil {
         if next.jobHandleRaw == keyRaw {
             next.jobHandleRaw = 0
         }
@@ -355,10 +349,7 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
 @_cdecl("kk_context_is_active")
 public func kk_context_is_active(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
-    guard ctx.jobHandleRaw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: ctx.jobHandleRaw),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
-    else {
+    guard let job = runtimeJobHandle(from: ctx.jobHandleRaw) else {
         return 1 // No Job element: kotlinx.coroutines treats this as active.
     }
     return job.isActiveSnapshot() ? 1 : 0
@@ -422,10 +413,7 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
         // original and restore it via restoreJobHandle once the block genuinely
         // finishes, across all of kk_with_context's completion paths (inline,
         // CORO-004 async, and non-coroutine semaphore).
-        if resolvedCtx.jobHandleRaw != 0,
-           let ptr = UnsafeMutableRawPointer(bitPattern: resolvedCtx.jobHandleRaw),
-           let overrideJob = tryCast(ptr, to: RuntimeJobHandle.self)
-        {
+        if let overrideJob = runtimeJobHandle(from: resolvedCtx.jobHandleRaw) {
             let savedJobHandle = contState.jobHandle
             contState.jobHandle = overrideJob
             restoreJobHandle = { [weak contState] in
@@ -481,10 +469,10 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     if let handler = tryCast(ptr, to: RuntimeExceptionHandlerBox.self) {
         return RuntimeCoroutineContext(exceptionHandler: handler)
     }
-    if tryCast(ptr, to: RuntimeJobHandle.self) != nil {
+    if runtimeJobHandle(from: raw) != nil {
         return RuntimeCoroutineContext(jobHandleRaw: raw)
     }
-    if tryCast(ptr, to: RuntimeAsyncTask.self) != nil {
+    if runtimeAsyncTask(from: raw) != nil {
         return RuntimeCoroutineContext(jobHandleRaw: raw)
     }
     return RuntimeCoroutineContext(dispatcher: raw)

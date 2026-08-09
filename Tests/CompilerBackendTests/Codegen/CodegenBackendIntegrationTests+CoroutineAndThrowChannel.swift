@@ -6,6 +6,18 @@ import XCTest
 class CodegenBackendTestSupport: XCTestCase {}
 
 extension CodegenBackendTestSupport {
+#if canImport(Darwin)
+    /// Corelibs XCTest exposes `init(name:testClosure:)` but Apple's XCTest
+    /// does not, so the converted Swift-Testing suites provide a closure.
+    /// This convenience init makes the same call work on Darwin.
+    convenience init(name: String, testClosure: @escaping (XCTestCase) -> Void) {
+        self.init()
+        _ = testClosure
+    }
+#endif
+}
+
+extension CodegenBackendTestSupport {
 
     func runCodegenPipeline(
         inputPath: String,

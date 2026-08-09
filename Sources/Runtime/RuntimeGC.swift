@@ -304,13 +304,19 @@ public func kk_runtime_force_reset() {
     runtimeResetDebugState()
 }
 
+/// `objectPointers` is deliberately preserved: every entry is a box the runtime
+/// still holds a `passRetained` reference to, so dropping the entry reclaims
+/// nothing and only makes a live handle unresolvable. Test isolation resets run
+/// while other suites of the same process still own such handles, and an
+/// unresolvable live handle surfaces as a KSWIFTK-RUNTIME-0001 invalid-handle
+/// panic (invalid range/array/string handle). Entries are removed by whoever
+/// releases the box.
 func kk_runtime_reset_gc() {
     runtimeStorage.withGCLock { state in
         for (_, object) in state.heapObjects {
             object.pointer.deallocate()
         }
         state.heapObjects.removeAll(keepingCapacity: false)
-        state.objectPointers.removeAll(keepingCapacity: false)
         state.globalRootSlots.removeAll(keepingCapacity: false)
         state.frameMaps.removeAll(keepingCapacity: false)
         state.activeFrames.removeAll(keepingCapacity: false)
@@ -321,12 +327,8 @@ func kk_runtime_reset_gc() {
 }
 
 func kk_runtime_reset_metadata() {
-    runtimeStorage.withMetadataLock { state in
-        for (_, kclassRaw) in state.kClassBoxCache {
-            if let ptr = UnsafeMutableRawPointer(bitPattern: kclassRaw) {
-                Unmanaged<RuntimeKClassBox>.fromOpaque(ptr).release()
-            }
-        }
+    let kClassBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
+        let boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
         state.kClassBoxCache.removeAll(keepingCapacity: false)
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
@@ -334,7 +336,9 @@ func kk_runtime_reset_metadata() {
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
+        return boxes
     }
+    releaseRegisteredRuntimeBoxes(kClassBoxes)
     runtimeKClassMetadataRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
@@ -357,14 +361,28 @@ func kk_runtime_reset_flow() {
 }
 
 func kk_runtime_reset_thread_local() {
-    runtimeStorage.withThreadLocalLock { state in
-        for threadLocalRaw in state.threadLocalBoxes {
-            if let ptr = UnsafeMutableRawPointer(bitPattern: threadLocalRaw) {
-                Unmanaged<AnyObject>.fromOpaque(ptr).release()
-            }
-        }
+    let boxes = runtimeStorage.withThreadLocalLock { state -> [UnsafeMutableRawPointer] in
+        let boxes = state.threadLocalBoxes.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
         state.threadLocalBoxes.removeAll(keepingCapacity: false)
         state.threadLocalValues.removeAll(keepingCapacity: false)
+        return boxes
+    }
+    releaseRegisteredRuntimeBoxes(boxes)
+}
+
+/// Release boxes registered in `objectPointers`, dropping their registration
+/// first so no handle can resolve to the freed memory.
+private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]) {
+    guard !pointers.isEmpty else {
+        return
+    }
+    runtimeStorage.withGCLock { state in
+        for pointer in pointers {
+            state.objectPointers.remove(UInt(bitPattern: pointer))
+        }
+    }
+    for pointer in pointers {
+        Unmanaged<AnyObject>.fromOpaque(pointer).release()
     }
 }
 
