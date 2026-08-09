@@ -272,6 +272,15 @@ struct RuntimeABIExternalLinkValidationTests {
                 continue
             }
 
+            // Constructors carry their own lowering (the runtime allocates the
+            // object) and have no `fun` header to derive a signature from, so
+            // their annotations must not leak onto the next function below.
+            if isConstructorDeclaration(line) {
+                pendingLinkNames.removeAll()
+                pendingScope = nil
+                continue
+            }
+
             guard !pendingLinkNames.isEmpty,
                   let functionHeader = functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
@@ -302,6 +311,15 @@ struct RuntimeABIExternalLinkValidationTests {
         }
 
         return declarations
+    }
+
+    private func isConstructorDeclaration(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("//") && !trimmed.hasPrefix("*") else { return false }
+        guard let range = trimmed.range(of: "constructor(") else { return false }
+        let prefix = trimmed[..<range.lowerBound]
+        return prefix.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            .allSatisfy { ["public", "internal", "private", "protected"].contains(String($0)) }
     }
 
     private func ksSymbolNameArgument(in line: String) -> String? {
