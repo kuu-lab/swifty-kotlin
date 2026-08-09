@@ -408,6 +408,10 @@ extension DataFlowSemaPhase {
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: memberSymbol)
 
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                symbols.setPropertyHasCustomGetter(true, for: memberSymbol)
+            }
+
             validateConstPropertyDeclaration(
                 propertyDecl,
                 propertySymbol: memberSymbol,
@@ -731,7 +735,25 @@ extension DataFlowSemaPhase {
                     )
                     symbols.setParentSymbol(nestedSymbol, for: entrySymbol)
                     symbols.setPropertyType(nestedType, for: entrySymbol)
+                    nestedScope.insert(entrySymbol)
                 }
+                collectSyntheticEnumEntryProperties(
+                    ownerSymbol: nestedSymbol,
+                    ownerFQName: nestedFQName,
+                    symbols: symbols,
+                    types: types,
+                    scope: nestedScope,
+                    interner: interner
+                )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: nestedSymbol,
+                    ownerFQName: nestedFQName,
+                    enumType: nestedType,
+                    symbols: symbols,
+                    types: types,
+                    scope: nestedScope,
+                    interner: interner
+                )
             }
             if nestedClass.modifiers.contains(.data) {
                 collectSyntheticDataClassMethods(
@@ -807,6 +829,37 @@ extension DataFlowSemaPhase {
                     bindings: bindings,
                     scope: nestedScope,
                     diagnostics: diagnostics,
+                    interner: interner
+                )
+            } else if nestedClassKind == .enumClass {
+                // Synthesize implicit companion for enum classes (valueOf, entries)
+                let companionName = interner.intern("Companion")
+                let companionFQName = nestedFQName + [companionName]
+                let companionSymbol = symbols.define(
+                    kind: .object,
+                    name: companionName,
+                    fqName: companionFQName,
+                    declSite: nestedClass.range,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(nestedSymbol, for: companionSymbol)
+                symbols.setCompanionObjectSymbol(companionSymbol, for: nestedSymbol)
+                nestedScope.insert(companionSymbol)
+                let companionType = types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                let companionScope = ClassMemberScope(
+                    parent: nestedScope,
+                    symbols: symbols,
+                    ownerSymbol: companionSymbol,
+                    thisType: companionType
+                )
+                collectSyntheticEnumCompanionMembers(
+                    companionSymbol: companionSymbol,
+                    companionFQName: companionFQName,
+                    enumType: nestedType,
+                    symbols: symbols,
+                    types: types,
+                    scope: companionScope,
                     interner: interner
                 )
             }

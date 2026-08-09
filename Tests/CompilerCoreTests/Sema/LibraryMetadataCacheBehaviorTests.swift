@@ -47,7 +47,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let diagnostics1 = DiagnosticEngine()
             var inlineFns1: [SymbolID: KIRFunction] = [:]
             let phase = DataFlowSemaPhase()
-            phase.loadImportedLibrarySymbols(
+            _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols1,
                 types: types1,
@@ -85,7 +85,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let diagnostics2 = DiagnosticEngine()
             var inlineFns2: [SymbolID: KIRFunction] = [:]
             let phase = DataFlowSemaPhase()
-            phase.loadImportedLibrarySymbols(
+            _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols2,
                 types: types2,
@@ -151,7 +151,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let diagnostics = DiagnosticEngine()
             var inlineFns: [SymbolID: KIRFunction] = [:]
             let phase = DataFlowSemaPhase()
-            phase.loadImportedLibrarySymbols(
+            _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
@@ -233,7 +233,7 @@ struct LibraryMetadataCacheBehaviorTests {
                     let phase = DataFlowSemaPhase()
 
                     let start = Date().timeIntervalSinceReferenceDate
-                    phase.loadImportedLibrarySymbols(
+                    _ = phase.loadImportedLibrarySymbols(
                         options: ctx.options,
                         symbols: symbols,
                         types: types,
@@ -276,7 +276,7 @@ struct LibraryMetadataCacheBehaviorTests {
                     let phase = DataFlowSemaPhase()
 
                     let start = Date().timeIntervalSinceReferenceDate
-                    phase.loadImportedLibrarySymbols(
+                    _ = phase.loadImportedLibrarySymbols(
                         options: ctx.options,
                         symbols: symbols,
                         types: types,

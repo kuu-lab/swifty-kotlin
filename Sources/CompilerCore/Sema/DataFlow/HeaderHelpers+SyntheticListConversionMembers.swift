@@ -1,6 +1,5 @@
-/// `List<E>.toList` / `toMutableList` / `toTypedArray` / `toIntArray` / `toDoubleArray` /
-/// `toBooleanArray` / etc. conversion members extracted from
-/// `HeaderHelpers+SyntheticListStubs.swift`.
+/// `List<E>.toList` / `toMutableList` / `toSet` / `toUIntArray` etc. conversion
+/// members extracted from `HeaderHelpers+SyntheticListStubs.swift`.
 extension DataFlowSemaPhase {
     func registerListConversionMembers(
         symbols: SymbolTable,
@@ -12,18 +11,14 @@ extension DataFlowSemaPhase {
         collectionInterfaceSymbol: SymbolID,
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        guard let listTypeParamSymbol = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
-        ),
-            let mutableListSymbol = symbols.lookup(
-                fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]
-            ),
-            let setInterfaceSymbol = symbols.lookup(
-                fqName: kotlinCollectionsPkg + [interner.intern("Set")]
-            ),
-            let mutableSetInterfaceSymbol = symbols.lookup(
-                fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]
-            )
+        let listE = kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
+        let mutableList = kotlinCollectionsPkg + [interner.intern("MutableList")]
+        let setSym = kotlinCollectionsPkg + [interner.intern("Set")]
+        let mutableSet = kotlinCollectionsPkg + [interner.intern("MutableSet")]
+        guard let listTypeParamSymbol = symbols.lookup(fqName: listE),
+            let mutableListSymbol = symbols.lookup(fqName: mutableList),
+            let setInterfaceSymbol = symbols.lookup(fqName: setSym),
+            let mutableSetInterfaceSymbol = symbols.lookup(fqName: mutableSet)
         else {
             return
         }
@@ -84,87 +79,20 @@ extension DataFlowSemaPhase {
             listTypeParamType: listTypeParamType,
             bundledIndex: bundledIndex
         )
-        registerListToGenericArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            memberName: "toTypedArray",
-            externalLinkName: "kk_list_toTypedArray"
-        )
         let kotlinPkg = [interner.intern("kotlin")]
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toCharArray",
-            arrayTypeName: "CharArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toCharArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toBooleanArray",
-            arrayTypeName: "BooleanArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toBooleanArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toShortArray",
-            arrayTypeName: "ShortArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toShortArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toDoubleArray",
-            arrayTypeName: "DoubleArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toDoubleArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toFloatArray",
-            arrayTypeName: "FloatArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toFloatArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toIntArray",
-            arrayTypeName: "IntArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toIntArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toLongArray",
-            arrayTypeName: "LongArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toLongArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toByteArray",
-            arrayTypeName: "ByteArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toByteArray"
-        )
+        // KSP-628: List.toTypedArray / to{Char,Boolean,Short,Double,Float,Int,Long,Byte}Array
+        // are bundled Kotlin source (Stdlib/kotlin/collections/ArrayConversions.kt).
+        // Only the receiving array types' own `size` / `toList` members stay synthetic.
+        for arrayTypeName in [
+            "CharArray", "BooleanArray", "ShortArray", "DoubleArray",
+            "FloatArray", "IntArray", "LongArray", "ByteArray",
+        ] {
+            registerPrimitiveArrayCoreMembers(
+                symbols: symbols, types: types, interner: interner,
+                arrayTypeName: arrayTypeName,
+                arrayPackage: kotlinPkg
+            )
+        }
         registerListToPrimitiveArrayMember(
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
@@ -203,91 +131,17 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register a `List<E>.toTypedArray(): Array<E>` conversion member stub.
-    private func registerListToGenericArrayMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID,
-        memberName: String,
-        externalLinkName: String
-    ) {
-        guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else {
-            return
-        }
-        let arraySymbol = ensureClassSymbol(
-            named: "Array",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            interner: interner
-        )
-
-        let internedMemberName = interner.intern(memberName)
-        let memberFQName = listFQName + [internedMemberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.invariant(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: internedMemberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// Register a `List<E>.toXxxArray(): XxxArray` conversion member stub.
+    /// Register the `size` / `toList` members that belong to a primitive array type.
     ///
-    /// Used for `toIntArray`, `toLongArray`, and `toByteArray` (STDLIB-LIST-PRIM-ARRAY).
-    private func registerListToPrimitiveArrayMember(
+    /// Independent of the `List<E>.toXxxArray()` conversion: the array types keep
+    /// these synthetic members even when the conversion itself is source-backed.
+    private func registerPrimitiveArrayCoreMembers(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        memberName: String,
         arrayTypeName: String,
-        arrayPackage: [InternedString],
-        externalLinkName: String
+        arrayPackage: [InternedString]
     ) {
-        guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
-        let internedMemberName = interner.intern(memberName)
-        let memberFQName = listFQName + [internedMemberName]
-
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbol, nullability: .nonNull
-        )))
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
         let arraySymbol = ensureClassSymbol(
             named: arrayTypeName,
             in: arrayPackage,
@@ -401,9 +255,48 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+    }
 
+    /// Register a `List<E>.toXxxArray(): XxxArray` conversion member stub.
+    ///
+    /// Used for the unsigned conversions (`toUByteArray` … `toULongArray`);
+    /// the signed/object ones are source-backed (KSP-628).
+    private func registerListToPrimitiveArrayMember(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        listInterfaceSymbol: SymbolID,
+        listTypeParamSymbol: SymbolID,
+        memberName: String,
+        arrayTypeName: String,
+        arrayPackage: [InternedString],
+        externalLinkName: String
+    ) {
+        registerPrimitiveArrayCoreMembers(
+            symbols: symbols, types: types, interner: interner,
+            arrayTypeName: arrayTypeName,
+            arrayPackage: arrayPackage
+        )
+
+        guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
+        let internedMemberName = interner.intern(memberName)
+        let memberFQName = listFQName + [internedMemberName]
         guard symbols.lookup(fqName: memberFQName) == nil else { return }
 
+        let listTypeParamType = types.make(.typeParam(TypeParamType(
+            symbol: listTypeParamSymbol, nullability: .nonNull
+        )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.out(listTypeParamType)],
+            nullability: .nonNull
+        )))
+        let arraySymbol = ensureClassSymbol(
+            named: arrayTypeName,
+            in: arrayPackage,
+            symbols: symbols,
+            interner: interner
+        )
         let returnType = types.make(.classType(ClassType(
             classSymbol: arraySymbol,
             args: [],

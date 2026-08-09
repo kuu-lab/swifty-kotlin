@@ -1,9 +1,12 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+#if canImport(Testing)
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite(.serialized)
+struct CodegenBackendCollectionIsNullOrEmptyTests {
+    @Test
     func testCodegenNullableCollectionsIsNullOrEmptyUsesIsEmptyHelpers() throws {
         let source = """
         fun main() {
@@ -23,14 +26,14 @@ extension CodegenBackendIntegrationTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_list_is_empty"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_set_is_empty"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_map_is_empty"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_array_is_empty"]?.allSatisfy { $0 == false }, true)
+            #expect(throwFlags["kk_list_is_empty"]?.allSatisfy { $0 == false } == true)
+            #expect(throwFlags["kk_set_is_empty"]?.allSatisfy { $0 == false } == true)
+            #expect(throwFlags["kk_map_is_empty"]?.allSatisfy { $0 == false } == true)
+            #expect(throwFlags["kk_array_is_empty"]?.allSatisfy { $0 == false } == true)
         }
     }
 }
-
+#endif

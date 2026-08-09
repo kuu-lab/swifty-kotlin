@@ -205,12 +205,12 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_iterable_joinTo"
+           externalLinkName == "__kk_iterable_joinTo"
             || externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
-                firstDefaultParameterIndex: externalLinkName == "kk_iterable_joinTo" ? 1 : 0,
+                firstDefaultParameterIndex: externalLinkName == "__kk_iterable_joinTo" ? 1 : 0,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -220,7 +220,8 @@ extension CallLowerer {
         }
         if normalized.defaultMask != 0,
            let chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true
+           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosenCallee,
@@ -445,7 +446,7 @@ extension CallLowerer {
             )
         }
         if loweredCallee == interner.intern("kk_list_joinToString_transform")
-            || loweredCallee == interner.intern("kk_iterable_joinToString_transform")
+            || loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
             || loweredCallee == interner.intern("kk_array_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
@@ -670,10 +671,10 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")
-            || loweredCallee == interner.intern("kk_iterable_any")
-            || loweredCallee == interner.intern("kk_iterable_all"),
+        if loweredCallee == interner.intern("__kk_iterable_firstNotNullOf")
+            || loweredCallee == interner.intern("__kk_iterable_firstNotNullOfOrNull")
+            || loweredCallee == interner.intern("__kk_iterable_any")
+            || loweredCallee == interner.intern("__kk_iterable_all"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -1084,11 +1085,11 @@ extension CallLowerer {
             interner.intern("kk_list_distinctBy"),
             interner.intern("kk_list_takeWhile"),
             interner.intern("kk_list_dropLastWhile"),
-            interner.intern("kk_iterable_firstNotNullOf"),
-            interner.intern("kk_iterable_firstNotNullOfOrNull"),
-            interner.intern("kk_iterable_any"),
-            interner.intern("kk_iterable_all"),
-            interner.intern("kk_iterable_requireNoNulls"),
+            interner.intern("__kk_iterable_firstNotNullOf"),
+            interner.intern("__kk_iterable_firstNotNullOfOrNull"),
+            interner.intern("__kk_iterable_any"),
+            interner.intern("__kk_iterable_all"),
+            interner.intern("__kk_iterable_requireNoNulls"),
             interner.intern("__kk_string_codePointCount_from"),
             interner.intern("__kk_string_codePointCount_range"),
             interner.intern("__kk_kclass_cast"),
@@ -1196,6 +1197,10 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_reentrant_read_write_lock_read"),
+            interner.intern("kk_biginteger_divide"),
+            interner.intern("kk_biginteger_pow"),
+            interner.intern("kk_biginteger_modInverse"),
+            interner.intern("kk_biginteger_modPow"),
         ])
     }
 

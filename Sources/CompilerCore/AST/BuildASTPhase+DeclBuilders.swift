@@ -294,10 +294,24 @@ extension BuildASTPhase {
         // is a block child of the property node that `propertyHeadTokens` excludes.
         // Extract it here so KIR lowering can create the lambda function from it.
         var delegateBody: FunctionBody?
+        var delegateBodyParams: [InternedString] = []
         if delegateExpr != nil {
             // Find the block child node — this is the trailing lambda body.
             for child in arena.children(of: nodeID) {
                 if case let .node(childID) = child, arena.node(childID).kind == .block {
+                    // A parameterized trailing lambda (`{ prop, old, new -> ... }`)
+                    // cannot be recovered from the CST statement nodes: the
+                    // parameter list and the arrow form their own statement node
+                    // that the block-statement parser cannot make sense of. Re-parse
+                    // the block's tokens as a lambda literal so both the parameter
+                    // names and the real body statements survive.
+                    if let parsed = delegateLambdaFromBlockTokens(
+                        blockNodeID: childID, in: arena, interner: interner, astArena: astArena
+                    ) {
+                        delegateBodyParams = parsed.params
+                        delegateBody = parsed.body
+                        break
+                    }
                     let exprs = blockExpressions(from: childID, in: arena, interner: interner, astArena: astArena)
                     delegateBody = .block(exprs, arena.node(childID).range)
                     break
@@ -333,9 +347,53 @@ extension BuildASTPhase {
             setter: accessors.setter,
             delegateExpression: delegateExpr,
             delegateBody: delegateBody,
+            delegateBodyParams: delegateBodyParams,
             receiverType: receiverType,
             explicitBackingField: explicitField
         )
+    }
+
+    /// Re-parses a delegate property's trailing-lambda block from its tokens so
+    /// that a declared parameter list (`{ prop, old, new -> ... }`) is preserved.
+    /// Returns `nil` for parameterless lambdas, which the CST statement nodes
+    /// already describe correctly.
+    private func delegateLambdaFromBlockTokens(
+        blockNodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (params: [InternedString], body: FunctionBody)? {
+        let tokens = collectTokens(from: blockNodeID, in: arena)
+        guard let last = tokens.last,
+              tokens.contains(where: { $0.kind == .symbol(.arrow) })
+        else {
+            return nil
+        }
+        let eofRange = SourceRange(start: last.range.end, end: last.range.end)
+        let parser = ExpressionParser(
+            tokens: (tokens + [Token(kind: .eof, range: eofRange)])[...],
+            interner: interner,
+            astArena: astArena
+        )
+        guard let lambdaExprID = parser.parseLambdaLiteral(),
+              let lambdaExpr = astArena.expr(lambdaExprID),
+              case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr,
+              !params.isEmpty,
+              let bodyExpr = astArena.expr(bodyExprID)
+        else {
+            return nil
+        }
+        if case let .blockExpr(statements, trailingExpr, range) = bodyExpr {
+            var exprs = statements
+            if let trailingExpr {
+                exprs.append(trailingExpr)
+            }
+            return (params, .block(exprs, range))
+        }
+        guard let range = astArena.exprRange(bodyExprID) else {
+            return nil
+        }
+        return (params, .expr(bodyExprID, range))
     }
 
     func makeTypeAliasDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> TypeAliasDecl {
