@@ -165,9 +165,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsAny") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsFunction") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsNumber") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         },

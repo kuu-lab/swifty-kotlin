@@ -74,9 +74,15 @@ extension DataFlowSemaPhase {
         let nullableCharSequenceType = types.makeNullable(charSequenceType)
 
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
+        // BUG-172: all three overloads need an externalLinkName. StringBuilder is
+        // the sole implementer and bypasses kk_object_new construction (see the
+        // BUG-044 note in RuntimeStringBuilder.swift), so it never registers itable
+        // entries — a call through the bare `Appendable` interface type for an
+        // overload with no externalLinkName falls through to itable dispatch and
+        // panics with "method not found in vtable/itable".
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "",
+            externalLinkName: "__kk_string_builder_append_char",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", charType, false, false)],
@@ -96,7 +102,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "",
+            externalLinkName: "__kk_string_builder_append_range",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -106,7 +112,8 @@ extension DataFlowSemaPhase {
             ],
             returnType: appendableType,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            canThrow: true
         )
 
         // --- STDLIB-TEXT-TYPE-003: kotlin.text.Typography object surface ---
@@ -707,7 +714,7 @@ extension DataFlowSemaPhase {
         )
 
         // STDLIB-317: String.asIterable() — returns lazy Iterable<Char>
-        let iterableCharType = makeIterableType(
+        let iterableCharType = makeSyntheticIterableType(
             symbols: symbols,
             types: types,
             interner: interner,
@@ -2039,7 +2046,7 @@ extension DataFlowSemaPhase {
             args: [.out(charType)],
             nullability: .nonNull
         )))
-        let iterableIndexedValueCharType = makeIterableType(
+        let iterableIndexedValueCharType = makeSyntheticIterableType(
             symbols: symbols,
             types: types,
             interner: interner,
@@ -2275,18 +2282,87 @@ extension DataFlowSemaPhase {
         return kotlinTextPkg
     }
 
+    /// Build a type from an already-registered stdlib type shell.
+    ///
+    /// The collection/sequence interfaces and the primitive array classes are
+    /// registered by `registerSyntheticCollectionStubs` or by bundled Kotlin
+    /// source before the String stubs run, so a lookup is sufficient here.
+    private func makeStdlibShellType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        fqName: [InternedString],
+        args: [TypeArg]
+    ) -> TypeID {
+        guard let symbol = symbols.lookup(fqName: fqName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: args,
+            nullability: .nonNull
+        )))
+    }
+
     private func makeListType(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
         elementType: TypeID
     ) -> TypeID {
-        let listSymbol = ensureListSymbol(symbols: symbols, types: types, interner: interner)
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
+        makeStdlibShellType(
+            symbols: symbols,
+            types: types,
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("List"),
+            ],
+            args: [.out(elementType)]
+        )
+    }
+
+    private func makeCollectionType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        makeStdlibShellType(
+            symbols: symbols,
+            types: types,
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Collection"),
+            ],
+            args: [.out(elementType)]
+        )
+    }
+
+    private func makeSequenceType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        makeStdlibShellType(
+            symbols: symbols,
+            types: types,
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("Sequence"),
+            ],
+            args: [.out(elementType)]
+        )
+    }
+
+    private func makeNominalType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        fqName: [InternedString]
+    ) -> TypeID {
+        makeStdlibShellType(symbols: symbols, types: types, fqName: fqName, args: [])
     }
 
     private func makeListOfStringType(
