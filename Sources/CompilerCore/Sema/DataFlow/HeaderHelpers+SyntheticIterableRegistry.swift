@@ -169,6 +169,12 @@ extension DataFlowSemaPhase {
     }
 
     /// Register `kotlin.collections.AbstractCollection<E>` surface (STDLIB-COL-TYPE-001).
+    ///
+    /// KSP-633: the nominal declaration is source-backed by
+    /// `Stdlib/kotlin/collections/AbstractCollection.kt`, which reuses this shell on
+    /// bundle load (the `.synthetic` flag is cleared then). The shell stays as the
+    /// fallback for non-bundled contexts (`--no-stdlib`, precompiled stdlib artifacts),
+    /// where library metadata carries no nominal type parameters.
     func registerSyntheticAbstractCollectionStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -407,6 +413,9 @@ extension DataFlowSemaPhase {
     }
 
     /// Register `kotlin.collections.AbstractMutableCollection<E>` surface (STDLIB-COL-TYPE-003).
+    ///
+    /// KSP-633: source-backed by `Stdlib/kotlin/collections/AbstractMutableCollection.kt`;
+    /// this shell is reused on bundle load and kept as the non-bundled fallback.
     func registerSyntheticAbstractMutableCollectionStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -734,6 +743,12 @@ extension DataFlowSemaPhase {
     }
 
     /// Register `kotlin.collections.MutableIterable<T>` surface (STDLIB-COL-TYPE-005).
+    ///
+    /// KSP-633: the nominal declaration is source-backed by
+    /// `Stdlib/kotlin/collections/MutableIterable.kt`, which reuses this shell on bundle
+    /// load (the `.synthetic` flag is cleared then); the shell also stays as the
+    /// fallback for non-bundled contexts. The covariant `iterator(): MutableIterator<T>`
+    /// override stays compiler-side here — see the note in the `.kt` file.
     func registerSyntheticMutableIterableStub(
         symbols: SymbolTable,
         types: TypeSystem,
