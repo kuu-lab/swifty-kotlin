@@ -57,20 +57,27 @@ extension CallLowerer {
         return symbolName == "Iterable" || symbolName == "Collection"
     }
 
-    func toMutableListRuntimeCalleeForSequenceOrIterableFallback(
-        chosenCallee: SymbolID?,
-        useIterableFallback: Bool,
+    /// True when the receiver's static type is the bare `Set` interface
+    /// itself (not a concrete `HashSet`/`LinkedHashSet`/etc.). Mirrors
+    /// `isIterableOrCollectionInterfaceType` above but kept separate since
+    /// that helper's other call sites are not verified safe to also match
+    /// `Set`.
+    func isBareSetInterfaceType(
+        _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
-    ) -> InternedString {
-        if useIterableFallback,
-           let chosenCallee,
-           let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_collection_toMutableList" || externalLinkName == "kk_iterable_toMutableList"
-        {
-            return interner.intern(externalLinkName)
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
         }
-        return interner.intern(useIterableFallback ? "kk_iterable_toMutableList" : "kk_sequence_toMutableList")
+        return interner.resolve(symbol.name) == "Set"
+    }
+
+    func toMutableListRuntimeCalleeForSequenceOrIterableFallback(
+        useIterableFallback: Bool,
+        interner: StringInterner
+    ) -> InternedString {
+        interner.intern(useIterableFallback ? "__kk_collection_toMutableList" : "kk_sequence_toMutableList")
     }
 
     func isGroupingLikeType(

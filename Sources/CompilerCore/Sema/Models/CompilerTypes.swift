@@ -89,6 +89,30 @@ public struct CompilerOptions: Equatable {
     /// available, exact no-op builds restore the previous output artifact.
     public var incrementalCachePath: String?
 
+    /// When true, compile only the bundled/residual stdlib into a .kklib.
+    public var stdlibOnly: Bool
+    /// Path to a prebuilt stdlib .kklib. Disables bundled source injection.
+    public var stdlibLibraryPath: String?
+
+    /// Search paths ordered with stdlibLibraryPath first and duplicates removed.
+    public var effectiveLibrarySearchPaths: [String] {
+        var result: [String] = []
+        var seen: Set<String> = []
+        let all = (stdlibLibraryPath.map { [$0] } ?? []) + searchPaths
+        for path in all {
+            let normalized = URL(fileURLWithPath: path).standardizedFileURL.path
+            if seen.insert(normalized).inserted {
+                result.append(normalized)
+            }
+        }
+        return result
+    }
+
+    /// Optional path to a prebuilt stdlib `.kklib` used as a fallback when a
+    /// compilation requests bundled stdlib. Test support sets this once per
+    /// process to share a single compiled stdlib artifact across many tests.
+    nonisolated(unsafe) public static var defaultStdlibLibraryPath: String? = nil
+
     public init(
         moduleName: String,
         inputs: [String],
@@ -106,7 +130,9 @@ public struct CompilerOptions: Equatable {
         stdlibSearchPaths: [String] = [],
         includeStdlib: Bool = true,
         incrementalCachePath: String? = nil,
-        diagnosticsFormat: DiagnosticsFormat = .text
+        diagnosticsFormat: DiagnosticsFormat = .text,
+        stdlibOnly: Bool = false,
+        stdlibLibraryPath: String? = nil
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -122,9 +148,15 @@ public struct CompilerOptions: Equatable {
         self.irFlags = irFlags
         self.runtimeFlags = runtimeFlags
         self.stdlibSearchPaths = stdlibSearchPaths
-        self.includeStdlib = includeStdlib
+
+        let shouldUseDefaultStdlib = includeStdlib && !stdlibOnly && stdlibLibraryPath == nil && emit == .executable
+        let resolvedStdlibLibraryPath = stdlibLibraryPath ?? (shouldUseDefaultStdlib ? Self.defaultStdlibLibraryPath : nil)
+        self.stdlibLibraryPath = resolvedStdlibLibraryPath
+        self.includeStdlib = includeStdlib && resolvedStdlibLibraryPath == nil
+
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
+        self.stdlibOnly = stdlibOnly
     }
 
     /// Default search paths for locating Kotlin stdlib sources.

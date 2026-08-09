@@ -977,8 +977,8 @@ public func kk_biginteger_toLong(_ selfRaw: Int) -> Int {
 
 // MARK: - toString()
 
-@_cdecl("kk_biginteger_toString")
-public func kk_biginteger_toString(_ selfRaw: Int) -> Int {
+@_cdecl("__kk_biginteger_toString")
+public func __kk_biginteger_toString(_ selfRaw: Int) -> Int {
     guard let selfBox = runtimeBigIntegerBox(from: selfRaw) else {
         return bigIntMakeStringRaw("0")
     }

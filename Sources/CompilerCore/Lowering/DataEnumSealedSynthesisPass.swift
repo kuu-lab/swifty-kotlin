@@ -119,11 +119,16 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         module: KIRModule,
         sema: SemaModule
     ) {
-        // Build a lookup: syntheticEnumEntrySymbol -> ordinal
+        // Build a lookup: syntheticEnumEntrySymbol -> ordinal.
+        // Use `isSourceBackedSymbol` rather than the `synthetic` flag so that
+        // real source-backed enum entries (including those imported from a
+        // precompiled .kklib) keep their global-object symbolRef; only
+        // compiler-synthesised enum entries (e.g. RegexOption.DOT_MATCHES_ALL)
+        // are inlined as raw ordinals.
         var syntheticEntryOrdinal: [SymbolID: Int] = [:]
         for sym in sema.symbols.allSymbols() {
             guard sym.kind == .field,
-                  sym.flags.contains(.synthetic),
+                  !sema.symbols.isSourceBackedSymbol(sym.id),
                   sym.fqName.count >= 2
             else {
                 continue
@@ -132,7 +137,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             guard let parentSymbol = sema.symbols.lookup(fqName: parentFQ),
                   let parentInfo = sema.symbols.symbol(parentSymbol),
                   parentInfo.kind == .enumClass,
-                  parentInfo.flags.contains(.synthetic)
+                  !sema.symbols.isSourceBackedSymbol(parentSymbol)
             else {
                 continue
             }

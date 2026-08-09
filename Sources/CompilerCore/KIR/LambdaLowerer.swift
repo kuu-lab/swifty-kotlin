@@ -136,6 +136,8 @@ final class LambdaLowerer {
 
         // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
+        let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
+        let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
         let effectiveParamCount: Int = {
             let baseCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
                 functionType.params.count
@@ -145,14 +147,12 @@ final class LambdaLowerer {
             // For receiver lambdas (e.g., StringBuilder.() -> Unit), the receiver
             // is implicitly passed as the first parameter, but only if there's no
             // active implicit receiver in the current scope
-            let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
             return baseCount + (needsExplicitReceiver ? 1 : 0)
         }()
 
         let lambdaParameterTypes: [TypeID] = {
             var types: [TypeID] = []
             // Add receiver parameter first if needed
-            let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
             if needsExplicitReceiver, let receiverType = functionType?.receiver {
                 types.append(receiverType)
             }
@@ -177,7 +177,6 @@ final class LambdaLowerer {
             ast: ast,
             sema: sema
         )
-        let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
         let isNonCapturingLambda = captureSymbols.isEmpty && !needsClosureParam
@@ -299,9 +298,12 @@ final class LambdaLowerer {
                 normalizedParamExpr = paramExpr
             }
             driver.ctx.setLocalValue(normalizedParamExpr, for: lambdaParam.symbol)
-            // When the first parameter is the receiver (from a function-with-receiver type),
+            // When a parameter is the explicit receiver (from a function-with-receiver type),
             // set it as the implicit receiver so that member calls resolve correctly.
-            if paramIndex == 0, hasReceiverParam {
+            // For collection-HOF lambdas the closure param is first, so the receiver
+            // follows it.
+            let receiverParamIndex = needsClosureParam ? 1 : 0
+            if needsExplicitReceiver, paramIndex == receiverParamIndex {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: normalizedParamExpr)
             }
         }

@@ -267,8 +267,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.isEmpty,
                       let signatureReceiver = signature.receiverType
@@ -332,8 +331,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -372,6 +370,7 @@ extension CallTypeChecker {
             memberName: calleeName,
             receiverID: receiverID,
             argExprs: args.map(\.expr),
+            argLabels: args.map(\.label),
             argCount: args.count,
             ctx: ctx,
             sema: sema,
@@ -602,6 +601,7 @@ extension CallTypeChecker {
         memberName: InternedString,
         receiverID: ExprID,
         argExprs: [ExprID] = [],
+        argLabels: [InternedString?] = [],
         argCount: Int,
         ctx: TypeInferenceContext,
         sema: SemaModule,
@@ -647,6 +647,27 @@ extension CallTypeChecker {
                     continue
                 }
                 allCandidates.append(candidate)
+            }
+            // Named arguments can only bind to parameters a candidate actually
+            // declares. Without this filter the arity-based matching below can
+            // pick an overload that has none of the labels — e.g.
+            // `joinToString(prefix = "<", postfix = ">")` matched the 2-param
+            // `joinToString(separator, prefix)` source overload and bound the
+            // `postfix` value to `separator`.
+            let usedLabels = argLabels.compactMap { $0 }
+            if !usedLabels.isEmpty {
+                let labelMatches = allCandidates.filter { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    let parameterNames = Set(signature.valueParameterSymbols.compactMap { parameterSymbol in
+                        sema.symbols.symbol(parameterSymbol)?.name
+                    })
+                    return usedLabels.allSatisfy { parameterNames.contains($0) }
+                }
+                if !labelMatches.isEmpty {
+                    allCandidates = labelMatches
+                }
             }
             // STDLIB-214: For slice(IntRange) vs slice(Iterable<Int>), prefer the
             // IntRange overload (kk_list_slice) when the first argument is a range expression,

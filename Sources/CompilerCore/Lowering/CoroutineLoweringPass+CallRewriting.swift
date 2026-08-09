@@ -33,6 +33,8 @@ extension CoroutineLoweringPass {
         let sequenceBuilderBuildCallee: InternedString
         let sequenceBuilderBuildCoroCallee: InternedString
         let sequenceBuilderYieldAllCallee: InternedString
+        let sequenceBuilderYieldCallee: InternedString
+        let sequenceClassSymbol: SymbolID?
         let iteratorBuilderBuildCallee: InternedString
         let iteratorBuilderBuildCoroCallee: InternedString
         let sequenceBuilderThunkByOriginalSymbol: [SymbolID: LoweredSuspendFunction]
@@ -461,14 +463,17 @@ extension CoroutineLoweringPass {
         else {
             return nil
         }
+        let collectorExpr = call.arguments[1]
         let collectorSymbol = symbolReference(
-            for: call.arguments[1],
+            for: collectorExpr,
             module: rewrite.module,
             propagatedSymbols: symbolByExprRaw
         )
+        let collectorCallableInfo = rewrite.module.arena.callableValueInfo(for: collectorExpr)
 
         var prefixInstructions: [KIRInstruction] = []
         let collectorEntryPoint: KIRExprID
+        let collectorEnvPtr: KIRExprID
         let collectorContinuationArg: KIRExprID
         if let collectorSymbol, let loweredCollector = rewrite.loweredBySymbol[collectorSymbol] {
             // Suspend collector: its body contains a suspend call (e.g.
@@ -484,30 +489,23 @@ extension CoroutineLoweringPass {
                 .intLiteral(Int64(loweredCollector.symbol.rawValue)),
                 type: rewrite.intType
             )
-        } else if let collectorSymbol {
-            // Non-suspend collector: its lambda body never contained a
-            // suspend call (e.g. `collect { println(it) }`, or a collector
-            // stored in a local `val` and passed by reference), so it was
-            // never CPS-rewritten and stays a plain `(closureRaw, value,
-            // outThrown) -> result` function. Invoke collectorSymbol
-            // directly and keep the fourth argument zero so the runtime
-            // takes its continuation==0 (non-suspend) branch instead of
-            // treating a nonexistent suspend-lowered counterpart as the
-            // entry point.
-            //
-            // BUG-134 (TODO.md): this still crashes when collectorSymbol
-            // refers to a lambda stored in a local `val` and passed by
-            // reference (`val h = { v: Int -> ... }; flow.collect(h)`),
-            // because such lambdas stay marked inline=true and are never
-            // materialized as an independently callable function. Ordinary
-            // collection HOFs (map/filter/...) avoid this via the
-            // kk_hof_adapter machinery in
-            // CallLowerer+CollectionHOFMemberCalls.swift, which Flow's
-            // `collect`/`collectLatest` do not go through (`collect` is not
-            // in `isCollectionHOFCallee`). A direct inline `collect { ... }`
-            // is unaffected: Kotlin's `collect` parameter type is always
-            // `suspend (T) -> Unit`, so such lambdas always take the
-            // suspend branch above.
+            collectorEnvPtr = flowCollectorEnvironmentPointerExpr(
+                for: collectorExpr,
+                using: rewrite,
+                into: &prefixInstructions
+            )
+        } else if let collectorSymbol,
+                  let callableInfo = collectorCallableInfo,
+                  callableInfo.symbol == collectorSymbol,
+                  callableInfo.hasClosureParam,
+                  let function = rewrite.module.arena.function(for: collectorSymbol),
+                  !function.isInlineOnly
+        {
+            // Non-suspend collector that has already been adapted to the
+            // `(closureRaw, value, outThrown) -> result` ABI used by the
+            // runtime (e.g. a local `val` lambda that CallLowerer wrapped in
+            // a collection-HOF adapter). Invoke it directly and pass the
+            // packed capture environment.
             collectorEntryPoint = rewrite.module.arena.appendExpr(
                 .symbolRef(collectorSymbol),
                 type: rewrite.intType
@@ -516,38 +514,44 @@ extension CoroutineLoweringPass {
                 .intLiteral(0),
                 type: rewrite.intType
             )
+            collectorEnvPtr = flowCollectorEnvironmentPointerExpr(
+                for: collectorExpr,
+                using: rewrite,
+                into: &prefixInstructions
+            )
         } else {
-            // No resolvable symbol for the collector expression at all (e.g.
-            // it arrives via a computed/indexed lookup rather than a direct
-            // or simply-aliased reference, so none of symbolReference's
-            // strategies apply). Emitting nothing here would leave the
-            // original 3-argument kk_flow_collect(Latest) call unrewritten
-            // against a runtime ABI that now takes 4 arguments (flowHandle,
-            // collectorFnPtr, collectorEnvPtr, continuation) — every argument
-            // after the collector would shift by one slot and the runtime
-            // would read garbage for `continuation`. Fall back to the raw
-            // collector expression as the entry point (best effort — it is
-            // not guaranteed to be independently callable, same caveat as
-            // BUG-134 above) so the call at least keeps the ABI-correct
-            // argument count and shape instead of silently corrupting it.
-            collectorEntryPoint = call.arguments[1]
+            // BUG-134: the collector expression is a boxed `Function1` value
+            // (e.g. a lambda passed through a function parameter or a variable)
+            // rather than a raw closure-aware function pointer. The runtime ABI
+            // needs a `(closureRaw, value, outThrown) -> result` entry point and
+            // its closure, so recover them with the same `kk_function_value_*`
+            // accessors `CallLowerer.splitCallableLambdaArgument` uses for
+            // ordinary collection HOF arguments.
+            let fnPtrResult = rewrite.module.arena.appendTemporary(type: rewrite.intType)
+            prefixInstructions.append(.call(
+                symbol: nil,
+                callee: rewrite.ctx.interner.intern("kk_function_value_fn_ptr"),
+                arguments: [collectorExpr],
+                result: fnPtrResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let closureRawResult = rewrite.module.arena.appendTemporary(type: rewrite.intType)
+            prefixInstructions.append(.call(
+                symbol: nil,
+                callee: rewrite.ctx.interner.intern("kk_function_value_closure_raw"),
+                arguments: [collectorExpr],
+                result: closureRawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            collectorEntryPoint = fnPtrResult
+            collectorEnvPtr = closureRawResult
             collectorContinuationArg = rewrite.module.arena.appendExpr(
                 .intLiteral(0),
                 type: rewrite.intType
             )
         }
-        // The collector lambda may capture outer variables (e.g. `collect {
-        // capturedList.add(it) }`). `call.arguments[1]` still refers to the
-        // original (pre-CPS) lambda expr, so its capture info is recoverable
-        // from the same KIRArena.callableValueInfo registry ordinary HOF
-        // lambdas use (see CallLowerer.splitCallableLambdaArgument). Without
-        // this, the runtime always invoked the collector with a null
-        // environment pointer and captured values were silently dropped.
-        let collectorEnvPtr = flowCollectorEnvironmentPointerExpr(
-            for: call.arguments[1],
-            using: rewrite,
-            into: &prefixInstructions
-        )
 
         prefixInstructions.append(.call(
             symbol: call.symbol,
@@ -1057,15 +1061,6 @@ extension CoroutineLoweringPass {
         let producerLoweredTarget = producer?.lowered ?? loweredTarget
 
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.sequenceBuilderYieldAllCallee,
-               module: rewrite.module
-           )
-        {
-            return nil
-        }
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            loweredFunctionContainsAnyCallee(
                symbol: producerLoweredTarget.symbol,
                callees: [
@@ -1093,15 +1088,52 @@ extension CoroutineLoweringPass {
         {
             return nil
         }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldCallee,
+               module: rewrite.module
+           ),
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldAllCallee,
+               module: rewrite.module
+           )
+        {
+            return nil
+        }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldAllCallee,
+               module: rewrite.module
+           ),
+           !loweredFunctionContainsYieldAllOfSequence(
+               symbol: producerLoweredTarget.symbol,
+               module: rewrite.module,
+               using: rewrite
+           )
+        {
+            return nil
+        }
 
-        let entryPointSymbol = producer?.entryPoint ?? entryPointSymbol(
-            for: producerOriginalSymbol,
-            loweredTarget: producerLoweredTarget,
-            hasLauncherArg: true,
-            using: rewrite
-        )
+        let chosenEntryPoint: SymbolID
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           let producerEntryPoint = producer?.entryPoint {
+            chosenEntryPoint = producerEntryPoint
+        } else if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+                  let builderThunk = rewrite.sequenceBuilderThunkByOriginalSymbol[producerOriginalSymbol] {
+            chosenEntryPoint = builderThunk.symbol
+        } else {
+            chosenEntryPoint = entryPointSymbol(
+                for: producerOriginalSymbol,
+                loweredTarget: producerLoweredTarget,
+                hasLauncherArg: true,
+                using: rewrite
+            )
+        }
         let entryPointExpr = rewrite.module.arena.appendExpr(
-            .symbolRef(entryPointSymbol),
+            .symbolRef(chosenEntryPoint),
             type: rewrite.intType
         )
         let functionIDExpr = rewrite.module.arena.appendExpr(
@@ -1215,6 +1247,53 @@ extension CoroutineLoweringPass {
             return nil
         }
         return candidates[0]
+    }
+
+    private func loweredFunctionContainsYieldAllOfSequence(
+        symbol: SymbolID,
+        module: KIRModule,
+        using rewrite: SuspendRewriteContext
+    ) -> Bool {
+        guard let sequenceClassSymbol = rewrite.sequenceClassSymbol,
+              let types = rewrite.ctx.sema?.types
+        else {
+            return false
+        }
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  function.symbol == symbol
+            else {
+                continue
+            }
+            for instruction in function.body {
+                let callSymbol: SymbolID?
+                let instructionCallee: InternedString
+                switch instruction {
+                case let .call(sym, callee, _, _, _, _, _, _):
+                    callSymbol = sym
+                    instructionCallee = callee
+                case let .virtualCall(sym, callee, _, _, _, _, _, _):
+                    callSymbol = sym
+                    instructionCallee = callee
+                default:
+                    continue
+                }
+                guard instructionCallee == rewrite.sequenceBuilderYieldAllCallee,
+                      let callSymbol,
+                      let calleeFunction = module.arena.function(for: callSymbol),
+                      let firstParamType = calleeFunction.params.first?.type
+                else {
+                    continue
+                }
+                let normalizedType = types.makeNonNullable(firstParamType)
+                if case let .classType(classType) = types.kind(of: normalizedType),
+                   classType.classSymbol == sequenceClassSymbol {
+                    return true
+                }
+            }
+            return false
+        }
+        return false
     }
 
     private func loweredFunctionContainsCallee(

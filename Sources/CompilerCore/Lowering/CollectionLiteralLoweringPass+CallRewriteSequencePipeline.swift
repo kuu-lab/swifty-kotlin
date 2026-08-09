@@ -59,14 +59,24 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
-        // KSP-441〜447: asSequence は source 化済み。runtime rewrite せず元の仮想呼び出しを残す。
-        let isSourceBacked = (ctx.sema?.symbols.externalLinkName(for: symbol ?? .invalid) ?? "").isEmpty
-        if isSourceBacked {
-            loweredBody.append(instruction)
-            return true
-        }
-
         let receiverID = arguments[0]
+        // Seed tracking from static type so `intArrayOf(...).asSequence()` works even when
+        // CallLowerer already rewrote the factory to `kk_array_of` (which PreScan does not
+        // always tag as an array factory name).
+        classifyTrackedExprByStaticType(
+            receiverID,
+            module: module,
+            sema: ctx.sema,
+            interner: ctx.interner,
+            state: &state
+        )
+
+        // Runtime array/list handles must use kk_*_asSequence. Source-backed
+        // Iterable/Sequence.asSequence cannot traverse RuntimeArrayBox/ListBox.
+        // Check tracking before the source-backed short-circuit: an unbound
+        // asSequence call (symbol == nil) has an empty externalLinkName and would
+        // otherwise be misclassified as source-backed, leaving a virtual call that
+        // yields an empty sequence (BUG with primitive Array.asSequence pipelines).
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
                 symbol: nil,
@@ -78,7 +88,8 @@ extension CollectionLiteralConstructionLoweringPass {
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
-        } else if state.listExprIDs.contains(receiverID.rawValue) {
+        }
+        if state.listExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkListAsSequenceName,
@@ -89,10 +100,21 @@ extension CollectionLiteralConstructionLoweringPass {
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
-        } else {
+        }
+
+        // KSP-441〜447: true source-backed Sequence/Iterable.asSequence — keep virtual.
+        // Require a real symbol so unbound calls are not treated as source-backed.
+        if let symbol,
+           let sema = ctx.sema,
+           sema.symbols.symbol(symbol) != nil,
+           (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        {
             loweredBody.append(instruction)
             return true
         }
+
+        loweredBody.append(instruction)
+        return true
     }
 
     // constrainOnce() on sequence -> kk_sequence_constrainOnce

@@ -5,7 +5,7 @@ import Foundation
 ///
 /// As functions are migrated to `.kt` files (auto-discovered by
 /// `LoadSourcesPhase.injectBundledStdlib`), remove them from here.
-enum BundledKotlinStdlib {
+package enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     ///
@@ -16,49 +16,12 @@ enum BundledKotlinStdlib {
     static let excludedBundledStdlibFiles: Set<String> = [
     ]
 
-    // sumOf / maxByOrNull / minByOrNull are not yet in standalone .kt files.
     // count / any / all / none / contains / containsAll / lastIndexOf have been
-    // migrated to ListSearchHOF.kt. The remaining collection HOFs (aggregate,
-    // filter, sorting, set) are in ListAggregateHOF.kt, ListFilterHOF.kt,
-    // ListSortingHOF.kt, and SetHOF.kt respectively.
-    static let kotlinCollectionsSource = """
-package kotlin.collections
-
-public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
-    var sum = 0
-    var i = 0
-    while (i < size) { sum += selector(this[i]); i += 1 }
-    return sum
-}
-
-public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
-    if (size == 0) return null
-    var bestElem = this[0]
-    var bestKey = selector(bestElem)
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        val key = selector(elem)
-        if (key > bestKey) { bestElem = elem; bestKey = key }
-        i += 1
-    }
-    return bestElem
-}
-
-public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
-    if (size == 0) return null
-    var bestElem = this[0]
-    var bestKey = selector(bestElem)
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        val key = selector(elem)
-        if (key < bestKey) { bestElem = elem; bestKey = key }
-        i += 1
-    }
-    return bestElem
-}
-"""
+    // migrated to ListSearchHOF.kt. sumOf / maxByOrNull / minByOrNull have been
+    // migrated to ListAggregateHOF.kt (KSP-501). The remaining collection HOFs
+    // (filter, sorting, set) are in ListFilterHOF.kt, ListSortingHOF.kt, and
+    // SetHOF.kt respectively.
+    static let kotlinCollectionsSource = ""
 
     // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
     // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
@@ -178,14 +141,14 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
     /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
     /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
     /// and is used to compute the stdlib manifest hash for incremental builds.
-    static func bundledStdlibSources() -> [(path: String, contents: Data)] {
+    package static func bundledStdlibSources() -> [(path: String, contents: Data)] {
         _bundledStdlibSources
     }
 
     private static let _manifestHash: String = Self.stableFNV1a64Hex(for: _bundledStdlibSources)
 
     /// Returns a stable hash of the bundled stdlib manifest.
-    static func manifestHash() -> String {
+    package static func manifestHash() -> String {
         _manifestHash
     }
 
