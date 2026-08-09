@@ -22,11 +22,24 @@ private final class LargeStackWorkBox: @unchecked Sendable {
     }
 }
 
+// Darwin's `pthread_create` expects a C function pointer taking a
+// non-optional `UnsafeMutableRawPointer`, while Glibc's expects an optional
+// one; the two platforms' pthread.h shims disagree on this despite POSIX
+// itself specifying a `void *` argument. Match each platform's expected
+// signature so the C function pointer conversion type-checks.
+#if canImport(Darwin)
+private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer? {
+    let box = Unmanaged<LargeStackWorkBox>.fromOpaque(arg).takeUnretainedValue()
+    box.run()
+    return nil
+}
+#elseif canImport(Glibc)
 private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
     let box = Unmanaged<LargeStackWorkBox>.fromOpaque(arg!).takeUnretainedValue()
     box.run()
     return nil
 }
+#endif
 
 /// Runs work synchronously on a dedicated thread with an explicitly sized stack.
 ///
@@ -66,7 +79,14 @@ enum LargeStackExecutor {
 
         _ = pthread_attr_setstacksize(&attr, stackSize)
 
+        // Darwin's `pthread_t` is an opaque pointer typealias with no default
+        // initializer (unlike Glibc's, which is an integer type), so it must
+        // start `nil` and be force-unwrapped after a successful `pthread_create`.
+        #if canImport(Darwin)
+        var thread: pthread_t?
+        #elseif canImport(Glibc)
         var thread = pthread_t()
+        #endif
         let boxPtr = Unmanaged.passUnretained(box).toOpaque()
 
         guard pthread_create(&thread, &attr, largeStackThreadEntry, boxPtr) == 0 else {
@@ -74,7 +94,11 @@ enum LargeStackExecutor {
             return try box.result!.get() as! T
         }
 
+        #if canImport(Darwin)
+        _ = pthread_join(thread!, nil)
+        #elseif canImport(Glibc)
         _ = pthread_join(thread, nil)
+        #endif
         return try box.result!.get() as! T
     }
 }
