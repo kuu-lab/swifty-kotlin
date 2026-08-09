@@ -1,7 +1,8 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 // Regression coverage for the catch-clause / `is` sibling-exception discrimination
 // bug: `catch (e: T)` (and the `is` operator) must only match `T` or one of its real
@@ -34,13 +35,12 @@ private func runExceptionDiscriminationCodegenPipeline(
     return ctx
 }
 
-final class CodegenBackendExceptionSiblingTypeDiscriminationTests: XCTestCase {
+@Suite
+struct CodegenBackendExceptionSiblingTypeDiscriminationTests {
     private func assertKotlinOutput(
         _ source: String,
         moduleName: String,
-        expected: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        expected: String
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
@@ -54,10 +54,11 @@ final class CodegenBackendExceptionSiblingTypeDiscriminationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, expected, file: file, line: line)
+            #expect(normalizedStdout == expected)
         }
     }
 
+    @Test
     func testCatchClauseDoesNotWronglyMatchUnrelatedSiblingException() throws {
         let source = """
         fun main() {
@@ -80,6 +81,7 @@ final class CodegenBackendExceptionSiblingTypeDiscriminationTests: XCTestCase {
         )
     }
 
+    @Test
     func testMultiCatchPicksTheDeclaredTypeNotAnEarlierUnrelatedClause() throws {
         let source = """
         fun main() {
@@ -114,6 +116,7 @@ final class CodegenBackendExceptionSiblingTypeDiscriminationTests: XCTestCase {
         )
     }
 
+    @Test
     func testIsOperatorDoesNotWronglyMatchUnrelatedSiblingException() throws {
         let source = """
         fun main() {
@@ -140,6 +143,7 @@ final class CodegenBackendExceptionSiblingTypeDiscriminationTests: XCTestCase {
         )
     }
 
+    @Test
     func testFailedReferenceCastThrowsClassCastExceptionNotAnUnrelatedSibling() throws {
         let source = """
         open class Animal
@@ -166,3 +170,4 @@ final class CodegenBackendExceptionSiblingTypeDiscriminationTests: XCTestCase {
         )
     }
 }
+#endif
