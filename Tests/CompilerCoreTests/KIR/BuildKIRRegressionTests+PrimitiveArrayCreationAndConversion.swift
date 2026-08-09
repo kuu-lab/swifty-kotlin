@@ -153,20 +153,12 @@ extension BuildKIRRegressionTests {
                 #expect(!callNames.contains("IntArray"), "IntArray(n) (size-only) must not fall through to an unresolved 'IntArray' call; got: \(callNames)")
             }
 
-            // 7: List<Int>.toIntArray() must lower to the bundled source-backed declaration
+            // 7: List<Int>.toIntArray() must lower to the dedicated runtime call
             do {
                 let body = try findKIRFunctionBody(named: "convert7", in: module, interner: interner)
                 let callNames = extractCallees(from: body, interner: interner)
-                #expect(!callNames.contains("kk_list_toIntArray"), "List<Int>.toIntArray() must no longer use the removed kk_list_toIntArray bridge; got: \(callNames)")
-                #expect(callNames == ["toIntArray"], "List<Int>.toIntArray() must lower to a single call of the bundled declaration; got: \(callNames)")
-
-                let calleeSymbol = try #require(body.compactMap { instruction -> SymbolID? in
-                    guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                          interner.resolve(callee) == "toIntArray"
-                    else { return nil }
-                    return symbol
-                }.first)
-                #expect(ctx.sema?.symbols.externalLinkName(for: calleeSymbol) == nil)
+                #expect(callNames.contains("kk_list_toIntArray"), "List<Int>.toIntArray() must lower to kk_list_toIntArray; got: \(callNames)")
+                #expect(!callNames.contains("toIntArray"), "toIntArray must be fully rewritten; got: \(callNames)")
             }
 
             // 8: IntArray.toList() must lower to a runtime toList call
