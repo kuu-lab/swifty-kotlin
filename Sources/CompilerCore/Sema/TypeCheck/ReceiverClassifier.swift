@@ -30,10 +30,23 @@ struct ReceiverClassifier {
         } ?? false
         let isCollectionType = isCollectionLikeType(receiverType)
         let isMapReceiver = isMapLikeCollectionType(receiverType)
+        // KSP-435: a receiver whose *static* type is `Iterable<T>` (e.g. a
+        // `val x: Iterable<Int> = setOf(...)` widening) is a collection
+        // receiver, not a synthetic object-expression Sequence, even though
+        // `isCollectionExpr` can be true here (propagated from the
+        // initializer). Without this exclusion such a receiver was
+        // misclassified as a synthetic Sequence, which made
+        // `isSequenceReceiver` true and routed both aggregate HOFs
+        // (`reduce`/`fold` resolving against the bundled `Sequence<T>`
+        // source instead of the real element type's own implementation) and
+        // plain `Iterable` members (`requireNoNulls`, `last`, ...) to the
+        // Sequence bridges instead of the bundled Kotlin `kotlin.collections`
+        // source.
         let isSyntheticSequenceReceiver = isCollectionExpr
             && !isCollectionType
             && !isMapReceiver
             && !isListFactoryReceiver
+            && !isIterableLikeType(receiverType)
         return ReceiverClassification(
             isArrayReceiver: isArrayLikeType(receiverType),
             isIterableReceiver: isIterableLikeType(receiverType),
@@ -77,6 +90,28 @@ struct ReceiverClassifier {
                 interner.intern("collections"),
                 interner.intern("Iterable"),
             ]
+    }
+
+    /// BUG-167: True for the `kotlin.collections` iterable *interfaces*, whose
+    /// `iterator()` exists only as a synthetic stub (so Sema binds no loop
+    /// iteration operators) and whose concrete iterator is only known at
+    /// runtime. Concrete types such as `List<T>` are deliberately excluded.
+    func isIterableInterfaceType(_ type: TypeID) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let interfaceNames = [
+            interner.intern("Iterable"),
+            interner.intern("MutableIterable"),
+            interner.intern("Collection"),
+            interner.intern("MutableCollection"),
+        ]
+        let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
+        if symbol.fqName.count == 3, Array(symbol.fqName.prefix(2)) == kotlinCollections {
+            return interfaceNames.contains(symbol.fqName[2])
+        }
+        // Fall back to simple name match only for synthetic symbols (no FQN)
+        return symbol.fqName.isEmpty && interfaceNames.contains(symbol.name)
     }
 
     func isSequenceLikeType(_ type: TypeID) -> Bool {

@@ -199,7 +199,8 @@ struct StdlibSurfaceSpecTests {
                 // synthetically registered with their runtime links.
                 (.list, ["kotlin", "collections", "List"], "associateTo", 2),
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
-                (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),
+                // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
+                // source, so it no longer registers a synthetic bridge member.
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),

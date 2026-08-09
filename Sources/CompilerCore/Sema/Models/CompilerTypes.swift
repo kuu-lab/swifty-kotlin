@@ -108,6 +108,11 @@ public struct CompilerOptions: Equatable {
         return result
     }
 
+    /// Optional path to a prebuilt stdlib `.kklib` used as a fallback when a
+    /// compilation requests bundled stdlib. Test support sets this once per
+    /// process to share a single compiled stdlib artifact across many tests.
+    nonisolated(unsafe) public static var defaultStdlibLibraryPath: String? = nil
+
     public init(
         moduleName: String,
         inputs: [String],
@@ -143,11 +148,15 @@ public struct CompilerOptions: Equatable {
         self.irFlags = irFlags
         self.runtimeFlags = runtimeFlags
         self.stdlibSearchPaths = stdlibSearchPaths
-        self.includeStdlib = includeStdlib
+
+        let shouldUseDefaultStdlib = includeStdlib && !stdlibOnly && stdlibLibraryPath == nil && emit == .executable
+        let resolvedStdlibLibraryPath = stdlibLibraryPath ?? (shouldUseDefaultStdlib ? Self.defaultStdlibLibraryPath : nil)
+        self.stdlibLibraryPath = resolvedStdlibLibraryPath
+        self.includeStdlib = includeStdlib && resolvedStdlibLibraryPath == nil
+
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
         self.stdlibOnly = stdlibOnly
-        self.stdlibLibraryPath = stdlibLibraryPath
     }
 
     /// Default search paths for locating Kotlin stdlib sources.
