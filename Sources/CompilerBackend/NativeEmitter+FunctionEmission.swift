@@ -1169,28 +1169,15 @@ extension NativeEmitter {
                 // KSP-408: contains/indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/
                 // findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt);
                 // no flat emission spec.
-                "kk_string_compareToIgnoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_compareToIgnoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
+                // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase)
+                // are bundled Kotlin source (StringComparison.kt); no flat emission spec.
                 "kk_string_compareTo_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareTo_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_compareTo_locale_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_compareTo_locale_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_contentEquals_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contentEquals_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_contentEquals_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contentEquals_ignoreCase_flat",
+                "__kk_string_compareTo_locale_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_compareTo_locale_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
@@ -1203,11 +1190,6 @@ extension NativeEmitter {
                     flatName: "kk_string_equals_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
-                ),
-                "kk_string_equalsIgnoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_equalsIgnoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
                 ),
                 "kk_string_isEmpty_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isEmpty_flat",
