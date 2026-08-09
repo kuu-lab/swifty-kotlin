@@ -437,7 +437,8 @@ extension CallLowerer {
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_first"
                             : (isLongRange ? "kk_long_range_first" : "kk_range_first")))
-                case "end":
+                // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
+                case "end", "endInclusive":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
@@ -1972,19 +1973,6 @@ extension CallLowerer {
                     arguments: callArguments,
                     result: result,
                     canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "compareTo"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_compareToIgnoreCase_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
                     thrownResult: nil
                 ))
                 return result

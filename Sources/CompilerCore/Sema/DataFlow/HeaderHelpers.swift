@@ -1211,7 +1211,6 @@ extension DataFlowSemaPhase {
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
@@ -1225,7 +1224,6 @@ extension DataFlowSemaPhase {
             registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         }
         registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(
             symbols: symbols,
