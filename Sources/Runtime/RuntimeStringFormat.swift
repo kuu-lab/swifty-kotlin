@@ -111,11 +111,18 @@ private struct RuntimeFormatSpecifier {
         Character(String(conversion).lowercased())
     }
 
+    /// `%,d` / `%,f`: Kotlin/JVM inserts locale-aware grouping separators.
+    /// The C formatter has no equivalent flag, so grouping and the resulting
+    /// width padding are applied afterwards on the rendered digits.
+    var usesGroupingSeparator: Bool {
+        flags.contains(",")
+    }
+
     var cStyleToken: String {
         let supportedFlags = flags.filter { "-+ #0".contains($0) }
         var token = "%"
         token += supportedFlags
-        if let width {
+        if let width, !usesGroupingSeparator {
             token += String(width)
         }
         if let precision {
@@ -139,7 +146,7 @@ private enum RuntimeParsedFormatToken {
     case invalid
 }
 
-private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#"]
+private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ","]
 private let runtimeFormatLengthCharacters: Set<Character> = ["h", "l", "L", "z", "j", "t"]
 private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "c", "C",
@@ -272,22 +279,15 @@ private func runtimeRenderFormattedArgument(
         return runtimeApplyStringWidth(normalized, specifier: specifier)
     case "d", "i":
         let value = Int64(runtimeFormatIntegerValue(value))
-        if let locale {
-            return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
-        }
-        return String(format: specifier.cStyleToken, arguments: [value])
+        let rendered = String(format: specifier.cStyleToken, arguments: [value])
+        return runtimeLocalizeFormattedNumber(rendered, specifier: specifier, locale: locale)
     case "x", "o":
         let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
-        if let locale {
-            return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
-        }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "f", "e", "g":
         let value = runtimeFormatDoubleValue(value)
-        if let locale {
-            return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
-        }
-        return String(format: specifier.cStyleToken, arguments: [value])
+        let rendered = String(format: specifier.cStyleToken, arguments: [value])
+        return runtimeLocalizeFormattedNumber(rendered, specifier: specifier, locale: locale)
     case "c":
         let value = runtimeFormatCharacterValue(value)
         let normalized = specifier.conversion.isUppercase
@@ -416,10 +416,54 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
     return padding + value
 }
 
+/// Applies the Kotlin/JVM locale rules to a number rendered with the C default locale:
+/// the decimal separator becomes the locale's one, and the `,` flag inserts the locale's
+/// grouping separator. Numbers are never grouped without the flag, matching
+/// `java.util.Formatter` (and unlike `String(format:locale:)`, which groups by locale).
+private func runtimeLocalizeFormattedNumber(
+    _ rendered: String,
+    specifier: RuntimeFormatSpecifier,
+    locale: Locale?
+) -> String {
+    let decimalSeparator = locale?.decimalSeparator ?? "."
+    guard specifier.usesGroupingSeparator else {
+        return rendered.replacingOccurrences(of: ".", with: decimalSeparator)
+    }
+    let groupingSeparator = locale?.groupingSeparator ?? ","
+
+    var characters = Substring(rendered)
+    let sign = String(characters.prefix { "-+ ".contains($0) })
+    characters = characters.dropFirst(sign.count)
+    let digits = String(characters.prefix(while: \.isNumber))
+    let remainder = String(characters.dropFirst(digits.count))
+        .replacingOccurrences(of: ".", with: decimalSeparator)
+
+    func grouped(_ digits: String) -> String {
+        var result = ""
+        for (offset, digit) in digits.reversed().enumerated() {
+            if offset > 0, offset.isMultiple(of: 3) {
+                result = groupingSeparator + result
+            }
+            result = String(digit) + result
+        }
+        return result
+    }
+
+    // `java.util.Formatter` groups the value digits first and zero-pads afterwards,
+    // so the padding zeros themselves stay ungrouped.
+    let value = sign + grouped(digits) + remainder
+    let zeroPads = specifier.flags.contains("0") && !specifier.flags.contains("-")
+    if let width = specifier.width, zeroPads, value.count < width {
+        return sign + String(repeating: "0", count: width - value.count)
+            + grouped(digits) + remainder
+    }
+    return runtimeApplyStringWidth(value, specifier: specifier)
+}
+
 // MARK: - Public @_cdecl functions: String.format
 
-@_cdecl("kk_string_format_flat")
-public func kk_string_format_flat(
+@_cdecl("__kk_string_format_flat")
+public func __kk_string_format_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -460,8 +504,8 @@ public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ args
     return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments, locale: locale))
 }
 
-@_cdecl("kk_string_format_locale_flat")
-public func kk_string_format_locale_flat(
+@_cdecl("__kk_string_format_locale_flat")
+public func __kk_string_format_locale_flat(
     _ localeRaw: Int,
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
@@ -477,7 +521,7 @@ public func kk_string_format_locale_flat(
         locale = nil
     } else {
         guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale_flat received invalid Locale handle")
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale_flat received invalid Locale handle")
         }
         locale = box.locale
     }

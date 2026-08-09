@@ -52,11 +52,7 @@ public fun String.slice(indices: Iterable<Int>): String {
     val chars = this.toString().toList()
     val length = chars.size
     val sb = StringBuilder()
-    // Explicit iterator rather than `for (index in indices)`: iterating an
-    // Iterable-typed value misroutes to the range-iterator intrinsics (BUG-154).
-    val iterator = indices.iterator()
-    while (iterator.hasNext()) {
-        val index = iterator.next()
+    for (index in indices) {
         if (index < 0 || index >= length) {
             throw IndexOutOfBoundsException("index $index out of range [0, $length)")
         }

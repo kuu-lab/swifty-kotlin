@@ -1,7 +1,8 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 /// Regression coverage for a ULong sign-misinterpretation bug found while
 /// working on KSP-466 (kotlin.random.Random.nextULong()): any ULong with the
@@ -10,7 +11,69 @@ import XCTest
 /// `.toString()` printed the negative signed reinterpretation (or, at the
 /// 2^63 boundary, the literal string "null"). UInt does not exhibit the bug
 /// because it is always zero-extended into the shared 64-bit container.
-extension CodegenBackendIntegrationTests {
+
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendUnsignedComparisonAndToStringTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testUnsignedComparisonHighBitSetULong() throws {
         let source = """
         fun main() {
@@ -42,6 +105,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testUnsignedComparisonULongMaxValueBoundary() throws {
         let source = """
         fun main() {
@@ -65,6 +129,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testUnsignedToStringHighBitSetULong() throws {
         let source = """
         fun main() {
@@ -89,6 +154,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testUnsignedStringTemplateHighBitSetULong() throws {
         let source = """
         fun main() {
@@ -114,6 +180,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testUnsignedComparisonAndToStringUIntUnaffected() throws {
         // UInt is zero-extended into the shared 64-bit container, so it never
         // exhibited this bug — this test locks in that the fix leaves it correct.
@@ -147,6 +214,7 @@ extension CodegenBackendIntegrationTests {
     // properties printed their bit pattern and Char properties printed their
     // codepoint instead of the character. Consolidating onto one function
     // fixes those too; lock in that non-null case here.
+    @Test
     func testDataClassToStringFloatDoubleCharProperties() throws {
         let source = """
         data class Point(val x: Float, val y: Double, val label: Char)
@@ -172,6 +240,7 @@ extension CodegenBackendIntegrationTests {
     // synthesis path (which added a KIR-level null guard) and the
     // println(dataClass) path (which uses kk_any_to_string_nullable instead,
     // since that pass cannot safely add new KIR labels).
+    @Test
     func testDataClassToStringNullableFloatDoubleCharProperties() throws {
         let source = """
         data class NullablePoint(val x: Float?, val y: Double?, val label: Char?)
@@ -197,3 +266,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif

@@ -1,37 +1,20 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-093: Validates that `String.toCharArray()` resolves through Sema
-/// and links to the `kk_string_toCharArray_flat` runtime entry.
-///
-/// The synthetic extension function is registered in
-/// `HeaderHelpers+SyntheticStringStubs.swift`, the call lowering routes to the
-/// runtime symbol in `CallLowerer+LegacyMemberLikeCalls.swift`, and the runtime
-/// implementation lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
+/// STDLIB-TEXT-FN-093/109: Validates that `String.toCharArray()` and
+/// `String.toTypedArray()` resolve through Sema.
 @Suite
 struct StringToCharArrayFunctionTests {
-    @Test func testToCharArrayResolvesInSource() throws {
+    @Test func testToCharArrayAndToTypedArrayResolvesInSource() throws {
         let ctx = makeContextFromSource("""
-        fun explode(s: String): CharArray {
+        fun explodeToCharArray(s: String): CharArray {
             return s.toCharArray()
         }
 
-        fun explodeLiteral(): CharArray {
+        fun explodeCharArrayLiteral(): CharArray {
             return "hello".toCharArray()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toCharArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToCharArrayChainedAsCharArrayReceiverResolves() throws {
-        // Validates that the returned CharArray supports CharArray-level members
-        // — i.e. the inferred return type really is CharArray, not e.g. List<Char>.
-        let ctx = makeContextFromSource("""
         fun countChars(s: String): Int {
             return s.toCharArray().size
         }
@@ -39,31 +22,12 @@ struct StringToCharArrayFunctionTests {
         fun firstChar(s: String): Char {
             return s.toCharArray()[0]
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toCharArray chained access to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-}
 
-/// STDLIB-TEXT-FN-109: Validates that `String.toTypedArray()` resolves through Sema
-/// and links to the `kk_string_toTypedArray_flat` runtime entry.
-///
-/// The synthetic extension function is registered in
-/// `HeaderHelpers+SyntheticStringStubs.swift` and the runtime implementation
-/// lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
-@Suite
-struct StringToTypedArrayFunctionTests {
-    @Test func testToTypedArrayResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        fun explode(s: String): Array<Char> {
+        fun explodeToTypedArray(s: String): Array<Char> {
             return s.toTypedArray()
         }
 
-        fun explodeLiteral(): Array<Char> {
+        fun explodeTypedArrayLiteral(): Array<Char> {
             return "hello".toTypedArray()
         }
         """)
@@ -71,7 +35,7 @@ struct StringToTypedArrayFunctionTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected toTypedArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected toCharArray/toTypedArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
