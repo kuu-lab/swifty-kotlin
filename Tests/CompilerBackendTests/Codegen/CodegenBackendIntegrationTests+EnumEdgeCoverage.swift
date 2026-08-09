@@ -222,6 +222,7 @@ struct CodegenBackendEnumEdgeCoverageTests {
     /// that expression instead of getting its own copy — so any later
     /// reassignment updated the runtime bits but never changed what the
     /// fold saw, and it kept resolving to the entry the local started with.
+    @Test
     func testEnumNameOrdinalReflectsReassignedVarValue() throws {
         let source = """
         enum class Direction { NORTH, SOUTH, EAST, WEST }
