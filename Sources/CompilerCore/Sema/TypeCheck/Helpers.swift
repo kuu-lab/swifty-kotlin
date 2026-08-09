@@ -209,7 +209,43 @@ struct TypeCheckHelpers {
         // STDLIB-OP-032: Custom classes with operator fun iterator() are iterable.
         // Resolve the element type from the iterator's next() return type or the
         // Iterator<T> type argument.
-        return customIteratorElementType(for: iterableType, sema: sema, interner: interner)
+        if let customElement = customIteratorElementType(for: iterableType, sema: sema, interner: interner) {
+            return customElement
+        }
+        // BUG-167: A class implementing `Iterable<T>` iterates over `T` even when
+        // its `iterator()` override carries no `operator` flag of its own.
+        return iterableSupertypeElementType(for: iterableType, sema: sema, interner: interner)
+    }
+
+    /// Element type lifted from the `kotlin.collections.Iterable<T>` supertype of
+    /// a class, or nil when the class does not implement `Iterable`.
+    private func iterableSupertypeElementType(
+        for iterableType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let (classType, _) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(iterableType),
+            sema: sema
+        ),
+            let iterableSymbol = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]),
+            let args = sema.types.liftedNominalSupertypeArgs(
+                from: classType.classSymbol,
+                childArgs: classType.args,
+                to: iterableSymbol
+            ),
+            let element = args.first
+        else {
+            return nil
+        }
+        return switch element {
+        case let .invariant(type), let .out(type), let .in(type): type
+        case .star: sema.types.anyType
+        }
     }
 
     /// Resolves the element type of a custom class with `operator fun iterator()`.

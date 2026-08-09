@@ -1,11 +1,72 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendStringHOFEdgeCasesTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
 
     // TEST-TEXT-018: filter / filterNot / filterIndexed
+    @Test
     func testCodegenStringFilterVariants() throws {
         let source = """
         fun main() {
@@ -38,6 +99,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: map / mapIndexed / mapNotNull
+    @Test
     func testCodegenStringMapVariants() throws {
         let source = """
         fun main() {
@@ -66,6 +128,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: all / any / none / count
+    @Test
     func testCodegenStringPredicateAggregates() throws {
         let source = """
         fun main() {
@@ -106,6 +169,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: find / findLast
+    @Test
     func testCodegenStringFindFindLast() throws {
         let source = """
         fun main() {
@@ -134,6 +198,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: first / last / single — happy path (non-empty strings)
+    @Test
     func testCodegenStringFirstLastSingle() throws {
         let source = """
         fun main() {
@@ -162,6 +227,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: firstOrNull / lastOrNull / singleOrNull — null on empty and multi-element
+    @Test
     func testCodegenStringNullableAccessors() throws {
         let source = """
         fun main() {
@@ -214,6 +280,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: partition — verifies Pair<String,String> return via .first / .second
+    @Test
     func testCodegenStringPartition() throws {
         let source = """
         fun main() {
@@ -250,6 +317,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-046: CharSequence.reduce
+    @Test
     func testCodegenStringReduce() throws {
         let source = """
         fun main() {
@@ -258,31 +326,21 @@ extension CodegenBackendIntegrationTests {
             println("abc".reduce { acc, c -> acc })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFReduce",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFReduce",
+            expected:
                 """
                 b
                 x
                 a
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: takeWhile / dropWhile
+    @Test
     func testCodegenStringTakeWhileDropWhile() throws {
         let source = """
         fun main() {
@@ -312,3 +370,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif

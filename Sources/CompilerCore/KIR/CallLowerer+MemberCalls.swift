@@ -3,18 +3,14 @@
 ///
 /// Specialized lowering families live in adjacent `CallLowerer+*MemberCall*.swift` files.
 extension CallLowerer {
-    // KSP-496: simpleName/qualifiedName/isInstance/the boolean flags/
-    // visibility/annotations moved to ordinary Kotlin extension declarations
-    // (Sources/CompilerCore/Stdlib/kotlin/reflect/).
+    // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the boolean
+    // flags/visibility/annotations moved to ordinary Kotlin extension
+    // declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
     //
     // The remaining names stay here:
     // - findAnnotation/findAssociatedObject take a reified type argument,
     //   which this compiler only supports via a small special-cased
     //   allowlist (like typeOf<T>()).
-    // - cast/safeCast: this compiler's generic inference doesn't correctly
-    //   unify T (inferred from a concrete receiver like KClass<String>)
-    //   against an explicit expected type at the call site. See
-    //   KClassBasicAPI.kt for details.
     // - members/constructors/primaryConstructor/properties/memberProperties/
     //   declaredMemberProperties/functions/memberFunctions/
     //   declaredMemberFunctions/nestedClasses/supertypes return a
@@ -28,7 +24,6 @@ extension CallLowerer {
     //   this needs Runtime object-model work beyond this ticket's scope.
     private static let kclassMembers: Set<String> = [
         "findAnnotation", "findAssociatedObject",
-        "cast", "safeCast",
         "members", "constructors", "primaryConstructor",
         "properties", "memberProperties", "declaredMemberProperties",
         "functions", "memberFunctions", "declaredMemberFunctions",
@@ -270,9 +265,9 @@ extension CallLowerer {
 
         // ── T::class.findAnnotation<A>() / T::class.findAssociatedObject<A>() ──
         // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the
-        // boolean flags/members/constructors/etc. now resolve as ordinary
-        // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/)
-        // through the normal member-call path below this block. Only
+        // boolean flags now resolve as ordinary Kotlin extension declarations
+        // (Sources/CompilerCore/Stdlib/kotlin/reflect/) through the normal
+        // member-call path below this block. Only
         // findAnnotation/findAssociatedObject remain special-cased here — see
         // CallLowerer.kclassMembers for why.
         if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
@@ -285,7 +280,6 @@ extension CallLowerer {
                     exprID,
                     classRefTargetType: classRefTargetType,
                     memberName: callee,
-                    args: args,
                     ast: ast,
                     sema: sema,
                     arena: arena,
@@ -306,7 +300,6 @@ extension CallLowerer {
                     exprID,
                     receiverExpr: receiverExpr,
                     memberName: callee,
-                    args: args,
                     ast: ast,
                     sema: sema,
                     arena: arena,

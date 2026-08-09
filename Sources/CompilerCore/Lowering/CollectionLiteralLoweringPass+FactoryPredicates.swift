@@ -130,20 +130,19 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     /// True when the resolved callee is a bundled Kotlin source declaration
-    /// (has a source `declSite` and no runtime external link), meaning the
-    /// lowering pass should not rewrite it to a `kk_*` runtime helper.
+    /// or an imported library symbol, meaning the lowering pass should not
+    /// rewrite it to a `kk_*` runtime helper.
     func isSourceBacked(
         symbol: SymbolID?,
         ctx: KIRContext
     ) -> Bool {
         guard let symbol,
               let sema = ctx.sema,
-              let resolved = sema.symbols.symbol(symbol)
+              sema.symbols.symbol(symbol) != nil
         else {
             return false
         }
-        return resolved.declSite != nil
-            && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
     /// True when the resolved callee's receiver type is `kotlin.sequences.Sequence<T>`.

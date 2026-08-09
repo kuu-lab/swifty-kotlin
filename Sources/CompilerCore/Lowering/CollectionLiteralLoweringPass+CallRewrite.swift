@@ -88,12 +88,11 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.copyOfRangeName,
             let symbol,
             let sema = ctx.sema,
-            let semanticSymbol = sema.symbols.symbol(symbol),
-            semanticSymbol.declSite != nil
+            sema.symbols.symbol(symbol) != nil
         else {
             return false
         }
-        guard (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty else {
+        guard sema.symbols.isSourceBackedSymbol(symbol) else {
             return false
         }
         // STDLIB-pipeline §5 / KSP-441: take/drop have real require() validation
@@ -102,17 +101,27 @@ extension CollectionLiteralConstructionLoweringPass {
         // rewrite to kk_sequence_take/kk_sequence_drop when the receiver is known
         // to be a runtime Sequence box.
         //
+        // The same applies to map/filter: source Sequence.map walks a source
+        // Sequence object via iterator(), but RuntimeSequenceBox (from
+        // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
+        // must go through kk_sequence_map/filter.
+        //
         // flatMap/flatMapIndexed are *not* preserved here: the bundled source
         // implementations use overloaded extension object-expressions whose
         // nested Iterator itable registration is broken (KSP-441). The lowering
         // pipeline rewrites them to kk_sequence_flatMap/kk_sequence_flatMapIndexed
         // in rewriteSequencePipelineCall instead.
-        if (callee == lookup.takeName || callee == lookup.dropName),
-           let receiverID = arguments.first,
-           state.sequenceExprIDs.contains(receiverID.rawValue) {
+        if let receiverID = arguments.first,
+           state.sequenceExprIDs.contains(receiverID.rawValue),
+           callee == lookup.takeName
+            || callee == lookup.dropName
+            || callee == lookup.mapName
+            || callee == lookup.filterName
+        {
             return false
         }
-        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName),
+        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName
+            || callee == lookup.mapName || callee == lookup.filterName),
            isSequenceReceiverType(symbol: symbol, ctx: ctx) {
             return false
         }

@@ -145,8 +145,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -184,8 +183,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -222,7 +220,9 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledAsSequenceSourceIfAvailable(typeArguments: [TypeID]) -> Bool {
-            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver) && args.isEmpty else {
+            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver),
+                  !isArrayReceiver,
+                  args.isEmpty else {
                 return false
             }
             guard interner.resolve(calleeName) == "asSequence" else {
@@ -236,8 +236,7 @@ extension CallTypeChecker {
                 if let chosenCallee = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).first(where: { candidate in
                     guard let symbol = sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(candidate),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == args.count,
                           let signatureReceiver = signature.receiverType
@@ -348,8 +347,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -457,7 +455,7 @@ extension CallTypeChecker {
                let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
                    guard let symbol = sema.symbols.symbol(candidate),
                          symbol.kind == .function,
-                         !symbol.flags.contains(.synthetic),
+                         sema.symbols.isSourceBackedSymbol(candidate),
                          let signature = sema.symbols.functionSignature(for: candidate),
                          signature.parameterTypes.isEmpty,
                          signature.receiverType != nil
@@ -607,7 +605,7 @@ extension CallTypeChecker {
                        // non-List collection fallbacks (Map.filter, etc.) aren't
                        // incorrectly bound to the List-only bundled function.
                        if let signatureReceiver = signature.receiverType,
-                          (sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(symbolID),
                           receiverClassifier.isConcreteListLikeType(signatureReceiver),
                           !receiverClassifier.isConcreteListLikeType(receiverType) {
                            return false
@@ -729,8 +727,7 @@ extension CallTypeChecker {
                 if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
                     guard let symbol = sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(candidate),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == args.count,
                           let signatureReceiver = signature.receiverType
@@ -1010,8 +1007,7 @@ extension CallTypeChecker {
                 guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                     guard let symbol = sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(candidate),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == args.count,
                           let signatureReceiver = signature.receiverType
@@ -1033,8 +1029,21 @@ extension CallTypeChecker {
             // KSP-441: Source-backed Sequence transforms (map/filter/etc.) live in
             // kotlin.sequences as top-level extensions. Prefer them over the synthetic
             // runtime stubs so the object-expression pipeline runs.
-            func bindBundledSequenceSourceIfAvailable(resultType: TypeID, otherElementType: TypeID? = nil, overrideTypeArguments: [TypeID]? = nil) -> Bool {
-                guard isSequenceReceiver else {
+            // `allowIterableReceiver` lets a plain `Iterable<T>`-typed receiver
+            // (e.g. `val x: Iterable<Int> = setOf(...)`) fall back to the
+            // bundled `Sequence<T>` source implementation for aggregate HOFs
+            // (fold/scan/runningFold/...) that have no dedicated Iterable
+            // synthetic stub (unlike reduce, which does — see
+            // registerIterableReduceMember). The Sequence source bodies are
+            // plain `for (element in this)` iteration, so they are exactly as
+            // valid for a Set/other Iterable receiver as for a real Sequence.
+            func bindBundledSequenceSourceIfAvailable(
+                resultType: TypeID,
+                otherElementType: TypeID? = nil,
+                overrideTypeArguments: [TypeID]? = nil,
+                allowIterableReceiver: Bool = false
+            ) -> Bool {
+                guard isSequenceReceiver || (allowIterableReceiver && isCollectionReceiver) else {
                     return false
                 }
                 let knownNames = KnownCompilerNames(interner: interner)
@@ -1062,8 +1071,7 @@ extension CallTypeChecker {
                     if let candidate = candidates.first(where: { candidate in
                         guard let symbol = sema.symbols.symbol(candidate),
                               symbol.kind == .function,
-                              symbol.declSite != nil,
-                              (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                              sema.symbols.isSourceBackedSymbol(candidate),
                               let signature = sema.symbols.functionSignature(for: candidate),
                               signature.parameterTypes.count == args.count,
                               let signatureReceiver = signature.receiverType
@@ -3562,8 +3570,36 @@ extension CallTypeChecker {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
+                } else if !isSequenceReceiver, isCollectionReceiver,
+                          bindBundledSequenceSourceIfAvailable(
+                              resultType: resultType,
+                              overrideTypeArguments: [collectionElementType, initialType],
+                              allowIterableReceiver: true
+                          ) {
+                    // No dedicated Iterable synthetic stub exists for this
+                    // aggregate HOF (unlike reduce); fall back to the bundled
+                    // Sequence<T> source body, which is plain iteration and
+                    // therefore valid for any Iterable receiver.
+                    if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                    }
                 }
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull" || calleeStr == "reduceIndexed" || calleeStr == "reduceIndexedOrNull"), args.count == 1 {
+                // Do not add a bindBundledSequenceSourceIfAvailable(allowIterableReceiver:)
+                // fallback here like the fold/scan branch above: unlike those,
+                // an Iterable-receiver reduce call that neither
+                // bindBundledListSourceFunction nor bindBundledIterableSourceFunction
+                // can bind is meant to fall through with chosenCallee left
+                // unbound. CallLowerer's recoverMemberCallBinding then walks
+                // the receiver's directSupertypes at KIR-build time and finds
+                // the dedicated Iterable synthetic stub (see
+                // registerIterableReduceMember) itself. Binding eagerly here
+                // instead short-circuits that walk (an existing binding is
+                // returned as-is) and — because bindBundledSequenceSourceIfAvailable
+                // searches both kotlin.sequences and kotlin.collections —
+                // can incorrectly resolve to Sequence<T>.reduce even for a
+                // plain Set receiver, crashing with a vtable/itable dispatch
+                // failure at runtime.
                 if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -3572,6 +3608,24 @@ extension CallTypeChecker {
                           bindBundledIterableSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                }
+            }
+            // KSP-435: any/all/last/requireNoNulls on a nominal Collection/Iterable
+            // receiver are bundled Kotlin source (Stdlib/kotlin/collections/Iterables.kt).
+            // The name-keyed fast path above only computes a result type, so the call
+            // would otherwise stay unresolved and lower to the bare member name.
+            if sema.bindings.callBindings[id] == nil,
+               !isSequenceReceiver, isCollectionReceiver,
+               ["any", "all", "last", "requireNoNulls"].contains(calleeStr)
+            {
+                let iterableSourceTypeArguments = calleeStr == "requireNoNulls"
+                    ? [sema.types.makeNonNullable(collectionElementType)]
+                    : [collectionElementType]
+                if bindBundledIterableSourceFunction(typeArguments: iterableSourceTypeArguments) {
+                    for argument in args
+                    where ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(argument.expr)
                     }
                 }
             }
