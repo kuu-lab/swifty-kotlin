@@ -9,7 +9,8 @@ private func runCodegenPipeline(
     moduleName: String,
     emit: EmitMode,
     outputPath: String,
-    irFlags: [String] = []
+    irFlags: [String] = [],
+    allowDefaultStdlibLibrary: Bool = true
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
@@ -17,7 +18,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     let ctx = CompilationContext(
         options: options,
@@ -40,7 +42,8 @@ struct CodegenSuperclassInitializerTests {
     private func assertKotlinOutput(
         _ source: String,
         moduleName: String,
-        expected: String
+        expected: String,
+        allowDefaultStdlibLibrary: Bool = true
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
@@ -49,8 +52,11 @@ struct CodegenSuperclassInitializerTests {
                 inputPath: path,
                 moduleName: moduleName,
                 emit: .executable,
-                outputPath: outputBase
+                outputPath: outputBase,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
             )
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map(\.message))")
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
@@ -138,10 +144,14 @@ struct CodegenSuperclassInitializerTests {
         }
         """
 
+        // Subclassing a bundled class only works through bundled-source
+        // injection: modality is lost when the same class is imported from a
+        // precompiled stdlib artifact (BUG-183).
         try assertKotlinOutput(
             source,
             moduleName: "AbstractIteratorSubclassRuntime",
-            expected: "42\n"
+            expected: "42\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 }
