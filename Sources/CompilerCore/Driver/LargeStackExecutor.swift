@@ -1,14 +1,15 @@
 import Foundation
 #if canImport(Darwin)
-import Darwin
+import Dispatch
 #elseif canImport(Glibc)
 import Glibc
 #endif
 
 /// Holds the closure and the captured result. Marked `@unchecked Sendable`
 /// because the result is produced on the spawned thread and consumed on the
-/// caller thread; `pthread_join` provides the synchronization that makes this
-/// safe.
+/// caller thread; the join back to the caller thread (a semaphore wait on
+/// Darwin, `pthread_join` elsewhere) provides the synchronization that makes
+/// this safe.
 private final class LargeStackWorkBox: @unchecked Sendable {
     let body: () throws -> Any
     var result: Result<Any, any Error>?
@@ -22,11 +23,13 @@ private final class LargeStackWorkBox: @unchecked Sendable {
     }
 }
 
+#if !canImport(Darwin)
 private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
     let box = Unmanaged<LargeStackWorkBox>.fromOpaque(arg!).takeUnretainedValue()
     box.run()
     return nil
 }
+#endif
 
 /// Runs work synchronously on a dedicated thread with an explicitly sized stack.
 ///
@@ -54,6 +57,21 @@ enum LargeStackExecutor {
     ) throws -> T {
         let box = LargeStackWorkBox { try body() as Any }
 
+        #if canImport(Darwin)
+        // `pthread_t` has no zero-argument initializer on current Darwin SDKs
+        // (it's a bare `UnsafeMutablePointer`, unlike Glibc's integer typedef).
+        // `Foundation.Thread` honors `stackSize` on Darwin, so it sidesteps raw
+        // pthreads entirely instead of chasing the SDK-specific shape of
+        // `pthread_create`'s output parameter.
+        let done = DispatchSemaphore(value: 0)
+        let thread = Thread {
+            box.run()
+            done.signal()
+        }
+        thread.stackSize = stackSize
+        thread.start()
+        done.wait()
+        #else
         var attr = pthread_attr_t()
         guard pthread_attr_init(&attr) == 0 else {
             // If we cannot configure a large stack, run the work on the caller
@@ -66,15 +84,16 @@ enum LargeStackExecutor {
 
         _ = pthread_attr_setstacksize(&attr, stackSize)
 
-        var thread = pthread_t()
         let boxPtr = Unmanaged.passUnretained(box).toOpaque()
 
-        guard pthread_create(&thread, &attr, largeStackThreadEntry, boxPtr) == 0 else {
+        var thread = pthread_t()
+        if pthread_create(&thread, &attr, largeStackThreadEntry, boxPtr) == 0 {
+            _ = pthread_join(thread, nil)
+        } else {
             box.run()
-            return try box.result!.get() as! T
         }
+        #endif
 
-        _ = pthread_join(thread, nil)
         return try box.result!.get() as! T
     }
 }
