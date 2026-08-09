@@ -428,17 +428,27 @@ extension DeclTypeChecker {
             locals: &locals,
             expectedType: signature.returnType
         )
-        driver.emitSubtypeConstraint(
-            left: bodyType,
-            right: signature.returnType,
-            range: function.range,
-            solver: solver,
-            sema: sema,
-            diagnostics: diagnostics,
-            // Suppress platform warning when return type is inferred (not explicitly declared):
-            // the placeholder anyType is not a user-declared non-null constraint.
-            suppressPlatformWarning: function.returnType == nil
-        )
+        // Expression bodies that are range expressions infer as the scalar element
+        // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
+        // skips the nominal subtype check like the equivalent local declaration does.
+        let bodyIsRangeExpr = {
+            guard case let .expr(bodyExprID, _) = function.body else { return false }
+            return sema.bindings.isRangeExpr(bodyExprID)
+                && driver.helpers.isRangeLikeType(signature.returnType, sema: sema, interner: ctx.interner)
+        }()
+        if !bodyIsRangeExpr {
+            driver.emitSubtypeConstraint(
+                left: bodyType,
+                right: signature.returnType,
+                range: function.range,
+                solver: solver,
+                sema: sema,
+                diagnostics: diagnostics,
+                // Suppress platform warning when return type is inferred (not explicitly declared):
+                // the placeholder anyType is not a user-declared non-null constraint.
+                suppressPlatformWarning: function.returnType == nil
+            )
+        }
 
         updateInferredReturnType(
             function: function,

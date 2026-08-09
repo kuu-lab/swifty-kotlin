@@ -144,4 +144,22 @@ extension CollectionLiteralConstructionLoweringPass {
         }
         return sema.symbols.isSourceBackedSymbol(symbol)
     }
+
+    /// True when the resolved callee's receiver type is `kotlin.sequences.Sequence<T>`.
+    /// Used to keep source Sequence `map`/`filter` routed through the runtime
+    /// pipeline while allowing List/Map/Set source `map`/`filter` to lower normally.
+    func isSequenceReceiverType(
+        symbol: SymbolID,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let sema = ctx.sema,
+              let signature = sema.symbols.functionSignature(for: symbol),
+              let receiverType = signature.receiverType,
+              let (_, classSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+        else {
+            return false
+        }
+        let expected = [ctx.interner.intern("kotlin"), ctx.interner.intern("sequences"), ctx.interner.intern("Sequence")]
+        return classSymbol.fqName == expected
+    }
 }
