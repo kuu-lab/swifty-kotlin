@@ -5,192 +5,164 @@ import Testing
 
 @Suite
 struct ArraySyntheticMemberLinkTests {
-    @Test func testArrayAllFallbackInfersBooleanResult() throws {
-        let source = """
-        fun sample(): Boolean {
-            val values = arrayOf(1, 2, 3)
-            return values.all { it > 0 }
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { return exprID }
         }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Array.all to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "all"
-        }, "Expected Array.all member call")
-
-        #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
+        return nil
     }
 
-    // MARK: - Array HOF gap fix (mapIndexed/filterIndexed/mapNotNull/filterNot/
-    // filterNotNull/reduceIndexed/first/firstOrNull/last/lastOrNull)
-    //
-    // These previously failed `tryArrayMemberFallback`'s `isSupportedArrayMember`
-    // allowlist check outright (KSWIFTK-SEMA-0024 "Unresolved member function"),
-    // despite the identically named List members already resolving correctly.
-    // See CallTypeChecker+ArrayMemberFallback.swift.
+    @Test
+    func testArrayMemberCallFallbacksResolve() throws {
+        let sources: [String] = [
+            """
+            fun sample0(): Boolean {
+                val values = arrayOf(1, 2, 3)
+                return values.all { it > 0 }
+            }
+            """,
+            """
+            fun sample1() {
+                val values = arrayOf(1, 2, 3)
+                val result = values.mapIndexed { index, value -> index + value }
+                println(result)
+            }
+            """,
+            """
+            fun sample2() {
+                val values: Array<Int?> = arrayOf(1, null, 2)
+                val result = values.filterNotNull()
+                println(result)
+            }
+            """,
+            """
+            fun sample3(): Int? {
+                val values = arrayOf(1, 2, 3)
+                return values.firstOrNull()
+            }
+            """,
+            """
+            fun sample4(): Int {
+                val values = arrayOf(1, 2, 3)
+                return values.first()
+            }
+            """,
+            """
+            fun sample5(): Int {
+                val values = arrayOf(1, 2, 3)
+                return values.reduceIndexed { index, acc, value -> acc + value + index }
+            }
+            """,
+        ]
 
-    @Test func testArrayMapIndexedFallbackMarksResultAsCollection() throws {
-        // NOTE: like the pre-existing `map`/`filter` Array fallback, mapIndexed's
-        // static result type is erased to `Any` (not `List<R>`) at the Sema
-        // layer — see `arrayMemberResultType`'s default case in
-        // CallTypeChecker+ArrayMemberFallback.swift. `isCollectionExpr` is the
-        // out-of-band signal downstream KIR/runtime dispatch relies on instead.
-        // Declaring `sample()`'s return type as `List<Int>` here would make this
-        // a negative (type-mismatch) test instead, so the result is simply
-        // used via a local `val`, not returned under a narrower type.
-        let source = """
-        fun sample() {
-            val values = arrayOf(1, 2, 3)
-            val result = values.mapIndexed { index, value -> index + value }
-            println(result)
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
+        let ctx = makeContextFromSources(sources)
         try runSema(ctx)
 
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Array.mapIndexed to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-
+        let userPaths = ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.origin(of: $0) == .user }
+            .map { ctx.sourceManager.path(of: $0) }
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "mapIndexed"
-        }, "Expected Array.mapIndexed member call")
 
-        #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.mapIndexed result to be marked as a collection (List) expression")
+        // === testArrayAllFallbackInfersBooleanResult ===
+        do {
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected Array.all to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[0], ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "all"
+            }, "Expected Array.all member call")
+            #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
+        }
+
+        // === testArrayMapIndexedFallbackMarksResultAsCollection ===
+        do {
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected Array.mapIndexed to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[1], ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "mapIndexed"
+            }, "Expected Array.mapIndexed member call")
+            #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.mapIndexed result to be marked as a collection (List) expression")
+        }
+
+        // === testArrayFilterNotNullFallbackAcceptsZeroArgumentsAndMarksCollection ===
+        do {
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected Array.filterNotNull to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[2], ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "filterNotNull"
+            }, "Expected Array.filterNotNull member call")
+            #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.filterNotNull result to be marked as a collection (List) expression")
+        }
+
+        // === testArrayFirstOrNullFallbackInfersNullableElementType ===
+        do {
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected Array.firstOrNull to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[3], ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "firstOrNull"
+            }, "Expected Array.firstOrNull member call")
+            let resultType = try #require(sema.bindings.exprType(for: callExpr))
+            #expect(sema.types.nullability(of: resultType) == .nullable, "Expected Array.firstOrNull() to infer a nullable result type")
+            #expect(sema.types.makeNonNullable(resultType) == sema.types.intType)
+        }
+
+        // === testArrayFirstFallbackInfersNonNullElementType ===
+        do {
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected Array.first to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[4], ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "first"
+            }, "Expected Array.first member call")
+            #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
+        }
+
+        // === testArrayReduceIndexedFallbackInfersElementType ===
+        do {
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected Array.reduceIndexed to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[5], ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceIndexed"
+            }, "Expected Array.reduceIndexed member call")
+            #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
+        }
+
     }
 
-    @Test func testArrayFilterNotNullFallbackAcceptsZeroArgumentsAndMarksCollection() throws {
-        // See the mapIndexed test above: the Array fallback's result type is
-        // erased to `Any`, so this uses a local `val` rather than a `List<Int>`
-        // return type to avoid asserting a stronger type guarantee than the
-        // fallback actually provides.
-        let source = """
-        fun sample() {
-            val values: Array<Int?> = arrayOf(1, null, 2)
-            val result = values.filterNotNull()
-            println(result)
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
+    @Test
+    func testArraySyntheticSymbolLinksResolve() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
 
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Array.filterNotNull to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-
-        let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "filterNotNull"
-        }, "Expected Array.filterNotNull member call")
 
-        #expect(sema.bindings.isCollectionExpr(callExpr), "Expected Array.filterNotNull result to be marked as a collection (List) expression")
-    }
-
-    @Test func testArrayFirstOrNullFallbackInfersNullableElementType() throws {
-        let source = """
-        fun sample(): Int? {
-            val values = arrayOf(1, 2, 3)
-            return values.firstOrNull()
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Array.firstOrNull to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "firstOrNull"
-        }, "Expected Array.firstOrNull member call")
-
-        let resultType = try #require(sema.bindings.exprType(for: callExpr))
-        #expect(sema.types.nullability(of: resultType) == .nullable, "Expected Array.firstOrNull() to infer a nullable result type")
-        #expect(sema.types.makeNonNullable(resultType) == sema.types.intType)
-    }
-
-    @Test func testArrayFirstFallbackInfersNonNullElementType() throws {
-        let source = """
-        fun sample(): Int {
-            val values = arrayOf(1, 2, 3)
-            return values.first()
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Array.first to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "first"
-        }, "Expected Array.first member call")
-
-        #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
-    }
-
-    @Test func testArrayReduceIndexedFallbackInfersElementType() throws {
-        let source = """
-        fun sample(): Int {
-            val values = arrayOf(1, 2, 3)
-            return values.reduceIndexed { index, acc, value -> acc + value + index }
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Array.reduceIndexed to type-check without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "reduceIndexed"
-        }, "Expected Array.reduceIndexed member call")
-
-        #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
-    }
-
-    @Test func testArrayOfNullsTopLevelFactoryUsesRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArrayOfNullsTopLevelFactoryUsesRuntimeExternalLink ===
+        do {
             let symbolID = try #require(
                 sema.symbols.lookup(
                     fqName: [
@@ -201,13 +173,11 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected synthetic arrayOfNulls function to be registered"
             )
             #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_of_nulls")
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes == [sema.types.intType])
             #expect(signature.valueParameterHasDefaultValues == [false])
             #expect(signature.valueParameterIsVararg == [false])
             #expect(signature.typeParameterSymbols.count == 1)
-
             guard case let .classType(returnClass) = sema.types.kind(of: signature.returnType),
                   let arraySymbol = sema.symbols.symbol(returnClass.classSymbol)
             else {
@@ -216,7 +186,6 @@ struct ArraySyntheticMemberLinkTests {
             }
             #expect(ctx.interner.resolve(arraySymbol.name) == "Array")
             #expect(returnClass.args.count == 1)
-
             guard case let .invariant(elementType) = returnClass.args[0],
                   case let .typeParam(typeParam) = sema.types.kind(of: elementType)
             else {
@@ -226,14 +195,9 @@ struct ArraySyntheticMemberLinkTests {
             #expect(typeParam.symbol == signature.typeParameterSymbols[0])
             #expect(typeParam.nullability == .nullable)
         }
-    }
 
-    @Test func testArrayReversedArrayUsesRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArrayReversedArrayUsesRuntimeExternalLink ===
+        do {
             let symbolID = try #require(
                 sema.symbols.lookup(
                     fqName: [
@@ -245,7 +209,6 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected synthetic Array.reversedArray to be registered"
             )
             #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_reversedArray")
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes.isEmpty)
             let receiverType = try #require(signature.receiverType)
@@ -254,14 +217,9 @@ struct ArraySyntheticMemberLinkTests {
             #expect(signature.valueParameterIsVararg.isEmpty)
             #expect(signature.typeParameterSymbols.count == 1)
         }
-    }
 
-    @Test func testArrayContentDeepToStringUsesRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArrayContentDeepToStringUsesRuntimeExternalLink ===
+        do {
             let symbolID = try #require(
                 sema.symbols.lookup(
                     fqName: [
@@ -273,12 +231,10 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected synthetic Array.contentDeepToString to be registered"
             )
             #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentDeepToString")
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes == [])
             #expect(signature.returnType == sema.types.stringType)
             #expect(signature.typeParameterSymbols.count == 1)
-
             guard let receiverType = signature.receiverType,
                   case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                   let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
@@ -289,14 +245,9 @@ struct ArraySyntheticMemberLinkTests {
             #expect(ctx.interner.resolve(receiverSymbol.name) == "Array")
             #expect(receiverClass.args.count == 1)
         }
-    }
 
-    @Test func testArrayContentDeepHashCodeUsesRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArrayContentDeepHashCodeUsesRuntimeExternalLink ===
+        do {
             let symbolID = try #require(
                 sema.symbols.lookup(
                     fqName: [
@@ -308,12 +259,10 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected synthetic Array.contentDeepHashCode to be registered"
             )
             #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentDeepHashCode")
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes == [])
             #expect(signature.returnType == sema.types.intType)
             #expect(signature.typeParameterSymbols.count == 1)
-
             guard let receiverType = signature.receiverType,
                   case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                   let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
@@ -324,15 +273,9 @@ struct ArraySyntheticMemberLinkTests {
             #expect(ctx.interner.resolve(receiverSymbol.name) == "Array")
             #expect(receiverClass.args.count == 1)
         }
-    }
 
-    @Test func testArrayContentToStringIsBundledSourceBacked() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-
+        // === testArrayContentToStringIsBundledSourceBacked ===
+        do {
             // KSP-658: generic Array<T>.contentToString migrated to bundled Kotlin
             // source (kotlin.collections.contentToString); the synthetic Array member
             // stub linking to kk_array_contentToString was removed.
@@ -346,7 +289,6 @@ struct ArraySyntheticMemberLinkTests {
                 ) == nil,
                 "Generic Array.contentToString synthetic stub should be removed"
             )
-
             let symbolID = try #require(
                 sema.symbols.lookupAll(
                     fqName: [
@@ -366,12 +308,10 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected bundled source Array.contentToString extension"
             )
             #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes == [])
             #expect(signature.returnType == sema.types.stringType)
             #expect(signature.typeParameterSymbols.count == 1)
-
             guard let receiverType = signature.receiverType,
                   case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                   let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
@@ -382,14 +322,9 @@ struct ArraySyntheticMemberLinkTests {
             #expect(ctx.interner.resolve(receiverSymbol.name) == "Array")
             #expect(receiverClass.args.count == 1)
         }
-    }
 
-    @Test func testArrayContentDeepEqualsUsesRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArrayContentDeepEqualsUsesRuntimeExternalLink ===
+        do {
             let symbolID = try #require(
                 sema.symbols.lookup(
                     fqName: [
@@ -401,12 +336,10 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected synthetic Array.contentDeepEquals to be registered"
             )
             #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentDeepEquals")
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes.count == 1)
             #expect(signature.returnType == sema.types.booleanType)
             #expect(signature.typeParameterSymbols.count == 1)
-
             guard let receiverType = signature.receiverType,
                   case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                   case let .classType(parameterClass) = sema.types.kind(of: signature.parameterTypes[0]),
@@ -421,14 +354,9 @@ struct ArraySyntheticMemberLinkTests {
             #expect(receiverClass.args.count == 1)
             #expect(parameterClass.args.count == 1)
         }
-    }
 
-    @Test func testArrayCopyIntoUsesRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArrayCopyIntoUsesRuntimeExternalLink ===
+        do {
             let symbolID = try #require(
                 sema.symbols.lookup(
                     fqName: [
@@ -440,7 +368,6 @@ struct ArraySyntheticMemberLinkTests {
                 "Expected synthetic Array.copyInto to be registered"
             )
             #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_copyInto")
-
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes.count == 4)
             let receiverType = try #require(signature.receiverType)
@@ -448,20 +375,14 @@ struct ArraySyntheticMemberLinkTests {
             #expect(signature.valueParameterHasDefaultValues == [false, true, true, true])
             #expect(signature.valueParameterIsVararg == [false, false, false, false])
             #expect(signature.typeParameterSymbols.count == 1)
-
             let parameterNames = signature.valueParameterSymbols.compactMap { symbolID in
                 sema.symbols.symbol(symbolID).map { ctx.interner.resolve($0.name) }
             }
             #expect(parameterNames == ["destination", "destinationOffset", "startIndex", "endIndex"])
         }
-    }
 
-    @Test func testPrimitiveArrayContentToStringOverloadsUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testPrimitiveArrayContentToStringOverloadsUseRuntimeExternalLinks ===
+        do {
             let expectedLinks = [
                 "IntArray": "kk_intArray_contentToString",
                 "LongArray": "kk_longArray_contentToString",
@@ -476,7 +397,6 @@ struct ArraySyntheticMemberLinkTests {
                 "UByteArray": "kk_uByteArray_contentToString",
                 "UShortArray": "kk_uShortArray_contentToString",
             ]
-
             for (arrayName, externalLink) in expectedLinks {
                 let symbolID = try #require(
                     sema.symbols.lookup(
@@ -489,11 +409,9 @@ struct ArraySyntheticMemberLinkTests {
                     "Expected \(arrayName).contentToString to be registered"
                 )
                 #expect(sema.symbols.externalLinkName(for: symbolID) == externalLink)
-
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes == [], "\(arrayName).contentToString should not take parameters")
                 #expect(signature.returnType == sema.types.stringType)
-
                 guard let receiverType = signature.receiverType,
                       case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                       let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
@@ -505,14 +423,9 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(receiverClass.args.count == 0)
             }
         }
-    }
 
-    @Test func testPrimitiveArrayJoinToStringOverloadsUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testPrimitiveArrayJoinToStringOverloadsUseRuntimeExternalLinks ===
+        do {
             let expectedLinks = [
                 "IntArray": "kk_intArray_joinToString",
                 "LongArray": "kk_longArray_joinToString",
@@ -527,7 +440,6 @@ struct ArraySyntheticMemberLinkTests {
                 "UByteArray": "kk_uByteArray_joinToString",
                 "UShortArray": "kk_uShortArray_joinToString",
             ]
-
             for (arrayName, externalLink) in expectedLinks {
                 let symbolID = try #require(
                     sema.symbols.lookup(
@@ -540,12 +452,10 @@ struct ArraySyntheticMemberLinkTests {
                     "Expected \(arrayName).joinToString to be registered"
                 )
                 #expect(sema.symbols.externalLinkName(for: symbolID) == externalLink)
-
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes == [sema.types.stringType, sema.types.stringType, sema.types.stringType])
                 #expect(signature.valueParameterHasDefaultValues == [true, true, true])
                 #expect(signature.returnType == sema.types.stringType)
-
                 guard let receiverType = signature.receiverType,
                       case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                       let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
@@ -557,14 +467,9 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(receiverClass.args.count == 0)
             }
         }
-    }
 
-    @Test func testPrimitiveArrayReversedArrayOverloadsUseRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testPrimitiveArrayReversedArrayOverloadsUseRuntimeExternalLink ===
+        do {
             let arrayNames = [
                 "IntArray",
                 "LongArray",
@@ -579,7 +484,6 @@ struct ArraySyntheticMemberLinkTests {
                 "UByteArray",
                 "UShortArray",
             ]
-
             for arrayName in arrayNames {
                 let symbolID = try #require(
                     sema.symbols.lookup(
@@ -592,7 +496,6 @@ struct ArraySyntheticMemberLinkTests {
                     "Expected \(arrayName).reversedArray to be registered"
                 )
                 #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_reversedArray")
-
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes.isEmpty, "\(arrayName).reversedArray should take no parameters")
                 let receiverType = try #require(signature.receiverType)
@@ -601,14 +504,9 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(signature.valueParameterIsVararg.isEmpty)
             }
         }
-    }
 
-    @Test func testArraySliceArrayOverloadsUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testArraySliceArrayOverloadsUseRuntimeExternalLinks ===
+        do {
             let symbols = sema.symbols.lookupAll(
                 fqName: [
                     ctx.interner.intern("kotlin"),
@@ -619,7 +517,6 @@ struct ArraySyntheticMemberLinkTests {
             let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
             #expect(links.contains("kk_array_sliceArray_range"))
             #expect(links.contains("kk_array_sliceArray_iterable"))
-
             for linkName in ["kk_array_sliceArray_range", "kk_array_sliceArray_iterable"] {
                 let symbolID = try #require(
                     symbols.first(where: { sema.symbols.externalLinkName(for: $0) == linkName }),
@@ -634,14 +531,9 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(signature.typeParameterSymbols.count == 1)
             }
         }
-    }
 
-    @Test func testPrimitiveArraySliceArrayOverloadsUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testPrimitiveArraySliceArrayOverloadsUseRuntimeExternalLinks ===
+        do {
             let arrayNames = [
                 "IntArray",
                 "LongArray",
@@ -656,7 +548,6 @@ struct ArraySyntheticMemberLinkTests {
                 "UByteArray",
                 "UShortArray",
             ]
-
             for arrayName in arrayNames {
                 let symbols = sema.symbols.lookupAll(
                     fqName: [
@@ -668,7 +559,6 @@ struct ArraySyntheticMemberLinkTests {
                 let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
                 #expect(links.contains("kk_array_sliceArray_range"), "\(arrayName) missing range sliceArray")
                 #expect(links.contains("kk_array_sliceArray_iterable"), "\(arrayName) missing iterable sliceArray")
-
                 for linkName in ["kk_array_sliceArray_range", "kk_array_sliceArray_iterable"] {
                     let symbolID = try #require(
                         symbols.first(where: { sema.symbols.externalLinkName(for: $0) == linkName }),
@@ -683,14 +573,9 @@ struct ArraySyntheticMemberLinkTests {
                 }
             }
         }
-    }
 
-    @Test func testPrimitiveArrayCopyIntoOverloadsUseRuntimeExternalLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
+        // === testPrimitiveArrayCopyIntoOverloadsUseRuntimeExternalLink ===
+        do {
             let arrayNames = [
                 "IntArray",
                 "LongArray",
@@ -705,7 +590,6 @@ struct ArraySyntheticMemberLinkTests {
                 "UByteArray",
                 "UShortArray",
             ]
-
             for arrayName in arrayNames {
                 let symbolID = try #require(
                     sema.symbols.lookup(
@@ -718,7 +602,6 @@ struct ArraySyntheticMemberLinkTests {
                     "Expected \(arrayName).copyInto to be registered"
                 )
                 #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_copyInto")
-
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes.count == 4, "\(arrayName).copyInto should take four parameters")
                 let receiverType = try #require(signature.receiverType)
@@ -727,6 +610,8 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(signature.valueParameterIsVararg == [false, false, false, false])
             }
         }
+
     }
+
 }
 #endif
