@@ -142,6 +142,23 @@ struct LambdaParamTypeAnnotationTests {
         )
     }
 
+    @Test func testAnnotationNarrowingAnyParameterTypeIsRejected() throws {
+        let source = """
+        fun main() {
+            val f: (Any) -> Int = { s: String -> s.length }
+            println(f(42))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "Narrowing the expected Any parameter type must be reported, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     @Test func testAnnotationDroppingExpectedNullabilityIsRejected() throws {
         let source = """
         fun main() {

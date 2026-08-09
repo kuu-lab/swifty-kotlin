@@ -805,12 +805,6 @@ extension ExprTypeChecker {
         if typeMentionsTypeParameter(declared, sema: sema) {
             return true
         }
-        // A declared `Any` is also what inference falls back to when a type
-        // variable stays unsolved (`Grouping<K, E>.fold`'s accumulator), so it
-        // carries no information either.
-        if case .any = sema.types.kind(of: declared) {
-            return true
-        }
         return sema.types.isSubtype(declared, annotated)
     }
 
