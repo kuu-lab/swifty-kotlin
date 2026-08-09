@@ -74,9 +74,15 @@ extension DataFlowSemaPhase {
         let nullableCharSequenceType = types.makeNullable(charSequenceType)
 
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
+        // BUG-172: all three overloads need an externalLinkName. StringBuilder is
+        // the sole implementer and bypasses kk_object_new construction (see the
+        // BUG-044 note in RuntimeStringBuilder.swift), so it never registers itable
+        // entries — a call through the bare `Appendable` interface type for an
+        // overload with no externalLinkName falls through to itable dispatch and
+        // panics with "method not found in vtable/itable".
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "",
+            externalLinkName: "__kk_string_builder_append_char",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", charType, false, false)],
@@ -96,7 +102,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "",
+            externalLinkName: "__kk_string_builder_append_range",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -106,7 +112,8 @@ extension DataFlowSemaPhase {
             ],
             returnType: appendableType,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            canThrow: true
         )
 
         // --- STDLIB-TEXT-TYPE-003: kotlin.text.Typography object surface ---
@@ -279,9 +286,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KSP-413: locale-aware compareTo stays a runtime bridge (ICU/Foundation
+        // collation), demoted to `__kk_` so only bundled stdlib source
+        // (StringComparison.kt) reaches it.
         registerSyntheticStringExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_string_compareTo_locale",
+            named: "__kk_string_compareTo_locale",
+            externalLinkName: "__kk_string_compareTo_locale",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -707,7 +717,7 @@ extension DataFlowSemaPhase {
         )
 
         // STDLIB-317: String.asIterable() — returns lazy Iterable<Char>
-        let iterableCharType = makeIterableType(
+        let iterableCharType = makeSyntheticIterableType(
             symbols: symbols,
             types: types,
             interner: interner,
@@ -871,19 +881,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_string_compareToIgnoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-413: compareTo(other, ignoreCase) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         // KSP-401: isEmpty/isBlank/ifEmpty/ifBlank are bundled Kotlin source.
 
@@ -933,7 +932,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-192: equals(other, ignoreCase) ---
+        // --- STDLIB-192: equals(other) ---
+        // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         let nullableStringType = types.make(.stringStruct(.nullable))
 
@@ -943,20 +944,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "equals",
-            externalLinkName: "kk_string_equalsIgnoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-                ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
             packageFQName: kotlinTextPkg,
@@ -2039,7 +2026,7 @@ extension DataFlowSemaPhase {
             args: [.out(charType)],
             nullability: .nonNull
         )))
-        let iterableIndexedValueCharType = makeIterableType(
+        let iterableIndexedValueCharType = makeSyntheticIterableType(
             symbols: symbols,
             types: types,
             interner: interner,
@@ -2068,34 +2055,8 @@ extension DataFlowSemaPhase {
 
         // KSP-401: String?.orEmpty() is bundled Kotlin source.
 
-        // --- STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_flat",
-            receiverType: nullableStringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_ignoreCase_flat",
-            receiverType: nullableStringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-413: CharSequence?.contentEquals is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         // --- STDLIB-TEXT-FN-011: shares kk_string_concat with the `+` operator ---
         registerSyntheticStringExtensionFunction(
@@ -2275,18 +2236,87 @@ extension DataFlowSemaPhase {
         return kotlinTextPkg
     }
 
+    /// Build a type from an already-registered stdlib type shell.
+    ///
+    /// The collection/sequence interfaces and the primitive array classes are
+    /// registered by `registerSyntheticCollectionStubs` or by bundled Kotlin
+    /// source before the String stubs run, so a lookup is sufficient here.
+    private func makeStdlibShellType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        fqName: [InternedString],
+        args: [TypeArg]
+    ) -> TypeID {
+        guard let symbol = symbols.lookup(fqName: fqName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: args,
+            nullability: .nonNull
+        )))
+    }
+
     private func makeListType(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
         elementType: TypeID
     ) -> TypeID {
-        let listSymbol = ensureListSymbol(symbols: symbols, types: types, interner: interner)
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
+        makeStdlibShellType(
+            symbols: symbols,
+            types: types,
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("List"),
+            ],
+            args: [.out(elementType)]
+        )
+    }
+
+    private func makeCollectionType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        makeStdlibShellType(
+            symbols: symbols,
+            types: types,
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Collection"),
+            ],
+            args: [.out(elementType)]
+        )
+    }
+
+    private func makeSequenceType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        makeStdlibShellType(
+            symbols: symbols,
+            types: types,
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("Sequence"),
+            ],
+            args: [.out(elementType)]
+        )
+    }
+
+    private func makeNominalType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        fqName: [InternedString]
+    ) -> TypeID {
+        makeStdlibShellType(symbols: symbols, types: types, fqName: fqName, args: [])
     }
 
     private func makeListOfStringType(

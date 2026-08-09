@@ -664,10 +664,6 @@ public extension RuntimeABISpec {
             p("closureRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_list_toByteArray", parameters: [
-            p("listRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -843,27 +839,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_state_flow_value", parameters: [
             p("handle", .intptr),
         ]),
-        abiParitySpec("kk_string_contentEquals_flat", parameters: [
-            p("receiverData", .nullableConstUInt8Pointer),
-            p("receiverLength", .intptr),
-            p("receiverByteCount", .intptr),
-            p("receiverHash", .intptr),
-            p("otherData", .nullableConstUInt8Pointer),
-            p("otherLength", .intptr),
-            p("otherByteCount", .intptr),
-            p("otherHash", .intptr),
-        ]),
-        abiParitySpec("kk_string_contentEquals_ignoreCase_flat", parameters: [
-            p("receiverData", .nullableConstUInt8Pointer),
-            p("receiverLength", .intptr),
-            p("receiverByteCount", .intptr),
-            p("receiverHash", .intptr),
-            p("otherData", .nullableConstUInt8Pointer),
-            p("otherLength", .intptr),
-            p("otherByteCount", .intptr),
-            p("otherHash", .intptr),
-            p("ignoreCaseRaw", .intptr),
-        ]),
+        // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
+        // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
         abiParitySpec("__kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
