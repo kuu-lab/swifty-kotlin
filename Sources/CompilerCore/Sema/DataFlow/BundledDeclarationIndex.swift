@@ -34,6 +34,15 @@ struct BundledDeclarationIndex: Sendable {
         self = BundledDeclarationIndex(keys: keys.union([key]))
     }
 
+    mutating func insertImportedStdlibSymbols(
+        keys: Set<BundledMemberKey>,
+        interner: StringInterner
+    ) {
+        var merged = self.keys.union(keys)
+        Self.addListIterableAliases(to: &merged, interner: interner)
+        self = BundledDeclarationIndex(keys: merged)
+    }
+
     /// Build from AST bundled sources before SymbolTable header collection.
     /// AST scanning preserves the current phase order while supplying
     /// `(owner, name, arity)` keys to synthetic stub registration.
@@ -107,6 +116,7 @@ struct BundledDeclarationIndex: Sendable {
         var reported: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() {
             guard symbol.flags.contains(.synthetic) else { continue }
+            guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
             guard let key = Self.memberKey(
                 for: symbol,
@@ -255,21 +265,16 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // List.filter / aggregate HOFs / joinToString are bundled as Kotlin source, but
-        // those implementations are only valid for concrete List receivers. Keep the
-        // runtime bridge for nominal Iterable<T> receivers until Iterable has
-        // its own Kotlin source (KSP-435).
+        // List.filter / aggregate HOFs are bundled as Kotlin source, but those
+        // implementations are only valid for concrete List receivers. Keep the
+        // runtime bridge for nominal Iterable<T> receivers until they get their
+        // own Kotlin source. joinTo/joinToString/any/all/last/... moved to
+        // Stdlib/kotlin/collections/Iterables.kt in KSP-435.
         switch interner.resolve(key.name) {
         case "filter",
              "reduce", "reduceIndexed",
              "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
             return key.arity == 1
-        case "joinToString":
-            // List.joinToString is source-backed, but non-List Iterable receivers
-            // still need the runtime bridge. The bundled index aliases the List
-            // source key to Iterable, so treat this as an intentional retained
-            // overlap keyed only by arity (signatures differ by receiver type).
-            return key.arity == 3
         default:
             return false
         }
@@ -526,10 +531,55 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("last"),
             interner.intern("single"),
         ])
+        // ListAggregateHOF.kt's fold/reduce/scan family (Sources/CompilerCore/
+        // Stdlib/kotlin/collections/ListAggregateHOF.kt) is implemented with
+        // `size`/`this[i]` indexed access, which only List supports. Aliasing
+        // these to Iterable suppressed the dedicated Iterable synthetic stub
+        // that some of these members have (e.g. reduce, via
+        // registerIterableReduceMember, which links to the generic
+        // runtimeCollectionElements(from:)-based kk_list_reduce bridge),
+        // leaving a plain Iterable receiver (e.g. Set<T>, or a value
+        // statically typed Iterable<T>) with no matching candidate at all.
+        // Sema's overload fallback then picked an unrelated same-named source
+        // declaration (observed: Set<Int>.reduce resolving to
+        // Sequence<T>.reduce), which crashed at runtime with "Virtual
+        // dispatch failed" since the receiver has no itable entry for the
+        // Sequence-shaped call. Regardless of arity, keep these unaliased so
+        // the dedicated Iterable stub (where one exists) stays registered.
+        // The remaining names here (fold and friends, scan/runningFold/...)
+        // have no Iterable synthetic stub at all; for those,
+        // tryInferMemberCallCollectionFlowSpecials falls back to the bundled
+        // Sequence<T> source body instead (plain iteration, valid for any
+        // Iterable receiver) via bindBundledSequenceSourceIfAvailable(...,
+        // allowIterableReceiver: true).
+        let nonAliasedIndexedAccessNames = Set([
+            interner.intern("fold"),
+            interner.intern("foldIndexed"),
+            interner.intern("foldRight"),
+            interner.intern("foldRightIndexed"),
+            interner.intern("reduce"),
+            interner.intern("reduceIndexed"),
+            interner.intern("reduceOrNull"),
+            interner.intern("reduceIndexedOrNull"),
+            interner.intern("reduceRight"),
+            interner.intern("reduceRightIndexed"),
+            interner.intern("reduceRightOrNull"),
+            interner.intern("reduceRightIndexedOrNull"),
+            interner.intern("scan"),
+            interner.intern("scanIndexed"),
+            interner.intern("scanReduce"),
+            interner.intern("runningFold"),
+            interner.intern("runningFoldIndexed"),
+            interner.intern("runningReduce"),
+            interner.intern("runningReduceIndexed"),
+        ])
 
         let listKeys = keys.filter { $0.ownerFQName == listOwnerFQName }
         for key in listKeys {
             if key.arity == 0, nonAliasedZeroArgNames.contains(key.name) {
+                continue
+            }
+            if nonAliasedIndexedAccessNames.contains(key.name) {
                 continue
             }
             keys.insert(

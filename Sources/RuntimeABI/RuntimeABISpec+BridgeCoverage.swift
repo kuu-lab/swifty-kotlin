@@ -37,7 +37,6 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
             isThrowing: false),
     bridgeSpec("kk_indexing_iterable_next", section: "Collection", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_iterable_asSequence", section: "Sequence", params: ["iterableRaw"]),
 ]
 
 private let listClosureBridgeNames = [

@@ -60,1276 +60,609 @@ struct RegexAPISurfaceInventoryTests {
 
     // MARK: - 1. Constructors
 
-    // MARK: - Per-source diagnostic helpers
-
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
+    @Test func testRegexSingleArgConstructorIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        // Regex(pattern: String) -> Regex
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "text", "Regex"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            links.contains("kk_regex_create_flat"),
+            "Regex(pattern) constructor must link to kk_regex_create_flat"
+        )
     }
 
-    private func diagnosticsForPath(
-        _ path: String,
-        withCode code: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
+    @Test func testRegexSingleOptionConstructorIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        // Regex(pattern: String, option: RegexOption) -> Regex
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "text", "Regex"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            links.contains("kk_regex_create_with_option_flat"),
+            "Regex(pattern, option) constructor must link to kk_regex_create_with_option_flat"
+        )
     }
 
-    private func assertHasDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = diagnostics.contains { $0.code == code }
-        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
+    @Test func testRegexSetOptionsConstructorIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        // Regex(pattern: String, options: Set<RegexOption>) -> Regex
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "text", "Regex"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            links.contains("kk_regex_create_with_options_flat"),
+            "Regex(pattern, options) constructor must link to kk_regex_create_with_options_flat"
+        )
     }
 
-    private func assertNoDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = !diagnostics.contains { $0.code == code }
-        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
+    @Test func testAllThreeRegexConstructorOverloadsArePresent() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "text", "Regex"],
+            sema: sema,
+            interner: interner
+        )
+        let required: Set<String> = [
+            "kk_regex_create_flat",
+            "kk_regex_create_with_option_flat",
+            "kk_regex_create_with_options_flat",
+        ]
+        #expect(
+            required.isSubset(of: links),
+            Comment(rawValue: "All three Regex constructor overloads must be registered; found: \(links)")
+        )
     }
 
-    // MARK: - Path-aware expression search helpers
+    // MARK: - 2. RegexOption enum entries
 
-    private func firstExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
+    @Test func testRegexOptionEnumClassIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
+        let sym = sema.symbols.lookup(fqName: fq)
+        #expect(sym != nil, "kotlin.text.RegexOption enum class must exist in symbol table")
+    }
+
+    @Test func testRegexOptionAllEnumEntriesAreRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let entries = [
+            "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL",
+            "LITERAL", "UNIX_LINES", "COMMENTS", "CANON_EQ",
+        ]
+        for entry in entries {
+            let fq = ["kotlin", "text", "RegexOption", entry].map { interner.intern($0) }
+            #expect(
+                sema.symbols.lookup(fqName: fq) != nil,
+                Comment(rawValue: "RegexOption.\(entry) must be registered in symbol table")
+            )
         }
-        return nil
     }
 
-    private func lastExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        var result: ExprID?
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { result = exprID }
+    // MARK: - 3. Regex member functions
+
+    @Test func testRegexMatchesIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "Regex", "matches"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(link == "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
+    }
+
+    @Test func testRegexContainsMatchInIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "Regex", "containsMatchIn"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(link == "kk_regex_containsMatchIn_flat",
+                       "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
+    }
+
+    @Test func testRegexFindIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "Regex", "find"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(link == "kk_regex_find_flat", "Regex.find must link to kk_regex_find")
+    }
+
+    @Test func testRegexFindAllIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "Regex", "findAll"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(link == "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
+    }
+
+    @Test func testRegexMatchEntireIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "Regex", "matchEntire"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(link == "kk_regex_matchEntire_flat",
+                       "Regex.matchEntire must link to kk_regex_matchEntire")
+    }
+
+    @Test func testRegexReplaceWithLambdaIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "Regex", "replace"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(link == "kk_regex_replace_lambda",
+                       "Regex.replace(input, transform) must link to kk_regex_replace_lambda")
+    }
+
+    // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
+
+    @Test func testRegexAccessorsAreNoLongerRuntimeLinked() throws {
+        let (sema, _) = try makeSema()
+        let removed = ["kk_regex_pattern", "kk_regex_options", "kk_regex_group_names"]
+        let present = registeredLinkNames(sema: sema).intersection(removed)
+        #expect(
+            present.isEmpty,
+            Comment(rawValue: "Regex.pattern/options/groupNames are Kotlin source now; stale links: \(present)")
+        )
+    }
+
+    // MARK: - 5. Companion methods (fromLiteral)
+
+    @Test func testRegexFromLiteralCompanionMethodIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "text", "Regex", "Companion", "fromLiteral"]
+            .map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        #expect(!(syms.isEmpty), "Regex.Companion.fromLiteral must be registered")
+        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
+        #expect(
+            links.contains("kk_regex_from_literal_flat"),
+            Comment(rawValue: "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)")
+        )
+    }
+
+    // MARK: - 6-8. MatchResult / MatchGroup layer (KSP-486: Kotlin source)
+
+    /// The whole MatchResult / MatchGroup / MatchGroupCollection / Destructured
+    /// public layer lives in `__bundled_kotlin/text/MatchResult.kt`; only the raw
+    /// match-position `__kk_*` bridges remain in the runtime.
+    @Test func testMatchResultLayerIsNoLongerRuntimeLinked() throws {
+        let (sema, _) = try makeSema()
+        var removed: Set<String> = [
+            "kk_match_result_value",
+            "kk_match_result_range",
+            "kk_match_result_groups",
+            "kk_match_result_groupValues",
+            "kk_match_result_component1",
+            "kk_match_result_component2",
+            "kk_match_result_next",
+            "kk_match_result_destructured",
+            "kk_match_result_destructured_match",
+            "kk_match_group_collection_get",
+            "kk_match_group_collection_get_at",
+            "kk_match_group_collection_size",
+            "kk_match_group_value",
+            "kk_match_group_range",
+        ]
+        for index in 1 ... 9 {
+            removed.insert("kk_match_result_destructured_component\(index)")
         }
-        return result
+        let present = registeredLinkNames(sema: sema).intersection(removed)
+        #expect(
+            present.isEmpty,
+            Comment(rawValue: "MatchResult/MatchGroup layer is Kotlin source now; stale links: \(present)")
+        )
     }
 
-    private func allExprIDsInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { results.append(exprID) }
+    /// The remaining raw bridges must stay wired, since the Kotlin layer calls them.
+    @Test func testRawMatchDataBridgesAreRegistered() throws {
+        let (sema, _) = try makeSema()
+        let bridges: Set<String> = [
+            "__kk_match_result_group_count",
+            "__kk_match_result_group_value",
+            "__kk_match_result_group_start",
+            "__kk_match_result_group_end",
+            "__kk_match_result_group_index_of_name",
+            "__kk_match_result_next",
+            "__kk_match_result_destructured",
+            "__kk_match_result_destructured_match",
+            "__kk_regex_pattern",
+            "__kk_regex_option_mask",
+        ]
+        let missing = bridges.subtracting(registeredLinkNames(sema: sema))
+        #expect(missing.isEmpty, Comment(rawValue: "Missing raw match-data bridges: \(missing)"))
+    }
+
+    // MARK: - 9. String extension: replaceFirst / split with Regex
+
+    @Test func testStringReplaceFirstWithRegexIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "text", "replaceFirst"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            !links.contains("kk_string_replaceFirst_regex"),
+            Comment(rawValue: "kotlin.text.replaceFirst(Regex, String) must be source-backed; found: \(links)")
+        )
+        let bridgeLink = externalLink(
+            fqPath: ["kotlin", "text", "__kk_replaceFirst_regex"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            bridgeLink == "kk_string_replaceFirst_regex",
+            Comment(rawValue: "StringSearchReplace bridge must link to kk_string_replaceFirst_regex; found: \(bridgeLink ?? "nil")")
+        )
+    }
+
+    @Test func testStringSplitWithRegexIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "text", "split"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            !links.contains("kk_string_split_regex_flat"),
+            Comment(rawValue: "kotlin.text.split(Regex) must be source-backed; found: \(links)")
+        )
+        let bridgeLink = externalLink(
+            fqPath: ["kotlin", "text", "__kk_split_regex"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(
+            bridgeLink == "kk_string_split_regex_flat",
+            Comment(rawValue: "StringSearchReplace bridge must link to kk_string_split_regex_flat; found: \(bridgeLink ?? "nil")")
+        )
+    }
+
+    // MARK: - 10. Call-site resolution: constructors resolve in Kotlin source
+
+    @Test func testRegexSingleArgConstructorResolvesInCallExpr() throws {
+        // Verify that Regex(pattern: String) compiles without sema errors.
+        // Symbol-level verification is covered by testRegexSingleArgConstructorIsRegistered
+        // and testAllThreeRegexConstructorOverloadsArePresent.
+        let source = """
+        fun test() {
+            val r = Regex("[a-z]+")
+            println(r.containsMatchIn("abc"))
         }
-        return results
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Regex(pattern) should compile without sema errors"
+            )
+        }
     }
 
-    private func memberCallExprIDsInPath(
-        named name: String,
+    @Test func testRegexSingleOptionConstructorResolvesInCallExpr() throws {
+        let source = """
+        fun test() {
+            val r = Regex("hello", RegexOption.IGNORE_CASE)
+            println(r.matches("HELLO"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let regexCallExprs = allExprIDs(in: ast) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(calleeName, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(calleeName) == "Regex"
+            }
+
+            // Pick the call with 2 arguments (the one with an option)
+            let twoArgCall = regexCallExprs.first { exprID in
+                guard case let .call(_, _, args, _) = ast.arena.expr(exprID) else { return false }
+                return args.count == 2
+            }
+            let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option_flat"
+            )
+        }
+    }
+
+    @Test func testRegexMatchesMemberCallResolvesCorrectly() throws {
+        let source = """
+        fun test() {
+            val r = Regex("^\\\\d+$")
+            println(r.matches("123"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "matches"
+            }, "Expected .matches(...) member call")
+
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches_flat"
+            )
+        }
+    }
+
+    @Test func testRegexContainsMatchInMemberCallResolvesCorrectly() throws {
+        let source = """
+        fun test() {
+            val r = Regex("[a-z]+")
+            println(r.containsMatchIn("hello world"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "containsMatchIn"
+            }, "Expected .containsMatchIn(...) member call")
+
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn_flat"
+            )
+        }
+    }
+
+    @Test func testRegexFindMemberCallResolvesCorrectly() throws {
+        let source = """
+        fun test() {
+            val r = Regex("\\\\d+")
+            val m = r.find("abc123")
+            println(m?.value)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "find"
+            }, "Expected .find(...) member call")
+
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find_flat"
+            )
+        }
+    }
+
+    @Test func testRegexMatchEntireMemberCallResolvesCorrectly() throws {
+        let source = """
+        fun test() {
+            val r = Regex("[a-z]+")
+            val m = r.matchEntire("hello")
+            println(m?.value)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "matchEntire"
+            }, "Expected .matchEntire(...) member call")
+
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire_flat"
+            )
+        }
+    }
+
+    @Test func testRegexFromLiteralCallResolvesCorrectly() throws {
+        let source = """
+        fun test() {
+            val r = Regex.fromLiteral("hello.world")
+            println(r.matches("hello.world"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "fromLiteral"
+            }, "Expected .fromLiteral(...) member call")
+
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal_flat"
+            )
+        }
+    }
+
+    // MARK: - 11. Named group access resolves at call site
+
+    @Test func testNamedGroupAccessChainResolves() throws {
+        let source = """
+        fun test() {
+            val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
+            val m = r.find("2025-04")
+            val year = m?.groups?.get("year")?.value
+            println(year)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            // No diagnostics expected for valid named-group access chain.
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Named group access chain should produce no sema errors"
+            )
+        }
+    }
+
+    // MARK: - 12. Option combination (setOf) compiles without sema errors
+
+    @Test func testRegexOptionSetCombinationCompiles() throws {
+        let source = """
+        fun test() {
+            val r = Regex(
+                "^hello",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
+            )
+            println(r.containsMatchIn("HELLO"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Regex option set combination should compile without sema errors"
+            )
+        }
+    }
+
+    // MARK: - 13. Empty pattern compiles
+
+    @Test func testEmptyPatternCompiles() throws {
+        let source = """
+        fun test() {
+            val r = Regex("")
+            println(r.matches(""))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Empty pattern Regex should compile without sema errors"
+            )
+        }
+    }
+
+    // MARK: - 14. Unicode pattern compiles
+
+    @Test func testUnicodePatternCompiles() throws {
+        let source = """
+        fun test() {
+            val r = Regex("[\\u00C0-\\u024F]+")
+            println(r.matches("café"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Unicode pattern Regex should compile without sema errors"
+            )
+        }
+    }
+
+    // MARK: - 15. Symbol table completeness: all mandatory API symbols present
+
+    @Test func testMandatoryAPISymbolsAreAllRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        // Each (fqPath, expectedLinkName) pair must be present.
+        // nil linkName means we only check symbol existence, not the link.
+        let mandatoryLinks: [([String], String)] = [
+            // Constructors (top-level in kotlin.text)
+            (["kotlin", "text", "Regex"], "kk_regex_create_flat"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_with_option_flat"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_with_options_flat"),
+            // Member functions
+            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches_flat"),
+            (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn_flat"),
+            (["kotlin", "text", "Regex", "find"], "kk_regex_find_flat"),
+            (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll_flat"),
+            (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire_flat"),
+            (["kotlin", "text", "Regex", "replace"], "kk_regex_replace_lambda"),
+            // Companion
+            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal_flat"),
+            // String extensions
+            (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
+            (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
+            (["kotlin", "text", "__kk_replace_regex"], "kk_string_replace_regex"),
+            (["kotlin", "text", "__kk_replaceFirst_regex"], "kk_string_replaceFirst_regex"),
+            (["kotlin", "text", "__kk_split_regex"], "kk_string_split_regex_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),
+        ]
+
+        for (fqPath, expectedLink) in mandatoryLinks {
+            let links = allExternalLinks(fqPath: fqPath, sema: sema, interner: interner)
+            #expect(
+                links.contains(expectedLink),
+                Comment(rawValue: "Missing API: \(fqPath.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
+            )
+        }
+    }
+
+    // MARK: - Helpers
+
+    /// Every external link name registered in the symbol table after sema.
+    private func registeredLinkNames(sema: SemaModule) -> Set<String> {
+        Set(sema.symbols.allSymbols().compactMap { sema.symbols.externalLinkName(for: $0.id) })
+    }
+
+    private func allExprIDs(
         in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        interner: StringInterner
+        where predicate: (ExprID, Expr) -> Bool
     ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, range) = expr,
-                  interner.resolve(callee) == name,
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else {
+            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else {
                 return nil
             }
             return exprID
         }
     }
-
-    // MARK: - Consolidated runSema clean tests
-
-    @Test
-    func testRunSemaClean() throws {
-
-        let sources: [String] = [
-            // testRegexSingleArgConstructorIsRegistered
-            """
-            package sample0
-            fun noop() {}
-            """,
-            // testRegexSingleOptionConstructorIsRegistered
-            """
-            package sample1
-            fun noop() {}
-            """,
-            // testRegexSetOptionsConstructorIsRegistered
-            """
-            package sample2
-            fun noop() {}
-            """,
-            // testAllThreeRegexConstructorOverloadsArePresent
-            """
-            package sample3
-            fun noop() {}
-            """,
-            // testRegexOptionEnumClassIsRegistered
-            """
-            package sample4
-            fun noop() {}
-            """,
-            // testRegexOptionAllEnumEntriesAreRegistered
-            """
-            package sample5
-            fun noop() {}
-            """,
-            // testRegexMatchesIsRegistered
-            """
-            package sample6
-            fun noop() {}
-            """,
-            // testRegexContainsMatchInIsRegistered
-            """
-            package sample7
-            fun noop() {}
-            """,
-            // testRegexFindIsRegistered
-            """
-            package sample8
-            fun noop() {}
-            """,
-            // testRegexFindAllIsRegistered
-            """
-            package sample9
-            fun noop() {}
-            """,
-            // testRegexMatchEntireIsRegistered
-            """
-            package sample10
-            fun noop() {}
-            """,
-            // testRegexReplaceWithLambdaIsRegistered
-            """
-            package sample11
-            fun noop() {}
-            """,
-            // testRegexPatternPropertyIsRegistered
-            """
-            package sample12
-            fun noop() {}
-            """,
-            // testRegexOptionsPropertyIsRegistered
-            """
-            package sample13
-            fun noop() {}
-            """,
-            // testRegexGroupNamesPropertyIsRegistered
-            """
-            package sample14
-            fun noop() {}
-            """,
-            // testRegexFromLiteralCompanionMethodIsRegistered
-            """
-            package sample15
-            fun noop() {}
-            """,
-            // testMatchResultValueIsRegistered
-            """
-            package sample16
-            fun noop() {}
-            """,
-            // testMatchResultRangeIsRegistered
-            """
-            package sample17
-            fun noop() {}
-            """,
-            // testMatchResultGroupsIsRegistered
-            """
-            package sample18
-            fun noop() {}
-            """,
-            // testMatchResultGroupValuesIsRegistered
-            """
-            package sample19
-            fun noop() {}
-            """,
-            // testMatchResultComponent1IsRegistered
-            """
-            package sample20
-            fun noop() {}
-            """,
-            // testMatchResultComponent2IsRegistered
-            """
-            package sample21
-            fun noop() {}
-            """,
-            // testMatchResultNextIsRegistered
-            """
-            package sample22
-            fun noop() {}
-            """,
-            // testMatchGroupCollectionGetByNameIsRegistered
-            """
-            package sample23
-            fun noop() {}
-            """,
-            // testMatchGroupCollectionGetByIndexIsRegistered
-            """
-            package sample24
-            fun noop() {}
-            """,
-            // testMatchGroupCollectionHasBothGetOverloads
-            """
-            package sample25
-            fun noop() {}
-            """,
-            // testMatchGroupCollectionSizeIsRegistered
-            """
-            package sample26
-            fun noop() {}
-            """,
-            // testMatchGroupValueIsRegistered
-            """
-            package sample27
-            fun noop() {}
-            """,
-            // testMatchGroupRangeIsRegistered
-            """
-            package sample28
-            fun noop() {}
-            """,
-            // testStringReplaceFirstWithRegexIsRegistered
-            """
-            package sample29
-            fun noop() {}
-            """,
-            // testStringSplitWithRegexIsRegistered
-            """
-            package sample30
-            fun noop() {}
-            """,
-            // testRegexSingleArgConstructorResolvesInCallExpr
-            """
-            package sample31
-
-                    fun test() {
-                        val r = Regex("[a-z]+")
-                        println(r.containsMatchIn("abc"))
-                    }
-
-            """,
-            // testRegexSingleOptionConstructorResolvesInCallExpr
-            """
-            package sample32
-
-                    fun test() {
-                        val r = Regex("hello", RegexOption.IGNORE_CASE)
-                        println(r.matches("HELLO"))
-                    }
-
-            """,
-            // testRegexMatchesMemberCallResolvesCorrectly
-            """
-            package sample33
-
-                    fun test() {
-                        val r = Regex("^\\\\d+$")
-                        println(r.matches("123"))
-                    }
-
-            """,
-            // testRegexContainsMatchInMemberCallResolvesCorrectly
-            """
-            package sample34
-
-                    fun test() {
-                        val r = Regex("[a-z]+")
-                        println(r.containsMatchIn("hello world"))
-                    }
-
-            """,
-            // testRegexFindMemberCallResolvesCorrectly
-            """
-            package sample35
-
-                    fun test() {
-                        val r = Regex("\\\\d+")
-                        val m = r.find("abc123")
-                        println(m?.value)
-                    }
-
-            """,
-            // testRegexMatchEntireMemberCallResolvesCorrectly
-            """
-            package sample36
-
-                    fun test() {
-                        val r = Regex("[a-z]+")
-                        val m = r.matchEntire("hello")
-                        println(m?.value)
-                    }
-
-            """,
-            // testRegexFromLiteralCallResolvesCorrectly
-            """
-            package sample37
-
-                    fun test() {
-                        val r = Regex.fromLiteral("hello.world")
-                        println(r.matches("hello.world"))
-                    }
-
-            """,
-            // testNamedGroupAccessChainResolves
-            """
-            package sample38
-
-                    fun test() {
-                        val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
-                        val m = r.find("2025-04")
-                        val year = m?.groups?.get("year")?.value
-                        println(year)
-                    }
-
-            """,
-            // testRegexOptionSetCombinationCompiles
-            """
-            package sample39
-
-                    fun test() {
-                        val r = Regex(
-                            "^hello",
-                            setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
-                        )
-                        println(r.containsMatchIn("HELLO"))
-                    }
-
-            """,
-            // testEmptyPatternCompiles
-            """
-            package sample40
-
-                    fun test() {
-                        val r = Regex("")
-                        println(r.matches(""))
-                    }
-
-            """,
-            // testUnicodePatternCompiles
-            """
-            package sample41
-
-                    fun test() {
-                        val r = Regex("[\\u00C0-\\u024F]+")
-                        println(r.matches("café"))
-                    }
-
-            """,
-            // testMandatoryAPISymbolsAreAllRegistered
-            """
-            package sample42
-            fun noop() {}
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
-            // === testRegexSingleArgConstructorIsRegistered ===
-
-            do {
-
-                let sample0Path = paths[0]
-
-                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
-
-                // Regex(pattern: String) -> Regex
-                let links = allExternalLinks(
-                    fqPath: ["kotlin", "text", "Regex"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    links.contains("kk_regex_create_flat"),
-                    "Regex(pattern) constructor must link to kk_regex_create_flat"
-                )
-
-            }
-
-            // === testRegexSingleOptionConstructorIsRegistered ===
-
-            do {
-
-                let sample1Path = paths[1]
-
-                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
-
-                // Regex(pattern: String, option: RegexOption) -> Regex
-                let links = allExternalLinks(
-                    fqPath: ["kotlin", "text", "Regex"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    links.contains("kk_regex_create_with_option_flat"),
-                    "Regex(pattern, option) constructor must link to kk_regex_create_with_option_flat"
-                )
-
-            }
-
-            // === testRegexSetOptionsConstructorIsRegistered ===
-
-            do {
-
-                let sample2Path = paths[2]
-
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
-
-                // Regex(pattern: String, options: Set<RegexOption>) -> Regex
-                let links = allExternalLinks(
-                    fqPath: ["kotlin", "text", "Regex"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    links.contains("kk_regex_create_with_options_flat"),
-                    "Regex(pattern, options) constructor must link to kk_regex_create_with_options_flat"
-                )
-
-            }
-
-            // === testAllThreeRegexConstructorOverloadsArePresent ===
-
-            do {
-
-                let sample3Path = paths[3]
-
-                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
-
-                let links = allExternalLinks(
-                    fqPath: ["kotlin", "text", "Regex"],
-                    sema: sema,
-                    interner: interner
-                )
-                let required: Set<String> = [
-                    "kk_regex_create_flat",
-                    "kk_regex_create_with_option_flat",
-                    "kk_regex_create_with_options_flat",
-                ]
-                #expect(
-                    required.isSubset(of: links),
-                    Comment(rawValue: "All three Regex constructor overloads must be registered; found: \(links)")
-                )
-
-            }
-
-            // === testRegexOptionEnumClassIsRegistered ===
-
-            do {
-
-                let sample4Path = paths[4]
-
-                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
-
-                let fq = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
-                let sym = sema.symbols.lookup(fqName: fq)
-                #expect(sym != nil, "kotlin.text.RegexOption enum class must exist in symbol table")
-
-            }
-
-            // === testRegexOptionAllEnumEntriesAreRegistered ===
-
-            do {
-
-                let sample5Path = paths[5]
-
-                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
-
-                let entries = [
-                    "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL",
-                    "LITERAL", "UNIX_LINES", "COMMENTS", "CANON_EQ",
-                ]
-                for entry in entries {
-                    let fq = ["kotlin", "text", "RegexOption", entry].map { interner.intern($0) }
-                    #expect(
-                        sema.symbols.lookup(fqName: fq) != nil,
-                        Comment(rawValue: "RegexOption.\(entry) must be registered in symbol table")
-                    )
-                }
-
-            }
-
-            // === testRegexMatchesIsRegistered ===
-
-            do {
-
-                let sample6Path = paths[6]
-
-                let sample6Diagnostics = diagnosticsForPath(sample6Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "matches"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
-
-            }
-
-            // === testRegexContainsMatchInIsRegistered ===
-
-            do {
-
-                let sample7Path = paths[7]
-
-                let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "containsMatchIn"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_containsMatchIn_flat",
-                               "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
-
-            }
-
-            // === testRegexFindIsRegistered ===
-
-            do {
-
-                let sample8Path = paths[8]
-
-                let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "find"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_find_flat", "Regex.find must link to kk_regex_find")
-
-            }
-
-            // === testRegexFindAllIsRegistered ===
-
-            do {
-
-                let sample9Path = paths[9]
-
-                let sample9Diagnostics = diagnosticsForPath(sample9Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "findAll"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
-
-            }
-
-            // === testRegexMatchEntireIsRegistered ===
-
-            do {
-
-                let sample10Path = paths[10]
-
-                let sample10Diagnostics = diagnosticsForPath(sample10Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "matchEntire"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_matchEntire_flat",
-                               "Regex.matchEntire must link to kk_regex_matchEntire")
-
-            }
-
-            // === testRegexReplaceWithLambdaIsRegistered ===
-
-            do {
-
-                let sample11Path = paths[11]
-
-                let sample11Diagnostics = diagnosticsForPath(sample11Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "replace"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_replace_lambda",
-                               "Regex.replace(input, transform) must link to kk_regex_replace_lambda")
-
-            }
-
-            // === testRegexPatternPropertyIsRegistered ===
-
-            do {
-
-                let sample12Path = paths[12]
-
-                let sample12Diagnostics = diagnosticsForPath(sample12Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "pattern"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_pattern", "Regex.pattern must link to kk_regex_pattern")
-
-            }
-
-            // === testRegexOptionsPropertyIsRegistered ===
-
-            do {
-
-                let sample13Path = paths[13]
-
-                let sample13Diagnostics = diagnosticsForPath(sample13Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "options"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_options", "Regex.options must link to kk_regex_options")
-
-            }
-
-            // === testRegexGroupNamesPropertyIsRegistered ===
-
-            do {
-
-                let sample14Path = paths[14]
-
-                let sample14Diagnostics = diagnosticsForPath(sample14Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "Regex", "groupNames"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_regex_group_names",
-                               "Regex.groupNames must link to kk_regex_group_names")
-
-            }
-
-            // === testRegexFromLiteralCompanionMethodIsRegistered ===
-
-            do {
-
-                let sample15Path = paths[15]
-
-                let sample15Diagnostics = diagnosticsForPath(sample15Path, in: ctx)
-
-                let fq = ["kotlin", "text", "Regex", "Companion", "fromLiteral"]
-                    .map { interner.intern($0) }
-                let syms = sema.symbols.lookupAll(fqName: fq)
-                #expect(!(syms.isEmpty), "Regex.Companion.fromLiteral must be registered")
-                let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(
-                    links.contains("kk_regex_from_literal_flat"),
-                    Comment(rawValue: "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)")
-                )
-
-            }
-
-            // === testMatchResultValueIsRegistered ===
-
-            do {
-
-                let sample16Path = paths[16]
-
-                let sample16Diagnostics = diagnosticsForPath(sample16Path, in: ctx)
-
-                // MatchResult.value has multiple registrations (on MatchResult and MatchGroup);
-                // verify the MatchResult one exists.
-                let fq = ["kotlin", "text", "MatchResult", "value"].map { interner.intern($0) }
-                let syms = sema.symbols.lookupAll(fqName: fq)
-                let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(
-                    links.contains("kk_match_result_value"),
-                    Comment(rawValue: "MatchResult.value must link to kk_match_result_value; found: \(links)")
-                )
-
-            }
-
-            // === testMatchResultRangeIsRegistered ===
-
-            do {
-
-                let sample17Path = paths[17]
-
-                let sample17Diagnostics = diagnosticsForPath(sample17Path, in: ctx)
-
-                let fq = ["kotlin", "text", "MatchResult", "range"].map { interner.intern($0) }
-                let syms = sema.symbols.lookupAll(fqName: fq)
-                let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(
-                    links.contains("kk_match_result_range"),
-                    Comment(rawValue: "MatchResult.range must link to kk_match_result_range; found: \(links)")
-                )
-
-            }
-
-            // === testMatchResultGroupsIsRegistered ===
-
-            do {
-
-                let sample18Path = paths[18]
-
-                let sample18Diagnostics = diagnosticsForPath(sample18Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchResult", "groups"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_result_groups",
-                               "MatchResult.groups must link to kk_match_result_groups")
-
-            }
-
-            // === testMatchResultGroupValuesIsRegistered ===
-
-            do {
-
-                let sample19Path = paths[19]
-
-                let sample19Diagnostics = diagnosticsForPath(sample19Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchResult", "groupValues"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_result_groupValues",
-                               "MatchResult.groupValues must link to kk_match_result_groupValues")
-
-            }
-
-            // === testMatchResultComponent1IsRegistered ===
-
-            do {
-
-                let sample20Path = paths[20]
-
-                let sample20Diagnostics = diagnosticsForPath(sample20Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchResult", "component1"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_result_component1",
-                               "MatchResult.component1() must link to kk_match_result_component1")
-
-            }
-
-            // === testMatchResultComponent2IsRegistered ===
-
-            do {
-
-                let sample21Path = paths[21]
-
-                let sample21Diagnostics = diagnosticsForPath(sample21Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchResult", "component2"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_result_component2",
-                               "MatchResult.component2() must link to kk_match_result_component2")
-
-            }
-
-            // === testMatchResultNextIsRegistered ===
-
-            do {
-
-                let sample22Path = paths[22]
-
-                let sample22Diagnostics = diagnosticsForPath(sample22Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchResult", "next"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_result_next",
-                               "MatchResult.next() must link to kk_match_result_next")
-
-            }
-
-            // === testMatchGroupCollectionGetByNameIsRegistered ===
-
-            do {
-
-                let sample23Path = paths[23]
-
-                let sample23Diagnostics = diagnosticsForPath(sample23Path, in: ctx)
-
-                let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-                let syms = sema.symbols.lookupAll(fqName: fq)
-                let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(
-                    links.contains("kk_match_group_collection_get"),
-                    Comment(rawValue: "MatchGroupCollection.get(name) must link to kk_match_group_collection_get; found: \(links)")
-                )
-
-            }
-
-            // === testMatchGroupCollectionGetByIndexIsRegistered ===
-
-            do {
-
-                let sample24Path = paths[24]
-
-                let sample24Diagnostics = diagnosticsForPath(sample24Path, in: ctx)
-
-                let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-                let syms = sema.symbols.lookupAll(fqName: fq)
-                let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(
-                    links.contains("kk_match_group_collection_get_at"),
-                    Comment(rawValue: "MatchGroupCollection.get(index) must link to kk_match_group_collection_get_at; found: \(links)")
-                )
-
-            }
-
-            // === testMatchGroupCollectionHasBothGetOverloads ===
-
-            do {
-
-                let sample25Path = paths[25]
-
-                let sample25Diagnostics = diagnosticsForPath(sample25Path, in: ctx)
-
-                let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-                let syms = sema.symbols.lookupAll(fqName: fq)
-                #expect(
-                    syms.count >= 2,
-                    "MatchGroupCollection.get must have at least 2 overloads (by-name and by-index)"
-                )
-
-            }
-
-            // === testMatchGroupCollectionSizeIsRegistered ===
-
-            do {
-
-                let sample26Path = paths[26]
-
-                let sample26Diagnostics = diagnosticsForPath(sample26Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchGroupCollection", "size"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_group_collection_size",
-                               "MatchGroupCollection.size must link to kk_match_group_collection_size")
-
-            }
-
-            // === testMatchGroupValueIsRegistered ===
-
-            do {
-
-                let sample27Path = paths[27]
-
-                let sample27Diagnostics = diagnosticsForPath(sample27Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchGroup", "value"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_group_value",
-                               "MatchGroup.value must link to kk_match_group_value")
-
-            }
-
-            // === testMatchGroupRangeIsRegistered ===
-
-            do {
-
-                let sample28Path = paths[28]
-
-                let sample28Diagnostics = diagnosticsForPath(sample28Path, in: ctx)
-
-                let link = externalLink(
-                    fqPath: ["kotlin", "text", "MatchGroup", "range"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(link == "kk_match_group_range",
-                               "MatchGroup.range must link to kk_match_group_range")
-
-            }
-
-            // === testStringReplaceFirstWithRegexIsRegistered ===
-
-            do {
-
-                let sample29Path = paths[29]
-
-                let sample29Diagnostics = diagnosticsForPath(sample29Path, in: ctx)
-
-                let links = allExternalLinks(
-                    fqPath: ["kotlin", "text", "replaceFirst"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    !links.contains("kk_string_replaceFirst_regex"),
-                    Comment(rawValue: "kotlin.text.replaceFirst(Regex, String) must be source-backed; found: \(links)")
-                )
-                let bridgeLink = externalLink(
-                    fqPath: ["kotlin", "text", "__kk_replaceFirst_regex"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    bridgeLink == "kk_string_replaceFirst_regex",
-                    Comment(rawValue: "StringSearchReplace bridge must link to kk_string_replaceFirst_regex; found: \(bridgeLink ?? "nil")")
-                )
-
-            }
-
-            // === testStringSplitWithRegexIsRegistered ===
-
-            do {
-
-                let sample30Path = paths[30]
-
-                let sample30Diagnostics = diagnosticsForPath(sample30Path, in: ctx)
-
-                let links = allExternalLinks(
-                    fqPath: ["kotlin", "text", "split"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    !links.contains("kk_string_split_regex_flat"),
-                    Comment(rawValue: "kotlin.text.split(Regex) must be source-backed; found: \(links)")
-                )
-                let bridgeLink = externalLink(
-                    fqPath: ["kotlin", "text", "__kk_split_regex"],
-                    sema: sema,
-                    interner: interner
-                )
-                #expect(
-                    bridgeLink == "kk_string_split_regex_flat",
-                    Comment(rawValue: "StringSearchReplace bridge must link to kk_string_split_regex_flat; found: \(bridgeLink ?? "nil")")
-                )
-
-            }
-
-            // === testRegexSingleArgConstructorResolvesInCallExpr ===
-
-            do {
-
-                let sample31Path = paths[31]
-
-                let sample31Diagnostics = diagnosticsForPath(sample31Path, in: ctx)
-
-                #expect(
-                    !(sample31Diagnostics.contains { $0.severity == .error }),
-                    "Regex(pattern) should compile without sema errors"
-                )
-
-            }
-
-            // === testRegexSingleOptionConstructorResolvesInCallExpr ===
-
-            do {
-
-                let sample32Path = paths[32]
-
-                let sample32Diagnostics = diagnosticsForPath(sample32Path, in: ctx)
-
-                let regexCallExprs = allExprIDsInPath(in: ast, path: sample32Path, ctx: ctx) { _, expr in
-                    guard case let .call(callee, _, _, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(callee)
-                    else { return false }
-                    return interner.resolve(calleeName) == "Regex"
-                }
-
-                // Pick the call with 2 arguments (the one with an option)
-                let twoArgCall = regexCallExprs.first { exprID in
-                    guard case let .call(_, _, args, _) = ast.arena.expr(exprID) else { return false }
-                    return args.count == 2
-                }
-                let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
-                let binding = try #require(sema.bindings.callBinding(for: callExpr))
-                #expect(
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option_flat"
-                )
-
-            }
-
-            // === testRegexMatchesMemberCallResolvesCorrectly ===
-
-            do {
-
-                let sample33Path = paths[33]
-
-                let sample33Diagnostics = diagnosticsForPath(sample33Path, in: ctx)
-
-                let callExpr = try #require(firstExprIDInPath(in: ast, path: sample33Path, ctx: ctx) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "matches"
-                }, "Expected .matches(...) member call")
-
-                let binding = try #require(sema.bindings.callBinding(for: callExpr))
-                #expect(
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches_flat"
-                )
-
-            }
-
-            // === testRegexContainsMatchInMemberCallResolvesCorrectly ===
-
-            do {
-
-                let sample34Path = paths[34]
-
-                let sample34Diagnostics = diagnosticsForPath(sample34Path, in: ctx)
-
-                let callExpr = try #require(firstExprIDInPath(in: ast, path: sample34Path, ctx: ctx) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "containsMatchIn"
-                }, "Expected .containsMatchIn(...) member call")
-
-                let binding = try #require(sema.bindings.callBinding(for: callExpr))
-                #expect(
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn_flat"
-                )
-
-            }
-
-            // === testRegexFindMemberCallResolvesCorrectly ===
-
-            do {
-
-                let sample35Path = paths[35]
-
-                let sample35Diagnostics = diagnosticsForPath(sample35Path, in: ctx)
-
-                let callExpr = try #require(firstExprIDInPath(in: ast, path: sample35Path, ctx: ctx) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "find"
-                }, "Expected .find(...) member call")
-
-                let binding = try #require(sema.bindings.callBinding(for: callExpr))
-                #expect(
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find_flat"
-                )
-
-            }
-
-            // === testRegexMatchEntireMemberCallResolvesCorrectly ===
-
-            do {
-
-                let sample36Path = paths[36]
-
-                let sample36Diagnostics = diagnosticsForPath(sample36Path, in: ctx)
-
-                let callExpr = try #require(firstExprIDInPath(in: ast, path: sample36Path, ctx: ctx) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "matchEntire"
-                }, "Expected .matchEntire(...) member call")
-
-                let binding = try #require(sema.bindings.callBinding(for: callExpr))
-                #expect(
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire_flat"
-                )
-
-            }
-
-            // === testRegexFromLiteralCallResolvesCorrectly ===
-
-            do {
-
-                let sample37Path = paths[37]
-
-                let sample37Diagnostics = diagnosticsForPath(sample37Path, in: ctx)
-
-                let callExpr = try #require(firstExprIDInPath(in: ast, path: sample37Path, ctx: ctx) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "fromLiteral"
-                }, "Expected .fromLiteral(...) member call")
-
-                let binding = try #require(sema.bindings.callBinding(for: callExpr))
-                #expect(
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal_flat"
-                )
-
-            }
-
-            // === testNamedGroupAccessChainResolves ===
-
-            do {
-
-                let sample38Path = paths[38]
-
-                let sample38Diagnostics = diagnosticsForPath(sample38Path, in: ctx)
-
-                // No diagnostics expected for valid named-group access chain.
-                #expect(
-                    !(sample38Diagnostics.contains { $0.severity == .error }),
-                    "Named group access chain should produce no sema errors"
-                )
-
-            }
-
-            // === testRegexOptionSetCombinationCompiles ===
-
-            do {
-
-                let sample39Path = paths[39]
-
-                let sample39Diagnostics = diagnosticsForPath(sample39Path, in: ctx)
-
-                #expect(
-                    !(sample39Diagnostics.contains { $0.severity == .error }),
-                    "Regex option set combination should compile without sema errors"
-                )
-
-            }
-
-            // === testEmptyPatternCompiles ===
-
-            do {
-
-                let sample40Path = paths[40]
-
-                let sample40Diagnostics = diagnosticsForPath(sample40Path, in: ctx)
-
-                #expect(
-                    !(sample40Diagnostics.contains { $0.severity == .error }),
-                    "Empty pattern Regex should compile without sema errors"
-                )
-
-            }
-
-            // === testUnicodePatternCompiles ===
-
-            do {
-
-                let sample41Path = paths[41]
-
-                let sample41Diagnostics = diagnosticsForPath(sample41Path, in: ctx)
-
-                #expect(
-                    !(sample41Diagnostics.contains { $0.severity == .error }),
-                    "Unicode pattern Regex should compile without sema errors"
-                )
-
-            }
-
-            // === testMandatoryAPISymbolsAreAllRegistered ===
-
-            do {
-
-                let sample42Path = paths[42]
-
-                let sample42Diagnostics = diagnosticsForPath(sample42Path, in: ctx)
-
-                // Each (fqPath, expectedLinkName) pair must be present.
-                // nil linkName means we only check symbol existence, not the link.
-                let mandatoryLinks: [([String], String)] = [
-                    // Constructors (top-level in kotlin.text)
-                    (["kotlin", "text", "Regex"], "kk_regex_create_flat"),
-                    (["kotlin", "text", "Regex"], "kk_regex_create_with_option_flat"),
-                    (["kotlin", "text", "Regex"], "kk_regex_create_with_options_flat"),
-                    // Member functions
-                    (["kotlin", "text", "Regex", "matches"], "kk_regex_matches_flat"),
-                    (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn_flat"),
-                    (["kotlin", "text", "Regex", "find"], "kk_regex_find_flat"),
-                    (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll_flat"),
-                    (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire_flat"),
-                    (["kotlin", "text", "Regex", "replace"], "kk_regex_replace_lambda"),
-                    // Properties
-                    (["kotlin", "text", "Regex", "pattern"], "kk_regex_pattern"),
-                    (["kotlin", "text", "Regex", "options"], "kk_regex_options"),
-                    (["kotlin", "text", "Regex", "groupNames"], "kk_regex_group_names"),
-                    // Companion
-                    (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal_flat"),
-                    // MatchResult
-                    (["kotlin", "text", "MatchResult", "value"], "kk_match_result_value"),
-                    (["kotlin", "text", "MatchResult", "range"], "kk_match_result_range"),
-                    (["kotlin", "text", "MatchResult", "groups"], "kk_match_result_groups"),
-                    (["kotlin", "text", "MatchResult", "groupValues"], "kk_match_result_groupValues"),
-                    (["kotlin", "text", "MatchResult", "component1"], "kk_match_result_component1"),
-                    (["kotlin", "text", "MatchResult", "component2"], "kk_match_result_component2"),
-                    (["kotlin", "text", "MatchResult", "next"], "kk_match_result_next"),
-                    // MatchGroup
-                    (["kotlin", "text", "MatchGroup", "value"], "kk_match_group_value"),
-                    (["kotlin", "text", "MatchGroup", "range"], "kk_match_group_range"),
-                    // MatchGroupCollection
-                    (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get"),
-                    (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get_at"),
-                    // String extensions
-                    (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
-                    (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
-                    (["kotlin", "text", "__kk_replace_regex"], "kk_string_replace_regex"),
-                    (["kotlin", "text", "__kk_replaceFirst_regex"], "kk_string_replaceFirst_regex"),
-                    (["kotlin", "text", "__kk_split_regex"], "kk_string_split_regex_flat"),
-                    (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
-                    (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
-                    (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),
-                ]
-
-                for (fqPath, expectedLink) in mandatoryLinks {
-                    let links = allExternalLinks(fqPath: fqPath, sema: sema, interner: interner)
-                    #expect(
-                        links.contains(expectedLink),
-                        Comment(rawValue: "Missing API: \(fqPath.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
-                    )
-                }
-
-            }
-
-        }
-    }
-
 }
-
 #endif
