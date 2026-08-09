@@ -14,30 +14,6 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin")],
             symbols: symbols
         )
-        let packageSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
-
-        registerSyntheticPreconditionFunction(
-            named: "TODO",
-            packageFQName: kotlinPkg,
-            packageSymbol: packageSymbol,
-            parameters: [],
-            returnType: types.nothingType,
-            externalLinkName: "kk_todo_noarg",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticPreconditionFunction(
-            named: "TODO",
-            packageFQName: kotlinPkg,
-            packageSymbol: packageSymbol,
-            parameters: [(name: "reason", type: types.stringType)],
-            returnType: types.nothingType,
-            externalLinkName: "kk_todo",
-            symbols: symbols,
-            interner: interner
-        )
-
         let kotlinIOPkg = ensureSyntheticPackageHierarchy(fqName: [interner.intern("kotlin"), interner.intern("io")], symbols: symbols)
 
         registerSyntheticIOTopLevelProperty(

@@ -86,10 +86,17 @@ struct RuntimeABIExternalLinkValidationTests {
                 failures.append("\(linkName) in \(declarations.relativePathList) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedParameterTypes = declarations.map {
+            // Constructors allocate the instance, so their ABI shape (nullable message
+            // pointer, allocation return) does not follow the value-parameter mapping
+            // used for functions. Arity is still validated above.
+            let functionDeclarations = declarations.filter { !$0.isConstructor }
+            guard !functionDeclarations.isEmpty else {
+                continue
+            }
+            let expectedParameterTypes = functionDeclarations.map {
                 canonicalHandleTypes(expectedRuntimeABIParameterTypes(for: $0))
             }
-            let expectedReturnTypes = Set(declarations.compactMap {
+            let expectedReturnTypes = Set(functionDeclarations.compactMap {
                 expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
             })
             for spec in specs {
@@ -210,6 +217,7 @@ struct RuntimeABIExternalLinkValidationTests {
         let valueParameterTypes: [String]
         let valueParameterIsVararg: [Bool]
         let returnType: String?
+        let isConstructor: Bool
         let relativePath: String
     }
 
@@ -287,9 +295,10 @@ struct RuntimeABIExternalLinkValidationTests {
             else {
                 continue
             }
-            // Constructors are lowered to free allocation entry points, so they
-            // never take a receiver parameter even inside a class body.
-            let hasReceiver = !headerDeclaresConstructor(functionHeader)
+            // A constructor allocates the instance instead of receiving one, so it has no
+            // receiver parameter even though it is declared inside a class scope.
+            let isConstructor = headerIsConstructor(functionHeader)
+            let hasReceiver = !isConstructor
                 && ((pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
             for linkName in pendingLinkNames {
                 declarations.append(
@@ -302,6 +311,7 @@ struct RuntimeABIExternalLinkValidationTests {
                         valueParameterTypes: signature.valueParameterTypes,
                         valueParameterIsVararg: signature.valueParameterIsVararg,
                         returnType: signature.returnType,
+                        isConstructor: isConstructor,
                         relativePath: relativePath
                     )
                 )
@@ -344,9 +354,15 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         let trimmed = header.trimmingCharacters(in: .whitespaces)
-        let declaresFunction = header.contains(" fun ") || trimmed.hasPrefix("fun ")
-        let declaresConstructor = header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
-        return declaresFunction || declaresConstructor ? header : nil
+        if header.contains(" fun ") || trimmed.hasPrefix("fun ") {
+            return header
+        }
+        return headerIsConstructor(header) ? header : nil
+    }
+
+    private func headerIsConstructor(_ header: String) -> Bool {
+        let trimmed = header.trimmingCharacters(in: .whitespaces)
+        return header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
     }
 
     private struct FunctionSignatureInfo {
@@ -361,15 +377,14 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
-        guard let keywordRange = header.range(of: "fun ") ?? header.range(of: "constructor(", options: .backwards) else {
+        let suffix: Substring
+        if let funRange = header.range(of: "fun ") {
+            suffix = header[funRange.upperBound...]
+        } else if let constructorRange = header.range(of: "constructor") {
+            suffix = header[constructorRange.upperBound...]
+        } else {
             return nil
         }
-        // A constructor has no declarator between the keyword and its parameter
-        // list, so rewind to the parenthesis the keyword match consumed.
-        let declarationStart = header[keywordRange].hasPrefix("constructor")
-            ? header.index(before: keywordRange.upperBound)
-            : keywordRange.upperBound
-        let suffix = header[declarationStart...]
         guard let openParen = suffix.firstIndex(of: "(") else {
             return nil
         }
@@ -457,10 +472,6 @@ struct RuntimeABIExternalLinkValidationTests {
         }
         parts.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
         return parts.filter { !$0.isEmpty }
-    }
-
-    private func headerDeclaresConstructor(_ header: String) -> Bool {
-        !header.contains(" fun ") && !header.trimmingCharacters(in: .whitespaces).hasPrefix("fun ")
     }
 
     private func functionHeaderHasExtensionReceiver(_ header: String) -> Bool {
