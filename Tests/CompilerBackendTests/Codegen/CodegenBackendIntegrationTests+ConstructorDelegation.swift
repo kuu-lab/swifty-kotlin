@@ -1,9 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendConstructorDelegationTests {
+
     /// A class with two constructors where the first-declared one delegates
     /// via `this(...)` to the second used to resolve back to itself instead
     /// of its sibling, because KIR lowering picked the delegation target by
@@ -11,6 +14,7 @@ extension CodegenBackendIntegrationTests {
     /// being lowered. That caused infinite self-recursion at runtime. This
     /// case needs no import alias or cross-package name collision to
     /// reproduce -- overload/self selection was the actual bug.
+    @Test
     func testCodegenConstructorDelegationSelectsSiblingOverloadNotItself() throws {
         let source = """
         class Box {
@@ -40,8 +44,8 @@ extension CodegenBackendIntegrationTests {
                 emit: .executable
             )
             let result = makeTestDriver().runForTesting(options: options)
-            XCTAssertEqual(
-                result.exitCode, 0,
+            #expect(
+                result.exitCode == 0,
                 "Compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })"
             )
 
@@ -49,7 +53,7 @@ extension CodegenBackendIntegrationTests {
             // that would otherwise hang the test run indefinitely.
             let runResult = try CommandRunner.run(executable: outputBase, arguments: [], timeout: 30)
             let normalizedStdout = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "42\n")
+            #expect(normalizedStdout == "42\n")
         }
     }
 
@@ -60,6 +64,7 @@ extension CodegenBackendIntegrationTests {
     /// out to be a red herring (see the sibling-overload test above for the
     /// real mechanism), but this case pins down the exact user-facing
     /// scenario that surfaced the bug during the KSP-466 migration.
+    @Test
     func testCodegenConstructorDelegationResolvesAliasedCrossPackageSiblingName() throws {
         let alphaSource = """
         package alpha
@@ -102,14 +107,15 @@ extension CodegenBackendIntegrationTests {
                 emit: .executable
             )
             let result = makeTestDriver().runForTesting(options: options)
-            XCTAssertEqual(
-                result.exitCode, 0,
+            #expect(
+                result.exitCode == 0,
                 "Compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })"
             )
 
             let runResult = try CommandRunner.run(executable: outputBase, arguments: [], timeout: 30)
             let normalizedStdout = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "42\n")
+            #expect(normalizedStdout == "42\n")
         }
     }
 }
+#endif
