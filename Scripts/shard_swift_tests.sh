@@ -91,7 +91,7 @@ done
 run_swift_test() {
     # swiftbuild creates per-test-target products; `swift test` needs to know
     # which product to load. The target_prefix is the product name.
-    if [[ -n "${target_prefix:-}" ]]; then
+    if [[ -n "${target_prefix:-}" && "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
         SWIFT_TEST_PRODUCT="$target_prefix" bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
     else
         bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"

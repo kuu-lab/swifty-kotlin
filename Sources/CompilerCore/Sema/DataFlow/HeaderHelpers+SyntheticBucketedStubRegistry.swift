@@ -165,9 +165,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsAny") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsFunction") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsNumber") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -287,9 +284,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         },
         SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "NativeSetter") { phase, symbols, _, interner in
             phase.registerSyntheticNativeSetterStubs(symbols: symbols, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "Concurrency") { phase, symbols, types, interner in
-            phase.registerSyntheticConcurrencyStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineCancellation") { phase, symbols, types, interner in
             phase.registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
