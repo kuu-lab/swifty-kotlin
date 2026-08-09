@@ -1,9 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendObjectEmissionTests {
+
+    @Test
     func testCodegenDefaultObjectEmissionSmoke() throws {
         let source = """
         fun helper(v: Int) = v + 1
@@ -31,11 +35,11 @@ extension CodegenBackendIntegrationTests {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            let objectPath = try XCTUnwrap(ctx.generatedObjectPath)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
+            let objectPath = try #require(ctx.generatedObjectPath)
+            #expect(FileManager.default.fileExists(atPath: objectPath))
             let objectSize = (try? FileManager.default.attributesOfItem(atPath: objectPath)[.size] as? NSNumber)?.intValue ?? 0
-            XCTAssertGreaterThan(objectSize, 0)
+            #expect(objectSize > 0)
         }
     }
 }
-
+#endif
