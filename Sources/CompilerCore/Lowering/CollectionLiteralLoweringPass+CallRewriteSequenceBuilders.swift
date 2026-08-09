@@ -66,16 +66,24 @@ extension CollectionLiteralConstructionLoweringPass {
                let boxCallee = primitiveBoxCalleeName(
                    for: argType,
                    types: types,
+                   symbols: ctx.sema?.symbols,
                    interner: ctx.interner
                )
             {
-                storedValue = emitNonThrowingCall(
-                    callee: boxCallee,
-                    arg: valueArg,
+                let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                emitBoxCallWithValueClassTag(
+                    boxCallee: boxCallee,
+                    value: valueArg,
+                    rawSourceKind: types.kind(of: argType),
+                    result: boxedResult,
                     resultType: types.anyType,
+                    types: types,
+                    symbols: ctx.sema?.symbols,
+                    interner: ctx.interner,
                     arena: module.arena,
                     into: &loweredBody
                 )
+                storedValue = boxedResult
             } else {
                 storedValue = valueArg
             }

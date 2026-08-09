@@ -14,6 +14,10 @@ file fdelegate_observable package=golden.sema
 expr e@5:21 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
 expr e@5:42 string(initial) type=String
 expr e@5:21#1 memberCall recv=e@5:21 callee=observable args=[_:e@5:42] type=kotlin.properties.ReadWriteProperty<in Any?, String> call=kotlin.properties.Delegates.observable targs=[String]
+expr e@6:28 name(old) type=String ref=s-0
+expr e@6:36 name(new) type=String ref=s-1
+expr e@6:13 stringTemplate[lit(changed from ),expr(e@6:28),lit( to ),expr(e@6:36)] type=String
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println#1
 expr e@10:13 name(name) type=String ref=golden.sema.name
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
 expr e@11:12 string(updated) type=String

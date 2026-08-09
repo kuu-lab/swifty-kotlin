@@ -150,3 +150,16 @@ public func kk_function_create_2(
     }
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 2))
 }
+
+@_cdecl("kk_function_create_3")
+public func kk_function_create_3(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard bodyRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 3))
+}

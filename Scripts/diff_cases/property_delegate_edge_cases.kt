@@ -1,8 +1,8 @@
-// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 import kotlin.properties.Delegates
 
 class Holder {
     var initCount = 0
+    val label = "holder"
 
     val token: String by lazy {
         initCount += 1
@@ -10,11 +10,12 @@ class Holder {
     }
 
     var observed: Int by Delegates.observable(1) { _, old, new ->
-        println("obs:$old->$new")
+        initCount += 1
+        println("$label:$old->$new:$initCount")
     }
 
     var guarded: Int by Delegates.vetoable(0) { _, _, new ->
-        new >= 0
+        new >= initCount
     }
 }
 

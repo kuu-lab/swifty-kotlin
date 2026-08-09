@@ -4,7 +4,12 @@
 /// except at reference-type boundaries — ValueClassUnboxingPass — and except
 /// when the value class implements an interface, in which case it stays
 /// boxed for polymorphic dispatch; see `effectiveValueClassUnderlyingType`).
-/// Non-value-class kinds, and nullable value classes, pass through unchanged.
+/// Non-null enum classes resolve the same way, to `Int`: enum constants are
+/// raw ordinal Ints everywhere outside Any-erased slots (see
+/// `emitBoxCallWithValueClassTag`, which boxes them via
+/// `kk_enum_box_ordinal` instead of the plain `kk_box_int` this resolution
+/// would otherwise imply). Non-value-class/non-enum kinds, and nullable
+/// value classes/enums, pass through unchanged.
 ///
 /// Shared as a free function (rather than an `ABILoweringPass` method) so
 /// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
@@ -22,8 +27,13 @@ func resolveValueClassKind(
     else {
         return kind
     }
-    guard let sym = symbols.symbol(classType.classSymbol),
-          sym.flags.contains(.valueType),
+    guard let sym = symbols.symbol(classType.classSymbol) else {
+        return kind
+    }
+    if sym.kind == .enumClass {
+        return .primitive(.int, .nonNull)
+    }
+    guard sym.flags.contains(.valueType),
           let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
     else {
         return kind
@@ -53,6 +63,45 @@ extension ABILoweringPass {
         "kk_mutable_map_plusAssign_pair",
     ]
 
+    /// True when the call target is a declaration compiled from Kotlin source —
+    /// bundled stdlib source in this compilation (no external link name) or the
+    /// same declaration imported from a library artifact (`kk_fn_*`). Such a
+    /// callee follows the compiler's own generic ABI, where type-parameter
+    /// slots carry boxed values; every other `kk_*` symbol is a hand-written
+    /// runtime bridge whose raw parameter convention must be left alone.
+    func isKotlinSourceCallee(_ callSymbol: SymbolID?, symbols: SymbolTable?) -> Bool {
+        guard let callSymbol, let symbols, let symbol = symbols.symbol(callSymbol),
+              symbol.kind == .function,
+              symbols.isSourceBackedSymbol(callSymbol)
+        else {
+            return false
+        }
+        guard let linkName = symbols.externalLinkName(for: callSymbol), !linkName.isEmpty else {
+            return true
+        }
+        return linkName.hasPrefix("kk_fn_")
+    }
+
+    /// True when a `kk_array_get` receiver is the generic `kotlin.Array` class
+    /// (whose elements are stored boxed) rather than one of the primitive array
+    /// classes (`DoubleArray`, `IntArray`, ...) which store raw values.
+    func isGenericArrayReceiver(
+        _ receiver: KIRExprID?,
+        module: KIRModule,
+        types: TypeSystem?,
+        symbols: SymbolTable?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let receiver, let types, let symbols,
+              let receiverType = module.arena.exprType(receiver),
+              case let .classType(classType) = types.kind(of: types.makeNonNullable(receiverType)),
+              let symbol = symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "Array"
+    }
+
     func boxingCallee(
         argType: TypeID,
         paramType: TypeID,
@@ -60,7 +109,8 @@ extension ABILoweringPass {
         types: TypeSystem,
         interner: StringInterner,
         boxingCalleeTable: BoxingCalleeTable,
-        symbols: SymbolTable? = nil
+        symbols: SymbolTable? = nil,
+        boxTypeParamBoundary: Bool = false
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
@@ -92,11 +142,31 @@ extension ABILoweringPass {
                 // constructors and the mutable-collection element-insertion helpers),
                 // keeping `add`/`set` consistent with how `listOf(...)` / `setOf(...)`
                 // / `toMutableList()` already box every element.
+                // A call to a Kotlin-source declaration (bundled stdlib source
+                // or the same declaration imported from a library artifact)
+                // always uses the erased boxed representation for its generic
+                // parameters, so e.g. `Array<T>.fold(initial: R, ...)` must
+                // receive `0.0` as a `kk_box_double` handle rather than the raw
+                // bit pattern the callee would then reinterpret as a pointer.
+                if boxTypeParamBoundary {
+                    return true
+                }
                 if let callee {
                     let calleeName = interner.resolve(callee)
                     if ABILoweringPass.typeParamBoxingBoundaryCallees.contains(calleeName) {
                         return true
                     }
+                }
+                // Floating-point arguments must be boxed at every erased `T`
+                // parameter, not just the containers above: a raw Double word
+                // is indistinguishable from an Int of the same bits, and -0.0
+                // is bit-identical to the null sentinel, so an unboxed value
+                // reaching a generic callee compares unequal to the boxed
+                // elements it is matched against (e.g. Array<Double>.contains).
+                if case let .primitive(argPrimitive, .nonNull) = argKind,
+                   argPrimitive == .double || argPrimitive == .float
+                {
+                    return true
                 }
                 return false
             }
