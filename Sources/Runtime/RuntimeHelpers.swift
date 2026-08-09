@@ -1,26 +1,24 @@
 import Dispatch
 import Foundation
 
+// Coroutine handles (continuation / scope / job / task) are resolved against the
+// liveness registry: generated code and the runtime keep raw handles past the
+// point where the runtime releases the object, and casting a freed pointer either
+// reads dangling memory or aliases whatever object later reuses the address.
 func runtimeContinuationState(from continuation: Int) -> RuntimeContinuationState? {
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        return nil
-    }
-    return tryCast(continuationPtr, to: RuntimeContinuationState.self)
+    resolveLiveRuntimeHandle(continuation, as: RuntimeContinuationState.self)
 }
 
 func runtimeCoroutineScope(from scopeHandle: Int) -> RuntimeCoroutineScope? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeCoroutineScope.self)
+    resolveLiveRuntimeHandle(scopeHandle, as: RuntimeCoroutineScope.self)
 }
 
-// RuntimeAsyncTask handles use checked cast only.
 func runtimeAsyncTask(from handle: Int) -> RuntimeAsyncTask? {
-    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return nil
-    }
-    return tryCast(handlePtr, to: RuntimeAsyncTask.self)
+    resolveLiveRuntimeHandle(handle, as: RuntimeAsyncTask.self)
+}
+
+func runtimeJobHandle(from handle: Int) -> RuntimeJobHandle? {
+    resolveLiveRuntimeHandle(handle, as: RuntimeJobHandle.self)
 }
 
 func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {

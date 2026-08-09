@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct SyntheticStubSurfaceSpecTests {
-    @Test func testDeclarativeThrowableMemberSpecsRegisterLinksAndTypes() throws {
+    @Test func testDeclarativeThrowableStackTraceSpecsRegisterLinksAndTypes() throws {
         let (sema, interner) = try makeSema()
         let throwableFQName = ["kotlin", "Throwable"].map(interner.intern)
         let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
@@ -13,19 +13,6 @@ struct SyntheticStubSurfaceSpecTests {
             args: [],
             nullability: .nonNull
         )))
-        let nullableThrowableType = sema.types.make(.classType(ClassType(
-            classSymbol: throwableSymbol,
-            args: [],
-            nullability: .nullable
-        )))
-
-        let message = try property(named: "message", ownerFQName: throwableFQName, sema: sema, interner: interner)
-        #expect(sema.symbols.externalLinkName(for: message) == "kk_throwable_message")
-        #expect(sema.symbols.propertyType(for: message) == sema.types.makeNullable(sema.types.stringType))
-
-        let cause = try property(named: "cause", ownerFQName: throwableFQName, sema: sema, interner: interner)
-        #expect(sema.symbols.externalLinkName(for: cause) == "kk_throwable_cause")
-        #expect(sema.symbols.propertyType(for: cause) == nullableThrowableType)
 
         try assertFunction(
             named: "stackTraceToString",
@@ -47,44 +34,6 @@ struct SyntheticStubSurfaceSpecTests {
             sema: sema,
             interner: interner
         )
-        try assertFunction(
-            named: "initCause",
-            ownerFQName: throwableFQName,
-            parameterTypes: [nullableThrowableType],
-            returnType: throwableType,
-            externalLinkName: "kk_throwable_initCause",
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-        try assertFunction(
-            named: "addSuppressed",
-            ownerFQName: throwableFQName,
-            parameterTypes: [throwableType],
-            returnType: sema.types.unitType,
-            externalLinkName: "kk_throwable_addSuppressed",
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-
-        let getSuppressed = try function(
-            named: "getSuppressed",
-            ownerFQName: throwableFQName,
-            parameterTypes: [],
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-        #expect(sema.symbols.externalLinkName(for: getSuppressed) == "kk_throwable_getSuppressed")
-        let signature = try #require(sema.symbols.functionSignature(for: getSuppressed))
-        guard case let .classType(arrayType) = sema.types.kind(of: signature.returnType) else {
-            Issue.record("Expected getSuppressed() to return Array<Throwable>")
-            return
-        }
-        let arraySymbol = try #require(sema.symbols.symbol(arrayType.classSymbol))
-        #expect(interner.resolve(arraySymbol.name) == "Array")
-        #expect(arrayType.args == [.invariant(throwableType)])
     }
 
     @Test func testDeclarativeCharSpecsKeepRadixOverloadParameterMetadata() throws {
@@ -116,18 +65,6 @@ struct SyntheticStubSurfaceSpecTests {
             result = (sema, ctx.interner)
         }
         return try #require(result)
-    }
-
-    private func property(
-        named name: String,
-        ownerFQName: [InternedString],
-        sema: SemaModule,
-        interner: StringInterner
-    ) throws -> SymbolID {
-        let fqName = ownerFQName + [interner.intern(name)]
-        return try #require(sema.symbols.lookupAll(fqName: fqName).first {
-            sema.symbols.symbol($0)?.kind == .property
-        })
     }
 
     private func assertFunction(

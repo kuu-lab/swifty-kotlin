@@ -4,8 +4,6 @@ symbol fq=__local_2.mark2 kind=local vis=private flags=_ type=kotlin.time.Compar
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.time.ComparableTimeMark kind=class vis=public flags=synthetic
-symbol fq=kotlin.time.ComparableTimeMark.minus#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.time.ComparableTimeMark params=[kotlin.time.ComparableTimeMark] ret=kotlin.time.Duration
-symbol fq=kotlin.time.ComparableTimeMark.minus.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.time.Duration kind=class vis=public flags=synthetic type=kotlin.time.Duration
 symbol fq=kotlin.time.TestTimeSource kind=class vis=public flags=synthetic
 symbol fq=kotlin.time.TestTimeSource.<init> kind=constructor vis=public flags=synthetic sig=recv=kotlin.time.TestTimeSource params=[] ret=kotlin.time.TestTimeSource
@@ -28,6 +26,6 @@ expr e@11:17#1 memberCall recv=e@11:17 callee=markNow args=[] type=kotlin.time.C
 expr e@11:5 localDecl mark2 mutable=0 type=_ init=e@11:17#1 type=Unit ref=__local_2.mark2
 expr e@12:14 name(mark2) type=kotlin.time.ComparableTimeMark ref=__local_2.mark2
 expr e@12:22 name(mark1) type=kotlin.time.ComparableTimeMark ref=__local_1.mark1
-expr e@12:14#1 binary(subtract) lhs=e@12:14 rhs=e@12:22 type=kotlin.time.Duration call=kotlin.time.ComparableTimeMark.minus#0
+expr e@12:14#1 binary(subtract) lhs=e@12:14 rhs=e@12:22 type=kotlin.time.Duration call=kotlin.time.minus#0
 expr e@12:14#2 memberCall recv=e@12:14#1 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:14#2] type=Unit call=kotlin.io.println#1

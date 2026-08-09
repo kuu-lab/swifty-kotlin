@@ -22,15 +22,6 @@ struct ArrayLookupNames {
     // Array conversion / HOF / utility ABI names (STDLIB-087/088/089)
     let kkArrayToListName: InternedString
     let kkArrayToMutableListName: InternedString
-    let kkListToTypedArrayName: InternedString
-    let kkListToCharArrayName: InternedString
-    let kkListToBooleanArrayName: InternedString
-    let kkListToShortArrayName: InternedString
-    let kkListToDoubleArrayName: InternedString
-    let kkListToFloatArrayName: InternedString
-    let kkListToIntArrayName: InternedString
-    let kkListToLongArrayName: InternedString
-    let kkListToByteArrayName: InternedString
     let kkListToUByteArrayName: InternedString
     let kkListToUShortArrayName: InternedString
     let kkListToUIntArrayName: InternedString
@@ -94,15 +85,6 @@ struct ArrayLookupNames {
         kkArraySetName = interner.intern("kk_array_set")
         kkArrayToListName = interner.intern("kk_array_toList")
         kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
-        kkListToTypedArrayName = interner.intern("kk_list_toTypedArray")
-        kkListToCharArrayName = interner.intern("kk_list_toCharArray")
-        kkListToBooleanArrayName = interner.intern("kk_list_toBooleanArray")
-        kkListToShortArrayName = interner.intern("kk_list_toShortArray")
-        kkListToDoubleArrayName = interner.intern("kk_list_toDoubleArray")
-        kkListToFloatArrayName = interner.intern("kk_list_toFloatArray")
-        kkListToIntArrayName = interner.intern("kk_list_toIntArray")
-        kkListToLongArrayName = interner.intern("kk_list_toLongArray")
-        kkListToByteArrayName = interner.intern("kk_list_toByteArray")
         kkListToUByteArrayName = interner.intern("kk_list_toUByteArray")
         kkListToUShortArrayName = interner.intern("kk_list_toUShortArray")
         kkListToUIntArrayName = interner.intern("kk_list_toUIntArray")

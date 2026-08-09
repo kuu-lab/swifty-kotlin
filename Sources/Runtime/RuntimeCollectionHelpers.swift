@@ -1,12 +1,25 @@
+/// `Collection` -> `Iterable` supertype edge, registered once so that boxes
+/// tagged as `List`/`Set` answer `is Collection<*>` / `is Iterable<*>` (and the
+/// erased `as Iterable<T>` cast) through the ordinary assignability walk.
+private let collectionRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection")
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+    )
+    return id
+}()
+
 let listRuntimeTypeID: Int64 = {
-    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-    for byte in "kotlin.collections.List".utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 0x100_0000_01B3
-    }
-    let payloadMask: Int64 = (1 << 55) - 1
-    let payload = Int64(bitPattern: hash) & payloadMask
-    return payload == 0 ? 1 : payload
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.List")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    return id
+}()
+
+let setRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    return id
 }()
 
 private let mapEntryRuntimeTypeID: Int64 = {
@@ -330,6 +343,7 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
     } else if box is RuntimeSetBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: setRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
     } else if type(of: box) == RuntimeArrayBox.self {

@@ -1,9 +1,59 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
+
+    private func runCodegenPipeline(
+        inputPath: String,
+        moduleName: String,
+        emit: EmitMode,
+        outputPath: String
+    ) throws -> CompilationContext {
+        let options = CompilerOptions(
+            moduleName: moduleName,
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: emit,
+            target: defaultTargetTriple()
+        )
+        let ctx = CompilationContext(
+            options: options,
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: StringInterner()
+        )
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+        try CodegenPhase().run(ctx)
+        return ctx
+    }
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenComparisonOperatorsDispatchUserDefinedCompareToThroughGenericBound() throws {
         let source = """
         class Version(val major: Int, val minor: Int) : Comparable<Version> {
@@ -43,6 +93,7 @@ extension CodegenBackendIntegrationTests {
     // different runtime types (subclass vs base, or two classes sharing a
     // Comparable interface); dispatch must still reach the user `compareTo`
     // instead of comparing heap addresses.
+    @Test
     func testCodegenComparisonOperatorsDispatchCompareToAcrossRelatedRuntimeTypes() throws {
         let source = """
         interface Ranked : Comparable<Ranked> {
@@ -100,6 +151,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenComparableMaxOfMinOfDispatchUserDefinedCompareTo() throws {
         let source = """
         class Version(val major: Int, val minor: Int) : Comparable<Version> {
@@ -130,3 +182,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif
