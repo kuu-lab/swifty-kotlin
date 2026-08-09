@@ -85,4 +85,28 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    /// BUG-183: enum entries must be visible without qualification inside the
+    /// enum's companion object (e.g. `A` resolves to `D.A`).
+    func testCodegenEnumCompanionObjectCanReferenceEntryUnqualified() throws {
+        let source = """
+        enum class D {
+            A, B;
+            companion object {
+                fun pick(o: Int): D = if (o == 0) A else B
+            }
+        }
+
+        fun main() {
+            println(D.pick(0))
+            println(D.pick(1))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumCompanionEntryScope",
+            expected: "A\nB\n"
+        )
+    }
 }
