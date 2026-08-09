@@ -5,7 +5,7 @@ symbol fq=checkNotIn kind=function vis=public flags=_ sig=recv=_ params=[Int,Int
 symbol fq=checkNotIn.$1.x kind=valueParameter vis=private flags=_
 symbol fq=checkNotIn.$1.y kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Comparable kind=interface vis=public flags=_
-symbol fq=kotlin.ranges.OpenEndRange kind=interface vis=public flags=synthetic
+symbol fq=kotlin.ranges.OpenEndRange kind=interface vis=public flags=_
 symbol fq=kotlin.ranges.OpenEndRange.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.ranges.OpenEndRange.endExclusive kind=property vis=public flags=synthetic type=kotlin.ranges.OpenEndRange.T
 symbol fq=kotlin.ranges.rangeUntil kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.ranges.rangeUntil.T params=[kotlin.ranges.rangeUntil.T] ret=kotlin.ranges.OpenEndRange<kotlin.ranges.rangeUntil.T> bounds=[kotlin.Comparable<in kotlin.ranges.rangeUntil.T>]

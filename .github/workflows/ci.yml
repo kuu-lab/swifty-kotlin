@@ -35,9 +35,9 @@ jobs:
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
 
-  # Self-hosted CompilerCore and kotlinc-diff shards build in independent
-  # workspaces. Verification 2-4 deliberately shares one self-hosted build so
-  # that the expensive SwiftPM products are reused within that lane.
+  # CompilerCore and kotlinc-diff shards build in independent hosted workspaces.
+  # Verification 2-4 shares one hosted build so expensive SwiftPM products are
+  # reused within that lane.
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
     runs-on: ubuntu-latest
@@ -55,13 +55,12 @@ jobs:
             shard_label: 3
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
-      SWIFT_BUILD_SYSTEM: swiftbuild
+      SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
-      # swiftbuild's integrated compilation cache lives under .build/out by default.
-      # Cache that directory plus the module cache directory across runs.
+      # The compilation cache (cache-compile-job) CAS path, used by the legacy
+      # native build system as well as swiftbuild.
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
-      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.build/out/ModuleCache.noindex
       SWIFT_TEST_BUILD_TARGETS: CompilerCoreTests
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
@@ -99,7 +98,6 @@ jobs:
         if: matrix.shard_index == 0
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_PRODUCT: CompilerCoreTests
         run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS
       - name: Run CompilerCoreTests shard with strict concurrency warnings
         run: |
@@ -111,19 +109,18 @@ jobs:
         if: matrix.shard_index == 0
         env:
           SWIFT_TEST_PARALLEL: "0"
-          SWIFT_TEST_PRODUCT: CompilerCoreTests
         run: |
           bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             $SWIFT_XSWIFTC_FLAGS
-      - name: Build release kswiftc with swiftbuild
+      - name: Build release kswiftc
         if: matrix.shard_index == 0
         run: |
-          swift build -debug-info-format none --build-system swiftbuild -c release --product kswiftc \
-            -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
-      - name: Run minimal end-to-end compiler test with swiftbuild
+          swift build -debug-info-format none -c release --product kswiftc \
+            -j "$SWIFT_TEST_BUILD_JOBS"
+      - name: Run minimal end-to-end compiler test
         if: matrix.shard_index == 0
         run: |
-          kswiftc_bin="$(swift build --build-system swiftbuild -c release --product kswiftc --show-bin-path)/kswiftc"
+          kswiftc_bin="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"
           "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
           /tmp/swiftbuild_hello
       - name: Reproduce hints
@@ -133,28 +130,29 @@ jobs:
             echo "## Verification 1/5 reproduce (shard ${{ matrix.shard_label }}/3)"
             echo '```bash'
             echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
-            echo "KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_ENABLE_COMPILE_CACHE=1 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/build_swift_tests.sh -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
+            echo "KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/build_swift_tests.sh -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
-              echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
-              echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=0 SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
-              echo "swift build -debug-info-format none --build-system swiftbuild -c release --product kswiftc -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
-              echo 'KSWIFTC="$(swift build --build-system swiftbuild -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
+              echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
+              echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
+              echo 'swift build -debug-info-format none -c release --product kswiftc -j "\$worker_count"'
+              echo 'KSWIFTC="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
             fi
-            echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/'"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/'"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify-self-hosted:
     name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
-    runs-on: self-hosted
-    timeout-minutes: 300
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
-      SWIFT_BUILD_SYSTEM: swiftbuild
+      SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
+      # The compilation cache (cache-compile-job) CAS path, used by the legacy
+      # native build system as well as swiftbuild.
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
-      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.build/out/ModuleCache.noindex
       SWIFT_TEST_BUILD_TARGETS: CompilerBackendTests RuntimeTests RuntimeTestsParallel KSwiftKCLITests LSPServerTests
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
@@ -165,6 +163,8 @@ jobs:
         uses: ./.github/actions/setup-swift
         with:
           swift-version: "6.3"
+      - name: Setup LLVM
+        uses: ./.github/actions/setup-llvm
       - name: Show toolchain versions
         run: swift --version
       - name: Setup SwiftPM build cache
@@ -173,17 +173,25 @@ jobs:
           swift-version: "6.3"
           build-variant: ${{ env.KSWIFTK_CI_FAST_BUILD == '1' && 'fast' || 'default' }}
           save: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
+      - name: Configure backend test parallelism
+        run: |
+          worker_count="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)"
+          if ! [[ "$worker_count" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Unable to detect a positive logical CPU count: $worker_count" >&2
+            exit 1
+          fi
+          {
+            echo "SWIFT_TEST_BUILD_JOBS=$worker_count"
+            echo "SWIFT_TEST_WORKERS=$worker_count"
+            echo "SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=$worker_count"
+          } >> "$GITHUB_ENV"
+          echo "Backend parallelization width: $worker_count"
       - name: Build compiler and tests
-        env:
-          SWIFT_TEST_BUILD_JOBS: "4"
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       # With one shared lane there is no need to list every concrete XCTest
       # method for cross-job sharding. Suite-level static filters also ensure
       # test-discovery failures cannot be mistaken for an empty test set.
       - name: Run CompilerBackendTests with strict concurrency warnings
-        env:
-          SWIFT_TEST_WORKERS: "4"
-          SWIFT_TEST_BUILD_JOBS: "4"
         run: |
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests \
@@ -191,31 +199,24 @@ jobs:
       - name: Run RuntimeTests (serialized, chunked) with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "0"
-          SWIFT_TEST_BUILD_JOBS: "4"
         run: |
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
             -- $SWIFT_XSWIFTC_FLAGS
+      # native SwiftPM produces a single PackageTests bundle; --test-product
+      # (SWIFT_TEST_PRODUCT) is only valid with SWIFT_BUILD_SYSTEM=swiftbuild.
+      # shard_swift_tests.sh already gates SWIFT_TEST_PRODUCT the same way.
       - name: Run RuntimeTestsParallel with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_WORKERS: "4"
-          SWIFT_TEST_BUILD_JOBS: "4"
-          SWIFT_TEST_PRODUCT: RuntimeTestsParallel
         run: bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\.' $SWIFT_XSWIFTC_FLAGS
       - name: Run KSwiftKCLITests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_WORKERS: "4"
-          SWIFT_TEST_BUILD_JOBS: "4"
-          SWIFT_TEST_PRODUCT: KSwiftKCLITests
         run: bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\.' $SWIFT_XSWIFTC_FLAGS
       - name: Run LSPServerTests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "1"
-          SWIFT_TEST_WORKERS: "4"
-          SWIFT_TEST_BUILD_JOBS: "4"
-          SWIFT_TEST_PRODUCT: LSPServerTests
         run: bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\.' $SWIFT_XSWIFTC_FLAGS
       - name: Generate loc report
         run: |
@@ -255,18 +256,20 @@ jobs:
           echo "npm install failed after 3 attempts" >&2
           exit 1
       - name: Run jscpd
-        run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
-      - name: Observe jscpd report (Sources and Tests)
         run: |
           report_dir="$(mktemp -d)"
-          jscpd --config .jscpd.json --silent --reporters json --output "$report_dir" --exitCode 0
+          set +e
+          jscpd --config .jscpd-ci.json --output "$report_dir"
+          jscpd_exit=$?
+          set -e
+          if [ -f "$report_dir/jscpd-report.json" ]; then
           node - "$report_dir/jscpd-report.json" <<'NODE'
           const fs = require("fs");
           const reportPath = process.argv[2];
           const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
           const total = report.statistics.total;
           const lines = [
-            "## jscpd observed duplication (Sources + Tests)",
+            "## jscpd observed duplication (Sources)",
             "",
             "| Metric | Value |",
             "|---|---:|",
@@ -283,20 +286,23 @@ jobs:
             `jscpd observed duplication: ${total.clones} clones, ${total.duplicatedLines} duplicated lines (${total.percentage}%)`
           );
           NODE
+          fi
+          exit $jscpd_exit
       - name: Reproduce hints
         if: always()
         run: |
           {
             echo '## Verification 2-4/5 reproduce'
             echo '```bash'
-            echo 'KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_ENABLE_COMPILE_CACHE=1 bash Scripts/build_swift_tests.sh -j 4 $SWIFT_XSWIFTC_FLAGS'
-            echo 'SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests -- $SWIFT_XSWIFTC_FLAGS'
-            echo 'SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- $SWIFT_XSWIFTC_FLAGS'
-            echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=RuntimeTestsParallel SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=KSwiftKCLITests SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_TEST_PARALLEL=1 SWIFT_TEST_PRODUCT=LSPServerTests SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
+            echo 'KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 bash Scripts/build_swift_tests.sh -j "$worker_count" $SWIFT_XSWIFTC_FLAGS'
+            echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS="$worker_count" SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests -- $SWIFT_XSWIFTC_FLAGS'
+            echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- $SWIFT_XSWIFTC_FLAGS'
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
             echo "npm install --prefix \"\$RUNNER_TEMP/jscpd\" --no-save jscpd@4.0.8"
-            echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
+            echo 'jscpd --config .jscpd-ci.json --output /tmp/kswiftk-jscpd-report'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -318,6 +324,8 @@ jobs:
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
       - uses: actions/checkout@v7
+      - name: Prepare self-hosted runner
+        uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:

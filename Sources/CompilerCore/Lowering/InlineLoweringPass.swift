@@ -44,8 +44,6 @@ final class InlineLoweringPass: LoweringPass {
                 inlineFunctionsBySymbol[symbol] = function
             }
         }
-        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
-
         // Build a lookup of all KIR functions by symbol so that lambda bodies
         // can be resolved during inline expansion.
         var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
@@ -54,6 +52,31 @@ final class InlineLoweringPass: LoweringPass {
                 allFunctionsBySymbol[function.symbol] = function
             }
         }
+
+        // Callees whose body never reaches an object file: auto-inline
+        // (`isInlineOnly`) overloads of this module, and every inline function
+        // imported from a library (the metadata does not carry `isInlineOnly`,
+        // and an artifact omits auto-inline bodies).
+        var bodylessInlineSymbols = Set(inlineFunctionsBySymbol.filter { $0.value.isInlineOnly }.keys)
+        if let imported = ctx.sema?.importedInlineFunctions {
+            bodylessInlineSymbols.formUnion(imported.keys)
+        }
+
+        // An inline body — or a lambda body that gets spliced into its caller —
+        // can itself call one of those functions. Both snapshots above predate
+        // any expansion, so splicing such a body into a caller would leave a
+        // call to a symbol that no object file defines. Expand those nested
+        // calls inside the snapshots first.
+        expandNestedBodylessInlineCalls(
+            bodylessInlineSymbols: bodylessInlineSymbols,
+            inlineFunctionsBySymbol: &inlineFunctionsBySymbol,
+            allFunctionsBySymbol: &allFunctionsBySymbol,
+            module: module,
+            ctx: ctx,
+            unitType: unitType
+        )
+
+        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
 
         module.arena.transformFunctions { [self] function in
             inlineTransform(
@@ -67,6 +90,61 @@ final class InlineLoweringPass: LoweringPass {
             )
         }
         module.recordLowering(Self.name)
+    }
+
+    /// Rewrite the bodies that later get spliced into callers so they no longer
+    /// call functions whose body never reaches codegen. Every round re-expands
+    /// the *original* body against the improved callee snapshots, so a body is
+    /// never spliced twice. Bounded to keep delegation chains from expanding
+    /// without limit.
+    private func expandNestedBodylessInlineCalls(
+        bodylessInlineSymbols: Set<SymbolID>,
+        inlineFunctionsBySymbol: inout [SymbolID: KIRFunction],
+        allFunctionsBySymbol: inout [SymbolID: KIRFunction],
+        module: KIRModule,
+        ctx: KIRContext,
+        unitType: TypeID?
+    ) {
+        guard !bodylessInlineSymbols.isEmpty else { return }
+        var originals = allFunctionsBySymbol
+        for (symbol, function) in inlineFunctionsBySymbol where originals[symbol] == nil {
+            originals[symbol] = function
+        }
+        var expandedBySymbol: [SymbolID: KIRFunction] = [:]
+
+        for _ in 0 ..< 4 {
+            let pending = originals.values.filter { function in
+                let current = expandedBySymbol[function.symbol] ?? function
+                return current.body.contains { instruction in
+                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                          let symbol, symbol != function.symbol
+                    else {
+                        return false
+                    }
+                    return bodylessInlineSymbols.contains(symbol)
+                }
+            }
+            guard !pending.isEmpty else { return }
+            let byName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+            for function in pending {
+                let expanded = inlineTransform(
+                    function: function,
+                    inlineFunctionsBySymbol: inlineFunctionsBySymbol,
+                    inlineFunctionsByName: byName,
+                    allFunctionsBySymbol: allFunctionsBySymbol,
+                    module: module,
+                    ctx: ctx,
+                    unitType: unitType
+                )
+                expandedBySymbol[function.symbol] = expanded
+                if inlineFunctionsBySymbol[function.symbol] != nil {
+                    inlineFunctionsBySymbol[function.symbol] = expanded
+                }
+                if allFunctionsBySymbol[function.symbol] != nil {
+                    allFunctionsBySymbol[function.symbol] = expanded
+                }
+            }
+        }
     }
 
     /// Compute the next available label ID by scanning all label references in the body.

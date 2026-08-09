@@ -24,63 +24,49 @@ struct StringConcatFunctionTests {
             return a.concat(b).concat(c)
         }
         """)
+
         try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected String.concat(str) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let concatCall = try #require(
+            lastExprID(in: ast) { exprID, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr,
+                      let range = ast.arena.exprRange(exprID)
+                else { return false }
+                return interner.resolve(callee) == "concat"
+                    && args.count == 1
+                    && !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            },
+            "Expected a member call to concat in the AST"
         )
-    }
 
-    @Test func testStringConcatResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "concat"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes == [sema.types.stringType]
-            })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            #expect(
-                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
-                "String.concat(str) should return String"
-            )
-        }
-        #expect(resolvedLink == "kk_string_concat_flat")
-    }
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: concatCall)?.chosenCallee,
+            "Expected a call binding for the concat invocation"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_concat_flat",
+            "String.concat(str) member call must resolve to kk_string_concat_flat"
+        )
 
-    @Test func testStringConcatCallBindingResolvesToRuntimeLink() throws {
-        let source = """
-        fun joinWords(a: String, b: String): String {
-            return a.concat(b)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "concat"
-            }, "Expected a member call to concat in the AST")
-
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected a call binding for the concat invocation"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_concat_flat",
-                "String.concat(str) member call must resolve to kk_string_concat"
-            )
-        }
+        let fq = ["kotlin", "text", "concat"].map { interner.intern($0) }
+        let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes == [sema.types.stringType]
+        })
+        #expect(
+            sema.symbols.externalLinkName(for: symbol) == "kk_string_concat_flat"
+        )
+        #expect(
+            sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
+            "String.concat(str) should return String"
+        )
     }
 }
