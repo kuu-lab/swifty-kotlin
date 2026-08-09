@@ -267,8 +267,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.isEmpty,
                       let signatureReceiver = signature.receiverType
@@ -332,8 +331,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType

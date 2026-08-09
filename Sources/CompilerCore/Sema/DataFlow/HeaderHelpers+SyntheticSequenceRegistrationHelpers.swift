@@ -393,8 +393,11 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.isEmpty
         }) {
-            // KSP-441〜447: source 関数があれば外部リンクで上書きしない。
-            if symbols.symbol(existing)?.declSite != nil {
+            // STDLIB-SHARED-015: source 関数 (parsed source or imported library)
+            // already carries the compiled ABI name; do not overwrite it with the
+            // runtime helper.  Imported stdlib symbols have declSite nil but are
+            // still source-backed via the .importedLibrary flag.
+            if symbols.isSourceBackedSymbol(existing) {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)
@@ -472,7 +475,10 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.count == 2
         }) {
-            if symbols.symbol(existing)?.declSite != nil {
+            // STDLIB-SHARED-001: Imported source-backed stdlib symbols already carry
+            // the correct compiled external link name; do not overwrite it with the
+            // runtime helper callee. Source declarations also remain source-backed.
+            if symbols.isSourceBackedSymbol(existing) {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)
@@ -581,7 +587,10 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.count == 1
         }) {
-            if symbols.symbol(existing)?.declSite != nil {
+            // STDLIB-SHARED-001: Imported source-backed stdlib symbols already carry
+            // the correct compiled external link name; do not overwrite it with the
+            // runtime helper callee. Source declarations also remain source-backed.
+            if symbols.isSourceBackedSymbol(existing) {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)

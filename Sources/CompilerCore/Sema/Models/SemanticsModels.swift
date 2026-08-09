@@ -406,11 +406,15 @@ public final class SymbolTable {
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
+    private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
     private var externalLinkNames: [SymbolID: String] = [:]
+    /// Backend ABI return type for functions whose compiled calling convention
+    /// differs from their source-level return type (e.g. raw `Int` string handles).
+    private var functionABIReturnTypes: [SymbolID: TypeID] = [:]
     private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
@@ -430,6 +434,9 @@ public final class SymbolTable {
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
+    private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
@@ -703,6 +710,14 @@ public final class SymbolTable {
         propertyTypes[symbol]
     }
 
+    public func setPropertyHasCustomGetter(_ value: Bool, for symbol: SymbolID) {
+        propertyHasCustomGetter[symbol] = value
+    }
+
+    public func propertyHasCustomGetter(for symbol: SymbolID) -> Bool {
+        propertyHasCustomGetter[symbol] ?? false
+    }
+
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
         directSupertypes[symbol] = supertypes
     }
@@ -818,6 +833,14 @@ public final class SymbolTable {
 
     public func externalLinkName(for symbol: SymbolID) -> String? {
         externalLinkNames[symbol]
+    }
+
+    public func setFunctionABIReturnType(_ type: TypeID, for symbol: SymbolID) {
+        functionABIReturnTypes[symbol] = type
+    }
+
+    public func functionABIReturnType(for symbol: SymbolID) -> TypeID? {
+        functionABIReturnTypes[symbol]
     }
 
     public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
@@ -995,6 +1018,30 @@ public final class SymbolTable {
         companionObjectSymbols[owner]
     }
 
+    public func setObjectInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
+        objectInitializerSymbols[object] = initializer
+    }
+
+    public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
+        objectInitializerSymbols[object]
+    }
+
+    public func setCompanionObjectInitializerSymbol(_ initializer: SymbolID, for owner: SymbolID) {
+        companionObjectInitializerSymbols[owner] = initializer
+    }
+
+    public func companionObjectInitializerSymbol(for owner: SymbolID) -> SymbolID? {
+        companionObjectInitializerSymbols[owner]
+    }
+
+    public func setEnumStaticInitSymbol(_ initializer: SymbolID, for owner: SymbolID) {
+        enumStaticInitSymbols[owner] = initializer
+    }
+
+    public func enumStaticInitSymbol(for owner: SymbolID) -> SymbolID? {
+        enumStaticInitSymbols[owner]
+    }
+
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
         valueClassUnderlyingTypes[symbol] = type
     }
@@ -1123,6 +1170,19 @@ public final class SymbolTable {
     /// Returns all symbol IDs declared at the given source range.
     public func symbols(atDeclSite site: SourceRange) -> [SymbolID] {
         byDeclSite[site] ?? []
+    }
+
+    /// Returns true when the symbol represents a real Kotlin declaration
+    /// (either bundled/user source or an imported library symbol), as opposed
+    /// to a synthetic runtime stub. Imported library symbols are treated as
+    /// source-backed because they carry the ABI name of the originally
+    /// compiled declaration. Symbols with a `declSite` are source-backed even
+    /// when they carry an explicit `externalLinkName` (e.g. `@KsSymbolName`
+    /// bundled stdlib functions); synthetic stubs have no `declSite`.
+    public func isSourceBackedSymbol(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = self.symbol(symbolID) else { return false }
+        if symbol.flags.contains(.importedLibrary) { return true }
+        return symbol.declSite != nil
     }
 }
 

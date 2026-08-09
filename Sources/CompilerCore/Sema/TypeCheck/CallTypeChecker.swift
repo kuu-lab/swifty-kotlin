@@ -225,6 +225,7 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
             }
+            sema.bindings.markCollectionHOFLambdaExpr(argumentExprID)
             sema.bindings.markCollectionExpr(id)
             sema.bindings.bindExprType(id, type: refinedReturnType)
             return refinedReturnType
@@ -1157,12 +1158,12 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           args.count == 2,
+           (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicIntArray",
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
-           isSyntheticStdlibSymbol(
+           let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
-               fqComponents: ["kotlin", "concurrent", "atomics", "AtomicIntArray"],
+               className: "AtomicIntArray",
                ctx: ctx
            )
         {
@@ -1181,42 +1182,35 @@ final class CallTypeChecker {
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
             )
-            let initExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [intType],
-                returnType: intType
-            )))
-            _ = driver.inferExpr(
-                args[1].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: initExpectedType
-            )
-            let resultType = sema.symbols.lookupAll(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("concurrent"),
-                interner.intern("atomics"),
-                interner.intern("AtomicIntArray"),
-            ]).first(where: { candidate in
-                sema.symbols.symbol(candidate)?.kind == .class
-            }).map { symbol in
-                sema.types.make(.classType(ClassType(
-                    classSymbol: symbol,
-                    args: [],
-                    nullability: .nonNull
+            if args.count == 2 {
+                let initExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [intType],
+                    returnType: intType
                 )))
-            } ?? sema.types.anyType
+                _ = driver.inferExpr(
+                    args[1].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: initExpectedType
+                )
+            }
+            let resultType = sema.types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .atomicIntArrayFactory)
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
         }
 
         if let calleeName,
-           args.count == 2,
+           (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicLongArray",
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
-           isSyntheticStdlibSymbol(
+           let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
-               fqComponents: ["kotlin", "concurrent", "atomics", "AtomicLongArray"],
+               className: "AtomicLongArray",
                ctx: ctx
            )
         {
@@ -1236,30 +1230,23 @@ final class CallTypeChecker {
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
             )
-            let initExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [intType],
-                returnType: longType
-            )))
-            _ = driver.inferExpr(
-                args[1].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: initExpectedType
-            )
-            let resultType = sema.symbols.lookupAll(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("concurrent"),
-                interner.intern("atomics"),
-                interner.intern("AtomicLongArray"),
-            ]).first(where: { candidate in
-                sema.symbols.symbol(candidate)?.kind == .class
-            }).map { symbol in
-                sema.types.make(.classType(ClassType(
-                    classSymbol: symbol,
-                    args: [],
-                    nullability: .nonNull
+            if args.count == 2 {
+                let initExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [intType],
+                    returnType: longType
                 )))
-            } ?? sema.types.anyType
+                _ = driver.inferExpr(
+                    args[1].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: initExpectedType
+                )
+            }
+            let resultType = sema.types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .atomicLongArrayFactory)
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
@@ -1721,9 +1708,11 @@ final class CallTypeChecker {
             let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
             let funcFQName = comparisonsPkg + [calleeName]
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
-                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
+                guard let sig = sema.symbols.functionSignature(for: candidate),
+                      sema.symbols.isSourceBackedSymbol(candidate)
+                else { return false }
                 return sig.parameterTypes.count == 2
-                    && sema.symbols.externalLinkName(for: candidate) == nil
+                    && !sig.valueParameterIsVararg.contains(true)
             }) {
                 sema.bindings.bindCall(
                     id,
@@ -1864,7 +1853,6 @@ final class CallTypeChecker {
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.count == 1
                         && sig.valueParameterIsVararg != [true]
-                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -1924,7 +1912,6 @@ final class CallTypeChecker {
                 if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.isEmpty
-                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -3324,9 +3311,8 @@ final class CallTypeChecker {
             interner.intern("generateSequence")
         ]
         return sema.symbols.lookupAll(fqName: fqName).first { symbol in
-            guard let info = sema.symbols.symbol(symbol),
-                  info.declSite != nil,
-                  (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty,
+            guard sema.symbols.symbol(symbol) != nil,
+                  sema.symbols.isSourceBackedSymbol(symbol),
                   let sig = sema.symbols.functionSignature(for: symbol),
                   sig.parameterTypes.count == arity
             else {

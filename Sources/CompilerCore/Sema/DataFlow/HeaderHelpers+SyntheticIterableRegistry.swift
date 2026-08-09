@@ -1808,8 +1808,7 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         let functionFQName = collectionsFQName + [name]
         return symbols.lookupAll(fqName: functionFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  !symbol.flags.contains(.synthetic),
+            guard symbols.isSourceBackedSymbol(symbolID),
                   let signature = symbols.functionSignature(for: symbolID),
                   signature.parameterTypes.count == arity,
                   let receiverType = signature.receiverType,

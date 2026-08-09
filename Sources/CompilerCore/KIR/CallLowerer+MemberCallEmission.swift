@@ -220,7 +220,8 @@ extension CallLowerer {
         }
         if normalized.defaultMask != 0,
            let chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true
+           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosenCallee,
@@ -1196,6 +1197,10 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_reentrant_read_write_lock_read"),
+            interner.intern("kk_biginteger_divide"),
+            interner.intern("kk_biginteger_pow"),
+            interner.intern("kk_biginteger_modInverse"),
+            interner.intern("kk_biginteger_modPow"),
         ])
     }
 

@@ -165,6 +165,9 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let set = runtimeSetBox(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(elements: set.elements))
     }
+    if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
+        return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
+    }
     // Delegate to kk_sequence_to_list when the handle is a sequence box.
     // This can happen when Collection.toList() is resolved on a sequence
     // receiver via the synthetic Collection stub.

@@ -1,3 +1,4 @@
+import Foundation
 
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
@@ -20,7 +21,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // initializer directly (see SemaModule.bundledIndex) rather than set
         // via a later mutation, matching the existing importedInlineFunctions
         // constructor-parameter convention.
-        let bundledIndex = BundledDeclarationIndex.build(
+        var bundledIndex = BundledDeclarationIndex.build(
             ast: ast,
             symbols: symbols,
             types: types,
@@ -34,7 +35,22 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
-        sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
+        let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
+        sema.importedInlineFunctions = importedInlineFunctions
+
+        if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
+            bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
+                bundledIndex: bundledIndex,
+                stdlibLibraryPath: stdlibLibraryPath,
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+            // STDLIB-SHARED-002: SemaModule was created before imported symbols were
+            // merged into the bundled index, so update it before any type-checker
+            // queries rely on source-backed stdlib declarations.
+            sema.bundledIndex = bundledIndex
+        }
 
         registerSyntheticDelegateStubs(
             symbols: symbols,
@@ -42,11 +58,27 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner,
             bundledIndex: bundledIndex
         )
+
+        // Synthetic nominal anchors (e.g. kotlin.Comparator) register methods after
+        // library import. Apply imported class/interface layouts only after those
+        // synthetic methods exist, so vtable/itable slots can resolve.
+        applyImportedLibraryDeferredWork(
+            importDeferredWork,
+            symbols: symbols,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
+        )
+        registerCompareBySingleSelectorPostBundled(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
         )
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
@@ -93,14 +125,55 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> [SymbolID: KIRFunction] {
+    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
         var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
-        loadImportedLibrarySymbols(
+        let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
             importedInlineFunctions: &importedInlineFunctions
         )
-        return importedInlineFunctions
+        return (importedInlineFunctions, deferredWork)
+    }
+
+    private func mergeImportedStdlibSymbolsIntoBundledIndex(
+        bundledIndex: BundledDeclarationIndex,
+        stdlibLibraryPath: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> BundledDeclarationIndex {
+        let manifestPath = URL(fileURLWithPath: stdlibLibraryPath).appendingPathComponent("manifest.json").path
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
+              let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data),
+              let moduleName = manifest.moduleName, !moduleName.isEmpty
+        else {
+            return bundledIndex
+        }
+        let stdlibModuleName = interner.intern(moduleName)
+        var importedStdlibKeys: Set<BundledMemberKey> = []
+        for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+            guard let key = BundledDeclarationIndex.memberKey(
+                for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
+            ) else { continue }
+            importedStdlibKeys.insert(key)
+
+            // STDLIB-SHARED-012: Source-backed extension functions imported from a
+            // stdlib artifact must be attached to their receiver nominal type so
+            // collection/sequence member-call fallback resolution (which keys off
+            // parentSymbol == owner) can find them. Skip retained runtime-bridge
+            // overlaps so synthetic ABI stubs keep routing through kk_* entries.
+            guard symbol.kind == .function,
+                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
+                  let signature = symbols.functionSignature(for: symbol.id),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType))
+            else { continue }
+            symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol.id)
+        }
+        var updatedIndex = bundledIndex
+        updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
+        return updatedIndex
     }
 
     func collectAllHeaders(

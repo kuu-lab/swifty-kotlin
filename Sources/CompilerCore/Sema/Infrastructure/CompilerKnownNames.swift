@@ -370,6 +370,8 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesContinuationFQName: [InternedString]
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
+    let atomicScalarFactoryFQNames: Set<[InternedString]>
+    let boxedRuntimeFactoryFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
 
@@ -573,6 +575,34 @@ package struct KnownCompilerNames {
 
         let resultName = interner.intern("Result")
         kotlinResultFQName = [kotlin, resultName]
+
+        let kotlinConcurrent = interner.intern("concurrent")
+        let kotlinConcurrentAtomics = interner.intern("atomics")
+        let atomicIntName = interner.intern("AtomicInt")
+        let atomicLongName = interner.intern("AtomicLong")
+        let atomicBooleanName = interner.intern("AtomicBoolean")
+        let atomicReferenceName = interner.intern("AtomicReference")
+        let javaAtomicIntegerName = interner.intern("AtomicInteger")
+        let java = interner.intern("java")
+        let util = interner.intern("util")
+        let javaConcurrent = interner.intern("concurrent")
+        let javaAtomic = interner.intern("atomic")
+        let math = interner.intern("math")
+        let bigIntegerName = interner.intern("BigInteger")
+        atomicScalarFactoryFQNames = [
+            [kotlin, kotlinConcurrent, atomicIntName],
+            [kotlin, kotlinConcurrent, atomicLongName],
+            [kotlin, kotlinConcurrent, atomicBooleanName],
+            [kotlin, kotlinConcurrent, atomicReferenceName],
+            [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicIntName],
+            [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicLongName],
+            [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicBooleanName],
+            [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicReferenceName],
+            [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
+        ]
+        boxedRuntimeFactoryFQNames = [
+            [java, math, bigIntegerName],
+        ]
     }
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {
@@ -624,6 +654,21 @@ package struct KnownCompilerNames {
         }
         // Fall back to simple name match only for synthetic symbols (no FQN)
         return symbol.name == stringBuilder && symbol.fqName.isEmpty
+    }
+
+    /// True for synthetic runtime-backed atomic scalar classes whose constructors
+    /// are factory functions (e.g. `kk_atomic_int_create`) rather than
+    /// `(this, value)` initializers. These classes must not allocate a generic
+    /// `kk_object_new` instance before calling the constructor.
+    func isAtomicScalarFactorySymbol(_ symbol: SemanticSymbol) -> Bool {
+        atomicScalarFactoryFQNames.contains(symbol.fqName)
+    }
+
+    /// True for synthetic runtime-backed boxed classes whose constructors
+    /// are factory functions (e.g. `kk_biginteger_fromString`) rather than
+    /// `(this, ...)` initializers.
+    func isBoxedRuntimeFactorySymbol(_ symbol: SemanticSymbol) -> Bool {
+        boxedRuntimeFactoryFQNames.contains(symbol.fqName)
     }
 
     func isSequenceSymbol(_ symbol: SemanticSymbol) -> Bool {
