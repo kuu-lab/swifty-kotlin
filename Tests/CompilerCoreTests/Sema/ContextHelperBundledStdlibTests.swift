@@ -5,31 +5,6 @@ import Testing
 
 @Suite
 struct ContextHelperSyntheticStubTests {
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try #require(result)
-    }
-
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let fakePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [fakePath])
-        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-        do {
-            try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted by each test.
-        }
-        return ctx
-    }
-
     private func lookupSymbol(
         _ fqPath: [String],
         sema: SemaModule,
@@ -271,7 +246,8 @@ struct ContextHelperSyntheticStubTests {
                 let symbol = try #require(sema.symbols.symbol(contextSymbol))
                 let signature = try #require(sema.symbols.functionSignature(for: contextSymbol))
 
-                #expect(symbol.flags.contains(.synthetic))
+                #expect(!symbol.flags.contains(.synthetic))
+                #expect(sema.symbols.isSourceBackedSymbol(contextSymbol))
                 #expect(symbol.flags.contains(.inlineFunction))
                 #expect(signature.parameterTypes.count == 2)
                 #expect(signature.typeParameterSymbols.count == 2)
@@ -324,13 +300,14 @@ struct ContextHelperSyntheticStubTests {
                 let symbol = try #require(sema.symbols.symbol(contextOfSymbol))
                 let signature = try #require(sema.symbols.functionSignature(for: contextOfSymbol))
 
-                #expect(symbol.flags.contains(.synthetic))
+                #expect(!symbol.flags.contains(.synthetic))
+                #expect(sema.symbols.isSourceBackedSymbol(contextOfSymbol))
                 #expect(symbol.flags.contains(.inlineFunction))
                 #expect(signature.parameterTypes == [])
                 #expect(signature.typeParameterSymbols.count == 1)
                 #expect(signature.returnType == typeParamType(signature.typeParameterSymbols[0], sema: sema))
                 #expect(sema.symbols.annotations(for: contextOfSymbol).contains { annotation in
-                    annotation.annotationFQName == "kotlin.ExperimentalContextParameters"
+                    annotation.annotationFQName.hasSuffix("ExperimentalContextParameters")
                 })
 
             }
