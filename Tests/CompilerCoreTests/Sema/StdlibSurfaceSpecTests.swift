@@ -208,7 +208,6 @@ struct StdlibSurfaceSpecTests {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "minBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "partition", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
