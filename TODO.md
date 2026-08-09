@@ -458,7 +458,7 @@
 
 #### math / numbers
 
-- [ ] KSP-635: kotlin.math の純ロジック群を Kotlin 化する（abs/sign/min/max + PI/E 定数 — **名前特例ゼロで最もクリーンな移行対象**。実装先 `kotlin/math/Math.kt` 新設。対象 kk_*: `kk_math_abs*` 4 / `kk_math_sign*` 4 / `kk_math_min*`・`kk_math_max*` 各6 / `kk_math_PI`/`kk_math_E`。diff は math_* 15ケース既存）
+- [x] KSP-635: kotlin.math の純ロジック群を Kotlin 化する（abs/sign/min/max + PI/E 定数 — **名前特例ゼロで最もクリーンな移行対象**。実装先 `kotlin/math/Math.kt` 新設。対象 kk_*: `kk_math_abs*` 4 / `kk_math_sign*` 4 / `kk_math_min*`・`kk_math_max*` 各6 / `kk_math_PI`/`kk_math_E`。diff は math_* 15ケース既存）
 - [ ] KSP-636: kotlin.math の丸め系を Kotlin 化する（ceil/floor/round/truncate/withSign — Foundation 依存の有無を着手時確認し、純ロジック化できない分のみ `__kk_` 降格。対象 kk_* 約12）
 - [ ] KSP-637: kotlin.math の超越関数を `__kk_math_*` 降格する（sin/cos/tan/asin/acos/atan/atan2/exp/expm1/ln/ln1p/log/log2/log10/sinh/cosh/tanh/acosh/asinh/atanh/cbrt/hypot/pow/sqrt/IEEErem/nextTowards の Double/Float 版 — libm 窓口の改名 + 公開層 .kt 化。約52 kk_*。`rg -o '@_cdecl\("kk_math_[a-zA-Z0-9_]*"\)' Sources/Runtime` で着手時固定）
 - [ ] KSP-638: roundToInt/roundToLong/ulp/nextUp/nextDown を整理する（**`HeaderHelpers+SyntheticMathStubs.swift` と `+SyntheticCoercionStubs.swift` の二重登録を一本化**した上で `__kk_` 降格。kk_* 10）
