@@ -47,17 +47,15 @@ extension ControlFlowTypeChecker {
                     signature: signature,
                     sema: sema
                 )
+                sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
             } else {
-                // Fallback: try to find componentN via scope lookup
-                let scopeCandidates = sema.symbols.lookupAll(fqName: [componentName]).filter { symbolID in
-                    guard let symbol = sema.symbols.symbol(symbolID),
-                          symbol.kind == .function,
-                          let sig = sema.symbols.functionSignature(for: symbolID)
-                    else {
-                        return false
-                    }
-                    return sig.receiverType != nil
-                }
+                // Fallback: componentN declared as an operator extension rather than
+                // a member (e.g. the bundled `MatchResult.Destructured.componentN`).
+                let scopeCandidates = componentOperatorExtensionCandidates(
+                    named: componentName,
+                    receiverType: rhsType,
+                    ctx: ctx
+                )
                 if let candidate = scopeCandidates.first,
                    let signature = sema.symbols.functionSignature(for: candidate)
                 {
@@ -67,6 +65,7 @@ extension ControlFlowTypeChecker {
                         signature: signature,
                         sema: sema
                     )
+                    sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
                 } else if isDataClassType(rhsType, sema: sema) {
                     // Data class componentN() is synthesized during lowering; fall back to Any
                     componentType = sema.types.anyType
@@ -153,6 +152,10 @@ extension ControlFlowTypeChecker {
                 receiverType: elementType,
                 sema: sema,
                 interner: interner
+            ) + componentOperatorExtensionCandidates(
+                named: componentName,
+                receiverType: elementType,
+                ctx: ctx
             )
 
             let componentType: TypeID
@@ -215,6 +218,45 @@ extension ControlFlowTypeChecker {
         default:
             return false
         }
+    }
+
+    /// `componentN` functions declared as extensions on `receiverType` (member
+    /// lookup only finds them when they are declared inside the class). Scope
+    /// lookup goes first so imported operator extensions win; the short-name
+    /// sweep then recovers extensions that are visible without an import, such
+    /// as the bundled `MatchResult.Destructured.componentN`.
+    func componentOperatorExtensionCandidates(
+        named componentName: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+
+        func matchesReceiver(_ candidate: SymbolID, requireOperator: Bool) -> Bool {
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  !requireOperator || symbol.flags.contains(.operatorFunction),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullReceiver,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+
+        let scoped = ctx.filterByVisibility(ctx.cachedScopeLookup(componentName)).visible
+            .filter { matchesReceiver($0, requireOperator: true) }
+        if !scoped.isEmpty {
+            return scoped
+        }
+        return sema.symbols.lookupByShortName(componentName)
+            .filter { matchesReceiver($0, requireOperator: false) }
+            .sorted { $0.rawValue < $1.rawValue }
     }
 
     private func isDataClassType(_ type: TypeID, sema: SemaModule) -> Bool {

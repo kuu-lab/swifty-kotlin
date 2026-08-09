@@ -27,16 +27,6 @@ struct NumericBitCountTests {
         ]
 
         for value in testValues {
-            for distance in [0, 1, 7, 15, 31] {
-                let rotatedLeft = kk_int_rotateLeft(value, distance)
-                let rotatedRight = kk_int_rotateRight(value, distance)
-
-                #expect(kk_int_rotateRight(rotatedLeft, distance) & 0xFFFFFFFF == value & 0xFFFFFFFF,
-                    "rotateLeft→Right value=\(value), distance=\(distance)")
-                #expect(kk_int_rotateLeft(rotatedRight, distance) & 0xFFFFFFFF == value & 0xFFFFFFFF,
-                    "rotateRight→Left value=\(value), distance=\(distance)")
-            }
-
             let highest = kk_int_highestOneBit(value)
             let lowest = kk_int_lowestOneBit(value)
 
@@ -75,16 +65,6 @@ struct NumericBitCountTests {
         ]
 
         for value in testValues {
-            for distance in [0, 1, 31, 63] {
-                let rotatedLeft = kk_long_rotateLeft(value, distance)
-                let rotatedRight = kk_long_rotateRight(value, distance)
-
-                #expect(kk_long_rotateRight(rotatedLeft, distance) == value,
-                    "rotateLeft→Right value=\(value), distance=\(distance)")
-                #expect(kk_long_rotateLeft(rotatedRight, distance) == value,
-                    "rotateRight→Left value=\(value), distance=\(distance)")
-            }
-
             let highest = kk_long_highestOneBit(value)
             let lowest = kk_long_lowestOneBit(value)
 

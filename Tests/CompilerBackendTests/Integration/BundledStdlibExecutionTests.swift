@@ -321,6 +321,50 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-642: rotateLeft / rotateRight は bundled Kotlin (kotlin.Numbers) で
+    // shl / ushr / or だけを使って実装される。シフト量のマスク（Int は 5bit、
+    // Long は 6bit）に依存するため、0 / 幅ちょうど / 幅超過 / 負値の境界を検証する。
+    @Test
+    func testRotateExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(1.rotateLeft(1))
+                println(1.rotateLeft(31))
+                println(1.rotateLeft(32))
+                println(1.rotateLeft(-1))
+                println((-1).rotateLeft(5))
+                println(Int.MIN_VALUE.rotateLeft(1))
+                println(1.rotateRight(1))
+                println(1.rotateRight(32))
+                println(0x12345678.rotateRight(8))
+                println(1L.rotateLeft(63))
+                println(1L.rotateLeft(64))
+                println(1L.rotateRight(1))
+                println(Long.MIN_VALUE.rotateRight(1))
+                println(0x0F0F0F0F.rotateLeft(4).rotateRight(4))
+            }
+            """,
+            expectedOutput: """
+            2
+            -2147483648
+            1
+            -2147483648
+            -1
+            1
+            -2147483648
+            1
+            2014458966
+            -9223372036854775808
+            1
+            -9223372036854775808
+            4611686018427387904
+            252645135
+
+            """
+        )
+    }
+
     // KSP-496 regression: KClass.cast/safeCast are bundled Kotlin extensions
     // calling the throwing `__kk_kclass_cast` / non-throwing
     // `__kk_kclass_safeCast` runtime ABI, so both the success and the
