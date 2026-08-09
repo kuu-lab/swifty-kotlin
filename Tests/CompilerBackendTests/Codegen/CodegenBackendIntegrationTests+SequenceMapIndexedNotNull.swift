@@ -40,7 +40,11 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_sequence_mapIndexedNotNull"))
+            // Sequence.mapIndexedNotNull is source-backed (KSP-441,
+            // SequenceTransformHOF.kt), so lowering now calls the Kotlin
+            // declaration "mapIndexedNotNull" directly instead of a
+            // kk_sequence_mapIndexedNotNull runtime bridge symbol.
+            XCTAssertTrue(callees.contains("mapIndexedNotNull"))
         }
     }
 }

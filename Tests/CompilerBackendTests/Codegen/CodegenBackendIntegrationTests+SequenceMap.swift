@@ -35,7 +35,10 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_sequence_map"))
+            // Sequence.map is source-backed (KSP-441, SequenceTransformHOF.kt), so
+            // lowering now calls the Kotlin declaration "map" directly instead of a
+            // kk_sequence_map runtime bridge symbol.
+            XCTAssertTrue(callees.contains("map"))
         }
     }
 }
