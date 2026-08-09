@@ -333,7 +333,8 @@ extension DataFlowSemaPhase {
         setSyntheticCharCategoryEntryTypes(
             enumSymbol: charCategorySymbol,
             enumType: charCategoryType,
-            symbols: symbols
+            symbols: symbols,
+            interner: interner
         )
         let charDirectionalityType = ensureSyntheticCharDirectionalityEnum(
             in: kotlinTextPkg,
@@ -546,16 +547,33 @@ extension DataFlowSemaPhase {
     private func setSyntheticCharCategoryEntryTypes(
         enumSymbol: SymbolID,
         enumType: TypeID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) {
         guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        for child in symbols.children(ofFQName: enumInfo.fqName) {
-            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else {
-                continue
+        let enumFQName = enumInfo.fqName
+        for (ordinal, entry) in syntheticCharCategoryEntries.enumerated() {
+            let entryName = interner.intern(entry)
+            let entryFQName = enumFQName + [entryName]
+            let entrySymbol: SymbolID
+            if let existing = symbols.lookup(fqName: entryFQName) {
+                entrySymbol = existing
+            } else {
+                entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryName,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(enumSymbol, for: entrySymbol)
             }
-            if symbols.propertyType(for: child) == nil {
-                symbols.setPropertyType(enumType, for: child)
+            if symbols.propertyType(for: entrySymbol) == nil {
+                symbols.setPropertyType(enumType, for: entrySymbol)
             }
+            symbols.insertFlags([.constValue], for: entrySymbol)
+            symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
         }
     }
 
@@ -612,7 +630,7 @@ extension DataFlowSemaPhase {
             "RIGHT_TO_LEFT_OVERRIDE",
             "POP_DIRECTIONAL_FORMAT",
         ]
-        for entry in entries {
+        for (ordinal, entry) in entries.enumerated() {
             let entryName = interner.intern(entry)
             let entryFQName = enumFQName + [entryName]
             let entrySymbol: SymbolID
@@ -630,6 +648,8 @@ extension DataFlowSemaPhase {
             }
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
             symbols.setPropertyType(enumType, for: entrySymbol)
+            symbols.insertFlags([.constValue], for: entrySymbol)
+            symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
         }
         return enumType
     }

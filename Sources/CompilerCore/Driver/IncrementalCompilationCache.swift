@@ -380,13 +380,15 @@ public final class IncrementalCompilationCache {
     }
 
     private static func buildConfigurationHash(for options: CompilerOptions) -> String {
-        let stdlibManifestHash = options.includeStdlib ? BundledKotlinStdlib.manifestHash() : ""
+        let stdlibManifestHash = (options.includeStdlib || options.stdlibOnly || options.stdlibLibraryPath != nil)
+            ? BundledKotlinStdlib.manifestHash()
+            : ""
         let config = IncrementalBuildConfiguration(
             schemaVersion: 1,
             moduleName: options.moduleName,
             inputPaths: options.inputs,
             emit: options.emit.rawValue,
-            searchPaths: options.searchPaths,
+            searchPaths: options.effectiveLibrarySearchPaths,
             libraryPaths: options.libraryPaths,
             linkLibraries: options.linkLibraries,
             target: IncrementalTargetTriple(
@@ -400,6 +402,8 @@ public final class IncrementalCompilationCache {
             frontendFlags: options.frontendFlags.filter(Self.isOutputAffectingFrontendFlag),
             irFlags: options.irFlags,
             runtimeFlags: options.runtimeFlags,
+            stdlibOnly: options.stdlibOnly,
+            stdlibLibraryPath: options.stdlibLibraryPath,
             stdlibManifestHash: stdlibManifestHash
         )
         let encoder = JSONEncoder()
@@ -467,6 +471,8 @@ private struct IncrementalBuildConfiguration: Encodable {
     let frontendFlags: [String]
     let irFlags: [String]
     let runtimeFlags: [String]
+    let stdlibOnly: Bool
+    let stdlibLibraryPath: String?
     let stdlibManifestHash: String
 }
 

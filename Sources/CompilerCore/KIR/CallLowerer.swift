@@ -1,3 +1,4 @@
+import RuntimeABI
 
 final class CallLowerer {
     unowned let driver: KIRLoweringDriver
@@ -7,17 +8,27 @@ final class CallLowerer {
     }
 
     /// True when the resolved callee is a bundled Kotlin source declaration
-    /// (has a source `declSite` and no runtime external link), meaning the
-    /// lowering path should not rewrite it to a `kk_*` runtime helper.
+    /// (is a bundled/user source declaration or an imported library symbol),
+    /// meaning the lowering path should not rewrite it to a `kk_*` runtime helper.
     private func isSourceBacked(_ symbol: SymbolID?, sema: SemaModule) -> Bool {
-        guard let symbol,
-              let info = sema.symbols.symbol(symbol),
-              info.declSite != nil,
-              (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        guard let symbol else { return false }
+        return sema.symbols.isSourceBackedSymbol(symbol)
+    }
+
+    /// True when the call resolved to the stdlib `kotlin.contextOf` intrinsic.
+    /// A user-declared `contextOf()` resolves to its own symbol and must keep
+    /// normal call lowering instead of being replaced by a context receiver.
+    private func isStdlibContextOfCall(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .symbol(symbol)? = sema.bindings.callableTarget(for: exprID),
+              let resolved = sema.symbols.symbol(symbol)
         else {
             return false
         }
-        return true
+        return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
     }
 
     /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
@@ -49,19 +60,24 @@ final class CallLowerer {
         return nil
     }
 
-    private func isStringBuilderConstructor(
+    /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
+    /// constructors, so callers can both gate on "is this a StringBuilder
+    /// construction" and reuse the owner symbol for itable registration
+    /// without a second lookup.
+    private func stringBuilderConstructorOwner(
         _ symbolID: SymbolID?,
         sema: SemaModule,
         knownNames: KnownCompilerNames
-    ) -> Bool {
+    ) -> SymbolID? {
         guard let symbolID,
               sema.symbols.symbol(symbolID)?.kind == .constructor,
               let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
-              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              knownNames.isStringBuilderSymbol(ownerInfo)
         else {
-            return false
+            return nil
         }
-        return knownNames.isStringBuilderSymbol(ownerInfo)
+        return ownerSymbol
     }
 
     private func lowerStringBuilderConstructorCall(
@@ -122,11 +138,138 @@ final class CallLowerer {
         appendObjectItableMethodRegistrations(
             objectValue: result,
             nominalSymbol: nominalSymbol,
+            driver: driver,
             sema: sema,
             arena: arena,
             interner: interner,
             instructions: &instructions
         )
+        return result
+    }
+
+    /// True for synthetic runtime-backed factory constructors that allocate
+    /// their own object (atomic scalar boxes, java.math.BigInteger, and
+    /// built-in exception classes).
+    private func isAtomicScalarConstructor(
+        _ symbolID: SymbolID?,
+        sema: SemaModule,
+        knownNames: KnownCompilerNames
+    ) -> Bool {
+        guard let symbolID,
+              sema.symbols.symbol(symbolID)?.kind == .constructor,
+              let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+        else {
+            return false
+        }
+        return knownNames.isAtomicScalarFactorySymbol(ownerInfo)
+            || knownNames.isBoxedRuntimeFactorySymbol(ownerInfo)
+            || isRuntimeFactoryConstructor(symbolID, sema: sema)
+    }
+
+    /// True when the constructor's runtime ABI entry point is a factory that
+    /// allocates and returns an object handle (e.g. built-in exception
+    /// `kk_*_exception_new_message`). Such constructors must not receive an
+    /// implicit `this` allocated by `kk_object_new`.
+    private func isRuntimeFactoryConstructor(
+        _ symbolID: SymbolID,
+        sema: SemaModule
+    ) -> Bool {
+        guard let externalLinkName = sema.symbols.externalLinkName(for: symbolID),
+              !externalLinkName.isEmpty,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == externalLinkName })
+        else {
+            return false
+        }
+        let abiValueParameters = spec.parameters.filter { parameter in
+            !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
+        }
+        guard abiParametersMatchFactorySignature(abiValueParameters, signature) else {
+            return false
+        }
+        switch spec.returnType {
+        case .intptr, .opaquePointer, .nullableOpaquePointer:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Checks whether the runtime ABI parameters (with the trailing `outThrown`
+    /// slot removed) line up with the Kotlin-level constructor signature.
+    /// A `String` parameter may be lowered as a single pointer/handle or as a
+    /// flat 4-word aggregate (`data`, `length`, `byteCount`, `hash`) depending on
+    /// the ABI entry point; the backend has its own tables for the latter, so
+    /// this helper recognises the flat-string pattern so `String` factory
+    /// constructors are not mistaken for normal `this`-accepting constructors.
+    private func abiParametersMatchFactorySignature(
+        _ abiParameters: [RuntimeABIParameter],
+        _ signature: FunctionSignature
+    ) -> Bool {
+        var abiIndex = 0
+        for _ in signature.parameterTypes {
+            guard abiIndex < abiParameters.count else { return false }
+            if isFlatStringGroup(at: abiIndex, in: abiParameters) {
+                abiIndex += 4
+            } else {
+                abiIndex += 1
+            }
+        }
+        return abiIndex == abiParameters.count
+    }
+
+    private func isFlatStringGroup(
+        at index: Int,
+        in parameters: [RuntimeABIParameter]
+    ) -> Bool {
+        guard index + 3 < parameters.count else { return false }
+        let dataParam = parameters[index]
+        let lengthParam = parameters[index + 1]
+        let byteCountParam = parameters[index + 2]
+        let hashParam = parameters[index + 3]
+        guard dataParam.type == .nullableConstUInt8Pointer,
+              lengthParam.type == .intptr,
+              byteCountParam.type == .intptr,
+              hashParam.type == .intptr,
+              dataParam.name.hasSuffix("Data")
+        else {
+            return false
+        }
+        let prefix = String(dataParam.name.dropLast(4))
+        return lengthParam.name == "\(prefix)Length"
+            && byteCountParam.name == "\(prefix)ByteCount"
+            && hashParam.name == "\(prefix)Hash"
+    }
+
+    private func lowerAtomicScalarConstructorCall(
+        constructorSymbol: SymbolID,
+        finalArgIDs: [KIRExprID],
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let result = arena.appendTemporary(type: resultType)
+        // The runtime factory (e.g. `kk_atomic_int_create` or `kk_biginteger_fromString`)
+        // allocates the box itself; we must not precede it with `kk_object_new`
+        // and an implicit `this` argument.
+        let callee = sema.symbols.externalLinkName(for: constructorSymbol)
+            .flatMap { name in name.isEmpty ? nil : interner.intern(name) }
+            ?? interner.intern("__kk_atomic_unknown_create")
+        let canThrow = sema.symbols.functionSignature(for: constructorSymbol)?.canThrow ?? false
+        // Keep the constructor symbol on the call so ABI lowering can resolve the
+        // FunctionSignature (e.g. type-parameter parameters for Pair/Triple) while
+        // the runtime factory callee handles allocation directly.
+        instructions.append(.call(
+            symbol: constructorSymbol,
+            callee: callee,
+            arguments: finalArgIDs,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: nil
+        ))
         return result
     }
 
@@ -170,83 +313,6 @@ final class CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-    }
-
-    func dataClassPropertyNames(
-        ownerSymbol: SymbolID,
-        sema: SemaModule
-    ) -> [InternedString] {
-        guard let owner = sema.symbols.symbol(ownerSymbol),
-              owner.flags.contains(.dataType)
-        else {
-            return []
-        }
-
-        let primaryParameterNames: [InternedString] = sema.symbols.children(ofFQName: owner.fqName)
-            .compactMap { sema.symbols.symbol($0) }
-            .filter { $0.kind == .constructor }
-            .min { lhs, rhs in
-                let lhsOffset = lhs.declSite?.start.offset ?? Int.max
-                let rhsOffset = rhs.declSite?.start.offset ?? Int.max
-                if lhsOffset != rhsOffset {
-                    return lhsOffset < rhsOffset
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
-            }
-            .flatMap { constructor in
-                sema.symbols.functionSignature(for: constructor.id)?.valueParameterSymbols.compactMap { paramID in
-                    sema.symbols.symbol(paramID)?.name
-                }
-            } ?? []
-
-        guard !primaryParameterNames.isEmpty else {
-            return []
-        }
-
-        let propertiesByName = Dictionary(
-            sema.symbols.children(ofFQName: owner.fqName)
-                .compactMap { sema.symbols.symbol($0) }
-                .filter { $0.kind == .property && !$0.flags.contains(.synthetic) }
-                .map { ($0.name, $0.name) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return primaryParameterNames.compactMap { propertiesByName[$0] }
-    }
-
-    func emitDataClassFieldRegistration(
-        objectSymbol: SymbolID,
-        classID: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) {
-        let propertyNames = dataClassPropertyNames(ownerSymbol: objectSymbol, sema: sema)
-        guard !propertyNames.isEmpty else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
-        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-
-        for (index, propertyName) in propertyNames.enumerated() {
-            let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-            instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-
-            let nameExpr = arena.appendExpr(.stringLiteral(propertyName), type: intType)
-            instructions.append(.constValue(result: nameExpr, value: .stringLiteral(propertyName)))
-
-            let registerResult = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_json_register_data_class_field_name"),
-                arguments: [classIDExpr, indexExpr, nameExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
     }
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -490,7 +556,8 @@ final class CallLowerer {
         if args.isEmpty,
            let callee = ast.arena.expr(calleeExpr),
            case let .nameRef(calleeName, _) = callee,
-           calleeName == interner.intern("contextOf")
+           calleeName == interner.intern("contextOf"),
+           isStdlibContextOfCall(exprID, sema: sema, interner: interner)
         {
             let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             if let contextValue = driver.ctx.contextReceiverValue(matching: boundType, sema: sema) {
@@ -742,20 +809,17 @@ final class CallLowerer {
             ))
             // KSP-500: box the seed function's result, same as the direct-seed-value
             // overload's rewrite in CollectionLiteralLoweringPass+CallRewriteFactories.
-            var boxedSeedResult = seedResult
-            if let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                for: sema.types.makeNonNullable(functionType.returnType),
+            let boxedSeedResult = boxValueForAnySlot(
+                seedResult,
+                sourceType: sema.types.makeNonNullable(functionType.returnType),
                 types: sema.types,
-                requireNonNull: true
-            ) {
-                boxedSeedResult = emitNonThrowingCall(
-                    callee: seedBoxCallee,
-                    arg: seedResult,
-                    resultType: sema.types.makeNonNullable(functionType.returnType),
-                    arena: arena,
-                    into: &instructions
-                )
-            }
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                resultType: sema.types.makeNonNullable(functionType.returnType),
+                requireNonNull: true,
+                into: &instructions
+            )
             // KSP-500: expand the nextFunction closure to (fnPtr, closureRaw) and
             // box its returned primitive — see the 1-arg case above for why this
             // can't be skipped (this call is constructed directly and never
@@ -804,17 +868,13 @@ final class CallLowerer {
             // kept as a defense-in-depth fallback) rewrite path; kk_box_int et al.
             // are idempotent, so double-boxing here would be harmless anyway.
             var seedArgument = loweredArgIDs[0]
-            if let seedType = sema.bindings.exprTypes[args[0].expr],
-               let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                   for: seedType,
-                   types: sema.types,
-                   requireNonNull: false
-               )
-            {
-                seedArgument = emitNonThrowingCall(
-                    callee: seedBoxCallee,
-                    arg: seedArgument,
-                    resultType: sema.types.anyType,
+            if let seedType = sema.bindings.exprTypes[args[0].expr] {
+                seedArgument = boxValueForAnySlot(
+                    seedArgument,
+                    sourceType: seedType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
                     arena: arena,
                     into: &instructions
                 )
@@ -960,13 +1020,27 @@ final class CallLowerer {
         }
         if callableInvokeCallee == nil,
            loweredCallable == nil,
-           isStringBuilderConstructor(chosen, sema: sema, knownNames: knownNames),
-           let chosen, let stringBuilderSymbol = sema.symbols.parentSymbol(for: chosen)
+           let stringBuilderOwnerSymbol = stringBuilderConstructorOwner(chosen, sema: sema, knownNames: knownNames)
         {
             return lowerStringBuilderConstructorCall(
                 finalArgIDs: finalArgIDs,
                 resultType: boundType ?? sema.types.anyType,
-                nominalSymbol: stringBuilderSymbol,
+                nominalSymbol: stringBuilderOwnerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        if callableInvokeCallee == nil,
+           loweredCallable == nil,
+           let chosen,
+           isAtomicScalarConstructor(chosen, sema: sema, knownNames: knownNames)
+        {
+            return lowerAtomicScalarConstructorCall(
+                constructorSymbol: chosen,
+                finalArgIDs: finalArgIDs,
+                resultType: boundType ?? sema.types.anyType,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -979,11 +1053,10 @@ final class CallLowerer {
         if callableInvokeCallee == nil, let loweredCallable {
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
         } else if let chosen,
-                  sema.symbols.symbol(chosen)?.kind == .constructor,
-                  sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+                  sema.symbols.symbol(chosen)?.kind == .constructor
         {
             // Constructor calls need an allocated object as the implicit receiver (p0).
-            // Allocate via kk_array_new(slotCount) and prepend it to the argument list.
+            // Allocate via kk_object_new(slotCount) and prepend it to the argument list.
             // Derive slot count from NominalLayout.instanceSizeWords of the owning class.
             let allocType = boundType ?? sema.types.anyType
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -1057,6 +1130,7 @@ final class CallLowerer {
                 appendObjectItableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
+                    driver: driver,
                     sema: sema,
                     arena: arena,
                     interner: interner,
@@ -1187,7 +1261,8 @@ final class CallLowerer {
         }
         if callNormalized.defaultMask != 0,
            let chosen,
-           sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+           (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosen)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
@@ -1422,7 +1497,8 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
-            "kk_synchronized",
+            "__kk_synchronized",
+            "__kk_string_builder_new_capacity_checked",
         ].contains(name)
     }
 
@@ -1435,7 +1511,7 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
-            "kk_synchronized",
+            "__kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }
 
@@ -1657,6 +1733,14 @@ final class CallLowerer {
             }
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
+        if receiverType != nonNullReceiverType {
+            candidates.append(contentsOf: extensionCandidates(
+                named: calleeName,
+                nonNullReceiverType: nonNullReceiverType,
+                argumentCount: argumentExprs.count,
+                sema: sema
+            ))
+        }
         candidates.sort(by: { $0.rawValue < $1.rawValue })
         guard !candidates.isEmpty else {
             return nil
@@ -1690,6 +1774,51 @@ final class CallLowerer {
             substitutedTypeArguments: [],
             parameterMapping: parameterMapping
         )
+    }
+
+    /// Source-level extension functions and extension-property getters declared
+    /// for `nonNullReceiverType`. Sema resolves those against the narrowed
+    /// receiver, but a receiver whose static type stays nullable (a mutable
+    /// local keeps its declared type across a null check) leaves no call
+    /// binding behind, and only the bare source name would reach codegen.
+    private func extensionCandidates(
+        named calleeName: InternedString,
+        nonNullReceiverType: TypeID,
+        argumentCount: Int,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        func receiverMatches(_ candidate: SymbolID) -> Bool {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  signature.parameterTypes.count == argumentCount
+            else {
+                return false
+            }
+            return sema.types.isSubtype(
+                nonNullReceiverType,
+                sema.types.makeNonNullable(declaredReceiver)
+            )
+        }
+
+        return sema.symbols.lookupByShortName(calleeName).compactMap { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return nil
+            }
+            switch symbol.kind {
+            case .function:
+                return receiverMatches(candidate) ? candidate : nil
+            case .property:
+                guard argumentCount == 0,
+                      let getter = sema.symbols.extensionPropertyGetterAccessor(for: candidate),
+                      receiverMatches(getter)
+                else {
+                    return nil
+                }
+                return getter
+            default:
+                return nil
+            }
+        }
     }
 
     private func normalizedParameterMapping(

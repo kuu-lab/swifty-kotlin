@@ -25,9 +25,9 @@ struct RuntimeRegexNamedGroupTests {
         }
     }
 
-    private func group(_ groupsRaw: Int, named name: String) -> Int {
+    private func groupIndex(_ matchRaw: Int, named name: String) -> Int {
         withFlatString(name) { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+            __kk_match_result_group_index_of_name_flat(matchRaw, data, length, byteCount, hash)
         }
     }
 
@@ -45,58 +45,47 @@ struct RuntimeRegexNamedGroupTests {
         defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
-        let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let lhsGroupRaw = group(groupsRaw, named: "lhs")
-        let rhsGroupRaw = group(groupsRaw, named: "rhs")
+        let lhsIndex = groupIndex(matchRaw, named: "lhs")
+        let rhsIndex = groupIndex(matchRaw, named: "rhs")
 
-        #expect(lhsGroupRaw != runtimeNullSentinelInt)
-        #expect(rhsGroupRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
-        #expect(runtimeString(kk_match_group_value(rhsGroupRaw)) == "cd")
+        #expect(lhsIndex == 1)
+        #expect(rhsIndex == 2)
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, lhsIndex)) == "ab")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, rhsIndex)) == "cd")
     }
 
     @Test
-    func testMissingNamedGroupReturnsNullSentinel() {
+    func testMissingNamedGroupReturnsNegativeIndex() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
-        let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let missing = group(groupsRaw, named: "missing")
-        #expect(missing == runtimeNullSentinelInt)
+        #expect(groupIndex(matchRaw, named: "missing") == -1)
     }
 
     @Test
-    func testGroupNamesReturnsAllNamedGroups() {
+    func testNamedGroupIndicesForMultipleNames() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
-        let setRaw = kk_regex_group_names(regexRaw)
+        let matchRaw = find(regexRaw: regexRaw, input: "on 2024-05-06.")
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
-              let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            Issue.record("Expected RuntimeSetBox")
-            return
-        }
-        let names = Set(setBox.elements.map { runtimeString($0) })
-        #expect(names == Set(["year", "month", "day"]))
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "year"))) == "2024")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "month"))) == "05")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "day"))) == "06")
     }
 
     @Test
-    func testGroupNamesEmptyForUnnamedPattern() {
+    func testPatternBridgeRoundTripsUnnamedPattern() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
-        let setRaw = kk_regex_group_names(regexRaw)
+        let matchRaw = find(regexRaw: regexRaw, input: "12-34")
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
-              let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            Issue.record("Expected RuntimeSetBox")
-            return
-        }
-        #expect(setBox.elements.isEmpty)
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "(\\d+)-(\\d+)")
+        #expect(groupIndex(matchRaw, named: "year") == -1)
     }
 }
 #endif

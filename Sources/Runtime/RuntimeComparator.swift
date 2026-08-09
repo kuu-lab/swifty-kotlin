@@ -135,6 +135,68 @@ public func kk_comparator_nulls_last_of(_ cFn: Int, _ cClosure: Int) -> Int {
     return raw
 }
 
+// MARK: - Single-selector compareBy / compareByDescending
+
+@_cdecl("kk_comparator_from_selector")
+public func kk_comparator_from_selector(_ selFn: Int, _ selClosure: Int) -> Int {
+    let pair = RuntimePairBox(first: selFn, second: selClosure)
+    let raw = registerRuntimeObject(pair)
+    runtimeRegisterComparatorCompareMethod(raw, kk_comparator_from_selector_trampoline)
+    return raw
+}
+
+@_cdecl("kk_comparator_from_selector_descending")
+public func kk_comparator_from_selector_descending(_ selFn: Int, _ selClosure: Int) -> Int {
+    let pair = RuntimePairBox(first: selFn, second: selClosure)
+    let raw = registerRuntimeObject(pair)
+    runtimeRegisterComparatorCompareMethod(raw, kk_comparator_from_selector_descending_trampoline)
+    return raw
+}
+
+@_cdecl("kk_comparator_from_selector_trampoline")
+public func kk_comparator_from_selector_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: closureRaw),
+          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
+          let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+    else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
+        return 0
+    }
+    var thrown = 0
+    let keyA = runtimeInvokeCollectionLambda1(fnPtr: pairBox.first, closureRaw: pairBox.second, value: a, outThrown: &thrown)
+    if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+    let keyB = runtimeInvokeCollectionLambda1(fnPtr: pairBox.first, closureRaw: pairBox.second, value: b, outThrown: &thrown)
+    if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+    return runtimeCompareValues(keyA, keyB)
+}
+
+@_cdecl("kk_comparator_from_selector_descending_trampoline")
+public func kk_comparator_from_selector_descending_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: closureRaw),
+          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
+          let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+    else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
+        return 0
+    }
+    var thrown = 0
+    let keyA = runtimeInvokeCollectionLambda1(fnPtr: pairBox.first, closureRaw: pairBox.second, value: a, outThrown: &thrown)
+    if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+    let keyB = runtimeInvokeCollectionLambda1(fnPtr: pairBox.first, closureRaw: pairBox.second, value: b, outThrown: &thrown)
+    if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+    return runtimeCompareValues(keyB, keyA)
+}
+
 // MARK: - nullsLast (Comparable版 -- STDLIB-COMP-FN-061)
 
 @_cdecl("kk_comparator_nulls_last_natural_trampoline")

@@ -11,6 +11,32 @@ func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox?
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
 
+/// Runtime box that materializes a `RuntimeSequenceBox` on first use and then
+/// serves elements one-by-one. This lets source-implemented `Sequence<T>` and
+/// `Iterator<T>` wrappers chain with runtime-backed lazy sequences through the
+/// normal `Sequence`/`Iterator` itable dispatch path.
+final class RuntimeSequenceIteratorBox {
+    let seq: RuntimeSequenceBox
+    fileprivate var elements: [Int] = []
+    fileprivate var index: Int = 0
+    fileprivate var materialized: Bool = false
+
+    init(seq: RuntimeSequenceBox) {
+        self.seq = seq
+    }
+
+    func materialize(outThrown: UnsafeMutablePointer<Int>?) {
+        guard !materialized else { return }
+        elements = evaluateSequence(seq, outThrown: outThrown, markConsumption: true)
+        materialized = true
+    }
+}
+
+func runtimeSequenceIteratorBox(from rawValue: Int) -> RuntimeSequenceIteratorBox? {
+    resolveRuntimeHandle(rawValue, as: RuntimeSequenceIteratorBox.self)
+}
+
+
 /// Dispatches an `Iterator` method on a source-implemented `Iterator` object by
 /// looking up the `kotlin.collections.Iterator` itable dynamically.
 private func runtimeIteratorMethodCall(
@@ -314,8 +340,9 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
+        // See kk_array_map: keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
-            maybeUnbox(mapped),
+            mapped,
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -608,8 +635,9 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
+        // See kk_array_map: keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
-            maybeUnbox(mapped),
+            mapped,
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -3868,4 +3896,74 @@ public func kk_sequence_subtract(_ seqRaw: Int, _ otherRaw: Int) -> Int {
         !otherKeys.contains(RuntimeElementKey(value: elem))
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
+}
+
+// MARK: - Runtime-backed Sequence/Iterator itable support
+
+/// `Sequence.iterator()` implementation for `RuntimeSequenceBox`.
+/// Returns a `RuntimeSequenceIteratorBox` handle registered with the
+/// `kotlin.collections.Iterator` itable so source `Sequence` wrappers can call
+/// `hasNext()` / `next()` through normal interface dispatch.
+@_cdecl("kk_sequence_box_iterator")
+public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let seq = runtimeSequenceBox(from: seqRaw) else {
+        return 0
+    }
+    let iterator = RuntimeSequenceIteratorBox(seq: seq)
+    let raw = registerRuntimeObject(iterator as AnyObject)
+    _ = kk_object_register_itable_iface(raw, Int(runtimeIteratorInterfaceTypeID), 0)
+    let hasNextPtr = unsafeBitCast(
+        kk_sequence_iterator_hasNext as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
+    let nextPtr = unsafeBitCast(
+        kk_sequence_iterator_next as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
+    return raw
+}
+
+@_cdecl("kk_sequence_iterator_hasNext")
+public func kk_sequence_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    iter.materialize(outThrown: outThrown)
+    if outThrown?.pointee != 0 {
+        return 0
+    }
+    return iter.index < iter.elements.count ? 1 : 0
+}
+
+@_cdecl("kk_sequence_iterator_next")
+public func kk_sequence_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    iter.materialize(outThrown: outThrown)
+    if outThrown?.pointee != 0 {
+        return 0
+    }
+    guard iter.index < iter.elements.count else {
+        return 0
+    }
+    let value = iter.elements[iter.index]
+    iter.index += 1
+    return value
+}
+
+func registerRuntimeObject(_ box: RuntimeSequenceBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    _ = kk_object_register_itable_iface(raw, Int(runtimeSequenceInterfaceTypeID), 0)
+    let iteratorPtr = unsafeBitCast(
+        kk_sequence_box_iterator as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    _ = kk_object_register_itable_method(raw, 0, 0, iteratorPtr)
+    return raw
 }
