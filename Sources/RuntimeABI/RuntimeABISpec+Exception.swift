@@ -180,6 +180,24 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
+        // Bridge-only allocation entry points for the bundled Kotlin
+        // `kotlin.NotImplementedError` declaration (KSP-616).
+        RuntimeABIFunctionSpec(
+            name: "__kk_not_implemented_error_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_not_implemented_error_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_assertion_error_new",
             parameters: [],
@@ -588,23 +606,6 @@ public extension RuntimeABISpec {
             name: "kk_error",
             parameters: [
                 RuntimeABIParameter(name: "message", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_todo",
-            parameters: [
-                RuntimeABIParameter(name: "reason", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_todo_noarg",
-            parameters: [
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

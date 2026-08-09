@@ -3507,7 +3507,6 @@ extension NativeEmitter {
         case "__checkLazy": "kk_check_lazy"
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
-        case "__todo": argumentCount == 0 ? "kk_todo_noarg" : "kk_todo"
         case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
