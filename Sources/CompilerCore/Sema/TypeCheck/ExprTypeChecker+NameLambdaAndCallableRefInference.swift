@@ -1075,17 +1075,13 @@ extension ExprTypeChecker {
                 }
                 return true
             }()
-            let expectedReturnIsUnconstrainedTypeParam: Bool = {
-                guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
-                    return false
-                }
-                return sema.symbols.typeParameterUpperBounds(for: tp.symbol).isEmpty
-            }()
+            // A bounded type parameter (`fun <R : Any> f(g: () -> R)`) cannot be
+            // constrained locally either — `Int <: R` is never satisfiable while
+            // `R` is still a placeholder, and the upper bound is verified by the
+            // overload resolver once `R` is inferred (`checkTypeParameterBounds`).
             let shouldSkipSubtypeConstraint =
                 expectedFunctionType.returnType == sema.types.unitType
-                || (expectedFunctionType.receiver != nil
-                    ? expectedReturnIsTypeParam
-                    : expectedReturnIsUnconstrainedTypeParam)
+                || expectedReturnIsTypeParam
             if !shouldSkipSubtypeConstraint {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
@@ -1105,9 +1101,7 @@ extension ExprTypeChecker {
             // or `box.run2 { myValue }` fails to infer `R`). Substitute the
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
-            let shouldReturnResolvedFunctionType =
-                expectedReturnIsUnconstrainedTypeParam
-                || (expectedFunctionType.receiver != nil && expectedReturnIsTypeParam)
+            let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,

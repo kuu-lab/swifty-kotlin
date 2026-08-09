@@ -146,6 +146,7 @@ extension DataFlowSemaPhase {
         if body.isEmpty {
             body = [.returnUnit]
         }
+        body = body.map(shiftImportedInlineExprIDs)
 
         return KIRFunction(
             symbol: importedSymbol,
@@ -156,6 +157,64 @@ extension DataFlowSemaPhase {
             isSuspend: isSuspend,
             isInline: true
         )
+    }
+
+    /// Expression IDs in an inline KIR artifact are the ones the library used
+    /// when it was compiled, so they would otherwise alias unrelated
+    /// expressions of the importing module — inline expansion looks types and
+    /// expression kinds up by ID in the importing arena and would read whatever
+    /// happens to sit at the same index. Shifting them out of that range keeps
+    /// an imported body's expressions unresolvable there, which is the correct
+    /// answer: the artifact carries no expression types.
+    private static let importedInlineExprIDBase: Int32 = 4_000_000
+
+    private func shiftImportedInlineExprIDs(_ instruction: KIRInstruction) -> KIRInstruction {
+        func shift(_ id: KIRExprID) -> KIRExprID {
+            KIRExprID(rawValue: Self.importedInlineExprIDBase &+ id.rawValue)
+        }
+        switch instruction {
+        case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
+             .beginFinallyGuard, .endFinallyGuard:
+            return instruction
+        case let .jumpIfEqual(lhs, rhs, target):
+            return .jumpIfEqual(lhs: shift(lhs), rhs: shift(rhs), target: target)
+        case let .constValue(result, value):
+            return .constValue(result: shift(result), value: value)
+        case let .binary(op, lhs, rhs, result):
+            return .binary(op: op, lhs: shift(lhs), rhs: shift(rhs), result: shift(result))
+        case let .unary(op, operand, result):
+            return .unary(op: op, operand: shift(operand), result: shift(result))
+        case let .nullAssert(operand, result):
+            return .nullAssert(operand: shift(operand), result: shift(result))
+        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+            return .call(
+                symbol: symbol, callee: callee, arguments: arguments.map(shift),
+                result: result.map(shift), canThrow: canThrow, thrownResult: thrownResult.map(shift),
+                isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+            )
+        case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+            return .virtualCall(
+                symbol: symbol, callee: callee, receiver: shift(receiver),
+                arguments: arguments.map(shift), result: result.map(shift),
+                canThrow: canThrow, thrownResult: thrownResult.map(shift), dispatch: dispatch
+            )
+        case let .jumpIfNotNull(value, target):
+            return .jumpIfNotNull(value: shift(value), target: target)
+        case let .copy(from, to):
+            return .copy(from: shift(from), to: shift(to))
+        case let .storeGlobal(value, symbol):
+            return .storeGlobal(value: shift(value), symbol: symbol)
+        case let .loadGlobal(result, symbol):
+            return .loadGlobal(result: shift(result), symbol: symbol)
+        case let .rethrow(value):
+            return .rethrow(value: shift(value))
+        case let .returnIfEqual(lhs, rhs):
+            return .returnIfEqual(lhs: shift(lhs), rhs: shift(rhs))
+        case let .returnValue(value):
+            return .returnValue(shift(value))
+        case let .nonLocalReturn(value):
+            return .nonLocalReturn(value.map(shift))
+        }
     }
 
     private func importedInlineParameterSymbol(functionSymbol: SymbolID, index: Int) -> SymbolID {
@@ -410,8 +469,7 @@ extension DataFlowSemaPhase {
             guard let calleeEncoded = pairs["calleeB64"],
                   let calleeName = decodeBase64String(calleeEncoded),
                   let receiverRaw = pairs["receiver"], let receiver = Int32(receiverRaw),
-                  let dispatchRaw = pairs["dispatch"],
-                  let dispatch = parseImportedInlineDispatch(dispatchRaw)
+                  let dispatch = parseImportedInlineDispatchKind(pairs["dispatch"] ?? "")
             else {
                 return nil
             }
@@ -423,7 +481,13 @@ extension DataFlowSemaPhase {
             } else {
                 nil
             }
+            let thrownResult: KIRExprID? = if let thrownResultRaw = pairs["thrownResult"], thrownResultRaw != "_" {
+                Int32(thrownResultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
             let canThrowRaw = pairs["canThrow"] ?? "0"
+            let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             var callSymbol: SymbolID? = nil
             if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
@@ -438,8 +502,8 @@ extension DataFlowSemaPhase {
                 receiver: KIRExprID(rawValue: receiver),
                 arguments: args,
                 result: result,
-                canThrow: canThrowRaw == "1" || canThrowRaw == "true",
-                thrownResult: nil,
+                canThrow: canThrow,
+                thrownResult: thrownResult,
                 dispatch: dispatch
             )
         default:
@@ -447,31 +511,23 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Parses a serialized `KIRDispatchKind`. Slot indices and the
-    /// `itableDynamic` interface type ID (a stable hash of the interface's
-    /// fully qualified name) are module independent, so they survive the round
-    /// trip through a library artifact unchanged.
-    private func parseImportedInlineDispatch(_ raw: String) -> KIRDispatchKind? {
-        let fields = raw.split(separator: ":")
-        switch fields.first {
+    private func parseImportedInlineDispatchKind(_ token: String) -> KIRDispatchKind? {
+        let parts = token.split(separator: ":", omittingEmptySubsequences: false)
+        switch parts.first {
         case "vtable":
-            guard fields.count == 2, let slot = Int(fields[1]) else { return nil }
+            guard parts.count == 2, let slot = Int(parts[1]) else { return nil }
             return .vtable(slot: slot)
         case "itable":
-            guard fields.count == 3,
-                  let interfaceSlot = Int(fields[1]),
-                  let methodSlot = Int(fields[2])
-            else {
-                return nil
-            }
+            guard parts.count == 3,
+                  let interfaceSlot = Int(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
             return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
         case "itableDynamic":
-            guard fields.count == 3,
-                  let interfaceTypeID = Int64(fields[1]),
-                  let methodSlot = Int(fields[2])
-            else {
-                return nil
-            }
+            guard parts.count == 3,
+                  let interfaceTypeID = Int64(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
             return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         default:
             return nil

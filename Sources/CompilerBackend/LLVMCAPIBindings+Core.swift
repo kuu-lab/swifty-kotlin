@@ -110,6 +110,43 @@ extension LLVMCAPIBindings {
         positionBuilderFn(builder, block)
     }
 
+    /// Positions the builder immediately before `instruction`. Returns false when
+    /// the underlying `LLVMPositionBuilderBefore` symbol is unavailable.
+    func positionBuilder(_ builder: LLVMBuilderRef?, before instruction: LLVMValueRef?) -> Bool {
+        guard let positionBuilderBeforeFn else { return false }
+        positionBuilderBeforeFn(builder, instruction)
+        return true
+    }
+
+    func firstInstruction(of block: LLVMBasicBlockRef?) -> LLVMValueRef? {
+        getFirstInstructionFn?(block)
+    }
+
+    /// Emits an `alloca` at the top of `entryBlock` through a dedicated builder.
+    /// Slots emitted while a loop body is being lowered must not live in the loop
+    /// block: a non-entry `alloca` is a dynamic stack allocation that grows the
+    /// frame on every iteration and overflows the stack in long-running loops.
+    /// Falls back to `fallbackBuilder` when the positioning symbols are missing.
+    func buildEntryAlloca(
+        type: LLVMTypeRef?,
+        name: String,
+        entryBlock: LLVMBasicBlockRef?,
+        allocaBuilder: LLVMBuilderRef?,
+        fallbackBuilder: LLVMBuilderRef?
+    ) -> LLVMValueRef? {
+        guard let allocaBuilder, let entryBlock, getFirstInstructionFn != nil, positionBuilderBeforeFn != nil else {
+            return buildAlloca(fallbackBuilder, type: type, name: name)
+        }
+        if let firstInstruction = firstInstruction(of: entryBlock) {
+            guard positionBuilder(allocaBuilder, before: firstInstruction) else {
+                return buildAlloca(fallbackBuilder, type: type, name: name)
+            }
+        } else {
+            positionBuilder(allocaBuilder, at: entryBlock)
+        }
+        return buildAlloca(allocaBuilder, type: type, name: name)
+    }
+
     func hasTerminator(_ block: LLVMBasicBlockRef?) -> Bool {
         getBasicBlockTerminatorFn(block) != nil
     }

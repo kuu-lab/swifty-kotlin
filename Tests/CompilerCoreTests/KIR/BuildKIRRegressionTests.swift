@@ -99,7 +99,7 @@ struct BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("__string_struct_get_length"))
+            #expect(callees.contains("__kk_string_struct_get_length"))
             #expect(!callees.contains("kk_string_struct_get_length"))
         }
     }

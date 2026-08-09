@@ -17,6 +17,29 @@ extension CallLowerer {
         "firstNotNullOf", "firstNotNullOfOrNull",
     ]
 
+    /// Whether Sema bound the call to a bundled Kotlin-source declaration that
+    /// is lowered as an ordinary source call (no `kk_*` external link name).
+    func isResolvedSourceBackedCallee(_ exprID: ExprID, sema: SemaModule) -> Bool {
+        guard let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+              chosenCallee != .invalid,
+              let symbol = sema.symbols.symbol(chosenCallee),
+              symbol.kind == .function,
+              sema.symbols.isSourceBackedSymbol(chosenCallee)
+        else {
+            return false
+        }
+        return Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosenCallee))
+    }
+
+    /// A declaration compiled from Kotlin source either carries no external link
+    /// name (bundled source in this compilation) or the compiler's own `kk_fn_*`
+    /// mangling (the same declaration imported from a stdlib library artifact).
+    /// Any other `kk_*` link name is a runtime-bridge ABI stub.
+    static func isSourceBackedLinkName(_ linkName: String?) -> Bool {
+        guard let linkName, !linkName.isEmpty else { return true }
+        return linkName.hasPrefix("kk_fn_")
+    }
+
     /// Member names whose generic Iterable/Collection implementations moved to
     /// bundled Kotlin source in KSP-435. A call bound to one of those source
     /// declarations bypasses this file's runtime-bridge special cases.
@@ -93,7 +116,8 @@ extension CallLowerer {
         // the closure-env slot the bridge's calling convention requires.
         if args.count == 1,
            let onlyLambdaArg = args.first,
-           ast.arena.expr(onlyLambdaArg.expr)?.isLambdaOrCallableRef == true
+           ast.arena.expr(onlyLambdaArg.expr)?.isLambdaOrCallableRef == true,
+           !isResolvedSourceBackedCallee(exprID, sema: sema)
         {
             let receiverTypeForHOFMarking = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if isConcreteArrayLikeType(sema.types.makeNonNullable(receiverTypeForHOFMarking), sema: sema, interner: interner),
@@ -141,6 +165,18 @@ extension CallLowerer {
                 [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstanceTo")],
             ]
             return sourceBackedListFilterFQNames.contains(symbol.fqName)
+        }()
+        // KSP-433: generic `Array<T>` HOFs (map/filter/fold/reduce/any/...) have
+        // bundled Kotlin-source implementations, so a call Sema resolved to one
+        // of them must be lowered as an ordinary source call instead of being
+        // redirected to the raw `kk_array_*` runtime bridge by the by-name
+        // switches in this file.
+        let isSourceBackedArrayHOFCall: Bool = {
+            guard isResolvedSourceBackedCallee(exprID, sema: sema) else { return false }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            return isConcreteArrayLikeType(
+                sema.types.makeNonNullable(receiverType), sema: sema, interner: interner
+            )
         }()
         let isSourceBackedMemberCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
@@ -200,9 +236,7 @@ extension CallLowerer {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation, chosenCallee != .invalid else {
                 return true
             }
-            if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-               !externalLinkName.isEmpty
-            {
+            if !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosenCallee)) {
                 return true
             }
             if resultRuntimeHOFMemberCalleeName(
@@ -374,7 +408,7 @@ extension CallLowerer {
             }
         }
 
-        if args.isEmpty {
+        if args.isEmpty, !isSourceBackedArrayHOFCall {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let runtimeCallee: InternedString? = switch interner.resolve(calleeName) {
@@ -437,7 +471,8 @@ extension CallLowerer {
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_first"
                             : (isLongRange ? "kk_long_range_first" : "kk_range_first")))
-                case "end":
+                // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
+                case "end", "endInclusive":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
@@ -614,41 +649,8 @@ extension CallLowerer {
             }
         }
 
-        // Int.rotateLeft() / rotateRight() (STDLIB-BIT-007)
-        if args.count == 1 {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "rotateLeft" || calleeStr == "rotateRight" {
-                let intType = sema.types.intType
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if nonNullReceiverType == intType {
-                    let runtimeName: String
-                    switch calleeStr {
-                    case "rotateLeft": runtimeName = "kk_int_rotateLeft"
-                    case "rotateRight": runtimeName = "kk_int_rotateRight"
-                    default: fatalError("unreachable: calleeStr already guarded to rotate functions")
-                    }
-                    let loweredArgID = driver.lowerExpr(
-                        args[0].expr,
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers,
-                        instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeName),
-                        arguments: [loweredReceiverID, loweredArgID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
+        // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
+        // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
 
         // Long bit manipulation functions (STDLIB-BIT-007)
         let longType = sema.types.longType
@@ -674,37 +676,6 @@ extension CallLowerer {
                         symbol: nil,
                         callee: interner.intern(name),
                         arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-
-            // Single-argument functions (rotate)
-            if args.count == 1 {
-                let runtimeName: String?
-                switch calleeStr {
-                case "rotateLeft": runtimeName = "kk_long_rotateLeft"
-                case "rotateRight": runtimeName = "kk_long_rotateRight"
-                default: runtimeName = nil
-                }
-
-                if let name = runtimeName {
-                    let loweredArgID = driver.lowerExpr(
-                        args[0].expr,
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers,
-                        instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(name),
-                        arguments: [loweredReceiverID, loweredArgID],
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -1193,7 +1164,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("__string_struct_get_length"),
+                    callee: interner.intern("__kk_string_struct_get_length"),
                     arguments: [loweredReceiverID],
                     result: result,
                     canThrow: false,
@@ -1976,19 +1947,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "compareTo"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_compareToIgnoreCase_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
         }
 
         if args.count == 3 {
@@ -2365,23 +2323,18 @@ extension CallLowerer {
                     return result
                 }
 
-                // BUG-164: `any`/`all`/`none` with a predicate have real, `inline`
-                // Kotlin-source declarations (ArrayAnyNoneHOF.kt) that take the
-                // predicate as an ordinary inline-callable parameter — a
-                // different calling convention than the closure-adapted
-                // (fnPtr, closureRaw) pair the kk_array_any/all/none native
-                // bridges below expect. When Sema resolved a real declaration
-                // (chosenCallee has a declSite), this shortcut must not
-                // intercept the call: it skipped straight to the native
-                // bridge with the raw, un-adapted lambda argument, so the
-                // bridge invoked the compiled lambda with the wrong argument
-                // shape and corrupted its own body's reads of `it`. Falling
-                // through here lets the normal call-lowering path (which
-                // inlines the real declaration, matching how every other
-                // user-written inline function call is lowered) handle it
-                // instead.
-                let hasRealPredicateDecl = ["any", "all", "none"].contains(calleeStr)
-                    && chosenCalleeForArgumentAdaptation.map { sema.symbols.isSourceBackedSymbol($0) } == true
+                // A bundled Kotlin-source declaration (e.g. `Array<T>.map` in
+                // ArrayHOF.kt) takes its lambda as an ordinary inline-callable
+                // parameter — a different calling convention than the
+                // closure-adapted (fnPtr, closureRaw) pair the kk_array_*
+                // bridges below expect. When Sema resolved such a declaration,
+                // this shortcut must not intercept the call: it would reach the
+                // native bridge with the raw, un-adapted lambda argument, so the
+                // bridge invokes the compiled lambda with the wrong argument
+                // shape (BUG-164). Primitive-array receivers keep using the
+                // bridges: their members resolve through tryArrayMemberFallback
+                // without a chosen callee.
+                let hasRealPredicateDecl = isSourceBackedArrayHOFCall
                 let rawRuntimeCallee: String? = switch calleeStr {
                 case "map":
                     "kk_array_map"
@@ -3548,25 +3501,12 @@ extension CallLowerer {
                     return result
                 }
             }
-            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               interner.resolve(calleeName) == "pattern"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_regex_pattern"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
         }
 
         // String stdlib: format(vararg args) (STDLIB-006)
         if interner.resolve(calleeName) == "format",
            let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_format_flat"
+           sema.symbols.externalLinkName(for: chosenCallee) == "__kk_string_format_flat"
         {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -3610,7 +3550,7 @@ extension CallLowerer {
                 }
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_format_flat"),
+                    callee: interner.intern("__kk_string_format_flat"),
                     arguments: [loweredReceiverID, packedArgs],
                     result: result,
                     canThrow: false,

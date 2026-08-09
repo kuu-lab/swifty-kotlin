@@ -29,11 +29,6 @@ struct StringIsBlankFunctionTests {
             errors.isEmpty,
             "Expected isBlank to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
-
-    @Test func testIsBlankStringExtensionIsBundledKotlin() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
 
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
