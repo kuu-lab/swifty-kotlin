@@ -1,3 +1,4 @@
+#if canImport(Testing)
 import Dispatch
 @testable import Runtime
 import Testing
@@ -57,7 +58,7 @@ private func coro_intrinsics_throw_immediately(_ continuation: Int, _ outThrown:
 // RuntimeCancellationBox reports this chain via exceptionHierarchyFQNames so catch clauses
 // targeting IllegalStateException / RuntimeException match CancellationException at runtime (PR #1261).
 
-@Suite(.runtimeIsolation(.all))
+@Suite(.serialized, .runtimeIsolation(.all))
 struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     // MARK: - COROUTINE_SUSPENDED sentinel
@@ -398,16 +399,15 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     /// IllegalStateException must appear before RuntimeException in the hierarchy list
     /// (subtype ordering: CancellationException → ISE → RuntimeException → Exception → Throwable).
-    @Test func cancellationExceptionHierarchyOrderingISEBeforeRuntimeException() {
+    @Test func cancellationExceptionHierarchyOrderingISEBeforeRuntimeException() throws {
         let box = RuntimeCancellationBox(message: "cancelled")
         let names = box.exceptionHierarchyFQNames
-        let iseIndex = names.firstIndex(of: "kotlin.IllegalStateException")
-        let rteIndex = names.firstIndex(of: "kotlin.RuntimeException")
-        #expect(iseIndex != nil, "kotlin.IllegalStateException must be present")
-        #expect(rteIndex != nil, "kotlin.RuntimeException must be present")
-        if let ise = iseIndex, let rte = rteIndex {
-            #expect(ise < rte, "IllegalStateException must precede RuntimeException in the hierarchy list")
-        }
+        let iseIndex = try #require(names.firstIndex(of: "kotlin.IllegalStateException"),
+            "kotlin.IllegalStateException must be present")
+        let rteIndex = try #require(names.firstIndex(of: "kotlin.RuntimeException"),
+            "kotlin.RuntimeException must be present")
+        #expect(iseIndex < rteIndex,
+            "IllegalStateException must precede RuntimeException in the hierarchy list")
     }
 
     /// runtimeThrowableMatchesNominalTypeID must return true when checking CancellationException
@@ -425,3 +425,4 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(runtimeThrowableMatchesNominalTypeID(box, targetTypeID: rteTypeID), "catch (e: RuntimeException) must catch CancellationException")
     }
 }
+#endif
