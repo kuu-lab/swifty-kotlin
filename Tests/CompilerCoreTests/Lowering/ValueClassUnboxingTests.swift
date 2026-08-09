@@ -5,304 +5,206 @@ import Testing
 
 @Suite
 struct ValueClassUnboxingTests {
-    // MARK: - Value class flag propagation
+
+    // MARK: - Sema-level value class validation
 
     @Test
-    func testValueModifierSetsValueTypeFlag() throws {
-        let source = """
-        value class Meter(val amount: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
-
-        let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
-        }))
-        #expect(meterSymbol.flags.contains(.valueType), "value class should have valueType flag")
-    }
-
-    @Test
-    func testValueClassRecordsUnderlyingType() throws {
-        let source = """
-        value class Meter(val amount: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
-
-        let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
-        }))
-        let underlyingType = sema.symbols.valueClassUnderlyingType(for: meterSymbol.id)
-        #expect(underlyingType != nil, "value class should have an underlying type recorded")
-
-        if let underlyingType {
-            let kind = sema.types.kind(of: underlyingType)
-            if case .primitive(.int, .nonNull) = kind {
-                // Expected
-            } else {
-                Issue.record("Expected underlying type to be Int, got \(kind)")
+    func testValueClassSema() throws {
+        let sources: [String] = [
+            // Flag and underlying type
+            """
+            value class Meter(val amount: Int)
+            """,
+            // @JvmInline value class
+            """
+            @JvmInline
+            value class UserId(val raw: Int)
+            """,
+            // inline class (legacy keyword)
+            """
+            inline class LegacyCount(val raw: Int)
+            """,
+            // Multiple primary constructor parameters diagnostic
+            """
+            value class BadMultiple(val x: Int, val y: Int)
+            """,
+            // Secondary constructor diagnostic
+            """
+            value class BadSecondary(val x: Int) {
+                constructor() : this(0)
             }
-        }
-    }
+            """,
+        ]
 
-    @Test
-    func testJvmInlineValueClassSetsValueTypeFlag() throws {
-        let source = """
-        @JvmInline
-        value class UserId(val raw: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
 
-        let userIdSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "UserId"
-        }))
-        #expect(userIdSymbol.flags.contains(.valueType), "@JvmInline value class should have valueType flag")
+            do {
+                let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+                    symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
+                }))
+                #expect(meterSymbol.flags.contains(.valueType), "value class should have valueType flag")
 
-        let underlyingType = sema.symbols.valueClassUnderlyingType(for: userIdSymbol.id)
-        #expect(underlyingType != nil, "@JvmInline value class should record an underlying type")
-    }
+                let underlyingType = sema.symbols.valueClassUnderlyingType(for: meterSymbol.id)
+                #expect(underlyingType != nil, "value class should have an underlying type recorded")
 
-    @Test
-    func testInlineClassSetsValueTypeFlag() throws {
-        let source = """
-        inline class LegacyCount(val raw: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
-
-        let legacyCountSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "LegacyCount"
-        }))
-        #expect(legacyCountSymbol.flags.contains(.valueType), "inline class should have valueType flag")
-        #expect(!legacyCountSymbol.flags.contains(.inlineFunction), "inline class should not be marked as inline function")
-
-        let underlyingType = sema.symbols.valueClassUnderlyingType(for: legacyCountSymbol.id)
-        #expect(underlyingType != nil, "inline class should record an underlying type")
-    }
-
-    // MARK: - Value class unboxing lowering
-
-    @Test
-    func testValueClassConstructorRewrittenToCopy() throws {
-        // The ValueClassUnboxingPass is now enabled and rewrites constructor
-        // calls for value classes into .copy instructions.
-        let source = """
-        value class Meter(val amount: Int)
-
-        fun create(): Int {
-            val m = Meter(42)
-            return m.amount
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        let module = try #require(ctx.kir)
-
-        // The pass name should be recorded.
-        #expect(
-            module.executedLowerings.contains("ValueClassUnboxing"),
-            "ValueClassUnboxing pass should have been recorded"
-        )
-
-        // After unboxing, constructor calls for value classes should be
-        // eliminated (rewritten to .copy or removed entirely).
-        var hasValueClassConstructorCall = false
-        for function in findAllKIRFunctions(in: module) {
-            for instruction in function.body {
-                switch instruction {
-                case let .call(symbol, _, _, _, _, _, _, _):
-                    if let symbol,
-                       let sym = ctx.sema?.symbols.symbol(symbol),
-                       sym.kind == .constructor,
-                       sym.flags.contains(.valueType) || {
-                           // Check if the parent class is a value class
-                           guard let parentID = ctx.sema?.symbols.parentSymbol(for: symbol),
-                                 let parentSym = ctx.sema?.symbols.symbol(parentID)
-                           else { return false }
-                           return parentSym.flags.contains(.valueType)
-                       }()
-                    {
-                        hasValueClassConstructorCall = true
+                if let underlyingType {
+                    let kind = sema.types.kind(of: underlyingType)
+                    if case .primitive(.int, .nonNull) = kind {
+                        // Expected
+                    } else {
+                        Issue.record("Expected underlying type to be Int, got \(kind)")
                     }
-                default:
-                    break
                 }
             }
-        }
 
-        #expect(
-            !hasValueClassConstructorCall,
-            "Value class constructor call should be rewritten by ValueClassUnboxingPass"
-        )
+            do {
+                let userIdSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+                    symbol.kind == .class && interner.resolve(symbol.name) == "UserId"
+                }))
+                #expect(userIdSymbol.flags.contains(.valueType), "@JvmInline value class should have valueType flag")
+
+                let underlyingType = sema.symbols.valueClassUnderlyingType(for: userIdSymbol.id)
+                #expect(underlyingType != nil, "@JvmInline value class should record an underlying type")
+            }
+
+            do {
+                let legacySymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+                    symbol.kind == .class && interner.resolve(symbol.name) == "LegacyCount"
+                }))
+                #expect(legacySymbol.flags.contains(.valueType), "inline class should have valueType flag")
+                #expect(!legacySymbol.flags.contains(.inlineFunction), "inline class should not be marked as inline function")
+
+                let underlyingType = sema.symbols.valueClassUnderlyingType(for: legacySymbol.id)
+                #expect(underlyingType != nil, "inline class should record an underlying type")
+            }
+
+            do {
+                let badMultipleErrors = diagnosticsForPath(paths[3], in: ctx).filter { $0.severity == .error }
+                #expect(
+                    badMultipleErrors.contains(where: { $0.message.contains("exactly one primary constructor parameter") }),
+                    "Expected diagnostic about single constructor parameter for value class"
+                )
+            }
+
+            do {
+                let badSecondaryErrors = diagnosticsForPath(paths[4], in: ctx).filter { $0.severity == .error }
+                #expect(
+                    badSecondaryErrors.contains(where: { $0.message.contains("secondary constructors") }),
+                    "Expected diagnostic about secondary constructors for value class"
+                )
+            }
+        }
     }
 
+    // MARK: - Lowering-level value class unboxing
+
     @Test
-    func testValueClassPropertyAccessRewrittenToCopy() throws {
-        // Property access on a value class via kk_array_get_inbounds should be
-        // rewritten to a copy instruction after unboxing.
-        let source = """
-        value class Meter(val amount: Int)
+    func testValueClassUnboxingLowering() throws {
+        let sources: [String] = [
+            // Value class: constructor and property access
+            """
+            value class Meter(val amount: Int)
 
-        fun getAmount(m: Meter): Int = m.amount
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
+            fun getAmount(m: Meter): Int = m.amount
+            fun create(): Int {
+                val m = Meter(42)
+                return m.amount
+            }
+            """,
+            // Regular class: should still allocate
+            """
+            class Box(val value: Int)
 
-        let module = try #require(ctx.kir)
-        let interner = ctx.interner
-        let kk_array_get_inbounds = interner.intern("kk_array_get_inbounds")
+            fun createBox(): Int {
+                val b = Box(42)
+                return b.value
+            }
+            """,
+        ]
 
-        // After unboxing, there should be no kk_array_get_inbounds calls
-        // on value class receivers.
-        var hasArrayGetOnValueClass = false
-        for function in findAllKIRFunctions(in: module) {
-            for instruction in function.body {
-                if case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                   callee == kk_array_get_inbounds,
-                   arguments.count == 2
-                {
-                    // Check if the receiver argument has a value class type
-                    if let receiverType = module.arena.exprType(arguments[0]),
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let interner = ctx.interner
+            let kk_object_new = interner.intern("kk_object_new")
+            let kk_array_get_inbounds = interner.intern("kk_array_get_inbounds")
+
+            var hasValueClassAlloc = false
+            var hasArrayGetOnValueClass = false
+            var hasValueClassConstructorCall = false
+            var hasObjectNew = false
+
+            for function in findAllKIRFunctions(in: module) {
+                for instruction in function.body {
+                    switch instruction {
+                    case let .call(symbol, _, _, _, _, _, _, _):
+                        if let symbol,
+                           let sym = ctx.sema?.symbols.symbol(symbol),
+                           sym.kind == .constructor,
+                           sym.flags.contains(.valueType) || {
+                               guard let parentID = ctx.sema?.symbols.parentSymbol(for: symbol),
+                                     let parentSym = ctx.sema?.symbols.symbol(parentID)
+                               else { return false }
+                               return parentSym.flags.contains(.valueType)
+                           }()
+                        {
+                            hasValueClassConstructorCall = true
+                        }
+                    default:
+                        break
+                    }
+
+                    if case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                       callee == kk_array_get_inbounds,
+                       arguments.count == 2,
+                       let receiverType = module.arena.exprType(arguments[0]),
                        case let .classType(classType) = ctx.sema?.types.kind(of: receiverType),
                        let sym = ctx.sema?.symbols.symbol(classType.classSymbol),
                        sym.flags.contains(.valueType)
                     {
                         hasArrayGetOnValueClass = true
                     }
+
+                    if case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                       callee == kk_object_new
+                    {
+                        hasObjectNew = true
+                        if let result,
+                           let resultType = module.arena.exprType(result),
+                           case let .classType(classType) = ctx.sema?.types.kind(of: resultType),
+                           let sym = ctx.sema?.symbols.symbol(classType.classSymbol),
+                           sym.flags.contains(.valueType)
+                        {
+                            hasValueClassAlloc = true
+                        }
+                    }
                 }
             }
+
+            #expect(
+                !hasValueClassConstructorCall,
+                "Value class constructor call should be rewritten by ValueClassUnboxingPass"
+            )
+            #expect(
+                !hasArrayGetOnValueClass,
+                "kk_array_get_inbounds on value class should be rewritten to copy"
+            )
+            #expect(
+                !hasValueClassAlloc,
+                "kk_object_new for value class should be eliminated by unboxing"
+            )
+            #expect(
+                hasObjectNew,
+                "Regular class should still use kk_object_new for allocation"
+            )
         }
-
-        #expect(
-            !hasArrayGetOnValueClass,
-            "kk_array_get_inbounds on value class should be rewritten to copy"
-        )
-    }
-
-    @Test
-    func testValueClassNoHeapAllocation() throws {
-        // After unboxing, kk_object_new calls for value class instances
-        // should be eliminated.
-        let source = """
-        value class Meter(val amount: Int)
-
-        fun create(): Int {
-            val m = Meter(42)
-            return m.amount
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        let module = try #require(ctx.kir)
-        let interner = ctx.interner
-        let kk_object_new = interner.intern("kk_object_new")
-
-        // Scan for kk_object_new calls whose result has a value class type
-        var hasValueClassAlloc = false
-        for function in findAllKIRFunctions(in: module) {
-            for instruction in function.body {
-                if case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                   callee == kk_object_new,
-                   let result,
-                   let resultType = module.arena.exprType(result),
-                   case let .classType(classType) = ctx.sema?.types.kind(of: resultType),
-                   let sym = ctx.sema?.symbols.symbol(classType.classSymbol),
-                   sym.flags.contains(.valueType)
-                {
-                    hasValueClassAlloc = true
-                }
-            }
-        }
-
-        #expect(
-            !hasValueClassAlloc,
-            "kk_object_new for value class should be eliminated by unboxing"
-        )
-    }
-
-    @Test
-    func testNonValueClassNotAffected() throws {
-        // Regular classes should not be affected by the unboxing pass.
-        let source = """
-        class Box(val value: Int)
-
-        fun create(): Int {
-            val b = Box(42)
-            return b.value
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        let module = try #require(ctx.kir)
-        let interner = ctx.interner
-        let kk_object_new = interner.intern("kk_object_new")
-
-        // Regular classes should still have kk_object_new calls.
-        var hasObjectNew = false
-        for function in findAllKIRFunctions(in: module) {
-            for instruction in function.body {
-                if case let .call(_, callee, _, _, _, _, _, _) = instruction,
-                   callee == kk_object_new
-                {
-                    hasObjectNew = true
-                }
-            }
-        }
-
-        #expect(
-            hasObjectNew,
-            "Regular class should still use kk_object_new for allocation"
-        )
-    }
-
-    // MARK: - Validation diagnostics
-
-    @Test
-    func testValueClassMultipleParamsEmitsDiagnostic() throws {
-        let source = """
-        value class Bad(val x: Int, val y: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.contains(where: { $0.message.contains("exactly one primary constructor parameter") }),
-            "Expected diagnostic about single constructor parameter for value class"
-        )
-    }
-
-    @Test
-    func testValueClassSecondaryConstructorEmitsDiagnostic() throws {
-        let source = """
-        value class Bad(val x: Int) {
-            constructor() : this(0)
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.contains(where: { $0.message.contains("secondary constructors") }),
-            "Expected diagnostic about secondary constructors for value class"
-        )
     }
 }
 #endif
