@@ -172,7 +172,7 @@ public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThr
         // Block threw — propagate the block exception (case 1 & 2).
         // If close() also threw, attach it as a suppressed exception.
         if closeThrown != 0 {
-            _ = kk_throwable_addSuppressed(blockThrown, closeThrown)
+            _ = __kk_throwable_appendSuppressed(blockThrown, closeThrown)
         }
         return handleCollectionLambdaThrow(blockThrown, outThrown)
     }
@@ -183,7 +183,7 @@ public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThr
     return result
 }
 
-@_cdecl("kk_iterable_firstNotNullOf")
+@_cdecl("__kk_iterable_firstNotNullOf")
 public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
@@ -200,7 +200,7 @@ public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closu
     return handleCollectionLambdaThrow(thrown, outThrown)
 }
 
-@_cdecl("kk_iterable_firstNotNullOfOrNull")
+@_cdecl("__kk_iterable_firstNotNullOfOrNull")
 public func kk_iterable_firstNotNullOfOrNull(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
@@ -219,7 +219,7 @@ public func kk_iterable_firstNotNullOfOrNull(_ iterableRaw: Int, _ fnPtr: Int, _
 
 
 
-@_cdecl("kk_iterable_requireNoNulls")
+@_cdecl("__kk_iterable_requireNoNulls")
 public func kk_iterable_requireNoNulls(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
@@ -242,7 +242,7 @@ public func kk_list_forEach(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
     return 0
 }
 
-@_cdecl("kk_iterable_any")
+@_cdecl("__kk_iterable_any")
 public func kk_iterable_any(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) ?? runtimeArrayBox(from: iterableRaw)?.elements else {
         invalidContainerPanic(#function, "iterable")
@@ -259,7 +259,7 @@ public func kk_iterable_any(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
     return 0
 }
 
-@_cdecl("kk_iterable_all")
+@_cdecl("__kk_iterable_all")
 public func kk_iterable_all(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) ?? runtimeArrayBox(from: iterableRaw)?.elements else {
         invalidContainerPanic(#function, "iterable")
@@ -778,7 +778,7 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
         i = end
@@ -830,7 +830,7 @@ public func kk_list_bridge_windowed_transform(
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: windowList,

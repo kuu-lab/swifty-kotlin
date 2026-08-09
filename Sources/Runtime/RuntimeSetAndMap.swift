@@ -157,7 +157,7 @@ public func kk_set_singleOrNull(_ setRaw: Int) -> Int {
     return set.elements[0]
 }
 
-@_cdecl("kk_collection_toList")
+@_cdecl("__kk_collection_toList")
 public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(elements: list.elements))
@@ -180,7 +180,7 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
-@_cdecl("kk_collection_size")
+@_cdecl("__kk_collection_size")
 public func kk_collection_size(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
         return list.elements.count
@@ -191,7 +191,7 @@ public func kk_collection_size(_ collRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_collection_isEmpty")
+@_cdecl("__kk_collection_isEmpty")
 public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
         return list.elements.isEmpty ? 1 : 0

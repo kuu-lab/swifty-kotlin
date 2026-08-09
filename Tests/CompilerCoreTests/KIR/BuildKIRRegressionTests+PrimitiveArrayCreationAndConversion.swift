@@ -240,9 +240,10 @@ extension BuildKIRRegressionTests {
 
     // MARK: - List.toIntArray / List.toByteArray conversion lowering
 
-    /// `list.toIntArray()` must lower to the dedicated `kk_list_toIntArray`
-    /// runtime call rather than the generic `toIntArray` symbol.
-    @Test func testListToIntArrayLowersToRuntimeCall() throws {
+    /// KSP-628: `list.toIntArray()` is source-backed (ArrayConversions.kt), so it
+    /// must lower to the bundled declaration instead of `kk_list_toIntArray` — and
+    /// must not fall through to an unresolved generic `toIntArray` symbol either.
+    @Test func testListToIntArrayLowersToSourceBackedCall() throws {
         let source = """
         fun convert(list: List<Int>) = list.toIntArray()
         fun main(): Int {
@@ -261,13 +262,23 @@ extension BuildKIRRegressionTests {
             let callNames = extractCallees(from: convertBody, interner: ctx.interner)
 
             #expect(
-                callNames.contains("kk_list_toIntArray"),
-                "List<Int>.toIntArray() must lower to kk_list_toIntArray; got: \(callNames)"
+                !callNames.contains("kk_list_toIntArray"),
+                "List<Int>.toIntArray() must no longer use the removed kk_list_toIntArray bridge; got: \(callNames)"
             )
             #expect(
-                !(callNames.contains("toIntArray")),
-                "toIntArray must be fully rewritten; got: \(callNames)"
+                callNames == ["toIntArray"],
+                "List<Int>.toIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
             )
+
+            // The call must carry a resolved declaration symbol (bundled stdlib),
+            // not an unresolved name that would only be matched at link time.
+            let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "toIntArray"
+                else { return nil }
+                return symbol
+            }.first)
+            #expect(ctx.sema?.symbols.externalLinkName(for: calleeSymbol) == nil)
         }
     }
 
