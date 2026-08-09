@@ -479,6 +479,35 @@ extension ExprLowerer {
                         )
                     }
                 }
+                // Imported top-level properties with a custom getter have no
+                // global slot in the producing artifact; their reads dispatch
+                // to the precompiled getter accessor instead.
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   sym.flags.contains(.importedLibrary),
+                   sema.symbols.propertyHasCustomGetter(for: symbol),
+                   sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+                   {
+                       let parentKind = sema.symbols.parentSymbol(for: symbol)
+                           .flatMap { sema.symbols.symbol($0) }?.kind
+                       return parentKind == nil || parentKind == .package
+                   }()
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
                 if let sym = sema.symbols.symbol(symbol),
