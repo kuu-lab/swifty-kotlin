@@ -684,8 +684,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             withFlatString("swift") { needleData, needleLength, needleByteCount, needleHash in
-                XCTAssertEqual(
-                    kk_string_compareToIgnoreCase_flat(
+                XCTAssertLessThan(
+                    kk_string_compareTo_flat(
                         data,
                         length,
                         byteCount,
@@ -693,10 +693,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         needleData,
                         needleLength,
                         needleByteCount,
-                        needleHash,
-                        1
+                        needleHash
                     ),
-                    -1
+                    0
                 )
             }
             XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 1)
@@ -713,15 +712,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(nil, 0, 0, 0, nil, 0, 0, 0, 1)), 1)
 
         withFlatString("") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)), 1)
-            XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
             XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
-            XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)), 0)
         }
 
         withFlatString("  \n\t") { data, length, byteCount, hash in
@@ -732,10 +727,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 0)
             XCTAssertEqual(
                 kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)),
-                0
-            )
-            XCTAssertEqual(
-                kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)),
                 0
             )
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
@@ -753,38 +744,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         )
                     ),
                     0
-                )
-                XCTAssertEqual(
-                    kk_unbox_bool(
-                        kk_string_contentEquals_ignoreCase_flat(
-                            data,
-                            length,
-                            byteCount,
-                            hash,
-                            otherData,
-                            otherLength,
-                            otherByteCount,
-                            otherHash,
-                            1
-                        )
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_unbox_bool(
-                        kk_string_equalsIgnoreCase_flat(
-                            data,
-                            length,
-                            byteCount,
-                            hash,
-                            otherData,
-                            otherLength,
-                            otherByteCount,
-                            otherHash,
-                            1
-                        )
-                    ),
-                    1
                 )
             }
             withFlatString("KSwiftK") { sameData, sameLength, sameByteCount, sameHash in
@@ -810,7 +769,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringBooleanRuntimeAPIsReturnRawScalars() {
         XCTAssertEqual(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0), 1)
         XCTAssertEqual(kk_string_isNullOrBlank_flat(nil, 0, 0, 0), 1)
-        XCTAssertEqual(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0), 1)
         XCTAssertEqual(kk_string_toBoolean_flat(nil, 0, 0, 0), 0)
 
         withFlatString("KSwiftK") { data, length, byteCount, hash in
@@ -834,34 +792,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         otherHash
                     ),
                     0
-                )
-                XCTAssertEqual(
-                    kk_string_equalsIgnoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash,
-                        1
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_string_contentEquals_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash,
-                        1
-                    ),
-                    1
                 )
             }
         }
@@ -1259,20 +1189,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let set = runtimeSetBox(from: destRaw)
         XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.rawTag, RuntimeValue.charTag])
         XCTAssertEqual(set?.elements.map(kk_unbox_char), [97, 98])
-    }
-
-    func testListToCharArrayStoresTaggedCharCodeUnits() {
-        let listRaw = registerRuntimeObject(RuntimeListBox(values: [
-            RuntimeValue(raw: kk_box_char(97)),
-            RuntimeValue(charScalar: 233),
-        ]))
-        let charArrayRaw = kk_list_toCharArray(listRaw)
-        let charArray = runtimeArrayBox(from: charArrayRaw)
-
-        XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(charArray?.values.map(\.payload0), [97, 233])
-        XCTAssertEqual(charArray?.elements, [97, 233])
-        XCTAssertEqual(charArray?.elements.map(kk_unbox_char), [97, 233])
     }
 
     // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet_flat tests
@@ -2499,10 +2415,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
         let suppressed2 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed2")))
 
-        _ = kk_throwable_addSuppressed(primary, suppressed1)
-        _ = kk_throwable_addSuppressed(primary, suppressed2)
+        _ = __kk_throwable_appendSuppressed(primary, suppressed1)
+        _ = __kk_throwable_appendSuppressed(primary, suppressed2)
 
-        let suppressed = kk_throwable_getSuppressed(primary)
+        let suppressed = __kk_throwable_suppressedRaw(primary)
         XCTAssertEqual(kk_array_size(suppressed), 2)
 
         var thrown = 0
@@ -2515,37 +2431,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testThrowableAddSuppressedRejectsSelfSuppression() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
-        _ = kk_throwable_addSuppressed(primary, primary)
+        _ = __kk_throwable_appendSuppressed(primary, primary)
 
-        let suppressed = kk_throwable_getSuppressed(primary)
+        let suppressed = __kk_throwable_suppressedRaw(primary)
         XCTAssertEqual(kk_array_size(suppressed), 0)
     }
 
     func testThrowableAddSuppressedIgnoresNullAndInvalidHandles() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
-        _ = kk_throwable_addSuppressed(primary, runtimeNullSentinelInt)
-        _ = kk_throwable_addSuppressed(primary, 0)
-        _ = kk_throwable_addSuppressed(primary, 123456789)
-        _ = kk_throwable_addSuppressed(runtimeNullSentinelInt, primary)
-        _ = kk_throwable_addSuppressed(123456789, primary)
+        _ = __kk_throwable_appendSuppressed(primary, runtimeNullSentinelInt)
+        _ = __kk_throwable_appendSuppressed(primary, 0)
+        _ = __kk_throwable_appendSuppressed(primary, 123456789)
+        _ = __kk_throwable_appendSuppressed(runtimeNullSentinelInt, primary)
+        _ = __kk_throwable_appendSuppressed(123456789, primary)
 
-        let suppressed = kk_throwable_getSuppressed(primary)
+        let suppressed = __kk_throwable_suppressedRaw(primary)
         XCTAssertEqual(kk_array_size(suppressed), 0)
-    }
-
-    func testThrowableSuppressedExceptionsReturnsList() {
-        let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
-        let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
-        let suppressed2 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed2")))
-
-        _ = kk_throwable_addSuppressed(primary, suppressed1)
-        _ = kk_throwable_addSuppressed(primary, suppressed2)
-
-        let suppressed = kk_throwable_suppressedExceptions(primary)
-        XCTAssertEqual(kk_list_size(suppressed), 2)
-        XCTAssertEqual(kk_list_get(suppressed, 0), suppressed1)
-        XCTAssertEqual(kk_list_get(suppressed, 1), suppressed2)
     }
 
     func testThrowablePrintStackTraceWritesRenderedMessageToStandardError() {

@@ -415,16 +415,9 @@ public func kk_string_zipTransform_flat(
     )
 }
 
-// MARK: - STDLIB-192: equals(other, ignoreCase)
-
-@_cdecl("kk_string_equalsIgnoreCase")
-public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    if otherRaw == runtimeNullSentinelInt {
-        return kk_box_bool(0)
-    }
-    let cmp = kk_string_compareToIgnoreCase(strRaw, otherRaw, ignoreCaseRaw)
-    return kk_box_bool(cmp == 0 ? 1 : 0)
-}
+// MARK: - STDLIB-192: equals(other)
+// KSP-413: equals(other, ignoreCase) is bundled Kotlin source
+// (Stdlib/kotlin/text/StringComparison.kt).
 
 @_cdecl("kk_string_equals")
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {

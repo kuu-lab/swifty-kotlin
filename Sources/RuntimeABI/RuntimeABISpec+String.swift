@@ -297,22 +297,10 @@ public extension RuntimeABISpec {
         // kk_string_indexOf_char_flat / kk_string_lastIndexOf_ignoreCase_flat /
         // kk_string_lastIndexOf_char_flat removed; contains/indexOf/lastIndexOf are
         // bundled Kotlin source (StringIndexOf.kt).
-        RuntimeABIFunctionSpec(
-            name: "kk_string_compareToIgnoreCase_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        // KSP-413: kk_string_compareToIgnoreCase_flat / kk_string_equalsIgnoreCase_flat /
+        // kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat removed;
+        // compareTo(ignoreCase) / equals(ignoreCase) / contentEquals are bundled Kotlin
+        // source (StringComparison.kt).
         RuntimeABIFunctionSpec(
             name: "kk_string_equals_flat",
             parameters: [
@@ -328,22 +316,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_equalsIgnoreCase_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isEmpty_flat",
@@ -679,7 +651,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_compareTo_locale_flat",
+            name: "__kk_string_compareTo_locale_flat",
             parameters: [
                 RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "lhsLength", type: .intptr),
