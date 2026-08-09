@@ -212,8 +212,9 @@
   - 完了確認（2026-07-30、§13-7 の3点確認③）: `Sources/CompilerCore/Sema/TypeCheck/CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` に残っていた `toByteArray`/`encodeToByteArray`/`decodeToString` の name-string 特例8箇所を削除。stderr計装（`__TRACE_ENTRY`）による実地検証で、Golden全4スイート(15件)・diff_kotlinc全679件・関連diff_cases 13件・手作り境界ケース20+（ジェネリクス境界/CharSequence/smart-cast/safe-call/elvis/配列添字/lambda戻り値）のいずれもこのフォールバック関数へ到達しないことを確認した上で削除（`RuntimeABISpec` 未登録の `kk_string_toByteArray_charset` 系4関数がブリッジとして本当に到達するのとは対照的に、こちらは`kotlin.text`実宣言(StringEncoding.kt)への通常候補解決が常に先に成功するため完全に死んでいた）。削除後も同ゲート（Golden全4スイート・diff_kotlinc 679/679・対象ユニットテスト68件）が green であることを再確認済み
 - [ ] KSP-417: Unicode 正規化・codePoint・random を `__kk_` 降格する
   - `kk_normalization_form_*` 4 関数, `kk_string_normalize`, `kk_string_isNormalized`, `kk_string_codePointCount*` 3 関数, `kk_string_random(_random)` を `__kk_` へ改名（実装移植はしない）
-- [ ] KSP-418: format を完遂する（`String.format(_locale)` は `__kk_` 降格）
+- [x] KSP-418: format を完遂する（`String.format(_locale)` は `__kk_` 降格）
   - 対象: `RuntimeStringFormat.swift` の `kk_string_format`, `kk_string_format_locale`（降格）と残存 `__string_*` 旧ブリッジの命名統一
+  - 完了確認（2026-08-06）: `kk_string_format_flat`/`kk_string_format_locale_flat` を `__kk_` へ改名（Runtime / `RuntimeABISpec` / synthetic stub / KIR lowering / NativeEmitter）。`__string_struct_get_length` を `__kk_string_struct_get_length` へ統一し、参照の無くなった `runtimePrimitiveAlias` の `__string_*` 9 エントリを削除（`Sources`/`Tests` の live コードに `__string_*` は残存なし）。付随バグ修正: locale 付き `String.format` が `,` フラグ無しでも桁区切りを挿入していた（Foundation の locale 依存 `String(format:locale:)`）のを JVM 準拠に修正し、`%,d`/`%,.2f` の桁区切りを実装（`Scripts/diff_cases/string_format_locale.kt` 追加）
 
 #### kotlin.collections [M3 実行体]（前提: KSP-305〜307。実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/`）
 
@@ -333,7 +334,7 @@
 
 #### kotlin.text.Regex [M 番号なし・新設]（棚卸し 2026-07-01: 39 @_cdecl。正規表現エンジン = NSRegularExpression はブリッジ残留）
 
-- [ ] KSP-486: MatchResult/MatchGroup 層を Kotlin 化する（純ロジック約 20 関数）
+- [x] KSP-486: MatchResult/MatchGroup 層を Kotlin 化する（純ロジック約 20 関数）
   - 削除 kk_*: `kk_match_result_value/groupValues/range/groups/component1/component2/next`, `kk_match_group_collection_get_at/get/size`, `kk_match_group_value/range`, `kk_match_result_destructured(_match)`, `kk_match_result_destructured_component1..9`, `kk_regex_pattern`, `kk_regex_options`, `kk_regex_group_names`（`RuntimeRegex.swift`）
   - 内部のマッチ位置データ取得のみ `__kk_` 最小ブリッジに残す / 手順: T / diff: `regex_named_groups.kt` ほか既存 10 ケース
 - [ ] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する
