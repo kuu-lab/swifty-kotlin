@@ -2249,7 +2249,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToTypeArrayUsesTypedArrayRuntimeExternalLink() throws {
+    func testListToTypeArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<String>) {
             val converted: Array<String> = values.toTypedArray()
@@ -2268,7 +2268,9 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toTypedArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toTypedArray")
+            // KSP-628: source-backed (Stdlib/kotlin/collections/ArrayConversions.kt),
+            // so no direct kk_list_toTypedArray runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
             guard case let .classType(classType) = sema.types.kind(of: signature.returnType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2344,7 +2346,8 @@ struct ListSyntheticMemberLinkTests {
 struct SyntheticMemberCallCase {
     let source: String
     let memberName: String
-    let expectedExternalLink: String
+    /// `nil` means the member must be source-backed (no direct `kk_*` link).
+    let expectedExternalLink: String?
     let expectedTypeShape: SyntheticMemberTypeShape?
 }
 
@@ -2374,7 +2377,10 @@ func assertSyntheticMemberCall(
             return ctx.interner.resolve(callee) == testCase.memberName
         })
         let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosenCallee) == testCase.expectedExternalLink, "Expected \(testCase.memberName) to resolve to \(testCase.expectedExternalLink)")
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) == testCase.expectedExternalLink,
+            "Expected \(testCase.memberName) to resolve to \(testCase.expectedExternalLink ?? "a source-backed declaration")"
+        )
 
         if let expectedTypeShape = testCase.expectedTypeShape {
             let resultType = try #require(sema.bindings.exprType(for: callExpr))

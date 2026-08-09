@@ -250,4 +250,46 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-496 regression: KClass.cast/safeCast are bundled Kotlin extensions
+    // calling the throwing `__kk_kclass_cast` / non-throwing
+    // `__kk_kclass_safeCast` runtime ABI, so both the success and the
+    // ClassCastException paths must survive the ordinary call lowering.
+    @Test
+    func testKClassCastAndSafeCastExecuteThroughBundledExtensions() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KClass
+
+            class Box(val value: Int)
+
+            fun <T : Any> castVia(klass: KClass<T>, value: Any?): T = klass.cast(value)
+
+            fun main() {
+                println(String::class.cast("hello"))
+                println(Int::class.cast(7))
+                println(castVia(String::class, "generic"))
+                println(String::class.safeCast(1))
+                println(Box::class.safeCast(Box(3))?.value)
+                val klass = String::class
+                println(klass.cast("via local"))
+                try {
+                    Int::class.cast("nope")
+                } catch (e: ClassCastException) {
+                    println("caught")
+                }
+            }
+            """,
+            expectedOutput: """
+            hello
+            7
+            generic
+            null
+            3
+            via local
+            caught
+
+            """
+        )
+    }
 }

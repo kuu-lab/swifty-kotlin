@@ -485,7 +485,36 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
     if raw == runtimeNullSentinelInt {
         return nil
     }
-    return maybeUnbox(raw)
+    // `raw` is a transform's return value, already boxed by KIR's ABILoweringPass
+    // for its Any-typed return (see kk_array_map's comment). Callers store or
+    // forward this verbatim into a generically-typed collection/result, so it
+    // must stay boxed here too — unboxing would strip the type tag a later
+    // Boolean/Char render depends on.
+    return raw
+}
+
+/// IEEE754 bit pattern of a boxed `Double`/`Float`, or nil when `raw` is not
+/// one of those boxes. Unlike `maybeUnbox`, which leaves floating-point boxes
+/// as pointers, this exposes the payload so a box can be compared against a
+/// raw (never-boxed) floating-point word — the representation a `Double`
+/// argument still has when it reaches a generic `T` parameter.
+func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
+        return Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern))
+    }
+    if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
+        return Int(floatBox.value.bitPattern)
+    }
+    return nil
 }
 
 func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
@@ -504,6 +533,15 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         rhsPtr.map { state.objectPointers.contains(UInt(bitPattern: $0)) } ?? false
     }
     if lhsIsObjectPointer != rhsIsObjectPointer {
+        // Boxed Double/Float vs a raw floating-point word: compare bit
+        // patterns, matching Kotlin's boxed `equals` (NaN equals NaN,
+        // -0.0 does not equal 0.0). maybeUnbox leaves those boxes as
+        // pointers, so it would report every such pair unequal.
+        let boxedSide = lhsIsObjectPointer ? lhs : rhs
+        let rawSide = lhsIsObjectPointer ? rhs : lhs
+        if let bitPattern = runtimeFloatingBoxBitPattern(boxedSide) {
+            return bitPattern == rawSide
+        }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
@@ -537,15 +575,18 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         return lhsULong.value == rhsULong.value
     }
+    // Boxed floating-point equality follows Kotlin's `Double.equals`/
+    // `Float.equals` (bit pattern), not IEEE `==`: NaN equals NaN and
+    // -0.0 does not equal 0.0.
     if let lhsFloat = tryCast(lhsPtr, to: RuntimeFloatBox.self),
        let rhsFloat = tryCast(rhsPtr, to: RuntimeFloatBox.self)
     {
-        return lhsFloat.value == rhsFloat.value
+        return lhsFloat.value.bitPattern == rhsFloat.value.bitPattern
     }
     if let lhsDouble = tryCast(lhsPtr, to: RuntimeDoubleBox.self),
        let rhsDouble = tryCast(rhsPtr, to: RuntimeDoubleBox.self)
     {
-        return lhsDouble.value == rhsDouble.value
+        return lhsDouble.value.bitPattern == rhsDouble.value.bitPattern
     }
     if let lhsChar = tryCast(lhsPtr, to: RuntimeCharBox.self),
        let rhsChar = tryCast(rhsPtr, to: RuntimeCharBox.self)

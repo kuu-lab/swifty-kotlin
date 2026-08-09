@@ -36,8 +36,15 @@ final class CallTypeChecker {
            args.isEmpty,
            locals[calleeName] == nil,
            !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
-               guard let sym = ctx.cachedSymbol(candidate) else { return false }
-               return !sym.flags.contains(.synthetic)
+               shadowsStdlibContextHelper(
+                   candidate,
+                   named: "contextOf",
+                   argumentCount: 0,
+                   explicitTypeArgumentCount: explicitTypeArgs.count,
+                   ctx: ctx,
+                   sema: sema,
+                   interner: interner
+               )
            })
         {
             let contextOfFQName = [interner.intern("kotlin"), calleeName]
@@ -346,8 +353,15 @@ final class CallTypeChecker {
            calleeName == contextHelperName,
            locals[calleeName] == nil,
            !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
-               guard let sym = ctx.cachedSymbol(candidate) else { return false }
-               return !sym.flags.contains(.synthetic)
+               shadowsStdlibContextHelper(
+                   candidate,
+                   named: "context",
+                   argumentCount: args.count,
+                   explicitTypeArgumentCount: explicitTypeArgs.count,
+                   ctx: ctx,
+                   sema: sema,
+                   interner: interner
+               )
            })
         {
             let contextValueArgs = Array(args.dropLast())
@@ -377,9 +391,7 @@ final class CallTypeChecker {
                 } ?? sema.types.anyType
             }
             if let contextSymbol = ctx.cachedScopeLookup(calleeName).first(where: { candidate in
-                guard let sym = ctx.cachedSymbol(candidate),
-                      sym.flags.contains(.synthetic),
-                      sym.fqName.map({ interner.resolve($0) }) == ["kotlin", "context"],
+                guard isStdlibContextHelper(candidate, named: "context", ctx: ctx, interner: interner),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count
                 else {
@@ -3096,6 +3108,43 @@ final class CallTypeChecker {
         }
     }
 
+    /// True when `candidate` is the stdlib `kotlin.context` / `kotlin.contextOf`
+    /// intrinsic declaration (KSP-603: bundled Kotlin source, previously a
+    /// synthetic stub).
+    private func isStdlibContextHelper(
+        _ candidate: SymbolID,
+        named name: String,
+        ctx: TypeInferenceContext,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+        return symbol.fqName.map { interner.resolve($0) } == ["kotlin", name]
+    }
+
+    /// True when `candidate` is a non-stdlib declaration that is applicable to the
+    /// call, so it takes precedence over the `context` / `contextOf` intrinsic
+    /// handling. Declarations with a different arity — or without the type
+    /// parameters the call spells out explicitly — are not applicable and leave
+    /// the intrinsic path in charge.
+    private func shadowsStdlibContextHelper(
+        _ candidate: SymbolID,
+        named name: String,
+        argumentCount: Int,
+        explicitTypeArgumentCount: Int,
+        ctx: TypeInferenceContext,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard !isStdlibContextHelper(candidate, named: name, ctx: ctx, interner: interner) else {
+            return false
+        }
+        guard let signature = sema.symbols.functionSignature(for: candidate) else {
+            return true
+        }
+        return signature.parameterTypes.count == argumentCount
+            && (explicitTypeArgumentCount == 0
+                || signature.typeParameterSymbols.count == explicitTypeArgumentCount)
+    }
 }
 
 // swiftlint:enable type_body_length

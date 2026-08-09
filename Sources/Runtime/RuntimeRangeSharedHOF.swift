@@ -87,10 +87,6 @@ enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
         runtimeUnsignedRangeIsEmpty(range)
     }
 
-    static func count(_ range: RuntimeRangeBox) -> Int {
-        runtimeUnsignedRangeCount(range)
-    }
-
     static func doubleValue(_ value: Int) -> Double {
         Double(UInt(bitPattern: value))
     }
