@@ -4,254 +4,186 @@ import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
-    @Test func testNestedReturnInBothIfElseBranchesDoesNotEmitDeadEpilogue() throws {
-        let source = """
-        fun pick(flag: Boolean): Int {
-            if (flag) {
-                return 1
-            } else {
-                return 2
+    @Test func testControlFlowAndVarargKIR() throws {
+        let sources = [
+            """
+            package sample0
+            fun pick0(flag: Boolean): Int {
+                if (flag) { return 1 } else { return 2 }
             }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
-
-            let returnValues = body.compactMap { instruction -> KIRExprID? in
-                guard case let .returnValue(id) = instruction else { return nil }
-                return id
-            }
-            // Should have exactly 2 returns: one from each branch, no spurious epilogue return
-            #expect(returnValues.count == 2, "Expected exactly 2 returnValue instructions (then + else), got \(returnValues.count)")
-        }
-    }
-
-    @Test func testNestedReturnInWhenBranchDoesNotEmitDeadCopyInstruction() throws {
-        let source = """
-        fun classify(x: Int): Int {
-            when (x) {
-                1 -> return 10
-                2 -> return 20
-                else -> return 30
-            }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "classify", in: module, interner: ctx.interner)
-
-            let returnValues = body.compactMap { instruction -> KIRExprID? in
-                guard case let .returnValue(id) = instruction else { return nil }
-                return id
-            }
-            #expect(returnValues.count >= 3, "Expected at least 3 returnValue instructions for when-branch returns, got \(returnValues.count)")
-
-            // Verify no dead copy follows a returnValue in the when branches
-            var deadCopyAfterReturn = false
-            for (index, instruction) in body.enumerated() {
-                if case .returnValue = instruction {
-                    var nextIndex = index + 1
-                    while nextIndex < body.count {
-                        if case .label = body[nextIndex] {
-                            nextIndex += 1
-                            continue
-                        }
-                        if case .copy = body[nextIndex] {
-                            deadCopyAfterReturn = true
-                        }
-                        break
-                    }
+            """,
+            """
+            package sample1
+            fun classify1(x: Int): Int {
+                when (x) {
+                    1 -> return 10
+                    2 -> return 20
+                    else -> return 30
                 }
             }
-            #expect(!(deadCopyAfterReturn), "No dead copy should follow a returnValue in when branches")
-        }
-    }
-
-    @Test func testBlockExprStopsLoweringAfterNestedReturn() throws {
-        let source = """
-        fun earlyReturn(flag: Boolean): Int {
-            if (flag) {
-                return 42
-                val x = 99
-            }
-            return 0
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "earlyReturn", in: module, interner: ctx.interner)
-
-            // The val x = 99 after return should not produce any const 99 in the body
-            let has99 = body.contains { instruction in
-                guard case let .constValue(_, value) = instruction else { return false }
-                if case .intLiteral(99) = value { return true }
-                return false
-            }
-            #expect(!(has99), "Dead code after return in block should not be lowered")
-        }
-    }
-
-    @Test func testNestedReturnInTryCatchBranchPropagatesCorrectly() throws {
-        let source = """
-        fun safeDivide(a: Int, b: Int): Int {
-            try {
-                return a / b
-            } catch (e: Any) {
+            """,
+            """
+            package sample2
+            fun earlyReturn2(flag: Boolean): Int {
+                if (flag) {
+                    return 42
+                    val x = 99
+                }
                 return 0
             }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "safeDivide", in: module, interner: ctx.interner)
-
-            let returnValues = body.compactMap { instruction -> KIRExprID? in
-                guard case let .returnValue(id) = instruction else { return nil }
-                return id
+            """,
+            """
+            package sample3
+            fun safeDivide3(a: Int, b: Int): Int {
+                try {
+                    return a / b
+                } catch (e: Any) {
+                    return 0
+                }
             }
-            #expect(returnValues.count >= 2, "Expected at least 2 returnValue instructions (try body + catch), got \(returnValues.count)")
-
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("kk_throwable_is_cancellation"),
-                "Try/catch lowering must guard CancellationException with runtime predicate"
-            )
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["kk_throwable_is_cancellation"]?.allSatisfy { $0 == false } == true)
-        }
-    }
-
-    @Test func testIfExprLoweringUsesLabelBasedBranching() throws {
-        let source = """
-        fun branch(flag: Boolean): Int {
-            val x = if (flag) 1 else 2
-            return x
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "branch", in: module, interner: ctx.interner)
-            let hasJump = body.contains { instruction in
-                if case .jump = instruction { return true }
-                return false
+            """,
+            """
+            package sample4
+            fun branch4(flag: Boolean): Int {
+                val x = if (flag) 1 else 2
+                return x
             }
-            let hasLabel = body.contains { instruction in
-                if case .label = instruction { return true }
-                return false
+            """,
+            """
+            package sample5
+            fun pick5(x: Int): Int {
+                return when (x) {
+                    1 -> 10
+                    2 -> 20
+                    else -> 0
+                }
             }
-            #expect(hasJump, "if-expr lowering should use jump instructions for branching")
-            #expect(hasLabel, "if-expr lowering should use label instructions for branching")
-        }
-    }
+            """,
+            """
+            package sample6
+            fun tagged6(vararg nums: Int, tail: Int): Int = tail
+            fun main6() = tagged6(10, 20, tail = 99)
+            """,
+            """
+            package sample7
+            fun pick7(flag: Boolean): Int = if (flag) 1 else 2
+            """,
+            """
+            package sample8
+            fun pick8(x: Int): Int = when (x) { 1 -> 10, 2 -> 20, else -> 0 }
+            """,
+        ]
 
-    @Test func testWhenExprLoweringUsesLabelBasedBranching() throws {
-        let source = """
-        fun pick(x: Int): Int {
-            return when (x) {
-                1 -> 10
-                2 -> 20
-                else -> 0
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let interner = ctx.interner
+
+            do {
+                let body = try findKIRFunctionBody(named: "pick0", in: module, interner: interner)
+                let returnValues = body.compactMap { instruction -> KIRExprID? in
+                    guard case let .returnValue(id) = instruction else { return nil }
+                    return id
+                }
+                #expect(returnValues.count == 2)
             }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
-            let labelCount = body.filter { instruction in
-                if case .label = instruction { return true }
-                return false
-            }.count
-            let jumpCount = body.filter { instruction in
-                if case .jump = instruction { return true }
-                return false
-            }.count
-            #expect(labelCount >= 2, "when-expr should have labels for branch dispatch")
-            #expect(jumpCount >= 2, "when-expr should have jumps for branch dispatch")
-        }
-    }
+            do {
+                let body = try findKIRFunctionBody(named: "classify1", in: module, interner: interner)
+                let returnValues = body.compactMap { instruction -> KIRExprID? in
+                    guard case let .returnValue(id) = instruction else { return nil }
+                    return id
+                }
+                #expect(returnValues.count >= 3)
 
-    @Test func testVarargNonTrailingWithNamedTailPacksCorrectly() throws {
-        let source = """
-        fun tagged(vararg nums: Int, tail: Int): Int = tail
-        fun main() = tagged(10, 20, tail = 99)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-                return ctx.interner.resolve(function.name) == "main" ? function : nil
-            }.first
-            let body = try #require(mainFunction?.body)
-            let callNames = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
+                var deadCopyAfterReturn = false
+                for (index, instruction) in body.enumerated() {
+                    if case .returnValue = instruction {
+                        var nextIndex = index + 1
+                        while nextIndex < body.count {
+                            if case .label = body[nextIndex] {
+                                nextIndex += 1
+                                continue
+                            }
+                            if case .copy = body[nextIndex] {
+                                deadCopyAfterReturn = true
+                            }
+                            break
+                        }
+                    }
+                }
+                #expect(!deadCopyAfterReturn)
             }
-            #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for non-trailing vararg, got: \(callNames)")
-            #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for non-trailing vararg, got: \(callNames)")
-        }
-    }
 
-    // MARK: - if/when Control Flow (P5-51)
+            do {
+                let body = try findKIRFunctionBody(named: "earlyReturn2", in: module, interner: interner)
+                let has99 = body.contains { instruction in
+                    guard case let .constValue(_, value) = instruction else { return false }
+                    if case .intLiteral(99) = value { return true }
+                    return false
+                }
+                #expect(!has99)
+            }
 
-    @Test func testIfExprUsesControlFlowInsteadOfSelect() throws {
-        let source = """
-        fun pick(flag: Boolean): Int = if (flag) 1 else 2
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+            do {
+                let body = try findKIRFunctionBody(named: "safeDivide3", in: module, interner: interner)
+                let returnValues = body.compactMap { instruction -> KIRExprID? in
+                    guard case let .returnValue(id) = instruction else { return nil }
+                    return id
+                }
+                #expect(returnValues.count >= 2)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_throwable_is_cancellation"))
+                let throwFlags = extractThrowFlags(from: body, interner: interner)
+                #expect(throwFlags["kk_throwable_is_cancellation"]?.allSatisfy { $0 == false } == true)
+            }
 
-            // .select was removed from KIRInstruction; verify control-flow is used
-            let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
-            #expect(labelCount >= 2, "ifExpr needs at least elseLabel + endLabel")
+            do {
+                let body = try findKIRFunctionBody(named: "branch4", in: module, interner: interner)
+                let hasJump = body.contains { if case .jump = $0 { return true }; return false }
+                let hasLabel = body.contains { if case .label = $0 { return true }; return false }
+                #expect(hasJump)
+                #expect(hasLabel)
+            }
 
-            let jumpCount = body.filter { instruction in
-                if case .jump = instruction { return true }
-                if case .jumpIfEqual = instruction { return true }
-                return false
-            }.count
-            #expect(jumpCount >= 2, "ifExpr needs conditional + unconditional jump")
-        }
-    }
+            do {
+                let body = try findKIRFunctionBody(named: "pick5", in: module, interner: interner)
+                let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+                let jumpCount = body.filter { instruction in
+                    if case .jump = instruction { return true }
+                    return false
+                }.count
+                #expect(labelCount >= 2)
+                #expect(jumpCount >= 2)
+            }
 
-    @Test func testWhenExprUsesControlFlowInsteadOfSelect() throws {
-        let source = """
-        fun pick(x: Int): Int = when (x) { 1 -> 10, 2 -> 20, else -> 0 }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+            do {
+                let body = try findKIRFunctionBody(named: "main6", in: module, interner: interner)
+                let callNames = extractCallees(from: body, interner: interner)
+                #expect(callNames.contains("kk_array_new"))
+                #expect(callNames.contains("kk_array_set"))
+            }
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
+            do {
+                let body = try findKIRFunctionBody(named: "pick7", in: module, interner: interner)
+                let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+                let jumpCount = body.filter { instruction in
+                    if case .jump = instruction { return true }
+                    if case .jumpIfEqual = instruction { return true }
+                    return false
+                }.count
+                #expect(labelCount >= 2)
+                #expect(jumpCount >= 2)
+            }
 
-            // .select was removed from KIRInstruction; verify control-flow is used
-            let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
-            #expect(labelCount >= 3, "whenExpr with 2 branches + else needs at least 3 labels")
+            do {
+                let body = try findKIRFunctionBody(named: "pick8", in: module, interner: interner)
+                let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+                #expect(labelCount >= 3)
+            }
         }
     }
 }
