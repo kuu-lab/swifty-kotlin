@@ -114,21 +114,6 @@ public func kk_error(_ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?)
     return 0
 }
 
-/// Runtime support for kotlin's not-yet-implemented helper (STDLIB-063).
-/// Throws NotImplementedError with the given reason.
-@_cdecl("kk_todo")
-public func kk_todo(_ reasonRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let reason = extractString(from: UnsafeMutableRawPointer(bitPattern: reasonRaw)) ?? "An operation is not implemented."
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NotImplementedError: \(reason)")
-    return 0
-}
-
-@_cdecl("kk_todo_noarg")
-public func kk_todo_noarg(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    kk_todo(runtimeNullSentinelInt, outThrown)
-}
-
 private func preconditionWithLazyMessage(
     _ condition: Int,
     _ fnPtr: Int,
