@@ -1,9 +1,49 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendMathOverloadEdgeCasesTests {
+
+    @Test
     func testCodegenCompilesMathOverloadEdgeCases() throws {
         let source = """
         import kotlin.math.*
@@ -48,6 +88,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenMathExtensionPropertiesLowerToRuntimeHelpers() throws {
         let source = """
         import kotlin.math.*
@@ -76,7 +117,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "MathExtensionProperties", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let calls = body.compactMap { instruction -> (String, Int)? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
@@ -89,7 +130,7 @@ extension CodegenBackendIntegrationTests {
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
-                XCTAssertTrue(
+                #expect(
                     calls.contains(where: { $0 == expected && $1 == 1 }),
                     "Expected \(expected) to lower with one receiver argument, got \(calls)"
                 )
@@ -99,8 +140,8 @@ extension CodegenBackendIntegrationTests {
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
-                XCTAssertFalse(
-                    calls.contains(where: { $0 == extensionHelper && $1 == 0 }),
+                #expect(
+                    !calls.contains(where: { $0 == extensionHelper && $1 == 0 }),
                     "Extension property helper \(extensionHelper) must not be emitted as a top-level initializer"
                 )
             }
@@ -109,6 +150,7 @@ extension CodegenBackendIntegrationTests {
 
     // TEST-MATH-024: atan2・cbrt・双曲線関数の lowering を検証する
     // (既存の IEEErem/nextTowards/pow/withSign テストに対する対称性ギャップを補完)
+    @Test
     func testCodegenMathSignedZeroSymmetryFunctionsLowerToRuntimeHelpers() throws {
         let source = """
         import kotlin.math.*
@@ -133,7 +175,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "MathSignedZeroSymmetry", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = body.compactMap { instruction -> String? in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
@@ -154,7 +196,7 @@ extension CodegenBackendIntegrationTests {
                 "kk_math_atanh",
                 "kk_math_atanh_float",
             ] {
-                XCTAssertTrue(
+                #expect(
                     calls.contains(expected),
                     "Expected \(expected) in lowered KIR, got \(calls)"
                 )
@@ -162,6 +204,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    @Test
     func testCodegenRemainingFloatingMathOverloadsLowerToRuntimeHelpers() throws {
         let source = """
         import kotlin.math.*
@@ -185,7 +228,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "MathRemainingFloatingOverloads", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = body.compactMap { instruction -> (String, Int)? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
@@ -207,7 +250,7 @@ extension CodegenBackendIntegrationTests {
                 "kk_math_withSign_float",
                 "kk_math_withSign_float_int",
             ] {
-                XCTAssertTrue(
+                #expect(
                     calls.contains(where: { $0 == expected && $1 == 2 }),
                     "Expected \(expected) to lower with two arguments, got \(calls)"
                 )
@@ -216,6 +259,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // PARITY-SEMA-003: kotlin.math.abs(x) called via FQN (no import) must lower identically to the import path.
+    @Test
     func testCodegenFQNMathCallsLowerToRuntimeHelpers() throws {
         let source = """
         fun sample(i: Int, d: Double) {
@@ -229,20 +273,42 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FQNMathCalls", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let callees = body.compactMap { instruction -> String? in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
                 return ctx.interner.resolve(callee)
             }
 
-            XCTAssertTrue(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
+            #expect(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
             // KSP-635: abs is bundled Kotlin source, so no runtime bridge is emitted.
-            XCTAssertFalse(
-                callees.contains(where: { $0.hasPrefix("kk_math_abs") }),
+            #expect(
+                !callees.contains(where: { $0.hasPrefix("kk_math_abs") }),
                 "FQN abs must not lower to a runtime bridge, got \(callees)"
             )
         }
     }
-}
 
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+}
+#endif
