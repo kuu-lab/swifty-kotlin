@@ -12,7 +12,7 @@ enum CodegenCriticalSection {
     /// Process-local lock used during codegen on Linux. Object emission touches
     /// LLVM global target state, so concurrent codegen calls within one process
     /// are serialized here. Cross-process serialization is unnecessary because
-    /// each `kswiftc` invocation has its own LLVM context and output path.
+    /// each `kswiftc` process has its own LLVM context and output path.
     static func withLinuxExecutableCodegenProcessLock<T>(
         target: TargetTriple,
         body: () throws -> T
@@ -26,9 +26,10 @@ enum CodegenCriticalSection {
         return try body()
     }
 
-    /// Cross-process file lock used during the link step on Linux. Multiple
-    /// `kswiftc` processes share per-target Swift autolink stub files, so a file
-    /// lock is required to prevent torn or empty stubs.
+    /// Cross-process lock for Linux executable linking. Each `kswiftc` process has
+    /// private temporary inputs, but concurrent Swift toolchain invocations can
+    /// still interfere on self-hosted runners. Keep the complete link operation
+    /// serialized per target while retaining private autolink stub directories.
     static func withLinuxExecutableToolchainLock<T>(
         target: TargetTriple,
         body: () throws -> T

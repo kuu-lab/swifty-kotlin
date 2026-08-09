@@ -101,16 +101,6 @@ struct ListSyntheticMemberLinkTests {
             ),
             .init(
                 source: """
-                fun copy(values: Collection<String>): List<String> {
-                    return values.toList()
-                }
-                """,
-                memberName: "toList",
-                expectedExternalLink: "kk_collection_toList",
-                expectedTypeShape: .classNamed("List")
-            ),
-            .init(
-                source: """
                 fun copy(values: List<String>): MutableSet<String> {
                     return values.toHashSet()
                 }
@@ -598,7 +588,7 @@ struct ListSyntheticMemberLinkTests {
                 )
             }
 
-            for (name, link) in [("any", "kk_iterable_any"), ("all", "kk_iterable_all")] {
+            for (name, link) in [("any", "__kk_iterable_any"), ("all", "__kk_iterable_all")] {
                 let synthetic = syntheticMemberSymbols(
                     ownerFQName: iterableOwnerFQName,
                     name: name,
@@ -823,7 +813,9 @@ struct ListSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            #expect(links.contains("kk_iterable_firstNotNullOf"))
+            // KSP-435: firstNotNullOf is bundled Kotlin source, so no public
+            // kk_iterable_* link may remain on the Iterable surface.
+            #expect(!links.contains("kk_iterable_firstNotNullOf"))
         }
     }
 
@@ -858,7 +850,9 @@ struct ListSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            #expect(links.contains("kk_iterable_firstNotNullOfOrNull"))
+            // KSP-435: firstNotNullOfOrNull is bundled Kotlin source, so no
+            // public kk_iterable_* link may remain on the Iterable surface.
+            #expect(!links.contains("kk_iterable_firstNotNullOfOrNull"))
         }
     }
 

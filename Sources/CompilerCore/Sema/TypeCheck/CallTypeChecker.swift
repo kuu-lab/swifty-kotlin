@@ -225,6 +225,7 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
             }
+            sema.bindings.markCollectionHOFLambdaExpr(argumentExprID)
             sema.bindings.markCollectionExpr(id)
             sema.bindings.bindExprType(id, type: refinedReturnType)
             return refinedReturnType
@@ -1337,8 +1338,16 @@ final class CallTypeChecker {
             }
         }
 
+        // --- Primitive numeric minOf/maxOf fast path (STDLIB-COMP-001/002) ---
+        // Only apply to the stdlib comparison functions with value arguments;
+        // lambda/callable-ref arguments (e.g. compareBy selectors or comparators)
+        // must go through general overload resolution where an expected function
+        // type is available, otherwise implicit `it` cannot be resolved.
+        let maxOfMinOfNames: Set<String> = ["maxOf", "minOf"]
         if let calleeName,
-           args.count == 2 || args.count == 3
+           maxOfMinOfNames.contains(interner.resolve(calleeName)),
+           args.count == 2 || args.count == 3,
+           !args.contains(where: { isLambdaOrCallableRefArg($0.expr, ast: ast) })
         {
             // Infer the first argument without an expected type to determine the overload.
             let firstArgType = driver.inferExpr(
