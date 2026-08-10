@@ -84,7 +84,7 @@ struct CodegenBackendSequenceMapIndexedTests {
     }
 
     @Test
-    func testCodegenSequenceMapIndexedUsesRuntimeHelper() throws {
+    func testCodegenSequenceMapIndexedUsesBundledSourceImplementation() throws {
         let source = """
         fun render(): Sequence<Int> {
             return sequenceOf(10, 20, 30).mapIndexed { index, value -> index + value }
@@ -92,13 +92,14 @@ struct CodegenBackendSequenceMapIndexedTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceMapIndexedKIR", emit: .kirDump, includeStdlib: false)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceMapIndexedKIR", emit: .kirDump)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(callees.contains("mapIndexed"), "Sequence.mapIndexed is source-backed (KSP-441); expected 'mapIndexed' callee, got: \(callees)")
+            #expect(!callees.contains("kk_sequence_mapIndexed"), "Sequence.mapIndexed should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }
