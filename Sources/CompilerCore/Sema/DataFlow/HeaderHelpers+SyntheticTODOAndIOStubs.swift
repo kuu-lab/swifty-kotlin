@@ -111,13 +111,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- Grouping type (STDLIB-285/286) ---
-        registerSyntheticGroupingStub(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         registerSyntheticGenericSequenceVarargFunction(
             named: "sequenceOf",
             packageFQName: kotlinSequencesPkg,
