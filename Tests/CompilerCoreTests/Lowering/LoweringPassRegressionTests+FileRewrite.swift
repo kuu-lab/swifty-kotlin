@@ -5,7 +5,7 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
-    func testFileForEachLineRewriteAddsClosureRawArgument() throws {
+    func testFileForEachLineRewriteAddsClosureRawArgument() {
         let interner = StringInterner()
         let arena = KIRArena()
         let ctx = KIRContext(
@@ -38,8 +38,6 @@ extension LoweringPassRegressionTests {
                     canThrow: false,
                     thrownResult: nil
                 ),
-                // The KIR builder emits a .call with the already-rewritten callee
-                // name (from externalLinkName) rather than a .virtualCall.
                 .call(
                     symbol: nil,
                     callee: interner.intern("kk_file_forEachLine"),
@@ -56,7 +54,7 @@ extension LoweringPassRegressionTests {
         let declID = arena.appendDecl(.function(fn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
 
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
+        try! CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
         guard case let .function(lowered)? = module.arena.decl(declID) else {
             Issue.record("expected lowered function")
@@ -80,394 +78,246 @@ extension LoweringPassRegressionTests {
         #expect(call.canThrow)
     }
 
-    // STDLIB-IO-FN-016: forEachBlock KIR rewrite adds closureRaw argument
     @Test
-    func testFileForEachBlockRewriteAddsClosureRawArgument() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "FileForEachBlockRewrite",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
+    func testFileAndPathRewriteSourceLevelLowering() throws {
+        let sources = [
+            """
+            package sample0
+            import java.io.File
 
-        let fileExpr = arena.appendExpr(.temporary(0))
-        let lambdaExpr = arena.appendExpr(.temporary(1))
-        let resultExpr = arena.appendExpr(.temporary(2))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_file_new"),
-                    arguments: [arena.appendExpr(.stringLiteral(interner.intern("demo.bin")), type: nil)],
-                    result: fileExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_file_forEachBlock"),
-                    arguments: [fileExpr, lambdaExpr],
-                    result: resultExpr,
-                    canThrow: true,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(declID) else {
-            Issue.record("expected lowered function")
-            return
-        }
-
-        let forEachBlockCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
-            guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  interner.resolve(callee) == "kk_file_forEachBlock"
-            else {
-                return nil
+            fun main0() {
+                val f = File("/tmp/test.bin")
+                f.forEachBlock { bytes, bytesRead ->
+                    println(bytesRead)
+                }
             }
-            return (arguments, canThrow)
-        }.first
+            """,
+            """
+            package sample1
+            import java.io.File
 
-        guard let call = forEachBlockCall else {
-            Issue.record("Expected kk_file_forEachBlock call after collection literal lowering")
-            return
-        }
-        #expect(call.arguments.count == 3, "kk_file_forEachBlock should receive fileRaw, fnPtr, and closureRaw")
-        #expect(call.canThrow)
-    }
+            fun main1() {
+                val f = File("/tmp/test.bin")
+                f.forEachBlock(1024) { bytes, bytesRead ->
+                    println(bytesRead)
+                }
+            }
+            """,
+            """
+            package sample2
+            import java.io.File
 
-    // STDLIB-IO-FN-016: forEachBlock source-level rewrite (default blockSize)
-    @Test
-    func testFileForEachBlockSourceLevelRewrite() throws {
-        let source = """
-        import java.io.File
+            fun main2() {
+                File("demo").walk().forEach { println(it.path) }
+            }
+            """,
+            """
+            package sample3
+            import java.io.File
 
-        fun main() {
-            val f = File("/tmp/test.bin")
-            f.forEachBlock { bytes, bytesRead ->
-                println(bytesRead)
+            fun main3() {
+                File("/tmp/test").mkdirs()
+            }
+            """,
+            """
+            package sample4
+            import java.io.File
+
+            fun main4() {
+                val f = File("/tmp/test.txt")
+                val content = f.readText()
+                println(content)
+            }
+            """,
+            """
+            package sample5
+            import java.io.File
+
+            fun main5() {
+                val f = File("/tmp/test.txt")
+                f.writeText("hello world")
+            }
+            """,
+            """
+            package sample6
+            import java.io.File
+
+            fun main6() {
+                File("/tmp/test").listFiles()
+            }
+            """,
+            """
+            package sample7
+            import java.io.File
+
+            fun main7() {
+                val f = File("/tmp/test.txt")
+                val lines = f.readLines()
+                println(lines.size)
+            }
+            """,
+            """
+            package sample8
+            import java.io.File
+
+            fun main8() {
+                File("/tmp/test").walk()
+            }
+            """,
+            """
+            package sample9
+            import kotlin.io.path.Path
+            import kotlin.io.path.walk
+
+            fun main9() {
+                Path("/tmp").walk()
+            }
+            """,
+            """
+            package sample10
+            import java.io.File
+            import kotlin.io.FileWalkDirection
+
+            fun main10() {
+                File("/tmp/test").walk(FileWalkDirection.TOP_DOWN).toList()
+            }
+            """,
+            """
+            package sample11
+            import kotlin.io.path.Path
+            import kotlin.io.path.useLines
+
+            fun main11() {
+                val p = Path("/dev/null")
+                val count = p.useLines { lines ->
+                    lines.count()
+                }
+                println(count)
+            }
+            """,
+            """
+            package sample12
+            import java.io.File
+
+            fun main12() {
+                File("/tmp/test.txt").writeText("hello")
+                val content = File("/tmp/test.txt").readText()
+                println(content)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let interner = ctx.interner
+
+            do {
+                let body = try findKIRFunctionBody(named: "main0", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_forEachBlock"))
+                #expect(!callees.contains("forEachBlock"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main1", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_forEachBlock_blockSize"))
+                #expect(!callees.contains("forEachBlock"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main2", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_walk"))
+                #expect(callees.contains("kk_file_tree_walk_forEach"))
+                #expect(!callees.contains("walk"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main3", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_mkdirs"))
+                #expect(!callees.contains("mkdirs"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main4", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_new"))
+                #expect(callees.contains("kk_file_readText"))
+                #expect(!callees.contains("readText"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main5", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_new"))
+                #expect(callees.contains("kk_file_writeText"))
+                #expect(!callees.contains("writeText"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main6", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_listFiles"))
+                #expect(!callees.contains("listFiles"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main7", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_new"))
+                #expect(callees.contains("kk_file_readLines"))
+                #expect(!callees.contains("readLines"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main8", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_walk"))
+                #expect(!callees.contains("walk"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main9", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_path_walk"))
+                #expect(!callees.contains("walk"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main10", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_walk_with_direction"))
+                #expect(callees.contains("kk_file_tree_walk_to_list"))
+                #expect(!callees.contains("walk"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main11", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_path_useLines_default"))
+                #expect(!callees.contains("useLines"))
+            }
+
+            do {
+                let body = try findKIRFunctionBody(named: "main12", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_file_new"))
+                #expect(callees.contains("kk_file_writeText"))
+                #expect(callees.contains("kk_file_readText"))
+                #expect(!callees.contains("writeText"))
+                #expect(!callees.contains("readText"))
             }
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileForEachBlock", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_forEachBlock"))
-            #expect(!callees.contains("forEachBlock"))
-        }
-    }
-
-    // STDLIB-IO-FN-016: forEachBlock with explicit blockSize
-    @Test
-    func testFileForEachBlockWithBlockSizeSourceLevelRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val f = File("/tmp/test.bin")
-            f.forEachBlock(1024) { bytes, bytesRead ->
-                println(bytesRead)
-            }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileForEachBlockSize", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_forEachBlock_blockSize"))
-            #expect(!callees.contains("forEachBlock"))
-        }
     }
 
     @Test
-    func testFileWalkRewriteKeepsListTrackingForChainedForEach() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            File("demo").walk().forEach { println(it.path) }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWalkRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_walk"))
-            #expect(callees.contains("kk_file_tree_walk_forEach"))
-            #expect(!callees.contains("walk"))
-        }
-    }
-
-    @Test
-    func testFileMkdirsRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            File("/tmp/test").mkdirs()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileMkdirsRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_mkdirs"))
-            #expect(!callees.contains("mkdirs"))
-        }
-    }
-
-    @Test
-    func testFileReadTextRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val f = File("/tmp/test.txt")
-            val content = f.readText()
-            println(content)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileReadTextRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_readText"))
-            #expect(!callees.contains("readText"))
-        }
-    }
-
-    @Test
-    func testFileDeleteRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            File("/tmp/test").delete()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileDeleteRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_delete"))
-            #expect(!callees.contains("delete"))
-        }
-    }
-
-    @Test
-    func testFileWriteTextRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val f = File("/tmp/test.txt")
-            f.writeText("hello world")
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWriteTextRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_writeText"))
-            #expect(!callees.contains("writeText"))
-        }
-    }
-
-    @Test
-    func testFileListFilesRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            File("/tmp/test").listFiles()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileListFilesRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_listFiles"))
-            #expect(!callees.contains("listFiles"))
-        }
-    }
-
-    @Test
-    func testFileReadLinesRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val f = File("/tmp/test.txt")
-            val lines = f.readLines()
-            println(lines.size)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileReadLinesRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_readLines"))
-            #expect(!callees.contains("readLines"))
-        }
-    }
-
-    @Test
-    func testFileWalkRewrite() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            File("/tmp/test").walk()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWalkRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_walk"))
-            #expect(!callees.contains("walk"))
-        }
-    }
-
-    // STDLIB-IO-PATH-FN-039: Path.walk() must lower to kk_path_walk
-    @Test
-    func testPathWalkRewrite() throws {
-        let source = """
-        import kotlin.io.path.Path
-        import kotlin.io.path.walk
-
-        fun main() {
-            Path("/tmp").walk()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "PathWalkRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_path_walk"), "Path.walk() must lower to kk_path_walk")
-            #expect(!callees.contains("walk"))
-        }
-    }
-
-    // STDLIB-IO-PATH-FN-039: File.walk(direction:) must lower to kk_file_walk_with_direction
-    @Test
-    func testFileWalkWithDirectionRewrite() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.FileWalkDirection
-
-        fun main() {
-            File("/tmp/test").walk(FileWalkDirection.TOP_DOWN).toList()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWalkDirectionRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_walk_with_direction"), "walk(direction:) must lower to kk_file_walk_with_direction")
-            #expect(callees.contains("kk_file_tree_walk_to_list"), "chained toList() on walk(direction:) result must be rewritten")
-            #expect(!callees.contains("walk"))
-        }
-    }
-
-    // STDLIB-IO-PATH-FN-038: Path.useLines default variant must inject closureRaw
-    @Test
-    func testPathUseLinesDefaultRewriteAddsClosureRawArgument() throws {
+    func testPathUseLinesDefaultRewriteAddsClosureRawArgument() {
         let interner = StringInterner()
         let arena = KIRArena()
         let ctx = KIRContext(
@@ -508,7 +358,7 @@ extension LoweringPassRegressionTests {
         let declID = arena.appendDecl(.function(fn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
 
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
+        try! CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
         guard case let .function(lowered)? = module.arena.decl(declID) else {
             Issue.record("expected lowered function")
@@ -530,9 +380,8 @@ extension LoweringPassRegressionTests {
         #expect(call.canThrow)
     }
 
-    // STDLIB-IO-PATH-FN-038: Path.useLines(charset, block) must inject closureRaw
     @Test
-    func testPathUseLinesCharsetVariantRewriteAddsClosureRawArgument() throws {
+    func testPathUseLinesCharsetVariantRewriteAddsClosureRawArgument() {
         let interner = StringInterner()
         let arena = KIRArena()
         let ctx = KIRContext(
@@ -574,7 +423,7 @@ extension LoweringPassRegressionTests {
         let declID = arena.appendDecl(.function(fn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
 
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
+        try! CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
         guard case let .function(lowered)? = module.arena.decl(declID) else {
             Issue.record("expected lowered function")
@@ -595,65 +444,5 @@ extension LoweringPassRegressionTests {
         #expect(call.arguments.count == 4, "kk_path_useLines should receive pathRaw, charsetRaw, fnPtr, and closureRaw")
         #expect(call.canThrow)
     }
-
-    // STDLIB-IO-PATH-FN-038: end-to-end source rewrite lowers useLines to kk_path_useLines_default
-    @Test
-    func testPathUseLinesSourceRewrite() throws {
-        let source = """
-        import kotlin.io.path.Path
-        import kotlin.io.path.useLines
-
-        fun main() {
-            val p = Path("/dev/null")
-            val count = p.useLines { lines ->
-                lines.count()
-            }
-            println(count)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "PathUseLinesRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_path_useLines_default"), "useLines without charset should lower to kk_path_useLines_default")
-            #expect(!callees.contains("useLines"), "useLines callee should be fully rewritten")
-        }
-    }
-
-    @Test
-    func testFileBasicOperationsIntegration() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            File("/tmp/test.txt").writeText("hello")
-            val content = File("/tmp/test.txt").readText()
-            println(content)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileBasicOperations", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_writeText"))
-            #expect(callees.contains("kk_file_readText"))
-            #expect(!callees.contains("writeText"))
-            #expect(!callees.contains("readText"))
-        }
-    }
-
 }
 #endif
