@@ -9,6 +9,7 @@ import Testing
 extension AnnotationSemanticTests {
 
     @Test func testVersionAndVisibilitySema() throws {
+
         let sources: [String] = [
             // testSinceKotlinAcceptsDocumentedDeclarationTargets
             """
@@ -462,6 +463,46 @@ extension AnnotationSemanticTests {
                     @Suppress("OPT_IN_USAGE")
                     fun hex(): String = 255.toHexString()
 
+            """,
+            // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
+            """
+            package sample42
+            class Host
+            """,
+            // testDslMarkerSurfaceHasDocumentedMetadata
+            """
+            package sample43
+            fun noop() {}
+            """,
+            // testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget
+            """
+            package sample44
+            class Host
+            """,
+            // testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental
+            """
+            package sample45
+            class Host
+            """,
+            // testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets
+            """
+            package sample46
+            class Host
+            """,
+            // testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses
+            """
+            package sample47
+            annotation class ExperimentalApi
+            """,
+            // testExperimentalContractsAnnotationIsSyntheticAnnotationClass
+            """
+            package sample48
+            annotation class ExperimentalApi
+            """,
+            // testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker
+            """
+            package sample49
+            fun noop() {}
             """
         ]
 
@@ -469,6 +510,7 @@ extension AnnotationSemanticTests {
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
+            let sema = try #require(ctx.sema)
             // testSinceKotlinAcceptsDocumentedDeclarationTargets
             do {
                 let samplePath = paths[0]
@@ -928,62 +970,6 @@ extension AnnotationSemanticTests {
                 #expect(diagnostics.isEmpty, "Expected OPT_IN_USAGE suppression alias to suppress opt-in diagnostics, got: \(sampleDiags)")
             }
 
-        }
-    }
-
-
-
-
-    @Test func testAnnotationSemanticVersionAndVisibilitySurfaceRegistrations() throws {
-        let sources: [String] = [
-            // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
-            """
-            package sample0
-            class Host
-            """,
-            // testDslMarkerSurfaceHasDocumentedMetadata
-            """
-            package sample1
-            fun noop() {}
-            """,
-            // testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget
-            """
-            package sample2
-            class Host
-            """,
-            // testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental
-            """
-            package sample3
-            class Host
-            """,
-            // testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets
-            """
-            package sample4
-            class Host
-            """,
-            // testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses
-            """
-            package sample5
-            annotation class ExperimentalApi
-            """,
-            // testExperimentalContractsAnnotationIsSyntheticAnnotationClass
-            """
-            package sample6
-            annotation class ExperimentalApi
-            """,
-            // testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker
-            """
-            package sample7
-            fun noop() {}
-            """
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-
             // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
             do {
             let sinceKotlinFQName = [
@@ -1340,6 +1326,7 @@ extension AnnotationSemanticTests {
             )
 
             }
+
         }
     }
 
