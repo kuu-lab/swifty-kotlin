@@ -28,27 +28,8 @@ extension DataFlowSemaPhase {
         if let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg) {
             symbols.setParentSymbol(kotlinTextPkgSymbol, for: characterCodingSymbol)
         }
-        let kotlinIOPkg = ensurePackage(path: ["kotlin", "io"], symbols: symbols, interner: interner)
-        let kotlinIOPkgSymbol = symbols.lookup(fqName: kotlinIOPkg)
-        let noSuchFileSymbol = ensureClassSymbol(
-            named: "NoSuchFileException",
-            in: kotlinIOPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinIOPkgSymbol {
-            symbols.setParentSymbol(kotlinIOPkgSymbol, for: noSuchFileSymbol)
-        }
-        // MARK: - kotlin.io.FileAlreadyExistsException (STDLIB-IO-TYPE-002)
-        let fileAlreadyExistsExceptionSymbol = ensureClassSymbol(
-            named: "FileAlreadyExistsException",
-            in: kotlinIOPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinIOPkgSymbol {
-            symbols.setParentSymbol(kotlinIOPkgSymbol, for: fileAlreadyExistsExceptionSymbol)
-        }
+        // kotlin.io.NoSuchFileException / FileAlreadyExistsException are declared
+        // in Stdlib/kotlin/io/FileSystemException.kt (KSP-619).
         let runtimeExceptionSymbol = ensureClassSymbol(
             named: "RuntimeException",
             in: kotlinPkg,
@@ -200,8 +181,6 @@ extension DataFlowSemaPhase {
 
         symbols.setDirectSupertypes([throwableSymbol], for: exceptionSymbol)
         symbols.setDirectSupertypes([exceptionSymbol], for: characterCodingSymbol)
-        symbols.setDirectSupertypes([exceptionSymbol], for: noSuchFileSymbol)
-        symbols.setDirectSupertypes([exceptionSymbol], for: fileAlreadyExistsExceptionSymbol)
         symbols.setDirectSupertypes([throwableSymbol], for: errorSymbol)
         symbols.setDirectSupertypes([errorSymbol], for: assertionErrorSymbol)
         symbols.setDirectSupertypes([exceptionSymbol], for: runtimeExceptionSymbol)
@@ -223,8 +202,6 @@ extension DataFlowSemaPhase {
         // Register nominal supertypes in TypeSystem for subtype checking
         types.setNominalDirectSupertypes([throwableSymbol], for: exceptionSymbol)
         types.setNominalDirectSupertypes([exceptionSymbol], for: characterCodingSymbol)
-        types.setNominalDirectSupertypes([exceptionSymbol], for: noSuchFileSymbol)
-        types.setNominalDirectSupertypes([exceptionSymbol], for: fileAlreadyExistsExceptionSymbol)
         types.setNominalDirectSupertypes([exceptionSymbol], for: runtimeExceptionSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: uninitializedSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: nullPointerSymbol)
@@ -247,8 +224,6 @@ extension DataFlowSemaPhase {
             throwableSymbol,
             exceptionSymbol,
             characterCodingSymbol,
-            noSuchFileSymbol,
-            fileAlreadyExistsExceptionSymbol,
             runtimeExceptionSymbol,
             uninitializedSymbol,
             nullPointerSymbol,
@@ -300,49 +275,6 @@ extension DataFlowSemaPhase {
             ownerSymbol: characterCodingSymbol,
             ownerType: characterCodingType,
             parameters: [("message", nullableStringType)],
-            externalLinkName: "__kk_throwable_new",
-            symbols: symbols,
-            interner: interner
-        )
-        let noSuchFileType = types.make(.classType(ClassType(
-            classSymbol: noSuchFileSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerSyntheticExceptionConstructor(
-            ownerSymbol: noSuchFileSymbol,
-            ownerType: noSuchFileType,
-            parameters: [],
-            externalLinkName: "__kk_throwable_new",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticExceptionConstructor(
-            ownerSymbol: noSuchFileSymbol,
-            ownerType: noSuchFileType,
-            parameters: [("file", types.stringType)],
-            externalLinkName: "__kk_throwable_new",
-            symbols: symbols,
-            interner: interner
-        )
-        // MARK: - FileAlreadyExistsException constructors (STDLIB-IO-TYPE-002)
-        let fileAlreadyExistsExceptionType = types.make(.classType(ClassType(
-            classSymbol: fileAlreadyExistsExceptionSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerSyntheticExceptionConstructor(
-            ownerSymbol: fileAlreadyExistsExceptionSymbol,
-            ownerType: fileAlreadyExistsExceptionType,
-            parameters: [],
-            externalLinkName: "__kk_throwable_new",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticExceptionConstructor(
-            ownerSymbol: fileAlreadyExistsExceptionSymbol,
-            ownerType: fileAlreadyExistsExceptionType,
-            parameters: [("file", types.stringType)],
             externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
@@ -455,43 +387,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Throwable member properties (STDLIB-127)
+        // MARK: - Throwable stack-trace members (STDLIB-127)
+        //
+        // message / cause / initCause / addSuppressed / getSuppressed /
+        // suppressedExceptions are declared in bundled Kotlin source
+        // (`Stdlib/kotlin/Throwable.kt`, KSP-654); only the stack-trace
+        // rendering members remain synthetic here.
 
         let throwableFQName = kotlinPkg + [interner.intern("Throwable")]
-
-        // MARK: - Advanced exception features (STDLIB-EXCEPT-105)
-
-        let throwableType = types.make(.classType(ClassType(
-            classSymbol: throwableSymbol, args: [], nullability: .nonNull
-        )))
         let throwableRef = SyntheticStubTypeRef.namedClass(["kotlin", "Throwable"])
-        let nullableThrowableRef = SyntheticStubTypeRef.namedClass(
-            ["kotlin", "Throwable"],
-            nullability: .nullable
-        )
         let throwableContext = SyntheticStubRegistrationContext(
             ownerFQName: throwableFQName,
             parentSymbol: throwableSymbol
-        )
-        registerSyntheticPropertyStubs(
-            [
-                // message: String?
-                SyntheticPropertyStubSpec(
-                    name: "message",
-                    propertyType: .nullable(.string),
-                    externalLinkName: "kk_throwable_message"
-                ),
-                // cause: Throwable?
-                SyntheticPropertyStubSpec(
-                    name: "cause",
-                    propertyType: nullableThrowableRef,
-                    externalLinkName: "kk_throwable_cause"
-                ),
-            ],
-            context: throwableContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
         )
         registerSyntheticFunctionStubs(
             [
@@ -509,149 +416,12 @@ extension DataFlowSemaPhase {
                     receiverType: throwableRef,
                     returnType: .unit
                 ),
-                // initCause(cause: Throwable?): Throwable
-                SyntheticFunctionStubSpec(
-                    name: "initCause",
-                    externalLinkName: "kk_throwable_initCause",
-                    receiverType: throwableRef,
-                    parameters: [
-                        SyntheticStubParameterSpec(name: "cause", type: nullableThrowableRef),
-                    ],
-                    returnType: throwableRef
-                ),
-                // addSuppressed(exception: Throwable): Unit
-                SyntheticFunctionStubSpec(
-                    name: "addSuppressed",
-                    externalLinkName: "kk_throwable_addSuppressed",
-                    receiverType: throwableRef,
-                    parameters: [
-                        SyntheticStubParameterSpec(name: "exception", type: throwableRef),
-                    ],
-                    returnType: .unit
-                ),
-                // getSuppressed(): Array<Throwable>
-                SyntheticFunctionStubSpec(
-                    name: "getSuppressed",
-                    externalLinkName: "kk_throwable_getSuppressed",
-                    receiverType: throwableRef,
-                    returnType: .typeID(makeSyntheticArrayType(
-                        symbols: symbols,
-                        types: types,
-                        interner: interner,
-                        elementType: throwableType
-                    ))
-                ),
             ],
             context: throwableContext,
             symbols: symbols,
             types: types,
             interner: interner
         )
-
-        // suppressedExceptions: List<Throwable>
-        let suppressedExceptionsName = interner.intern("suppressedExceptions")
-        let suppressedExceptionsFQName = kotlinPkg + [suppressedExceptionsName]
-        let suppressedExceptionsReturnType = makeSyntheticListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: throwableType
-        )
-        if let existing = symbols.lookupAll(fqName: suppressedExceptionsFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-                && symbols.extensionPropertyReceiverType(for: symbolID) == throwableType
-        }) {
-            symbols.setPropertyType(suppressedExceptionsReturnType, for: existing)
-            symbols.setExternalLinkName("kk_throwable_suppressedExceptions", for: existing)
-            if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: throwableType,
-                        parameterTypes: [],
-                        returnType: suppressedExceptionsReturnType
-                    ),
-                    for: getterSymbol
-                )
-                symbols.setExternalLinkName("kk_throwable_suppressedExceptions", for: getterSymbol)
-            }
-        } else {
-            let propertySymbol = symbols.define(
-                kind: .property,
-                name: suppressedExceptionsName,
-                fqName: suppressedExceptionsFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-            }
-            symbols.setPropertyType(suppressedExceptionsReturnType, for: propertySymbol)
-            symbols.setExtensionPropertyReceiverType(throwableType, for: propertySymbol)
-            symbols.setExternalLinkName("kk_throwable_suppressedExceptions", for: propertySymbol)
-
-            let getterSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("get"),
-                fqName: suppressedExceptionsFQName + [interner.intern("$get")],
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(propertySymbol, for: getterSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: throwableType,
-                    parameterTypes: [],
-                    returnType: suppressedExceptionsReturnType
-                ),
-                for: getterSymbol
-            )
-            symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
-            symbols.setAccessorOwnerProperty(propertySymbol, for: getterSymbol)
-            symbols.setExternalLinkName("kk_throwable_suppressedExceptions", for: getterSymbol)
-        }
-    }
-
-    private func makeSyntheticArrayType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let arrayFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("Array"),
-        ]
-        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.invariant(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func makeSyntheticListType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
     }
 
     func registerSyntheticExceptionConstructors(

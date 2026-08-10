@@ -129,15 +129,41 @@ extension CallLowerer {
             lambdaID = adaptedExpr
             resolvedCallableInfo = adaptedInfo
         }
-        if let callableInfo = resolvedCallableInfo {
-            let fnPtrExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
-            instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-            finalArgs.append(fnPtrExpr)
-        } else {
-            finalArgs.append(lambdaID)
+        guard let callableInfo = resolvedCallableInfo else {
+            // No compile-time callable info: the argument is a callable *value*
+            // (e.g. a function-typed parameter of a bundled Kotlin-source
+            // wrapper such as kotlin.synchronized, whose lambda was boxed by
+            // kk_function_create_0 at the user call site). Passing it as a raw
+            // fnPtr would make the runtime call into an object pointer, so
+            // recover the (fnPtr, closureRaw) pair at runtime instead.
+            let intType = sema.types.intType
+            let fnPtrResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [lambdaID],
+                result: fnPtrResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let closureRawResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [lambdaID],
+                result: closureRawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArgs.append(fnPtrResult)
+            finalArgs.append(closureRawResult)
+            return finalArgs
         }
+        let fnPtrExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
+        instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
+        finalArgs.append(fnPtrExpr)
         finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: resolvedCallableInfo,
+            callableInfo: callableInfo,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -347,7 +373,8 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 namePrefix: "kk_function_value_adapter",
-                symbolIDOffsetBase: -720_000
+                symbolIDOffsetBase: -720_000,
+                erasedFunctionType: functionType
            )
         {
             let adaptedExpr = arena.appendExpr(
@@ -432,21 +459,20 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-        let hasExternalLink = !(sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true)
-
-        // Source-backed callees with no external link get function-value
-        // arguments materialized so the compiled body can invoke them.
-        // Imported inline callees also need materialization: their expansion
-        // may store or pass function-typed parameters to non-inline code
-        // (e.g. a Comparator SAM wrapper method) that expects runtime
-        // function objects, not raw lambda function pointers.
-        guard !hasExternalLink || (isImported && isInline) else {
-            return
-        }
 
         // Source-backed inline functions are fully expanded in the same
         // module, so lambda arguments can be consumed directly there.
         if isInline, !isImported {
+            return
+        }
+
+        // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
+        // raw function-pointer expansion; they must not receive a wrapped
+        // function-value object. Imported Kotlin functions compiled to .kklib
+        // carry a `kk_fn_` C symbol and still need materialization.
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
+           !externalLinkName.isEmpty,
+           !externalLinkName.hasPrefix("kk_fn_") {
             return
         }
 
@@ -737,15 +763,6 @@ extension CallLowerer {
             return loweredArguments
         }
 
-        if (externalLinkName == "kk_comparator_nulls_first_of"
-            || externalLinkName == "kk_comparator_nulls_last_of"),
-           loweredArguments.count == 1
-        {
-            let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
-            return [loweredArguments[0], zeroClosureExpr]
-        }
-
         // Worker.execute has an explicit receiver followed by:
         // (mode, producer, job). The runtime ABI expects both lambdas as
         // (fnPtr, closureRaw) pairs.
@@ -911,9 +928,10 @@ extension CallLowerer {
             )
         }
 
-        // STDLIB-325: synchronized(lock) { block } — expand block lambda to
-        // (lock, fnPtr, closureRaw) while preserving the runtime outThrown slot.
-        if externalLinkName == "kk_synchronized", loweredArguments.count == 2 {
+        // STDLIB-325 / KSP-618: __kkSynchronized(lock, block) — expand the block
+        // argument to (lock, fnPtr, closureRaw) while preserving the runtime
+        // outThrown slot.
+        if externalLinkName == "__kk_synchronized", loweredArguments.count == 2 {
             return makeClosureThunkExpandedArguments(
                 prefixArguments: [loweredArguments[0]],
                 loweredArgID: loweredArguments[1],
@@ -929,7 +947,7 @@ extension CallLowerer {
         // to (fnPtr, closureRaw) so runtime can retain both the entry point and
         // the captured environment. Multi-capture lambdas are packed into a
         // closure object, reusing the same adapter strategy as collection HOFs.
-        if externalLinkName == "kk_deep_recursive_function_new", loweredArguments.count == 1 {
+        if externalLinkName == "__kk_deep_recursive_function_new", loweredArguments.count == 1 {
             return makeCollectionHOFExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
@@ -939,175 +957,6 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
-        }
-
-        // Fixed-arity comparator factories take one (fnPtr, closureRaw) pair
-        // per selector. The selector expressions are lowered as ordinary
-        // arguments first, so expand them here before emitting the ABI call.
-        let fixedComparatorSelectorCount: Int? = switch externalLinkName {
-        case "kk_comparator_from_multi_selectors": 2
-        case "kk_comparator_from_multi_selectors3": 3
-        case "kk_comparator_from_selector",
-             "kk_comparator_from_selector_descending": 1
-        case "kk_compareValuesBy1": 1
-        case "kk_compareValuesBy": 2
-        case "kk_compareValuesBy3": 3
-        default: nil
-        }
-        if let selectorCount = fixedComparatorSelectorCount {
-            let selectorOffset = externalLinkName.hasPrefix("kk_compareValuesBy") ? 2 : 0
-            guard loweredArguments.count == selectorOffset + selectorCount,
-                  originalArgs.count == selectorOffset + selectorCount
-            else {
-                return loweredArguments
-            }
-            var expanded = Array(loweredArguments.prefix(selectorOffset))
-            for index in 0..<selectorCount {
-                let argumentIndex = selectorOffset + index
-                let selector = makeCollectionHOFSelectorArgument(
-                    loweredArgID: loweredArguments[argumentIndex],
-                    argExprID: originalArgs[argumentIndex].expr,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                expanded.append(selector.loweredArgID)
-                expanded.append(makeClosureRawOrBoxedArgument(
-                    callableInfo: selector.callableInfo,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                ))
-            }
-            return expanded
-        }
-
-        // compareBy(vararg selectors): pack selector (fnPtr, closureRaw) pairs into a runtime array.
-        if externalLinkName == "kk_comparator_from_multi_selectors_vararg", loweredArguments.count >= 4 {
-            let slotCount = loweredArguments.count * 2
-            let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
-            instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
-            let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
-            emitNonThrowingCall(
-                callee: interner.intern("kk_array_new"),
-                arg: countExpr,
-                result: arrayExpr,
-                into: &instructions
-            )
-
-            for i in 0..<loweredArguments.count {
-                let selector = makeCollectionHOFSelectorArgument(
-                    loweredArgID: loweredArguments[i],
-                    argExprID: originalArgs[i].expr,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-
-                appendCollectionHOFSelectorPair(
-                    selector,
-                    to: arrayExpr,
-                    selectorOffset: i,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            return [arrayExpr]
-        }
-
-        if externalLinkName == "kk_compareValuesByVararg", loweredArguments.count >= 6 {
-            let selectorCount = loweredArguments.count - 2
-            let slotCount = selectorCount * 2
-            let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
-            instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
-            let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
-            emitNonThrowingCall(
-                callee: interner.intern("kk_array_new"),
-                arg: countExpr,
-                result: arrayExpr,
-                into: &instructions
-            )
-
-            for argIndex in 2..<loweredArguments.count {
-                let selectorOffset = argIndex - 2
-                let selector = makeCollectionHOFSelectorArgument(
-                    loweredArgID: loweredArguments[argIndex],
-                    argExprID: originalArgs[argIndex].expr,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-
-                appendCollectionHOFSelectorPair(
-                    selector,
-                    to: arrayExpr,
-                    selectorOffset: selectorOffset,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            return [loweredArguments[0], loweredArguments[1], arrayExpr]
-        }
-
-        if externalLinkName == "kk_compareValuesByComparator",
-           loweredArguments.count == 4
-        {
-            var finalArgs: [KIRExprID] = [loweredArguments[0], loweredArguments[1], loweredArguments[2]]
-            let selector = makeCollectionHOFSelectorArgument(
-                loweredArgID: loweredArguments[3],
-                argExprID: originalArgs[3].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArgs.append(selector.loweredArgID)
-            finalArgs.append(makeClosureRawOrBoxedArgument(
-                callableInfo: selector.callableInfo,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            ))
-            return finalArgs
-        }
-
-        // compareValuesBy: expand selector lambda args to (fnPtr, closureRaw) pairs.
-        // kk_compareValuesBy1(a, b, selector) → (a, b, selectorFn, selectorClosureRaw)
-        // kk_compareValuesBy(a, b, sel1, sel2) → (a, b, sel1Fn, sel1Closure, sel2Fn, sel2Closure)
-        // kk_compareValuesBy3(a, b, sel1, sel2, sel3) → (a, b, sel1Fn, sel1Closure, sel2Fn, sel2Closure, sel3Fn, sel3Closure)
-        let compareValuesbyNames: Set = ["kk_compareValuesBy1", "kk_compareValuesBy", "kk_compareValuesBy3"]
-        if compareValuesbyNames.contains(externalLinkName), loweredArguments.count >= 3 {
-            // First 2 arguments (a, b) pass through unchanged
-            var finalArgs = [loweredArguments[0], loweredArguments[1]]
-            // Remaining arguments are selector lambdas that need expansion
-            for i in 2..<loweredArguments.count {
-                let selector = makeCollectionHOFSelectorArgument(
-                    loweredArgID: loweredArguments[i],
-                    argExprID: originalArgs[i].expr,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArgs.append(selector.loweredArgID)
-                finalArgs.append(makeClosureRawOrBoxedArgument(
-                    callableInfo: selector.callableInfo,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                ))
-            }
-            return finalArgs
         }
 
         return loweredArguments

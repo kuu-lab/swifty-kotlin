@@ -9,52 +9,17 @@ import Testing
 /// 解決し、戻り値型が `String` になることを検証する。
 @Suite
 struct StringIndentFunctionTests {
-    @Test func testIndentWithNoArgumentsResolves() throws {
+    @Test func testIndentResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun main() {
-            val s: String = "hello".indent()
+            val noArg: String = "hello".indent()
+            val withInt: String = "hello".indent(2)
+            val negative: String = "  hello".indent(-2)
+            val returnIsString: Int = "  hello".indent(2).length
+            val chained: String = "  abc".indent(2).trim()
         }
         """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-    }
 
-    @Test func testIndentWithIntArgumentResolves() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val s: String = "hello".indent(2)
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testIndentWithNegativeIntArgumentResolves() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val s: String = "  hello".indent(-2)
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testIndentReturnTypeIsString() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val n: Int = "  hello".indent(2).length
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testIndentChainableWithOtherStringMembers() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val s: String = "  abc".indent(2).trim()
-        }
-        """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
@@ -65,6 +30,7 @@ struct StringIndentFunctionTests {
             val s = "hello".indent("  ")
         }
         """)
+
         try runSema(ctx)
         #expect(
             ctx.diagnostics.hasError,

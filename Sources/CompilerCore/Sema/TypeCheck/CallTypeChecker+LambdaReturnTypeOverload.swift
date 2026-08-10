@@ -113,6 +113,13 @@ extension CallTypeChecker {
                         sema: sema
                     )
                     contextualArgExpectedTypes[index] = expectation.type
+                    if declaresConcreteLambdaParameterTypes(
+                        at: index,
+                        candidates: expectedTypeCandidates,
+                        sema: sema
+                    ) {
+                        sema.bindings.markSourceDeclaredExpectedType(argument.expr)
+                    }
                     if expectation.isInputOnly {
                         inputOnlyLambdaIndices.insert(index)
                     }
@@ -715,6 +722,28 @@ extension CallTypeChecker {
         "kk_string_windowedSequence_transform",
     ]
 
+    /// Whether the only candidate for the call declares this argument as a
+    /// function type whose parameter types are written out concretely in source
+    /// (no type parameter left for inference to substitute). Such a signature
+    /// is authoritative even where it says `Any`, unlike the `Any` inference
+    /// falls back to when a type variable stays unsolved (BUG-163).
+    private func declaresConcreteLambdaParameterTypes(
+        at index: Int,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> Bool {
+        guard candidates.count == 1,
+              let candidate = candidates.first,
+              sema.symbols.isSourceBackedSymbol(candidate),
+              let signature = sema.symbols.functionSignature(for: candidate),
+              index < signature.parameterTypes.count,
+              case let .functionType(declared) = sema.types.kind(of: signature.parameterTypes[index])
+        else {
+            return false
+        }
+        return !declared.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+    }
+
     private func lambdaLiteralExpectedType(
         at index: Int,
         candidates: [SymbolID],
@@ -802,6 +831,10 @@ extension CallTypeChecker {
         let parameterCandidates = lambdaParameterCandidates(
             at: index,
             candidates: candidates,
+            explicitTypeArgs: explicitTypeArgs,
+            receiverType: receiverType,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
             sema: sema
         )
         guard !parameterCandidates.isEmpty else {
@@ -884,6 +917,10 @@ extension CallTypeChecker {
     private func lambdaParameterCandidates(
         at index: Int,
         candidates: [SymbolID],
+        explicitTypeArgs: [TypeID] = [],
+        receiverType: TypeID? = nil,
+        inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        resolver: OverloadResolver? = nil,
         sema: SemaModule
     ) -> [LambdaParameterCandidate] {
         candidates.compactMap { candidate in
@@ -892,7 +929,37 @@ extension CallTypeChecker {
             else {
                 return nil
             }
-            let parameterType = signature.parameterTypes[index]
+            // Substitute the same way the single-candidate path does, so a
+            // generic receiver's arguments reach the lambda's expected type
+            // (`Iterable<T>.f(transform: (T) -> R)` called on `List<Int>` must
+            // expose `it: Int`, not the bare declaration type parameter `T`).
+            let explicitSubstituted = applyExplicitTypeArgs(
+                to: signature.parameterTypes[index],
+                signature: signature,
+                candidate: candidate,
+                explicitTypeArgs: explicitTypeArgs,
+                sema: sema
+            )
+            let receiverSubstituted = applyReceiverClassTypeArgs(
+                to: explicitSubstituted,
+                signature: signature,
+                candidate: candidate,
+                receiverType: receiverType,
+                sema: sema
+            )
+            let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
+                to: receiverSubstituted,
+                signature: signature,
+                receiverType: receiverType,
+                sema: sema
+            )
+            let parameterType = applyInferredArgumentTypeArgs(
+                to: functionReceiverSubstituted,
+                signature: signature,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                resolver: resolver,
+                sema: sema
+            )
             guard case let .functionType(functionType) = sema.types.kind(of: parameterType) else {
                 return nil
             }

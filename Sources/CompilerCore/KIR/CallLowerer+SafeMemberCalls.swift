@@ -316,33 +316,8 @@ extension CallLowerer {
             }
         }
 
-        // Int.rotateLeft() / rotateRight() (STDLIB-BIT-007)
-        if args.count == 1 {
-            let calleeStr = interner.resolve(effectiveCalleeName)
-            if calleeStr == "rotateLeft" || calleeStr == "rotateRight" {
-                let intType = sema.types.intType
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if nonNullReceiverType == intType {
-                    let runtimeName: String
-                    switch calleeStr {
-                    case "rotateLeft": runtimeName = "kk_int_rotateLeft"
-                    case "rotateRight": runtimeName = "kk_int_rotateRight"
-                    default: fatalError("unreachable: calleeStr already guarded to rotate functions")
-                    }
-                    let loweredArgID = driver.lowerExpr(args[0].expr, shared: shared, emit: &instructions)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeName),
-                        arguments: [loweredReceiverID, loweredArgID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
+        // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
+        // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
 
         // Long bit manipulation functions (STDLIB-BIT-007)
         let longType = sema.types.longType
@@ -373,29 +348,6 @@ extension CallLowerer {
                         result: result,
                         into: &instructions.instructions
                     )
-                    return result
-                }
-            }
-
-            // Single-argument functions (rotate)
-            if args.count == 1 {
-                let runtimeName: String?
-                switch calleeStr {
-                case "rotateLeft": runtimeName = "kk_long_rotateLeft"
-                case "rotateRight": runtimeName = "kk_long_rotateRight"
-                default: runtimeName = nil
-                }
-
-                if let name = runtimeName {
-                    let loweredArgID = driver.lowerExpr(args[0].expr, shared: shared, emit: &instructions)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(name),
-                        arguments: [loweredReceiverID, loweredArgID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
                     return result
                 }
             }
@@ -1037,7 +989,8 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
-        // External member property read (e.g. MatchResult?.value → kk_match_result_value).
+        // External member property read (e.g. Duration?.inWholeNanoseconds →
+        // kk_duration_inWholeNanoseconds).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
         // to a property with an externalLinkName, emit the runtime call directly.
         // This mirrors tryLowerExternalMemberPropertyRead used by lowerMemberLikeCallExpr.

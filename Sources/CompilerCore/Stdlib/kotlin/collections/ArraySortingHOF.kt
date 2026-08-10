@@ -1,12 +1,12 @@
 package kotlin.collections
 
-import kotlin.comparisons.compareValues
+import kotlin.comparisons.compareValuesUnchecked
 
 // KSP-659
 // Array `sorted*` / `binarySearch` migrated to bundled Kotlin source.
 // The comparison core reuses the KSP-309 Comparator Kotlin implementation
 // (kotlin/comparisons/Comparators.kt) for the *With overloads and
-// kotlin.comparisons.compareValues for natural-order search.
+// kotlin.comparisons.compareValuesUnchecked for natural-order search.
 //
 // Migration source:
 //   Sources/Runtime/RuntimeArrayDequeAndUtility.swift (kk_array_sortedArray*)
@@ -89,7 +89,7 @@ public fun <T> Array<T>.binarySearch(element: T, fromIndex: Int = 0, toIndex: In
     var high = toIndex - 1
     while (low <= high) {
         val mid = (low + high) ushr 1
-        val cmp = compareValues(this[mid], element)
+        val cmp = compareValuesUnchecked(this[mid], element)
         if (cmp < 0) {
             low = mid + 1
         } else if (cmp > 0) {
