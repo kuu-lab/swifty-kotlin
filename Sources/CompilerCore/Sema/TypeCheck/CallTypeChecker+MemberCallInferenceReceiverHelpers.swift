@@ -407,29 +407,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    func kClassCastReturnType(
-        from targetType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let nonNullTargetType = sema.types.makeNonNullable(targetType)
-        guard let (_, symbol) = resolveClassTypeSymbol(nonNullTargetType, sema: sema),
-              symbol.fqName.dropLast() == [interner.intern("kotlin")]
-        else {
-            return nonNullTargetType
-        }
-        let knownNames = KnownCompilerNames(interner: interner)
-        return knownNames.builtinType(named: symbol.name, types: sema.types) ?? nonNullTargetType
-    }
-
-    func kClassSafeCastReturnType(
-        from targetType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        sema.types.makeNullable(kClassCastReturnType(from: targetType, sema: sema, interner: interner))
-    }
-
     func isCoroutineHandleReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
