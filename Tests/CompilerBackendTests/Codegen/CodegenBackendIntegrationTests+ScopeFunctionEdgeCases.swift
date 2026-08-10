@@ -177,6 +177,7 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
 
     /// KSP-603: a user-declared `contextOf()` must keep normal call lowering
     /// instead of being rewritten into a context receiver read.
+    @Test
     func testCodegenUserDeclaredContextOfShadowsIntrinsic() throws {
         let source = """
         import kotlin.ExperimentalContextParameters
@@ -204,8 +205,9 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
             try LinkPhase().run(ctx)
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+                ==
                 """
                 user contextOf
                 10
