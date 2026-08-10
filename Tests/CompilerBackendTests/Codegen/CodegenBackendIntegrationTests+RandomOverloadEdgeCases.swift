@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendRandomOverloadEdgeCasesTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenCompilesRandomNextBitsMember() throws {
         // KSP-466: nextBits(bitCount) matches upstream kotlin.random.Random exactly,
         // including that it does NOT bounds-check bitCount — upstream's own doc
@@ -47,6 +109,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomDefaultSingleton() throws {
         let source = """
         import kotlin.random.Random
@@ -61,6 +124,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "RandomDefaultSingleton", expected: "true\n")
     }
 
+    @Test
     func testCodegenCompilesRandomNextBytesSize() throws {
         // KSP-466: nextBytes(size) is a faithful port of upstream's own
         // `nextBytes(size: Int): ByteArray = nextBytes(ByteArray(size))` (confirmed
@@ -89,6 +153,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextULongOverloads() throws {
         // KSP-466: `full >= 0uL` isn't asserted — it's a pre-existing, unrelated
         // compiler bug that ULong values with the high bit set (>= 2^63, which
@@ -138,6 +203,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextBytesRange() throws {
         let source = """
         import kotlin.random.Random
@@ -169,6 +235,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextUIntOverloads() throws {
         // KSP-466: see testCodegenCompilesRandomNextULongOverloads — same
         // pre-existing, unrelated compiler bug (UInt values with the high bit set
@@ -215,6 +282,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextUBytesOverloads() throws {
         // KSP-466: nextUBytes is a package-level extension (matching upstream's own
         // URandom.kt design, Sources/CompilerCore/Stdlib/kotlin/random/URandom.kt),
@@ -260,6 +328,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextLongRange() throws {
         let source = """
         import kotlin.random.Random
@@ -288,6 +357,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextIntRange() throws {
         let source = """
         import kotlin.random.Random
@@ -321,6 +391,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomOverloadEdgeCases() throws {
         let source = """
         import kotlin.random.Random
@@ -357,6 +428,7 @@ extension CodegenBackendIntegrationTests {
     // KSwiftK-only extensions with no JVM kotlin-stdlib equivalent (real kotlinc rejects both
     // as "too many arguments for 'fun nextFloat(): Float'"), so this isn't verified via
     // diff_kotlinc.sh. Moved from Scripts/diff_cases/random_nextfloat_range_overloads.kt.
+    @Test
     func testCodegenCompilesRandomNextFloatRangeOverloads() throws {
         let source = """
         import kotlin.random.Random
@@ -398,6 +470,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomNextDoubleRejectsNaNBounds() throws {
         // KSP-466 review follow-up: nextDouble(from, until) matches upstream's own
         // `checkRangeBounds(from, until) = require(until > from) { ... }` — no
@@ -439,6 +512,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesRandomLongSeedConstructor() throws {
         let source = """
         import kotlin.random.Random
@@ -456,9 +530,9 @@ extension CodegenBackendIntegrationTests {
                 emit: .object,
                 outputPath: outputBase
             )
-            let objectPath = try XCTUnwrap(ctx.generatedObjectPath)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
+            let objectPath = try #require(ctx.generatedObjectPath)
+            #expect(FileManager.default.fileExists(atPath: objectPath))
         }
     }
 }
-
+#endif

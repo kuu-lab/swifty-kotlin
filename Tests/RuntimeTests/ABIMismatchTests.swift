@@ -655,9 +655,21 @@ struct ABIMismatchTests {
         }
     }
 
+    /// KSP-418: `String.format` is a private stdlib bridge, so only `__kk_`-prefixed
+    /// entry points may exist.
+    @Test
+    func kkStringFormatPublicNamesDemoted() {
+        for publicName in ["kk_string_format_flat", "kk_string_format_locale_flat"] {
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == publicName }),
+                "\(publicName) should be demoted to the __kk_ bridge namespace"
+            )
+        }
+    }
+
     @Test
     func kkStringFormatFlatSignatures() throws {
-        let formatSpec = try requireSpec("kk_string_format_flat")
+        let formatSpec = try requireSpec("__kk_string_format_flat")
         #expect(formatSpec.returnType == .nullableUInt8Pointer)
         #expect(formatSpec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
@@ -670,7 +682,7 @@ struct ABIMismatchTests {
             .nullableIntptrPointer,
         ])
 
-        let localeSpec = try requireSpec("kk_string_format_locale_flat")
+        let localeSpec = try requireSpec("__kk_string_format_locale_flat")
         #expect(localeSpec.returnType == .nullableUInt8Pointer)
         #expect(localeSpec.parameters.map(\.type) == [
             .intptr,
@@ -1061,6 +1073,22 @@ struct ABIMismatchTests {
         #expect(spec.parameters[0].name == "handle")
         #expect(spec.parameters[0].type == .intptr)
         #expect(spec.parameters[1].name == "actionFnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+    }
+
+    // KSP-618: kotlin.synchronized is Kotlin source over this demoted bridge.
+    @Test
+    func kkSynchronizedSignature() throws {
+        let spec = try requireSpec("__kk_synchronized")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "lock")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
         #expect(spec.parameters[1].type == .intptr)
         #expect(spec.parameters[2].name == "closureRaw")
         #expect(spec.parameters[2].type == .intptr)

@@ -14,30 +14,6 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin")],
             symbols: symbols
         )
-        let packageSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
-
-        registerSyntheticPreconditionFunction(
-            named: "TODO",
-            packageFQName: kotlinPkg,
-            packageSymbol: packageSymbol,
-            parameters: [],
-            returnType: types.nothingType,
-            externalLinkName: "kk_todo_noarg",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticPreconditionFunction(
-            named: "TODO",
-            packageFQName: kotlinPkg,
-            packageSymbol: packageSymbol,
-            parameters: [(name: "reason", type: types.stringType)],
-            returnType: types.nothingType,
-            externalLinkName: "kk_todo",
-            symbols: symbols,
-            interner: interner
-        )
-
         let kotlinIOPkg = ensureSyntheticPackageHierarchy(fqName: [interner.intern("kotlin"), interner.intern("io")], symbols: symbols)
 
         registerSyntheticIOTopLevelProperty(
@@ -577,23 +553,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- kotlin.synchronized (STDLIB-325) ---
-        let synchronizedBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.makeNullable(types.anyType)
-        )))
-        registerSyntheticTopLevelFunction(
-            named: "synchronized",
-            packageFQName: kotlinPkg,
-            parameters: [
-                (name: "lock", type: types.anyType),
-                (name: "block", type: synchronizedBlockType),
-            ],
-            returnType: types.anyType,
-            externalLinkName: "kk_synchronized",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-618: kotlin.synchronized is Kotlin source
+        // (Stdlib/kotlin/Synchronized.kt) over the demoted __kk_synchronized
+        // bridge, so no synthetic stub is registered here.
 
         // --- java.io.File (STDLIB-320) ---
         let javaIOPkg = ensureSyntheticPackageHierarchy(
@@ -848,44 +810,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // measureTime returns Duration (STDLIB-585)
-        let measureTimeBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.unitType
-        )))
-        registerSyntheticTopLevelFunction(
-            named: "measureTime",
-            packageFQName: kotlinTimePkg,
-            parameters: [(name: "block", type: measureTimeBlockType)],
-            returnType: durationClassType,
-            externalLinkName: "kk_measureTime",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // measureTimedValue returns TimedValue (STDLIB-660)
-        let timedValueFQName = kotlinTimePkg + [interner.intern("TimedValue")]
-        let timedValueType: TypeID
-        if let timedValueSymbol = symbols.lookup(fqName: timedValueFQName) {
-            timedValueType = types.make(.classType(ClassType(
-                classSymbol: timedValueSymbol, args: [], nullability: .nonNull
-            )))
-        } else {
-            timedValueType = types.anyType
-        }
-        let measureTimedValueBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.makeNullable(types.anyType)
-        )))
-        registerSyntheticTopLevelFunction(
-            named: "measureTimedValue",
-            packageFQName: kotlinTimePkg,
-            parameters: [(name: "block", type: measureTimedValueBlockType)],
-            returnType: timedValueType,
-            externalLinkName: "kk_measureTimedValue",
-            symbols: symbols,
-            interner: interner
-        )
+        // measureTime / measureTimedValue live in bundled Kotlin source
+        // (Stdlib/kotlin/time/MeasureTime.kt).
 
         // --- STDLIB-HOF-029: 関数型完全実装 ---
         registerSyntheticFunctionTypes(

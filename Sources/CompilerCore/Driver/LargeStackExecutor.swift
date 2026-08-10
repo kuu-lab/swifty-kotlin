@@ -60,9 +60,14 @@ enum LargeStackExecutor {
         #if canImport(Darwin)
         // `pthread_t` has no zero-argument initializer on current Darwin SDKs
         // (it's a bare `UnsafeMutablePointer`, unlike Glibc's integer typedef).
-        // `Foundation.Thread` honors `stackSize` on Darwin, so it sidesteps raw
-        // pthreads entirely instead of chasing the SDK-specific shape of
-        // `pthread_create`'s output parameter.
+        // A `var thread: pthread_t?` + `pthread_create(&thread, ...)` shape
+        // type-checks, but on this toolchain (Swift 6.3.3 / SDK MacOSX26.5)
+        // `swift-frontend` reliably crashes (SIGABRT) in the SIL
+        // `SendNonSendable` region-isolation pass when lowering that exact
+        // call pattern here -- reproduced across several refactorings of the
+        // surrounding code (BUG-192). `Foundation.Thread` honors `stackSize`
+        // on Darwin, so it sidesteps raw pthreads entirely rather than
+        // chasing `pthread_create`'s SDK-specific signature.
         let done = DispatchSemaphore(value: 0)
         let thread = Thread {
             box.run()
@@ -84,16 +89,16 @@ enum LargeStackExecutor {
 
         _ = pthread_attr_setstacksize(&attr, stackSize)
 
+        var thread = pthread_t()
         let boxPtr = Unmanaged.passUnretained(box).toOpaque()
 
-        var thread = pthread_t()
-        if pthread_create(&thread, &attr, largeStackThreadEntry, boxPtr) == 0 {
-            _ = pthread_join(thread, nil)
-        } else {
+        guard pthread_create(&thread, &attr, largeStackThreadEntry, boxPtr) == 0 else {
             box.run()
+            return try box.result!.get() as! T
         }
-        #endif
 
+        _ = pthread_join(thread, nil)
+        #endif
         return try box.result!.get() as! T
     }
 }

@@ -1539,18 +1539,10 @@ extension ListSyntheticMemberLinkTests {
             let mapFQ = kotlinCollections + [interner.intern("Map")]
             let mutableMapFQ = kotlinCollections + [interner.intern("MutableMap")]
 
-            // KSP-430: Map higher-order functions are source-backed in
-            // MapHOF.kt, so only non-migrated Map members appear here.
+            // KSP-430 / KSP-431: Map higher-order functions (MapHOF.kt) and Map
+            // lookup/conversion members (MapLookupAndTransform.kt) are
+            // source-backed, so only non-migrated Map members appear here.
             let expectedLinks: [(fqName: [InternedString], memberName: String, externalLink: String)] = [
-                (mapFQ, "containsKey", "kk_map_contains_key"),
-                (mapFQ, "containsValue", "kk_map_contains_value"),
-                (mapFQ, "keys", "kk_map_keys"),
-                (mapFQ, "values", "kk_map_values"),
-                (mapFQ, "entries", "kk_map_entries"),
-                (mapFQ, "getValue", "kk_map_getValue"),
-                (mapFQ, "withDefault", "kk_map_withDefault"),
-                (mapFQ, "toList", "kk_map_toList"),
-                (mapFQ, "toMutableMap", "kk_map_to_mutable_map"),
                 (mutableMapFQ, "put", "kk_mutable_map_put"),
                 (mutableMapFQ, "remove", "kk_mutable_map_remove"),
                 (mutableMapFQ, "putAll", "kk_mutable_map_putAll"),
@@ -1738,7 +1730,19 @@ extension ListSyntheticMemberLinkTests {
                 #expect(symbol.fqName == packageFQName + [interner.intern(memberName)])
             }
 
-            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [interner.intern("toList")]))
+            // KSP-431: Map.toList is a bundled source extension, not a Map member stub.
+            let toListSymbol = try #require(
+                sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("toList")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return nominalOwnerFQName(for: receiverType) == mapFQName
+                },
+                "Expected bundled source for Map.toList"
+            )
+            #expect(sema.symbols.externalLinkName(for: toListSymbol) == nil)
             let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
             guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
                 Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
@@ -1746,9 +1750,14 @@ extension ListSyntheticMemberLinkTests {
             let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
             #expect(interner.resolve(listName) == "List")
             let firstListArg = try #require(listType.args.first)
-            guard case let .out(pairTypeID) = firstListArg,
-                  case let .classType(pairType) = sema.types.kind(of: pairTypeID)
-            else {
+            let pairTypeID: TypeID
+            switch firstListArg {
+            case let .invariant(id), let .out(id), let .in(id):
+                pairTypeID = id
+            case .star:
+                Issue.record("Expected Map.toList element type to be Pair"); return
+            }
+            guard case let .classType(pairType) = sema.types.kind(of: pairTypeID) else {
                 Issue.record("Expected Map.toList element type to be Pair"); return
             }
             let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)

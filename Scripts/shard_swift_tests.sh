@@ -9,6 +9,8 @@ usage() {
     cat <<'USAGE'
 Usage:
   shard_swift_tests.sh --mode dynamic --list-filter <regex> \
+      [--list-exclude <regex>] \
+      [--target-prefix <SwiftPM-test-product>] \
       --shard-index N --shard-count N [-- swift_test.sh-args...]
 
   shard_swift_tests.sh --mode static --tests-dir <path> --target-prefix <Module> \
@@ -20,13 +22,9 @@ shard's share, so multiple CI jobs can split one slow test target.
 
 Modes:
   dynamic   Lists concrete test identifiers via `swift test list --skip-build`
-            (requires the target to already be built), filters the list with
-            <list-filter>, and shards at the individual-test level. Safe for pure
-            XCTest targets, where `swift test list` prints the documented
-            "Module.Class/method" specifier for every test. Do NOT use this
-            mode for targets that mix in Swift Testing (@Suite/@Test), since
-            this script does not depend on knowing that framework's list
-            output format.
+            (requires the target to already be built), filters the documented
+            specifier list, and shards at the individual-test level. Supports
+            both XCTest and Swift Testing identifiers.
 
   static    Extracts test suite type names by scanning test sources under
             --tests-dir for XCTestCase classes and Swift Testing @Suite
@@ -41,8 +39,11 @@ Modes:
 Options:
   --mode <dynamic|static>   Sharding mode (required)
   --list-filter <regex>     (dynamic) regex applied locally to `swift test list`
+  --list-exclude <regex>    (dynamic) optional regex removed from the matched
+                             test list before sharding
   --tests-dir <path>        (static) directory to grep test sources from
-  --target-prefix <name>    (static) module prefix for the --filter regex
+  --target-prefix <name>    (static) module prefix for the --filter regex;
+                             (dynamic) optional swiftbuild test product
   --shard-index <n>         0-based shard index (default: 0)
   --shard-count <n>         Total shard count (default: 1 = no CI-level
                              sharding; the full matched set still runs
@@ -57,6 +58,7 @@ USAGE
 
 mode=""
 list_filter=""
+list_exclude=""
 tests_dir=""
 target_prefix=""
 shard_index=0
@@ -69,6 +71,8 @@ while [[ $# -gt 0 ]]; do
             mode="$2"; shift 2 ;;
         --list-filter)
             list_filter="$2"; shift 2 ;;
+        --list-exclude)
+            list_exclude="$2"; shift 2 ;;
         --tests-dir)
             tests_dir="$2"; shift 2 ;;
         --target-prefix)
@@ -162,17 +166,35 @@ if [[ -n "${SWIFT_BUILD_SYSTEM:-}" ]]; then
     build_system_arg=(--build-system "${SWIFT_BUILD_SYSTEM}")
 fi
 
+list_product_arg=()
+if [[ -n "${target_prefix:-}" && "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
+    list_product_arg=(--test-product "$target_prefix")
+fi
+
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
 # ---------------------------------------------------------------------------
 if [[ "$mode" == "dynamic" ]]; then
     echo "shard_swift_tests.sh: listing tests matching '$list_filter'..." >&2
+    if [[ -n "$list_exclude" ]]; then
+        echo "shard_swift_tests.sh: excluding tests matching '$list_exclude'." >&2
+    fi
     # `swift test list` does not honor --filter on every SwiftPM version.
     # List everything and apply the requested shard prefix locally.
-    mapfile -t all_tests < <(
-        swift test list --skip-build "${build_system_arg[@]}" \
-            | awk -v filter="$list_filter" '$0 ~ filter { print }' \
+    test_list=""
+    if ! test_list="$(
+        swift test list --skip-build "${list_product_arg[@]}" "${build_system_arg[@]}" \
+            | awk -v filter="$list_filter" -v exclude="$list_exclude" \
+                '$0 ~ filter && (exclude == "" || $0 !~ exclude) { print }' \
             | sort
-    )
+    )"; then
+        echo "shard_swift_tests.sh: test discovery failed." >&2
+        exit 1
+    fi
+
+    declare -a all_tests=()
+    if [[ -n "$test_list" ]]; then
+        mapfile -t all_tests <<< "$test_list"
+    fi
 
     total="${#all_tests[@]}"
     if (( total == 0 )); then
@@ -191,10 +213,9 @@ if [[ "$mode" == "dynamic" ]]; then
         exit 0
     fi
 
-    # Test identifiers here are XCTest specifiers ("Module.Class/method"):
-    # only alphanumerics, '_', '.', and '/'. Escape '.' so it is matched
-    # literally rather than as the regex wildcard; no other characters in
-    # this charset are regex metacharacters.
+    # Escape every regex metacharacter in the documented test specifier. Swift
+    # Testing identifiers include parameter labels and parentheses, while
+    # XCTest identifiers are usually limited to "Module.Class/method".
     #
     # A single --filter regex alternating every selected test can exceed
     # Linux's per-argument exec() limit (MAX_ARG_STRLEN, ~128KB) once a
@@ -202,12 +223,16 @@ if [[ "$mode" == "dynamic" ]]; then
     # too long" (observed with CompilerBackendTests: 9000+ tests total).
     # SwiftPM 6.2 does not reliably OR repeated --filter flags, so chunk the
     # alternation across multiple invocations instead of one huge argument.
-    chunk_size=100
+    chunk_size=400
     declare -a filter_args=()
     while IFS= read -r chunk; do
-        filter_args+=(--filter "^(${chunk})\$")
+        # Swift Testing may append a runtime case path after the identifier
+        # printed by `swift test list`; XCTest ends at the listed identifier.
+        filter_args+=(--filter "^(${chunk})(/|$)")
     done < <(
-        printf '%s\n' "${shard_tests[@]}" | sed -e 's/\./\\./g' | chunk_alternations "$chunk_size"
+        printf '%s\n' "${shard_tests[@]}" \
+            | sed -e 's/[][\\.^$*+?(){}|]/\\&/g' \
+            | chunk_alternations "$chunk_size"
     )
 
     echo "shard_swift_tests.sh: split into $(( ${#filter_args[@]} / 2 )) --filter chunks of up to $chunk_size tests each." >&2

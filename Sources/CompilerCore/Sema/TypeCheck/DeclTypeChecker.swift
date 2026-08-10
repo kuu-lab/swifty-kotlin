@@ -150,6 +150,9 @@ final class DeclTypeChecker {
 
         if let initializer = property.initializer {
             var locals: LocalBindings = initialLocals
+            if inferredPropertyType != nil {
+                sema.bindings.markSourceDeclaredExpectedType(initializer)
+            }
             let initializerType = driver.inferExpr(
                 initializer, ctx: ctx.with(initializingPropertySymbol: symbol), locals: &locals,
                 expectedType: inferredPropertyType
