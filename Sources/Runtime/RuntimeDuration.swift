@@ -336,15 +336,6 @@ public func kk_duration_infinite() -> Int {
     runtimeDurationHandle(fromNanoseconds: Int64.max)
 }
 
-// KSP-471: kept (not part of the kk_duration_from_* Kotlin-facing factory surface
-// removal) because CallLowerer+StdlibLoops.swift emits a direct call to this by
-// name as the measureTime/measureTimedValue epilogue (elapsed-nanoseconds boxing).
-@_cdecl("kk_duration_from_nanoseconds")
-public func kk_duration_from_nanoseconds(_ value: Int) -> Int {
-    let box = RuntimeDurationBox(nanoseconds: Int64(value))
-    return registerRuntimeObject(box)
-}
-
 @_cdecl("kk_duration_toDuration_int")
 public func kk_duration_toDuration_int(_ value: Int, _ unitOrdinal: Int) -> Int {
     runtimeDurationHandle(
@@ -640,46 +631,6 @@ public func kk_duration_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     if lhs.nanoseconds < rhs.nanoseconds { return -1 }
     if lhs.nanoseconds > rhs.nanoseconds { return 1 }
     return 0
-}
-
-// MARK: - measureTime / measureTimedValue (STDLIB-231/660)
-
-@_cdecl("kk_measureTime")
-public func kk_measureTime(_ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let start = DispatchTime.now().uptimeNanoseconds
-    var thrown = 0
-    _ = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    let end = DispatchTime.now().uptimeNanoseconds
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
-    }
-    // Compute delta in UInt64 first (always non-negative), then clamp to Int64 range.
-    let delta = end &- start
-    let elapsedNs = delta <= UInt64(Int64.max) ? Int64(delta) : Int64.max
-    let box = RuntimeDurationBox(nanoseconds: elapsedNs)
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_measureTimedValue")
-public func kk_measureTimedValue(_ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let start = DispatchTime.now().uptimeNanoseconds
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    let end = DispatchTime.now().uptimeNanoseconds
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
-    }
-    // Compute delta in UInt64 first (always non-negative), then clamp to Int64 range.
-    let delta = end &- start
-    let elapsedNs = delta <= UInt64(Int64.max) ? Int64(delta) : Int64.max
-    let durationBox = RuntimeDurationBox(nanoseconds: elapsedNs)
-    let durationHandle = registerRuntimeObject(durationBox)
-    let timedValueBox = RuntimeTimedValueBox(value: result, duration: durationHandle)
-    return registerRuntimeObject(timedValueBox)
 }
 
 // MARK: - TimedValue (STDLIB-660)

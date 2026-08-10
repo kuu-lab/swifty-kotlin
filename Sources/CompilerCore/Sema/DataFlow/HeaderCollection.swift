@@ -1064,7 +1064,12 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> SymbolID? {
         guard kind == .class || kind == .interface else { return nil }
-        guard reusableSyntheticSourceDeclarationKey(for: file, sourceManager: sourceManager, interner: interner) == fqName else {
+        let reusableKeys = reusableSyntheticSourceDeclarationKeys(
+            for: file,
+            sourceManager: sourceManager,
+            interner: interner
+        )
+        guard reusableKeys.contains(fqName) else {
             return nil
         }
         return symbols.lookupAll(fqName: fqName).first { symbolID in
@@ -1073,37 +1078,50 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func reusableSyntheticSourceDeclarationKey(
+    private func reusableSyntheticSourceDeclarationKeys(
         for file: ASTFile,
         sourceManager: SourceManager,
         interner: StringInterner
-    ) -> [InternedString]? {
-        switch sourceManager.path(of: file.fileID) {
+    ) -> [[InternedString]] {
+        let names: [[String]] = switch sourceManager.path(of: file.fileID) {
         case "__bundled_kotlin/Comparable.kt":
-            return ["kotlin", "Comparable"].map { interner.intern($0) }
+            [["kotlin", "Comparable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
-            return ["kotlin", "collections", "RandomAccess"].map { interner.intern($0) }
+            [["kotlin", "collections", "RandomAccess"]]
+        case "__bundled_kotlin/collections/MutableIterable.kt":
+            [["kotlin", "collections", "MutableIterable"]]
+        case "__bundled_kotlin/collections/AbstractCollection.kt":
+            [["kotlin", "collections", "AbstractCollection"]]
+        case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
+            [["kotlin", "collections", "AbstractMutableCollection"]]
         case "__bundled_kotlin/Result.kt":
-            return ["kotlin", "Result"].map { interner.intern($0) }
+            [["kotlin", "Result"]]
         case "__bundled_kotlin/text/StringBuilder.kt":
-            return ["kotlin", "text", "StringBuilder"].map { interner.intern($0) }
+            [["kotlin", "text", "StringBuilder"]]
         case "__bundled_kotlin/uuid/Uuid.kt":
-            return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+            [["kotlin", "uuid", "Uuid"]]
         case "__bundled_java/math/BigDecimal.kt":
-            return ["java", "math", "BigDecimal"].map { interner.intern($0) }
+            [["java", "math", "BigDecimal"]]
         case "__bundled_kotlin/random/Random.kt":
-            return ["kotlin", "random", "Random"].map { interner.intern($0) }
+            [["kotlin", "random", "Random"]]
         case "__bundled_kotlin/random/JavaUtilRandom.kt":
-            return ["java", "util", "Random"].map { interner.intern($0) }
+            [["java", "util", "Random"]]
         case "__bundled_kotlin/text/StringEncoding.kt":
-            return ["kotlin", "text", "Charset"].map { interner.intern($0) }
+            [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":
-            return ["kotlin", "Throwable"].map { interner.intern($0) }
+            [["kotlin", "Throwable"]]
         case "__bundled_kotlin/sequences/Sequence.kt":
-            return ["kotlin", "sequences", "Sequence"].map { interner.intern($0) }
+            [["kotlin", "sequences", "Sequence"]]
+        case "__bundled_kotlin/ranges/Ranges.kt":
+            [
+                ["kotlin", "ranges", "ClosedRange"],
+                ["kotlin", "ranges", "ClosedFloatingPointRange"],
+                ["kotlin", "ranges", "OpenEndRange"],
+            ]
         default:
-            return nil
+            []
         }
+        return names.map { $0.map { interner.intern($0) } }
     }
 
     /// Registers type parameters for a nominal type (class or interface) as symbols,
@@ -1131,17 +1149,32 @@ extension DataFlowSemaPhase {
             typeParams.map(\.variance),
             for: ownerSymbol
         )
+        // When a bundled source declaration reuses a synthetic shell
+        // (`reusableSyntheticDeclarationSymbol`), the shell's type parameters are already
+        // referenced by the residual synthetic members registered against it. Defining fresh
+        // symbols here would leave those members typed against orphaned type parameters, so
+        // adopt the shell's symbols and only re-apply variances and bounds to them.
+        let existingTypeParamSymbols = types.nominalTypeParameterSymbols(for: ownerSymbol)
+        let reusesShellTypeParameters = existingTypeParamSymbols.count == typeParams.count
+            && zip(existingTypeParamSymbols, typeParams).allSatisfy { existing, declared in
+                symbols.symbol(existing)?.name == declared.name
+            }
         let typeParamNamespace = fqName + [interner.intern("\(namespacePrefix)\(ownerSymbol.rawValue)")]
-        for typeParam in typeParams {
-            let typeParamFQName = typeParamNamespace + [typeParam.name]
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParam.name,
-                fqName: typeParamFQName,
-                declSite: declSite,
-                visibility: .private,
-                flags: []
-            )
+        for (index, typeParam) in typeParams.enumerated() {
+            let typeParamSymbol: SymbolID
+            if reusesShellTypeParameters {
+                typeParamSymbol = existingTypeParamSymbols[index]
+            } else {
+                let typeParamFQName = typeParamNamespace + [typeParam.name]
+                typeParamSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: typeParam.name,
+                    fqName: typeParamFQName,
+                    declSite: declSite,
+                    visibility: .private,
+                    flags: []
+                )
+            }
             typeParamSymbols.append(typeParamSymbol)
             localTypeParameters[typeParam.name] = typeParamSymbol
         }

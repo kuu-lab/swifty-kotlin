@@ -1,5 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import RuntimeABI
+import Foundation
 import Testing
 
 /// STDLIB-TEXT-FN-083: `fun String.toBigDecimal(): BigDecimal` in `kotlin.text`.
@@ -8,25 +10,43 @@ import Testing
 /// exposes the JVM-compatible `java.math.BigDecimal` return type.
 @Suite
 struct StringToBigDecimalFunctionTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try #require(result)
-    }
-
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
         guard let symbol = sema.symbols.lookup(fqName: fq) else { return nil }
         return sema.symbols.externalLinkName(for: symbol)
     }
 
-    @Test func testToBigDecimalStubLinksToRuntimeSymbol() throws {
-        let (sema, interner) = try makeSema()
+    private func bigDecimalType(sema: SemaModule, interner: StringInterner) throws -> TypeID {
+        let fq = ["java", "math", "BigDecimal"].map { interner.intern($0) }
+        let symbol = try #require(sema.symbols.lookup(fqName: fq))
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    @Test func testToBigDecimalResolvesInSource() throws {
+        let ctx = makeContextFromSource("""
+        import java.math.BigDecimal
+
+        fun parse(raw: String): BigDecimal {
+            return raw.toBigDecimal()
+        }
+        """)
+
+        try runSema(ctx)
+
+        let diagnosticSummary = ctx.diagnostics.diagnostics
+            .map { "\($0.code): \($0.message)" }
+            .joined(separator: " | ")
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected String.toBigDecimal() to resolve cleanly, got: \(diagnosticSummary)"
+        )
+
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let directLink = externalLink(for: "toBigDecimal", sema: sema, interner: interner)
         #expect(
@@ -37,10 +57,7 @@ struct StringToBigDecimalFunctionTests {
             RuntimeABISpec.allFunctions.first { $0.name == "__kk_string_toBigDecimal" } != nil,
             "__kk_string_toBigDecimal must be registered in RuntimeABISpec"
         )
-    }
 
-    @Test func testToBigDecimalReturnsJavaMathBigDecimal() throws {
-        let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "toBigDecimal"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookupAll(fqName: fq).first { symbolID in
@@ -58,47 +75,23 @@ struct StringToBigDecimalFunctionTests {
 
         #expect(returnFQName == ["java", "math", "BigDecimal"])
         #expect(returnType.nullability == .nonNull)
-    }
 
-    @Test func testToBigDecimalCallResolvesToRuntimeBridge() throws {
-        let source = """
-        import java.math.BigDecimal
-
-        fun parse(raw: String): BigDecimal {
-            return raw.toBigDecimal()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected String.toBigDecimal() to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "toBigDecimal" && args.isEmpty
-                },
-                "Expected member call to toBigDecimal() in AST"
-            )
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected call binding for toBigDecimal"
-            )
-
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
-                "String.toBigDecimal() should resolve to standard library function (no direct external link)"
-            )
-        }
+        let ast = try #require(ctx.ast)
+        let callExpr = try #require(
+            firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                return interner.resolve(callee) == "toBigDecimal" && args.isEmpty
+            },
+            "Expected member call to toBigDecimal() in AST"
+        )
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected call binding for toBigDecimal"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
+            "String.toBigDecimal() should resolve to standard library function (no direct external link)"
+        )
     }
 }
+#endif

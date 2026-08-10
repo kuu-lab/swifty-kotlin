@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendComparatorCompositionEdgeCasesTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenCompilesCompareByVarargSelectors() throws {
         let source = """
         fun main() {
@@ -15,11 +77,12 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareByVarargSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
-    // The fixed-arity 2/3-selector compareBy overloads (kk_comparator_from_multi_selectors,
-    // kk_comparator_from_multi_selectors3) were missing from the closure-argument expansion
-    // switch entirely, so selectors were passed as bare fnPtrs with no closureRaw slot,
-    // desyncing every argument after the first selector and crashing at runtime (SIGSEGV).
-    // Only the vararg overload (4+ selectors) was covered above.
+    // The fixed-arity 2/3-selector compareBy overloads were missing from the old
+    // closure-argument expansion switch entirely, so selectors were passed as bare
+    // fnPtrs with no closureRaw slot, desyncing every argument after the first
+    // selector and crashing at runtime (SIGSEGV). KSP-461 moved every overload to
+    // bundled Kotlin source; these tests keep the behavior covered.
+    @Test
     func testCodegenCompilesCompareByFixedTwoSelectors() throws {
         let source = """
         fun main() {
@@ -31,6 +94,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareByFixedTwoSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
+    @Test
     func testCodegenCompilesCompareByFixedThreeSelectors() throws {
         let source = """
         fun main() {
@@ -42,6 +106,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareByFixedThreeSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
+    @Test
     func testCodegenCompilesCompareValuesByVarargSelectors() throws {
         let source = """
         fun main() {
@@ -59,6 +124,7 @@ extension CodegenBackendIntegrationTests {
     // runtime trampoline tried to invoke the boxed object as a function pointer and crashed
     // (SIGBUS). This affects every fixed-arity compareBy/compareValuesBy selector helper, not
     // just the 1-selector case exercised here.
+    @Test
     func testCodegenCompilesCompareValuesByFixedOneSelectorCapturingVariable() throws {
         let source = """
         fun main() {
@@ -72,6 +138,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareValuesByFixedOneSelectorCapturingVariable", expected: "-1\n")
     }
 
+    @Test
     func testCodegenCompilesComparatorThenByComparatorSelector() throws {
         let source = """
         fun main() {
@@ -85,6 +152,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenByComparatorSelector", expected: "[13, 23, 15]\n")
     }
 
+    @Test
     func testCodegenCompilesCompareValuesByComparatorSelector() throws {
         let source = """
         fun main() {
@@ -96,6 +164,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareValuesByComparatorSelector", expected: "-1\n")
     }
 
+    @Test
     func testCodegenCompilesComparatorThenByDescendingComparatorSelector() throws {
         let source = """
         fun main() {
@@ -109,6 +178,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenByDescendingComparatorSelector", expected: "[23, 13, 15]\n")
     }
 
+    @Test
     func testCodegenCompilesCompareByDescendingComparatorSelector() throws {
         let source = """
         fun main() {
@@ -120,6 +190,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareByDescendingComparatorSelector", expected: "[apple, pear, fig]\n")
     }
 
+    @Test
     func testCodegenCompilesCompareByComparatorSelector() throws {
         let source = """
         fun main() {
@@ -136,6 +207,7 @@ extension CodegenBackendIntegrationTests {
     // consumed by sortedWith as Comparator objects. These tests keep the composition behavior
     // covered after the old kk_comparator_then_* runtime helpers were removed.
 
+    @Test
     func testCodegenCompilesComparatorThenByDescendingSelector() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
@@ -157,6 +229,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenByDescendingSelector", expected: "[1:30, 1:20, 2:40, 2:10]\n")
     }
 
+    @Test
     func testCodegenCompilesComparatorThenDescending() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
@@ -179,6 +252,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenDescending", expected: "[1:30, 1:20, 2:40, 2:10]\n")
     }
 
+    @Test
     func testCodegenCompilesComparatorThenComparator() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
@@ -201,10 +275,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenComparator", expected: "[1:20, 1:30, 2:10, 2:40]\n")
     }
 
-    // Keep the nullable comparator scenarios in this existing XCTest method.
-    // CodegenBackendIntegrationTests is already a large XCTestCase, and Swift's
-    // generated discovery array can otherwise exceed the type-checker time limit
-    // when several methods are added.
+    @Test
     func testCodegenCompilesComparatorCompositionAndNullOrderingEdgeCases() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
@@ -251,3 +322,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif

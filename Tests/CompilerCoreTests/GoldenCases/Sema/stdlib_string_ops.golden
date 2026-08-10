@@ -39,9 +39,7 @@ symbol fq=golden.sema.useUppercase kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.ranges.IntRange kind=class vis=public flags=synthetic
-symbol fq=kotlin.text.equals#0 kind=function vis=public flags=synthetic sig=recv=String params=[String?] ret=Boolean
-symbol fq=kotlin.text.equals#1 kind=function vis=public flags=synthetic sig=recv=String params=[String?,Boolean] ret=Boolean
-symbol fq=kotlin.text.equals.ignoreCase kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.text.equals#1 kind=function vis=public flags=synthetic sig=recv=String params=[String?] ret=Boolean
 symbol fq=kotlin.text.equals.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.format kind=function vis=public flags=synthetic sig=recv=String params=[Any?] ret=String vararg=[1]
 symbol fq=kotlin.text.format.args kind=valueParameter vis=private flags=synthetic
@@ -178,11 +176,11 @@ expr e@67:63 string() type=String
 expr e@67:34#1 memberCall recv=e@67:34 callee=replaceIndent args=[_:e@67:63] type=String call=kotlin.text.replaceIndent
 expr e@69:28 string(abc) type=String
 expr e@69:41 string(abc) type=String
-expr e@69:28#1 memberCall recv=e@69:28 callee=equals args=[_:e@69:41] type=Boolean call=kotlin.text.equals#0
+expr e@69:28#1 memberCall recv=e@69:28 callee=equals args=[_:e@69:41] type=Boolean call=kotlin.text.equals#1
 expr e@71:38 string(abc) type=String
 expr e@71:51 string(ABC) type=String
 expr e@71:71 bool(true) type=Boolean
-expr e@71:38#1 memberCall recv=e@71:38 callee=equals args=[_:e@71:51,ignoreCase:e@71:71] type=Boolean call=kotlin.text.equals#1
+expr e@71:38#1 memberCall recv=e@71:38 callee=equals args=[_:e@71:51,ignoreCase:e@71:71] type=Boolean call=kotlin.text.equals#0
 expr e@73:33 string(abcabc) type=String
 expr e@73:55 string(abc) type=String
 expr e@73:62 string(X) type=String

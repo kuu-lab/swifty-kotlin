@@ -576,7 +576,8 @@ extension CallTypeChecker {
             }
         }
         // KSP-406: substring is bundled Kotlin source (StringSubstringSlice.kt).
-        // String stdlib: equals(other: String?) / equals(other, ignoreCase) (STDLIB-192)
+        // String stdlib: equals(other: String?) (STDLIB-192).
+        // KSP-413: equals(other, ignoreCase) is bundled Kotlin source.
         if interner.resolve(calleeName) == "equals" {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -604,43 +605,10 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
-                if args.count == 2,
-                   sema.types.isSubtype(argTypes[0], nullableStringType),
-                   sema.types.isSubtype(sema.types.makeNonNullable(argTypes[1]), sema.types.booleanType)
-                {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(sema.types.booleanType) : sema.types.booleanType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
             }
         }
-        // String stdlib: 2-arg compareTo(String, Boolean) (STDLIB-141)
-        if args.count == 2, interner.resolve(calleeName) == "compareTo" {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
-                let finalType = safeCall
-                    ? sema.types.makeNullable(sema.types.intType)
-                    : sema.types.intType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
+        // KSP-413: 2-arg compareTo(String, Boolean) is bundled Kotlin source
+        // (STDLIB-141 fallback removed).
         // String stdlib: replaceFirst(oldValue, newValue) (STDLIB-188)
         if args.count == 2, interner.resolve(calleeName) == "replaceFirst" {
             let receiverTypeForCheck = safeCall
@@ -1547,28 +1515,6 @@ extension CallTypeChecker {
             return fallbackType
         }
         if let fallbackType = tryBindThreadLocalGetOrSetFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryBindMapGetOrElseFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryBindMapWithDefaultFallback(
             id,
             calleeName: calleeName,
             safeCall: safeCall,

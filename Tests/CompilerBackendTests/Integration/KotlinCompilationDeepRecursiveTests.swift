@@ -32,6 +32,20 @@ struct KotlinCompilationDeepRecursiveTests {
         """)
     }
 
+    // The capturing block is lowered through the receiver-aware HOF adapter
+    // (closure env, scope receiver, value); without it the captured value and
+    // the scope receiver share a parameter slot.
+    @Test func testCompileDeepRecursiveFunctionCapturingBlock() throws {
+        try assertKotlinCompilesToObject("""
+        fun probe(step: Int): Int {
+            val countDown = DeepRecursiveFunction<Int, Int> { n ->
+                if (n <= 0) 0 else callRecursive(n - step) + 1
+            }
+            return countDown(9)
+        }
+        """)
+    }
+
     @Test func testCompileDeepRecursiveFunctionBasicObjectEmission() throws {
         try assertKotlinCompilesToObject("""
         class Node(val next: Node?)
