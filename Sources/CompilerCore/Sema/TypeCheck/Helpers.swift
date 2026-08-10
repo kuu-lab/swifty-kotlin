@@ -703,7 +703,8 @@ struct TypeCheckHelpers {
                 symbols: sema.symbols,
                 types: sema.types,
                 interner: interner,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                range: usageRange
             )
         }
     }

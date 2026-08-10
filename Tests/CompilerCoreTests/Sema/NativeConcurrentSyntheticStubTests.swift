@@ -3,32 +3,10 @@
 import Foundation
 import Testing
 
-// MARK: - kotlin.native.concurrent sema / diagnostics coverage (STDLIB-NATIVE-CONCURRENT-002)
 
 @Suite
 struct NativeConcurrentSyntheticStubTests {
 
-    // MARK: Helpers
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let ctx = makeContextFromSource(source)
-        do {
-            try runSema(ctx)
-        } catch {
-            // Diagnostics are inspected per-test.
-        }
-        return ctx
-    }
 
     private func symbol(
         _ path: [String],
@@ -115,874 +93,825 @@ struct NativeConcurrentSyntheticStubTests {
         )
     }
 
-    // MARK: - TransferMode enum
 
     @Test
-    func testTransferModeEnumIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let fqName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.TransferMode to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .enumClass)
-    }
-
-    @Test
-    func testTransferModeSafeEntryHasCorrectType() throws {
-        let (sema, interner) = try makeSema()
-
-        let enumFQName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
-        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
-        let enumType = sema.types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let safeFQName = enumFQName + [interner.intern("SAFE")]
-        let safeSymbol = try #require(
-            sema.symbols.lookup(fqName: safeFQName),
-            "Expected TransferMode.SAFE entry"
-        )
-        #expect(sema.symbols.propertyType(for: safeSymbol) == enumType)
-    }
-
-    @Test
-    func testTransferModeUnsafeEntryHasCorrectType() throws {
-        let (sema, interner) = try makeSema()
-
-        let enumFQName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
-        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
-        let enumType = sema.types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let unsafeFQName = enumFQName + [interner.intern("UNSAFE")]
-        let unsafeSymbol = try #require(sema.symbols.lookup(fqName: unsafeFQName))
-        #expect(sema.symbols.propertyType(for: unsafeSymbol) == enumType)
-    }
-
-    @Test
-    func testTransferModeResolvesInSource() {
-        let source = """
-        import kotlin.native.concurrent.TransferMode
-
-        fun probe(): TransferMode = TransferMode.SAFE
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "Expected TransferMode.SAFE to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    // MARK: - FutureState enum
-
-    @Test
-    func testFutureStateEnumIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let fqName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.FutureState to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .enumClass)
-    }
-
-    @Test
-    func testFutureStateEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let baseFQName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
-        for entry in ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"] {
-            let entryFQName = baseFQName + [interner.intern(entry)]
-            #expect(
-                sema.symbols.lookup(fqName: entryFQName) != nil,
-                "Expected FutureState.\(entry) to be registered"
-            )
-        }
-    }
-
-    // MARK: - Continuation0 / Continuation1 / Continuation2 classes
-
-    @Test
-    func testContinuationTypesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
-            let continuation = try symbol(
-                ["kotlin", "native", "concurrent", name],
-                sema: sema,
-                interner: interner
-            )
-            let functionSupertype = try symbol(
-                ["kotlin", "Function", "Function\(arity)"],
-                sema: sema,
-                interner: interner
-            )
-
-            #expect(sema.symbols.symbol(continuation)?.kind == .class)
-            #expect(sema.types.nominalTypeParameterSymbols(for: continuation).count == arity)
-            #expect(sema.symbols.directSupertypes(for: continuation).contains(functionSupertype))
-            #expect(
-                sema.symbols.annotations(for: continuation).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "\(name) must carry Deprecated metadata"
-            )
-        }
-    }
-
-    @Test
-    func testContinuationConstructorsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let invokerType = try nativeContinuationInvokerType(sema: sema, interner: interner)
-
-        for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
-            let continuationFQName = ["kotlin", "native", "concurrent", name].map { interner.intern($0) }
-            let continuation = try #require(sema.symbols.lookup(fqName: continuationFQName))
-            let typeParameters = sema.types.nominalTypeParameterSymbols(for: continuation)
-            let typeParameterTypes = typeParameters.map {
-                sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
+    func testNativeConcurrentSyntheticStubSema() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+            """
+            package sample1
+            import kotlin.native.concurrent.TransferMode
+            fun probe(): TransferMode = TransferMode.SAFE
+            """,
+            """
+            package sample2
+            import kotlin.native.concurrent.Continuation0
+            import kotlin.native.concurrent.Continuation1
+            import kotlin.native.concurrent.Continuation2
+            fun accept0(c: Continuation0) {
+                c.dispose()
+                c.invoke()
+                c()
             }
-            let continuationType = sema.types.make(.classType(ClassType(
-                classSymbol: continuation,
-                args: typeParameterTypes.map { .invariant($0) },
-                nullability: .nonNull
-            )))
-            let blockType = sema.types.make(.functionType(FunctionType(
-                params: typeParameterTypes,
-                returnType: sema.types.unitType
-            )))
+            fun accept1(c: Continuation1<Int>) {
+                c.dispose()
+                c.invoke(1)
+                c(1)
+            }
+            fun accept2(c: Continuation2<Int, String>) {
+                c.dispose()
+                c.invoke(1, "x")
+                c(1, "x")
+            }
+            """,
+            """
+            package sample3
+            import kotlinx.cinterop.COpaquePointer
+            import kotlin.native.concurrent.callContinuation0
+            import kotlin.native.concurrent.callContinuation1
+            import kotlin.native.concurrent.callContinuation2
+            fun probe(pointer: COpaquePointer) {
+                pointer.callContinuation0()
+                pointer.callContinuation1<Int>()
+                pointer.callContinuation2<Int, String>()
+            }
+            """,
+            """
+            @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+            package sample4
+            import kotlin.native.concurrent.FreezingException
+            fun probe(toFreeze: Any, blocker: Any): RuntimeException =
+                FreezingException(toFreeze, blocker)
+            """,
+            """
+            @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+            package sample5
+            import kotlin.native.concurrent.InvalidMutabilityException
+            fun probe(message: String): RuntimeException =
+                InvalidMutabilityException(message)
+            """,
+            """
+            package sample6
+            import kotlin.native.concurrent.TransferMode
+            import kotlin.native.concurrent.Worker
+            fun probe(worker: Worker): Int {
+                val future = worker.execute(TransferMode.SAFE, { 21 }) { it * 2 }
+                val stopped: Boolean = worker.requestTermination(false).result
+                return if (stopped) future.result else 0
+            }
+            """,
+            """
+            package sample7
+            import kotlin.native.concurrent.SharedImmutable
+            @SharedImmutable
+            val globalData: Int = 42
+            """,
+            """
+            package sample8
+            import kotlin.native.concurrent.SharedImmutable
+            @SharedImmutable
+            fun badUsage(): Int = 1
+            """,
+            """
+            package sample9
+            import kotlin.native.concurrent.SharedImmutable
+            class Box {
+                @field:SharedImmutable
+                val value: Int = 1
+            }
+            """,
+            """
+            package sample10
+            import kotlin.native.concurrent.ThreadLocal
+            @ThreadLocal
+            var counter: Int = 0
+            """,
+            """
+            package sample11
+            import kotlin.native.concurrent.ThreadLocal
+            @ThreadLocal
+            class LocalState
+            """,
+            """
+            package sample12
+            import kotlin.native.concurrent.ThreadLocal
+            @ThreadLocal
+            fun badUsage(): Int = 1
+            """,
+            """
+            package sample13
+            import kotlin.native.concurrent.ThreadLocal
+            class Box {
+                @field:ThreadLocal
+                val value: Int = 1
+            }
+            """
+        ]
 
-            let constructors = sema.symbols.lookupAll(fqName: continuationFQName + [interner.intern("<init>")])
-            let constructor = try #require(constructors.first { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                    return false
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            func diagnosticsForPath(_ path: String) -> [Diagnostic] {
+                guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+                return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
+            }
+
+            // testTransferModeEnumIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.TransferMode to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .enumClass)
+            }
+
+            // testTransferModeSafeEntryHasCorrectType
+            do {
+                let enumFQName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
+                let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
+                let enumType = sema.types.make(.classType(ClassType(
+                    classSymbol: enumSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+
+                let safeFQName = enumFQName + [interner.intern("SAFE")]
+                let safeSymbol = try #require(
+                    sema.symbols.lookup(fqName: safeFQName),
+                    "Expected TransferMode.SAFE entry"
+                )
+                #expect(sema.symbols.propertyType(for: safeSymbol) == enumType)
+            }
+
+            // testTransferModeUnsafeEntryHasCorrectType
+            do {
+                let enumFQName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
+                let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
+                let enumType = sema.types.make(.classType(ClassType(
+                    classSymbol: enumSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+
+                let unsafeFQName = enumFQName + [interner.intern("UNSAFE")]
+                let unsafeSymbol = try #require(sema.symbols.lookup(fqName: unsafeFQName))
+                #expect(sema.symbols.propertyType(for: unsafeSymbol) == enumType)
+            }
+
+            // testFutureStateEnumIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.FutureState to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .enumClass)
+            }
+
+            // testFutureStateEntriesAreRegistered
+            do {
+                let baseFQName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
+                for entry in ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"] {
+                    let entryFQName = baseFQName + [interner.intern(entry)]
+                    #expect(
+                        sema.symbols.lookup(fqName: entryFQName) != nil,
+                        "Expected FutureState.\(entry) to be registered"
+                    )
                 }
-                return signature.parameterTypes == [blockType, invokerType, sema.types.booleanType]
-                    && signature.returnType == continuationType
-            }, "Expected \(name) constructor")
-            let signature = try #require(sema.symbols.functionSignature(for: constructor))
-
-            #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-            #expect(signature.valueParameterHasDefaultValues == [false, false, true])
-            #expect(signature.typeParameterSymbols == typeParameters)
-            #expect(signature.classTypeParameterCount == arity)
-        }
-    }
-
-    @Test
-    func testContinuationMembersAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
-            let continuationFQName = ["kotlin", "native", "concurrent", name].map { interner.intern($0) }
-            let continuation = try #require(sema.symbols.lookup(fqName: continuationFQName))
-            let typeParameters = sema.types.nominalTypeParameterSymbols(for: continuation)
-            let typeParameterTypes = typeParameters.map {
-                sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
             }
-            let continuationType = sema.types.make(.classType(ClassType(
-                classSymbol: continuation,
-                args: typeParameterTypes.map { .invariant($0) },
-                nullability: .nonNull
-            )))
 
-            let dispose = try #require(
-                sema.symbols.lookupAll(fqName: continuationFQName + [interner.intern("dispose")]).first,
-                "Expected \(name).dispose"
-            )
-            let disposeSignature = try #require(sema.symbols.functionSignature(for: dispose))
-            #expect(disposeSignature.receiverType == continuationType)
-            #expect(disposeSignature.parameterTypes == [])
-            #expect(disposeSignature.returnType == sema.types.unitType)
-            #expect(disposeSignature.classTypeParameterCount == arity)
+            // testContinuationTypesAreRegistered
+            do {
+                for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
+                    let continuation = try symbol(
+                        ["kotlin", "native", "concurrent", name],
+                        sema: sema,
+                        interner: interner
+                    )
+                    let functionSupertype = try symbol(
+                        ["kotlin", "Function", "Function\(arity)"],
+                        sema: sema,
+                        interner: interner
+                    )
 
-            let invoke = try #require(
-                sema.symbols.lookupAll(fqName: continuationFQName + [interner.intern("invoke")]).first,
-                "Expected \(name).invoke"
-            )
-            let invokeSignature = try #require(sema.symbols.functionSignature(for: invoke))
-            #expect(invokeSignature.receiverType == continuationType)
-            #expect(invokeSignature.parameterTypes == typeParameterTypes)
-            #expect(invokeSignature.returnType == sema.types.unitType)
-            #expect(invokeSignature.classTypeParameterCount == arity)
-            #expect(sema.symbols.symbol(invoke)?.flags.contains(.operatorFunction) == true)
-            #expect(sema.symbols.symbol(invoke)?.flags.contains(.overrideMember) == true)
-        }
-    }
-
-    @Test
-    func testContinuationTypesResolveInSource() {
-        let source = """
-        import kotlin.native.concurrent.Continuation0
-        import kotlin.native.concurrent.Continuation1
-        import kotlin.native.concurrent.Continuation2
-
-        fun accept0(c: Continuation0) {
-            c.dispose()
-            c.invoke()
-            c()
-        }
-
-        fun accept1(c: Continuation1<Int>) {
-            c.dispose()
-            c.invoke(1)
-            c(1)
-        }
-
-        fun accept2(c: Continuation2<Int, String>) {
-            c.dispose()
-            c.invoke(1, "x")
-            c(1, "x")
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "Expected Continuation types to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    @Test
-    func testCallContinuationFunctionsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let receiverType = try cOpaquePointerType(
-            sema: sema,
-            interner: interner
-        )
-
-        for arity in 0...2 {
-            let functionFQName = ["kotlin", "native", "concurrent", "callContinuation\(arity)"]
-                .map { interner.intern($0) }
-            let function = try #require(sema.symbols.lookupAll(fqName: functionFQName).first { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                    return false
+                    #expect(sema.symbols.symbol(continuation)?.kind == .class)
+                    #expect(sema.types.nominalTypeParameterSymbols(for: continuation).count == arity)
+                    #expect(sema.symbols.directSupertypes(for: continuation).contains(functionSupertype))
+                    #expect(
+                        sema.symbols.annotations(for: continuation).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                        "\(name) must carry Deprecated metadata"
+                    )
                 }
-                return signature.receiverType == receiverType
-                    && signature.parameterTypes.isEmpty
-                    && signature.returnType == sema.types.unitType
-                    && signature.typeParameterSymbols.count == arity
-            }, "Expected callContinuation\(arity)")
-            let signature = try #require(sema.symbols.functionSignature(for: function))
-
-            #expect(sema.symbols.symbol(function)?.kind == .function)
-            #expect(signature.classTypeParameterCount == 0)
-            #expect(signature.valueParameterHasDefaultValues == [])
-            #expect(
-                sema.symbols.annotations(for: function).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "callContinuation\(arity) must carry Deprecated metadata"
-            )
-        }
-    }
-
-    @Test
-    func testCallContinuationFunctionsResolveInSource() {
-        let source = """
-        import kotlinx.cinterop.COpaquePointer
-        import kotlin.native.concurrent.callContinuation0
-        import kotlin.native.concurrent.callContinuation1
-        import kotlin.native.concurrent.callContinuation2
-
-        fun probe(pointer: COpaquePointer) {
-            pointer.callContinuation0()
-            pointer.callContinuation1<Int>()
-            pointer.callContinuation2<Int, String>()
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "Expected callContinuation functions to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-    // MARK: - FreezingException class
-
-    @Test
-    func testFreezingExceptionClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let freezingException = try symbol(
-            ["kotlin", "native", "concurrent", "FreezingException"],
-            sema: sema,
-            interner: interner
-        )
-        let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
-
-        #expect(sema.symbols.symbol(freezingException)?.kind == .class)
-        #expect(sema.symbols.directSupertypes(for: freezingException).contains(runtimeException))
-        #expect(
-            sema.symbols.annotations(for: freezingException).contains {
-                $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
-            },
-            "FreezingException must carry ExperimentalNativeApi metadata"
-        )
-    }
-
-    @Test
-    func testFreezingExceptionConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let exceptionFQName = ["kotlin", "native", "concurrent", "FreezingException"]
-            .map { interner.intern($0) }
-        let exception = try #require(sema.symbols.lookup(fqName: exceptionFQName))
-        let exceptionType = sema.types.make(.classType(ClassType(
-            classSymbol: exception,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let constructors = sema.symbols.lookupAll(fqName: exceptionFQName + [interner.intern("<init>")])
-        let constructor = try #require(constructors.first { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
             }
-            return signature.parameterTypes == [sema.types.anyType, sema.types.anyType]
-                && signature.returnType == exceptionType
-        })
-        let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
-        #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-        #expect(signature.receiverType == nil)
-        #expect(signature.valueParameterHasDefaultValues == [false, false])
-        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
-    }
+            // testContinuationConstructorsAreRegistered
+            do {
+                let invokerType = try nativeContinuationInvokerType(sema: sema, interner: interner)
 
-    @Test
-    func testFreezingExceptionResolvesInSourceWithOptIn() {
-        let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-        import kotlin.native.concurrent.FreezingException
+                for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
+                    let continuationFQName = ["kotlin", "native", "concurrent", name].map { interner.intern($0) }
+                    let continuation = try #require(sema.symbols.lookup(fqName: continuationFQName))
+                    let typeParameters = sema.types.nominalTypeParameterSymbols(for: continuation)
+                    let typeParameterTypes = typeParameters.map {
+                        sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
+                    }
+                    let continuationType = sema.types.make(.classType(ClassType(
+                        classSymbol: continuation,
+                        args: typeParameterTypes.map { .invariant($0) },
+                        nullability: .nonNull
+                    )))
+                    let blockType = sema.types.make(.functionType(FunctionType(
+                        params: typeParameterTypes,
+                        returnType: sema.types.unitType
+                    )))
 
-        fun probe(toFreeze: Any, blocker: Any): RuntimeException =
-            FreezingException(toFreeze, blocker)
-        """
+                    let constructors = sema.symbols.lookupAll(fqName: continuationFQName + [interner.intern("<init>")])
+                    let constructor = try #require(constructors.first { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                            return false
+                        }
+                        return signature.parameterTypes == [blockType, invokerType, sema.types.booleanType]
+                            && signature.returnType == continuationType
+                    }, "Expected \(name) constructor")
+                    let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "Expected FreezingException constructor to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    // MARK: - InvalidMutabilityException class
-
-    @Test
-    func testInvalidMutabilityExceptionClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let invalidMutabilityException = try symbol(
-            ["kotlin", "native", "concurrent", "InvalidMutabilityException"],
-            sema: sema,
-            interner: interner
-        )
-        let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
-
-        #expect(sema.symbols.symbol(invalidMutabilityException)?.kind == .class)
-        #expect(sema.symbols.directSupertypes(for: invalidMutabilityException).contains(runtimeException))
-        #expect(
-            sema.symbols.annotations(for: invalidMutabilityException).contains {
-                $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
-            },
-            "InvalidMutabilityException must carry ExperimentalNativeApi metadata"
-        )
-    }
-
-    @Test
-    func testInvalidMutabilityExceptionConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let exceptionFQName = ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
-            .map { interner.intern($0) }
-        let exception = try #require(sema.symbols.lookup(fqName: exceptionFQName))
-        let exceptionType = sema.types.make(.classType(ClassType(
-            classSymbol: exception,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let constructors = sema.symbols.lookupAll(fqName: exceptionFQName + [interner.intern("<init>")])
-        let constructor = try #require(constructors.first { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
+                    #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+                    #expect(signature.valueParameterHasDefaultValues == [false, false, true])
+                    #expect(signature.typeParameterSymbols == typeParameters)
+                    #expect(signature.classTypeParameterCount == arity)
+                }
             }
-            return signature.parameterTypes == [sema.types.stringType]
-                && signature.returnType == exceptionType
-        })
-        let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
-        #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-        #expect(signature.receiverType == nil)
-        #expect(signature.valueParameterHasDefaultValues == [false])
-        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
-    }
+            // testContinuationMembersAreRegistered
+            do {
+                for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
+                    let continuationFQName = ["kotlin", "native", "concurrent", name].map { interner.intern($0) }
+                    let continuation = try #require(sema.symbols.lookup(fqName: continuationFQName))
+                    let typeParameters = sema.types.nominalTypeParameterSymbols(for: continuation)
+                    let typeParameterTypes = typeParameters.map {
+                        sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
+                    }
+                    let continuationType = sema.types.make(.classType(ClassType(
+                        classSymbol: continuation,
+                        args: typeParameterTypes.map { .invariant($0) },
+                        nullability: .nonNull
+                    )))
 
-    @Test
-    func testInvalidMutabilityExceptionResolvesInSourceWithOptIn() {
-        let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-        import kotlin.native.concurrent.InvalidMutabilityException
+                    let dispose = try #require(
+                        sema.symbols.lookupAll(fqName: continuationFQName + [interner.intern("dispose")]).first,
+                        "Expected \(name).dispose"
+                    )
+                    let disposeSignature = try #require(sema.symbols.functionSignature(for: dispose))
+                    #expect(disposeSignature.receiverType == continuationType)
+                    #expect(disposeSignature.parameterTypes == [])
+                    #expect(disposeSignature.returnType == sema.types.unitType)
+                    #expect(disposeSignature.classTypeParameterCount == arity)
 
-        fun probe(message: String): RuntimeException =
-            InvalidMutabilityException(message)
-        """
+                    let invoke = try #require(
+                        sema.symbols.lookupAll(fqName: continuationFQName + [interner.intern("invoke")]).first,
+                        "Expected \(name).invoke"
+                    )
+                    let invokeSignature = try #require(sema.symbols.functionSignature(for: invoke))
+                    #expect(invokeSignature.receiverType == continuationType)
+                    #expect(invokeSignature.parameterTypes == typeParameterTypes)
+                    #expect(invokeSignature.returnType == sema.types.unitType)
+                    #expect(invokeSignature.classTypeParameterCount == arity)
+                    #expect(sema.symbols.symbol(invoke)?.flags.contains(.operatorFunction) == true)
+                    #expect(sema.symbols.symbol(invoke)?.flags.contains(.overrideMember) == true)
+                }
+            }
 
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "Expected InvalidMutabilityException constructor to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
+            // testCallContinuationFunctionsAreRegistered
+            do {
+                let receiverType = try cOpaquePointerType(
+                    sema: sema,
+                    interner: interner
+                )
 
-    // MARK: - Worker class
+                for arity in 0...2 {
+                    let functionFQName = ["kotlin", "native", "concurrent", "callContinuation\(arity)"]
+                        .map { interner.intern($0) }
+                    let function = try #require(sema.symbols.lookupAll(fqName: functionFQName).first { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                            return false
+                        }
+                        return signature.receiverType == receiverType
+                            && signature.parameterTypes.isEmpty
+                            && signature.returnType == sema.types.unitType
+                            && signature.typeParameterSymbols.count == arity
+                    }, "Expected callContinuation\(arity)")
+                    let signature = try #require(sema.symbols.functionSignature(for: function))
 
-    @Test
-    func testWorkerClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+                    #expect(sema.symbols.symbol(function)?.kind == .function)
+                    #expect(signature.classTypeParameterCount == 0)
+                    #expect(signature.valueParameterHasDefaultValues == [])
+                    #expect(
+                        sema.symbols.annotations(for: function).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                        "callContinuation\(arity) must carry Deprecated metadata"
+                    )
+                }
+            }
 
-        let fqName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.Worker to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .class)
-    }
+            // testFreezingExceptionClassIsRegistered
+            do {
+                let freezingException = try symbol(
+                    ["kotlin", "native", "concurrent", "FreezingException"],
+                    sema: sema,
+                    interner: interner
+                )
+                let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
 
-    @Test
-    func testWorkerExecuteIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+                #expect(sema.symbols.symbol(freezingException)?.kind == .class)
+                #expect(sema.symbols.directSupertypes(for: freezingException).contains(runtimeException))
+                #expect(
+                    sema.symbols.annotations(for: freezingException).contains {
+                        $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
+                    },
+                    "FreezingException must carry ExperimentalNativeApi metadata"
+                )
+            }
 
-        let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
-        let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
-        let workerType = try #require(sema.symbols.propertyType(for: workerSymbol))
-        let transferModeType = try classType(
-            ["kotlin", "native", "concurrent", "TransferMode"],
-            sema: sema,
-            interner: interner
-        )
+            // testFreezingExceptionConstructorIsRegistered
+            do {
+                let exceptionFQName = ["kotlin", "native", "concurrent", "FreezingException"]
+                    .map { interner.intern($0) }
+                let exception = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+                let exceptionType = sema.types.make(.classType(ClassType(
+                    classSymbol: exception,
+                    args: [],
+                    nullability: .nonNull
+                )))
 
-        let methodFQName = workerFQName + [interner.intern("execute")]
-        let methods = sema.symbols.lookupAll(fqName: methodFQName)
-        #expect(!methods.isEmpty, "Expected Worker.execute to be registered")
+                let constructors = sema.symbols.lookupAll(fqName: exceptionFQName + [interner.intern("<init>")])
+                let constructor = try #require(constructors.first { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.parameterTypes == [sema.types.anyType, sema.types.anyType]
+                        && signature.returnType == exceptionType
+                })
+                let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
-        let method = try #require(methods.first)
-        let signature = try #require(sema.symbols.functionSignature(for: method))
-        #expect(signature.typeParameterSymbols.count == 2)
+                #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+                #expect(signature.receiverType == nil)
+                #expect(signature.valueParameterHasDefaultValues == [false, false])
+                #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+            }
 
-        let t1 = sema.types.make(.typeParam(TypeParamType(
-            symbol: signature.typeParameterSymbols[0],
-            nullability: .nonNull
-        )))
-        let t2 = sema.types.make(.typeParam(TypeParamType(
-            symbol: signature.typeParameterSymbols[1],
-            nullability: .nonNull
-        )))
-        let producerType = sema.types.make(.functionType(FunctionType(
-            params: [],
-            returnType: t1
-        )))
-        let jobType = sema.types.make(.functionType(FunctionType(
-            params: [t1],
-            returnType: t2
-        )))
-        let futureT2Type = try classType(
-            ["kotlin", "native", "concurrent", "Future"],
-            sema: sema,
-            interner: interner,
-            args: [.invariant(t2)]
-        )
+            // testInvalidMutabilityExceptionClassIsRegistered
+            do {
+                let invalidMutabilityException = try symbol(
+                    ["kotlin", "native", "concurrent", "InvalidMutabilityException"],
+                    sema: sema,
+                    interner: interner
+                )
+                let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
 
-        #expect(signature.receiverType == workerType)
-        #expect(signature.parameterTypes == [transferModeType, producerType, jobType])
-        #expect(signature.returnType == futureT2Type)
-        #expect(signature.valueParameterHasDefaultValues == [false, false, false])
-        #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_execute")
-    }
+                #expect(sema.symbols.symbol(invalidMutabilityException)?.kind == .class)
+                #expect(sema.symbols.directSupertypes(for: invalidMutabilityException).contains(runtimeException))
+                #expect(
+                    sema.symbols.annotations(for: invalidMutabilityException).contains {
+                        $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
+                    },
+                    "InvalidMutabilityException must carry ExperimentalNativeApi metadata"
+                )
+            }
 
-    @Test
-    func testWorkerRequestTerminationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+            // testInvalidMutabilityExceptionConstructorIsRegistered
+            do {
+                let exceptionFQName = ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
+                    .map { interner.intern($0) }
+                let exception = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+                let exceptionType = sema.types.make(.classType(ClassType(
+                    classSymbol: exception,
+                    args: [],
+                    nullability: .nonNull
+                )))
 
-        let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
-        let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
+                let constructors = sema.symbols.lookupAll(fqName: exceptionFQName + [interner.intern("<init>")])
+                let constructor = try #require(constructors.first { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.parameterTypes == [sema.types.stringType]
+                        && signature.returnType == exceptionType
+                })
+                let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
-        let methodFQName = workerFQName + [interner.intern("requestTermination")]
-        let methods = sema.symbols.lookupAll(fqName: methodFQName)
-        #expect(!methods.isEmpty, "Expected Worker.requestTermination to be registered")
+                #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+                #expect(signature.receiverType == nil)
+                #expect(signature.valueParameterHasDefaultValues == [false])
+                #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+            }
 
-        let method = try #require(methods.first)
-        let sig = try #require(sema.symbols.functionSignature(for: method))
-        #expect(sig.parameterTypes == [sema.types.booleanType])
-        let futureBooleanType = try classType(
-            ["kotlin", "native", "concurrent", "Future"],
-            sema: sema,
-            interner: interner,
-            args: [.invariant(sema.types.booleanType)]
-        )
-        #expect(sig.returnType == futureBooleanType)
-        #expect(sig.valueParameterHasDefaultValues == [true])
+            // testWorkerClassIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.Worker to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .class)
+            }
 
-        let workerType = try #require(sema.symbols.propertyType(for: workerSymbol))
-        #expect(sig.receiverType == workerType)
-        #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_request_termination")
-    }
+            // testWorkerExecuteIsRegistered
+            do {
+                let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+                let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
+                let workerType = try #require(sema.symbols.propertyType(for: workerSymbol))
+                let transferModeType = try classType(
+                    ["kotlin", "native", "concurrent", "TransferMode"],
+                    sema: sema,
+                    interner: interner
+                )
 
-    @Test
-    func testWorkerExecuteAndRequestTerminationResolveInSource() {
-        let source = """
-        import kotlin.native.concurrent.TransferMode
-        import kotlin.native.concurrent.Worker
+                let methodFQName = workerFQName + [interner.intern("execute")]
+                let methods = sema.symbols.lookupAll(fqName: methodFQName)
+                #expect(!methods.isEmpty, "Expected Worker.execute to be registered")
 
-        fun probe(worker: Worker): Int {
-            val future = worker.execute(TransferMode.SAFE, { 21 }) { it * 2 }
-            val stopped: Boolean = worker.requestTermination(false).result
-            return if (stopped) future.result else 0
+                let method = try #require(methods.first)
+                let signature = try #require(sema.symbols.functionSignature(for: method))
+                #expect(signature.typeParameterSymbols.count == 2)
+
+                let t1 = sema.types.make(.typeParam(TypeParamType(
+                    symbol: signature.typeParameterSymbols[0],
+                    nullability: .nonNull
+                )))
+                let t2 = sema.types.make(.typeParam(TypeParamType(
+                    symbol: signature.typeParameterSymbols[1],
+                    nullability: .nonNull
+                )))
+                let producerType = sema.types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: t1
+                )))
+                let jobType = sema.types.make(.functionType(FunctionType(
+                    params: [t1],
+                    returnType: t2
+                )))
+                let futureT2Type = try classType(
+                    ["kotlin", "native", "concurrent", "Future"],
+                    sema: sema,
+                    interner: interner,
+                    args: [.invariant(t2)]
+                )
+
+                #expect(signature.receiverType == workerType)
+                #expect(signature.parameterTypes == [transferModeType, producerType, jobType])
+                #expect(signature.returnType == futureT2Type)
+                #expect(signature.valueParameterHasDefaultValues == [false, false, false])
+                #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_execute")
+            }
+
+            // testWorkerRequestTerminationIsRegistered
+            do {
+                let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+                let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
+
+                let methodFQName = workerFQName + [interner.intern("requestTermination")]
+                let methods = sema.symbols.lookupAll(fqName: methodFQName)
+                #expect(!methods.isEmpty, "Expected Worker.requestTermination to be registered")
+
+                let method = try #require(methods.first)
+                let sig = try #require(sema.symbols.functionSignature(for: method))
+                #expect(sig.parameterTypes == [sema.types.booleanType])
+                let futureBooleanType = try classType(
+                    ["kotlin", "native", "concurrent", "Future"],
+                    sema: sema,
+                    interner: interner,
+                    args: [.invariant(sema.types.booleanType)]
+                )
+                #expect(sig.returnType == futureBooleanType)
+                #expect(sig.valueParameterHasDefaultValues == [true])
+
+                let workerType = try #require(sema.symbols.propertyType(for: workerSymbol))
+                #expect(sig.receiverType == workerType)
+                #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_request_termination")
+            }
+
+            // testWorkerIsTerminatedPropertyIsRegistered
+            do {
+                let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+                let propFQName = workerFQName + [interner.intern("isTerminated")]
+                let propSymbol = try #require(
+                    sema.symbols.lookup(fqName: propFQName),
+                    "Expected Worker.isTerminated property"
+                )
+                #expect(sema.symbols.propertyType(for: propSymbol) == sema.types.booleanType)
+                #expect(sema.symbols.externalLinkName(for: propSymbol) == "kk_worker_is_terminated")
+            }
+
+            // testWorkerNamePropertyIsRegistered
+            do {
+                let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+                let propFQName = workerFQName + [interner.intern("name")]
+                let propSymbol = try #require(
+                    sema.symbols.lookup(fqName: propFQName),
+                    "Expected Worker.name property"
+                )
+                #expect(sema.symbols.propertyType(for: propSymbol) == sema.types.stringType)
+                #expect(sema.symbols.externalLinkName(for: propSymbol) == "kk_worker_name")
+            }
+
+            // testWorkerCompanionStartIsRegistered
+            do {
+                let companionFQName = ["kotlin", "native", "concurrent", "Worker", "Companion"]
+                    .map { interner.intern($0) }
+                let startFQName = companionFQName + [interner.intern("start")]
+                let methods = sema.symbols.lookupAll(fqName: startFQName)
+                #expect(!methods.isEmpty, "Expected Worker.Companion.start to be registered")
+
+                let method = try #require(methods.first)
+                let sig = try #require(sema.symbols.functionSignature(for: method))
+                #expect(sig.parameterTypes == [sema.types.makeNullable(sema.types.stringType)])
+                #expect(sig.valueParameterHasDefaultValues == [true])
+                #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_new")
+            }
+
+            // testFutureClassIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.Future to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .class)
+
+                let typeParams = sema.types.nominalTypeParameterSymbols(for: symbol)
+                #expect(typeParams.count == 1)
+            }
+
+            // testFutureResultPropertyIsRegistered
+            do {
+                let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
+                let propFQName = futureFQName + [interner.intern("result")]
+                let propSymbol = try #require(
+                    sema.symbols.lookup(fqName: propFQName),
+                    "Expected Future.result property"
+                )
+                #expect(sema.symbols.externalLinkName(for: propSymbol) == "kk_future_result")
+            }
+
+            // testFutureConsumeMethodIsRegistered
+            do {
+                let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
+                let methodFQName = futureFQName + [interner.intern("consume")]
+                let methods = sema.symbols.lookupAll(fqName: methodFQName)
+                #expect(!methods.isEmpty, "Expected Future.consume to be registered")
+
+                let method = try #require(methods.first)
+                let sig = try #require(sema.symbols.functionSignature(for: method))
+                #expect(sig.parameterTypes == [])
+                #expect(sema.symbols.externalLinkName(for: method) == "kk_future_consume")
+            }
+
+            // testFutureGetStateMethodIsRegistered
+            do {
+                let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
+                let methodFQName = futureFQName + [interner.intern("getState")]
+                let methods = sema.symbols.lookupAll(fqName: methodFQName)
+                #expect(!methods.isEmpty, "Expected Future.getState to be registered")
+
+                let method = try #require(methods.first)
+                let sig = try #require(sema.symbols.functionSignature(for: method))
+                #expect(sig.parameterTypes == [])
+
+                let futureStateFQName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
+                let futureStateSymbol = try #require(sema.symbols.lookup(fqName: futureStateFQName))
+                let futureStateType = sema.types.make(.classType(ClassType(
+                    classSymbol: futureStateSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                #expect(sig.returnType == futureStateType)
+                #expect(sema.symbols.externalLinkName(for: method) == "kk_future_getState")
+            }
+
+            // testSharedImmutableAnnotationIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "SharedImmutable"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.SharedImmutable annotation to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
+
+                let annotations = sema.symbols.annotations(for: symbol)
+                let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
+                #expect(targetAnnotation != nil, "Expected @Target annotation on @SharedImmutable")
+                let targetArguments = targetAnnotation?.arguments ?? []
+                #expect(
+                    Set(targetArguments) == ["AnnotationTarget.PROPERTY"],
+                    "Expected only PROPERTY target for @SharedImmutable"
+                )
+            }
+
+            // testNativeThreadLocalAnnotationIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "ThreadLocal"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.ThreadLocal annotation to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
+
+                let annotations = sema.symbols.annotations(for: symbol)
+                let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
+                #expect(targetAnnotation != nil, "Expected @Target annotation on native @ThreadLocal")
+                let targetArguments = targetAnnotation?.arguments ?? []
+                #expect(
+                    Set(targetArguments) == ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
+                    "Expected PROPERTY and CLASS targets for native @ThreadLocal"
+                )
+            }
+
+            // testObsoleteWorkersApiAnnotationIsRegistered
+            do {
+                let fqName = ["kotlin", "native", "concurrent", "ObsoleteWorkersApi"].map { interner.intern($0) }
+                let symbol = try #require(
+                    sema.symbols.lookup(fqName: fqName),
+                    "Expected kotlin.native.concurrent.ObsoleteWorkersApi annotation to be registered"
+                )
+                #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
+
+                let annotations = sema.symbols.annotations(for: symbol)
+                let requiresOptIn = annotations.first { $0.annotationFQName == "kotlin.RequiresOptIn" }
+                let requiresOptInArgs = requiresOptIn?.arguments ?? []
+                #expect(
+                    Set(requiresOptInArgs) == [
+                        "message = \"Workers API is obsolete and will be replaced with threads eventually\"",
+                        "level = RequiresOptIn.Level.WARNING",
+                    ]
+                )
+
+                let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
+                let targetArgs = targetAnnotation?.arguments ?? []
+                #expect(
+                    Set(targetArgs) == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.ANNOTATION_CLASS",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.FIELD",
+                        "AnnotationTarget.LOCAL_VARIABLE",
+                        "AnnotationTarget.VALUE_PARAMETER",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+                )
+            }
+
+            // testNativeConcurrentPackageIsRegistered
+            do {
+                let pkgFQName = ["kotlin", "native", "concurrent"].map { interner.intern($0) }
+                let pkgSymbol = sema.symbols.lookup(fqName: pkgFQName)
+                #expect(pkgSymbol != nil, "Expected kotlin.native.concurrent package to be registered")
+                #expect(sema.symbols.symbol(try #require(pkgSymbol))?.kind == .package)
+            }
+
+            // testTransferModeResolvesInSource
+            do {
+                let samplePath = paths[1]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "Expected TransferMode.SAFE to resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testContinuationTypesResolveInSource
+            do {
+                let samplePath = paths[2]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "Expected Continuation types to resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testCallContinuationFunctionsResolveInSource
+            do {
+                let samplePath = paths[3]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "Expected callContinuation functions to resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testFreezingExceptionResolvesInSourceWithOptIn
+            do {
+                let samplePath = paths[4]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "Expected FreezingException constructor to resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testInvalidMutabilityExceptionResolvesInSourceWithOptIn
+            do {
+                let samplePath = paths[5]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "Expected InvalidMutabilityException constructor to resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testWorkerExecuteAndRequestTerminationResolveInSource
+            do {
+                let samplePath = paths[6]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "Expected Worker.execute and requestTermination to resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testSharedImmutableAnnotationResolvesOnProperty
+            do {
+                let samplePath = paths[7]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "@SharedImmutable on top-level property should resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testSharedImmutableAnnotationTargetErrorOnFunction
+            do {
+                let samplePath = paths[8]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                let diagnostics = sampleDiags.filter {
+                    $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+                }
+                #expect(
+                    diagnostics.count == 1,
+                    "Expected one annotation-target diagnostic for @SharedImmutable on fun, got: \(sampleDiags)"
+                )
+            }
+
+            // testSharedImmutableFieldUseSiteTargetIsRejected
+            do {
+                let samplePath = paths[9]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                let diagnostics = sampleDiags.filter {
+                    $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+                }
+                #expect(
+                    diagnostics.count == 1,
+                    "Expected one annotation-target diagnostic for @field:SharedImmutable, got: \(sampleDiags)"
+                )
+            }
+
+            // testNativeThreadLocalAnnotationResolvesOnProperty
+            do {
+                let samplePath = paths[10]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "@ThreadLocal on top-level property should resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testNativeThreadLocalAnnotationResolvesOnClass
+            do {
+                let samplePath = paths[11]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                #expect(!(
+                    sampleDiags.contains { $0.severity == .error }
+                ), "@ThreadLocal on class should resolve cleanly, got: \(sampleDiags.map(\.message))")
+            }
+
+            // testNativeThreadLocalAnnotationTargetErrorOnFunction
+            do {
+                let samplePath = paths[12]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                let diagnostics = sampleDiags.filter {
+                    $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+                }
+                #expect(
+                    diagnostics.count == 1,
+                    "Expected one annotation-target diagnostic for native @ThreadLocal on fun, got: \(sampleDiags)"
+                )
+            }
+
+            // testNativeThreadLocalFieldUseSiteTargetIsRejected
+            do {
+                let samplePath = paths[13]
+                let sampleDiags = diagnosticsForPath(samplePath)
+                let diagnostics = sampleDiags.filter {
+                    $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+                }
+                #expect(
+                    diagnostics.count == 1,
+                    "Expected one annotation-target diagnostic for @field:ThreadLocal, got: \(sampleDiags)"
+                )
+            }
+
         }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "Expected Worker.execute and requestTermination to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    @Test
-    func testWorkerIsTerminatedPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
-        let propFQName = workerFQName + [interner.intern("isTerminated")]
-        let propSymbol = try #require(
-            sema.symbols.lookup(fqName: propFQName),
-            "Expected Worker.isTerminated property"
-        )
-        #expect(sema.symbols.propertyType(for: propSymbol) == sema.types.booleanType)
-        #expect(sema.symbols.externalLinkName(for: propSymbol) == "kk_worker_is_terminated")
-    }
-
-    @Test
-    func testWorkerNamePropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
-        let propFQName = workerFQName + [interner.intern("name")]
-        let propSymbol = try #require(
-            sema.symbols.lookup(fqName: propFQName),
-            "Expected Worker.name property"
-        )
-        #expect(sema.symbols.propertyType(for: propSymbol) == sema.types.stringType)
-        #expect(sema.symbols.externalLinkName(for: propSymbol) == "kk_worker_name")
-    }
-
-    @Test
-    func testWorkerCompanionStartIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let companionFQName = ["kotlin", "native", "concurrent", "Worker", "Companion"]
-            .map { interner.intern($0) }
-        let startFQName = companionFQName + [interner.intern("start")]
-        let methods = sema.symbols.lookupAll(fqName: startFQName)
-        #expect(!methods.isEmpty, "Expected Worker.Companion.start to be registered")
-
-        let method = try #require(methods.first)
-        let sig = try #require(sema.symbols.functionSignature(for: method))
-        #expect(sig.parameterTypes == [sema.types.makeNullable(sema.types.stringType)])
-        #expect(sig.valueParameterHasDefaultValues == [true])
-        #expect(sema.symbols.externalLinkName(for: method) == "kk_worker_new")
-    }
-
-    // MARK: - Future<T> class
-
-    @Test
-    func testFutureClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let fqName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.Future to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .class)
-
-        let typeParams = sema.types.nominalTypeParameterSymbols(for: symbol)
-        #expect(typeParams.count == 1)
-    }
-
-    @Test
-    func testFutureResultPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
-        let propFQName = futureFQName + [interner.intern("result")]
-        let propSymbol = try #require(
-            sema.symbols.lookup(fqName: propFQName),
-            "Expected Future.result property"
-        )
-        #expect(sema.symbols.externalLinkName(for: propSymbol) == "kk_future_result")
-    }
-
-    @Test
-    func testFutureConsumeMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
-        let methodFQName = futureFQName + [interner.intern("consume")]
-        let methods = sema.symbols.lookupAll(fqName: methodFQName)
-        #expect(!methods.isEmpty, "Expected Future.consume to be registered")
-
-        let method = try #require(methods.first)
-        let sig = try #require(sema.symbols.functionSignature(for: method))
-        #expect(sig.parameterTypes == [])
-        #expect(sema.symbols.externalLinkName(for: method) == "kk_future_consume")
-    }
-
-    @Test
-    func testFutureGetStateMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
-        let methodFQName = futureFQName + [interner.intern("getState")]
-        let methods = sema.symbols.lookupAll(fqName: methodFQName)
-        #expect(!methods.isEmpty, "Expected Future.getState to be registered")
-
-        let method = try #require(methods.first)
-        let sig = try #require(sema.symbols.functionSignature(for: method))
-        #expect(sig.parameterTypes == [])
-
-        let futureStateFQName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
-        let futureStateSymbol = try #require(sema.symbols.lookup(fqName: futureStateFQName))
-        let futureStateType = sema.types.make(.classType(ClassType(
-            classSymbol: futureStateSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        #expect(sig.returnType == futureStateType)
-        #expect(sema.symbols.externalLinkName(for: method) == "kk_future_getState")
-    }
-    // MARK: - @SharedImmutable annotation
-
-    @Test
-    func testSharedImmutableAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let fqName = ["kotlin", "native", "concurrent", "SharedImmutable"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.SharedImmutable annotation to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
-        #expect(targetAnnotation != nil, "Expected @Target annotation on @SharedImmutable")
-        let targetArguments = targetAnnotation?.arguments ?? []
-        #expect(
-            Set(targetArguments) == ["AnnotationTarget.PROPERTY"],
-            "Expected only PROPERTY target for @SharedImmutable"
-        )
-    }
-
-    @Test
-    func testSharedImmutableAnnotationResolvesOnProperty() {
-        let source = """
-        import kotlin.native.concurrent.SharedImmutable
-
-        @SharedImmutable
-        val globalData: Int = 42
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "@SharedImmutable on top-level property should resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    @Test
-    func testSharedImmutableAnnotationTargetErrorOnFunction() {
-        // @SharedImmutable is only valid on PROPERTY, not on functions.
-        // The AnnotationTargetValidation phase should emit KSWIFTK-SEMA-ANNOTATION-TARGET.
-        let source = """
-        import kotlin.native.concurrent.SharedImmutable
-
-        @SharedImmutable
-        fun badUsage(): Int = 1
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter {
-            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
-        }
-        #expect(
-            diagnostics.count == 1,
-            "Expected one annotation-target diagnostic for @SharedImmutable on fun, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    @Test
-    func testSharedImmutableFieldUseSiteTargetIsRejected() {
-        let source = """
-        import kotlin.native.concurrent.SharedImmutable
-
-        class Box {
-            @field:SharedImmutable
-            val value: Int = 1
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter {
-            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
-        }
-        #expect(
-            diagnostics.count == 1,
-            "Expected one annotation-target diagnostic for @field:SharedImmutable, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    // MARK: - @ThreadLocal (kotlin.native.concurrent) annotation
-
-    @Test
-    func testNativeThreadLocalAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let fqName = ["kotlin", "native", "concurrent", "ThreadLocal"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.ThreadLocal annotation to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
-        #expect(targetAnnotation != nil, "Expected @Target annotation on native @ThreadLocal")
-        let targetArguments = targetAnnotation?.arguments ?? []
-        #expect(
-            Set(targetArguments) == ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
-            "Expected PROPERTY and CLASS targets for native @ThreadLocal"
-        )
-    }
-
-    @Test
-    func testNativeThreadLocalAnnotationResolvesOnProperty() {
-        let source = """
-        import kotlin.native.concurrent.ThreadLocal
-
-        @ThreadLocal
-        var counter: Int = 0
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "@ThreadLocal on top-level property should resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    @Test
-    func testNativeThreadLocalAnnotationResolvesOnClass() {
-        let source = """
-        import kotlin.native.concurrent.ThreadLocal
-
-        @ThreadLocal
-        class LocalState
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!(
-            ctx.diagnostics.hasError
-        ), "@ThreadLocal on class should resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-
-    @Test
-    func testNativeThreadLocalAnnotationTargetErrorOnFunction() {
-        // @ThreadLocal (native) is only valid on PROPERTY/FIELD, not on functions.
-        let source = """
-        import kotlin.native.concurrent.ThreadLocal
-
-        @ThreadLocal
-        fun badUsage(): Int = 1
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter {
-            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
-        }
-        #expect(
-            diagnostics.count == 1,
-            "Expected one annotation-target diagnostic for native @ThreadLocal on fun, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    @Test
-    func testNativeThreadLocalFieldUseSiteTargetIsRejected() {
-        let source = """
-        import kotlin.native.concurrent.ThreadLocal
-
-        class Box {
-            @field:ThreadLocal
-            val value: Int = 1
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter {
-            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
-        }
-        #expect(
-            diagnostics.count == 1,
-            "Expected one annotation-target diagnostic for @field:ThreadLocal, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    // MARK: - @ObsoleteWorkersApi annotation
-
-    @Test
-    func testObsoleteWorkersApiAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let fqName = ["kotlin", "native", "concurrent", "ObsoleteWorkersApi"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.concurrent.ObsoleteWorkersApi annotation to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let requiresOptIn = annotations.first { $0.annotationFQName == "kotlin.RequiresOptIn" }
-        let requiresOptInArgs = requiresOptIn?.arguments ?? []
-        #expect(
-            Set(requiresOptInArgs) == [
-                "message = \"Workers API is obsolete and will be replaced with threads eventually\"",
-                "level = RequiresOptIn.Level.WARNING",
-            ]
-        )
-
-        let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
-        let targetArgs = targetAnnotation?.arguments ?? []
-        #expect(
-            Set(targetArgs) == [
-                "AnnotationTarget.CLASS",
-                "AnnotationTarget.ANNOTATION_CLASS",
-                "AnnotationTarget.PROPERTY",
-                "AnnotationTarget.FIELD",
-                "AnnotationTarget.LOCAL_VARIABLE",
-                "AnnotationTarget.VALUE_PARAMETER",
-                "AnnotationTarget.CONSTRUCTOR",
-                "AnnotationTarget.FUNCTION",
-                "AnnotationTarget.PROPERTY_GETTER",
-                "AnnotationTarget.PROPERTY_SETTER",
-                "AnnotationTarget.TYPEALIAS",
-            ]
-        )
-    }
-
-    // MARK: - Package existence
-
-    @Test
-    func testNativeConcurrentPackageIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-
-        let pkgFQName = ["kotlin", "native", "concurrent"].map { interner.intern($0) }
-        let pkgSymbol = sema.symbols.lookup(fqName: pkgFQName)
-        #expect(pkgSymbol != nil, "Expected kotlin.native.concurrent package to be registered")
-        #expect(sema.symbols.symbol(try #require(pkgSymbol))?.kind == .package)
     }
 }
 #endif

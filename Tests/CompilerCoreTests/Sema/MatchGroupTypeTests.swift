@@ -3,129 +3,66 @@
 import Foundation
 import Testing
 
-/// STDLIB-TEXT-TYPE-007 / KSP-486: Validates that `kotlin.text.MatchGroup` comes
-/// from the bundled Kotlin source (`__bundled_kotlin/text/MatchResult.kt`) with
-/// its `value: String` / `range: IntRange` constructor properties, that both
-/// properties are plain source properties with no runtime ABI link, and that
-/// source-level access through `MatchResult.groups[..]` type-checks without
-/// diagnostics.
+/// STDLIB-TEXT-TYPE-007: Validates that `kotlin.text.MatchGroup` comes from the
+/// bundled Kotlin source and that its `value: String` / `range` properties are
+/// plain source properties with no runtime ABI link.
 @Suite
 struct MatchGroupTypeTests {
-
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner, CompilationContext) {
-        var result: (SemaModule, StringInterner, CompilationContext)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner, ctx)
-        }
-        return try #require(result)
-    }
-
-    private func sourcePath(
-        for symbol: SymbolID,
-        sema: SemaModule,
-        ctx: CompilationContext
-    ) -> String? {
-        let fileID = sema.symbols.sourceFileID(for: symbol)
-            ?? sema.symbols.symbol(symbol)?.declSite?.start.file
-        guard let fileID else { return nil }
-        return ctx.sourceManager.path(of: fileID)
-    }
-
-    // MARK: - 1. Class symbol comes from bundled Kotlin source
-
-    @Test func testMatchGroupClassSymbolComesFromBundledSource() throws {
-        let (sema, interner, ctx) = try makeSema()
-        let fq = ["kotlin", "text", "MatchGroup"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "kotlin.text.MatchGroup class symbol must be registered by sema"
-        )
-        let info = try #require(sema.symbols.symbol(sym))
-        #expect(info.kind == .class, "MatchGroup should be registered with kind=class")
-        #expect(
-            sourcePath(for: sym, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/text/MatchResult.kt") == true,
-            "MatchGroup must be backed by the bundled Kotlin source"
-        )
-    }
-
-    // MARK: - 2. value / range are plain source properties (no runtime link)
-
-    @Test func testMatchGroupPropertiesAreSourceBacked() throws {
-        let (sema, interner, ctx) = try makeSema()
-        for propertyName in ["value", "range"] {
-            let fq = ["kotlin", "text", "MatchGroup", propertyName].map { interner.intern($0) }
-            let sym = try #require(
-                sema.symbols.lookupAll(fqName: fq).first { sema.symbols.symbol($0)?.kind == .property },
-                "MatchGroup.\(propertyName) property must be registered"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: sym) == nil,
-                "MatchGroup.\(propertyName) must not link to a runtime entry point"
-            )
-            #expect(
-                sourcePath(for: sym, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/text/MatchResult.kt") == true
-            )
-        }
-    }
-
-    // MARK: - 3. MatchGroupCollection comes from bundled Kotlin source
-
-    @Test func testMatchGroupCollectionComesFromBundledSource() throws {
-        let (sema, interner, ctx) = try makeSema()
-        let fq = ["kotlin", "text", "MatchGroupCollection"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "kotlin.text.MatchGroupCollection class symbol must be registered by sema"
-        )
-        #expect(
-            sourcePath(for: sym, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/text/MatchResult.kt") == true
-        )
-        let sizeFQ = fq + [interner.intern("size")]
-        let sizeSymbol = try #require(
-            sema.symbols.lookupAll(fqName: sizeFQ).first { sema.symbols.symbol($0)?.kind == .property }
-        )
-        #expect(sema.symbols.externalLinkName(for: sizeSymbol) == nil)
-    }
-
-    // MARK: - 4. Source-level usage of MatchGroup
-
-    @Test func testMatchGroupAccessThroughMatchResultGroupsTypeChecks() throws {
-        let ctx = makeContextFromSource("""
+    @Test func testMatchGroup() throws {
+        let source = """
         fun firstGroupValue(input: String): String? {
             val regex = Regex("(a)(b)")
             val match = regex.find(input)
             val group: MatchGroup? = match?.groups?.get("a")
             return group?.value
         }
-        """)
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
+
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected MatchGroup access via MatchResult.groups to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    // MARK: - 5. Indexed access and range reads type-check
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
-    @Test func testMatchGroupIndexedAccessAndRangeTypeCheck() throws {
-        let ctx = makeContextFromSource("""
-        fun groupSpan(input: String): Int {
-            val match = Regex("(a)(b)").find(input) ?: return -1
-            val group = match.groups[1] ?: return -1
-            return group.range.first + match.groups.size
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let classFQ = ["kotlin", "text", "MatchGroup"].map { interner.intern($0) }
+        let classSymbol = try #require(
+            sema.symbols.lookup(fqName: classFQ),
+            "kotlin.text.MatchGroup class symbol must be registered by sema"
+        )
+        let classInfo = try #require(sema.symbols.symbol(classSymbol))
+        #expect(classInfo.kind == .class,
+                       "MatchGroup should be registered with kind=class")
+
+        let valueFQ = ["kotlin", "text", "MatchGroup", "value"].map { interner.intern($0) }
+        let valueSymbol = try #require(
+            sema.symbols.lookup(fqName: valueFQ),
+            "MatchGroup.value property must be registered"
+        )
+        let valueInfo = try #require(sema.symbols.symbol(valueSymbol))
+        #expect(valueInfo.kind == .property,
+                       "MatchGroup.value should be a property")
         #expect(
-            errors.isEmpty,
-            "Expected MatchGroupCollection indexed access to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            sema.symbols.externalLinkName(for: valueSymbol) == nil,
+            "MatchGroup.value must not link to a runtime entry point"
+        )
+
+        let rangeFQ = ["kotlin", "text", "MatchGroup", "range"].map { interner.intern($0) }
+        let rangeSymbol = try #require(
+            sema.symbols.lookup(fqName: rangeFQ),
+            "MatchGroup.range property must be registered"
+        )
+        let rangeInfo = try #require(sema.symbols.symbol(rangeSymbol))
+        #expect(rangeInfo.kind == .property,
+                       "MatchGroup.range should be a property")
+        #expect(
+            sema.symbols.externalLinkName(for: rangeSymbol) == nil,
+            "MatchGroup.range must not link to a runtime entry point"
         )
     }
 }

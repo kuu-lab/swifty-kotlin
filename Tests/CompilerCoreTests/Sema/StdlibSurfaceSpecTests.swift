@@ -187,71 +187,7 @@ struct StdlibSurfaceSpecTests {
         )
     }
 
-    @Test func testCollectionHOFSpecRuntimeLinksMatchRegisteredSyntheticMembers() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-
-            let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
-                // Source-backed members (ListHOF.kt / Sequence*.kt) have no
-                // synthetic runtime-bridge stub; remaining entries are still
-                // synthetically registered with their runtime links.
-                (.list, ["kotlin", "collections", "List"], "associateTo", 2),
-                (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
-                // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
-                // source, so it no longer registers a synthetic bridge member.
-                (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "minBy", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "partition", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "scanIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightOrNull", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFoldIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFold", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceOrNull", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexedOrNull", 1),
-            ]
-
-            for testCase in cases {
-                let spec = try #require(
-                    StdlibSurfaceSpec.collectionHOFMember(
-                        ownerKind: testCase.ownerKind,
-                        memberName: testCase.memberName,
-                        arity: testCase.arity
-                    ),
-                    "Expected spec for \(testCase.ownerKind.rawValue).\(testCase.memberName)/\(testCase.arity)"
-                )
-                let fqName = (testCase.ownerFQName + [testCase.memberName]).map { ctx.interner.intern($0) }
-                let links = Set(
-                    sema.symbols.lookupAll(fqName: fqName)
-                        .compactMap { sema.symbols.externalLinkName(for: $0) }
-                )
-                #expect(
-                    links.contains(spec.runtimeLinkName),
-                    "Expected \(testCase.memberName) to register \(spec.runtimeLinkName), got \(links)"
-                )
-            }
-        }
-    }
-
-    @Test func testSpecDrivenCollectionFallbackMembersKeepLambdaAndReturnTypes() throws {
+    @Test func testCollectionHOFSpecRuntimeLinksAndFallbackTypes() throws {
         let source = """
         fun mapIndexedToSpec(values: List<Int>, destination: MutableList<Int>): MutableList<Int> {
             return values.mapIndexedTo(destination) { index, value -> index + value }
