@@ -2389,11 +2389,11 @@ final class CallTypeChecker {
                 return sourceBackedFactory.type
             }
 
-            // Type aliases and concrete collection classes are represented by
-            // synthetic type symbols rather than source-backed factory
-            // functions. Keep their constructor typing available while the
-            // bundled stdlib is bootstrapped; CollectionLiteralLoweringPass
-            // rewrites the resulting calls to the matching runtime bridge.
+            // The collection aliases and the concrete LinkedHashSet class are
+            // type declarations (Stdlib/kotlin/collections/CollectionAliases.kt)
+            // rather than factory functions, so their constructor calls are typed
+            // here; CollectionLiteralLoweringPass rewrites the resulting calls to
+            // the matching runtime bridge.
             let expectedCollectionArgs: [TypeID] = if let expectedType,
                                                        expectedType != sema.types.errorType,
                                                        case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
@@ -2462,44 +2462,6 @@ final class CallTypeChecker {
             }
         }
 
-        if let calleeName,
-           interner.resolve(calleeName) == "LinkedHashSet",
-           args.isEmpty,
-           explicitTypeArgs.isEmpty,
-           let expectedType,
-           expectedType != sema.types.errorType,
-           case let .classType(expectedClassType) = sema.types.kind(of: expectedType),
-           expectedClassType.args.count == 1,
-           let expectedSymbol = ctx.cachedSymbol(expectedClassType.classSymbol),
-           knownNames.isMutableSetSymbol(expectedSymbol),
-           let chosen = candidates.first(where: { candidate in
-               guard let symbol = ctx.cachedSymbol(candidate),
-                     symbol.kind == .constructor,
-                     sema.symbols.externalLinkName(for: candidate) == "__kk_emptySet",
-                     let parent = sema.symbols.parentSymbol(for: candidate),
-                     let parentSymbol = ctx.cachedSymbol(parent)
-               else {
-                   return false
-               }
-               return parentSymbol.name == interner.intern("LinkedHashSet")
-           })
-        {
-            let elementType = driver.helpers.typeArgInnerTypeForCheck(expectedClassType.args[0])
-            if elementType != TypeID.invalid {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: chosen,
-                        substitutedTypeArguments: [elementType],
-                        parameterMapping: [:]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                sema.bindings.markCollectionExpr(id)
-                sema.bindings.bindExprType(id, type: expectedType)
-                return expectedType
-            }
-        }
         if let calleeName,
            interner.resolve(calleeName) == "atomicArrayOf",
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
