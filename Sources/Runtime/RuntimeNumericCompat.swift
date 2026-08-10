@@ -489,18 +489,18 @@ public func kk_max_double(_ aBits: Int, _ bBits: Int) -> Int {
     return a >= b ? aBits : bBits
 }
 
-@_cdecl("kk_math_ceil")
-public func kk_math_ceil(_ value: Int) -> Int {
+@_cdecl("__kk_math_ceil")
+public func __kk_math_ceil(_ value: Int) -> Int {
     kk_double_to_bits(ceil(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_floor")
-public func kk_math_floor(_ value: Int) -> Int {
+@_cdecl("__kk_math_floor")
+public func __kk_math_floor(_ value: Int) -> Int {
     kk_double_to_bits(floor(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_round")
-public func kk_math_round(_ value: Int) -> Int {
+@_cdecl("__kk_math_round")
+public func __kk_math_round(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).rounded(.toNearestOrEven))
 }
 
@@ -746,18 +746,18 @@ public func kk_math_sqrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sqrtf)
 }
 
-@_cdecl("kk_math_round_float")
-public func kk_math_round_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_round_float")
+public func __kk_math_round_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v) { $0.rounded(.toNearestOrEven) }
 }
 
-@_cdecl("kk_math_ceil_float")
-public func kk_math_ceil_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_ceil_float")
+public func __kk_math_ceil_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, ceilf)
 }
 
-@_cdecl("kk_math_floor_float")
-public func kk_math_floor_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_floor_float")
+public func __kk_math_floor_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, floorf)
 }
 
@@ -1033,15 +1033,15 @@ public func kk_float_fromBits(_ bits: Int) -> Int {
     bits  // already Float bit representation in ABI
 }
 
-// MARK: - STDLIB-514: truncate, IEEErem, withSign, nextTowards
+// MARK: - STDLIB-514: truncate, IEEErem, nextTowards
 
-@_cdecl("kk_math_truncate")
-public func kk_math_truncate(_ value: Int) -> Int {
+@_cdecl("__kk_math_truncate")
+public func __kk_math_truncate(_ value: Int) -> Int {
     kk_double_to_bits(trunc(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_truncate_float")
-public func kk_math_truncate_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_truncate_float")
+public func __kk_math_truncate_float(_ value: Int) -> Int {
     kk_float_to_bits(truncf(kk_bits_to_float(value)))
 }
 
@@ -1053,30 +1053,6 @@ public func kk_math_IEEErem(_ x: Int, _ y: Int) -> Int {
 @_cdecl("kk_math_IEEErem_float")
 public func kk_math_IEEErem_float(_ x: Int, _ y: Int) -> Int {
     kk_float_to_bits(remainderf(kk_bits_to_float(x), kk_bits_to_float(y)))
-}
-
-@_cdecl("kk_math_withSign")
-public func kk_math_withSign(_ x: Int, _ sign: Int) -> Int {
-    kk_double_to_bits(copysign(kk_bits_to_double(x), kk_bits_to_double(sign)))
-}
-
-@_cdecl("kk_math_withSign_float")
-public func kk_math_withSign_float(_ x: Int, _ sign: Int) -> Int {
-    kk_float_to_bits(copysignf(kk_bits_to_float(x), kk_bits_to_float(sign)))
-}
-
-@_cdecl("kk_math_withSign_int")
-public func kk_math_withSign_int(_ x: Int, _ sign: Int) -> Int {
-    let d = kk_bits_to_double(x)
-    let signDouble = sign < 0 ? -1.0 : 1.0
-    return kk_double_to_bits(copysign(d, signDouble))
-}
-
-@_cdecl("kk_math_withSign_float_int")
-public func kk_math_withSign_float_int(_ x: Int, _ sign: Int) -> Int {
-    let f = kk_bits_to_float(x)
-    let signFloat: Float = sign < 0 ? -1.0 : 1.0
-    return kk_float_to_bits(copysignf(f, signFloat))
 }
 
 @_cdecl("kk_math_nextTowards")
