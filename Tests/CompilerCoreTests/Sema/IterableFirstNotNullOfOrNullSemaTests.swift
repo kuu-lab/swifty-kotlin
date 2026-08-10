@@ -5,7 +5,9 @@ import Testing
 
 @Suite
 struct IterableFirstNotNullOfOrNullSemaTests {
-    @Test func testIterableFirstNotNullOfOrNullResolvesToRuntimeABIAndNullableResult() throws {
+    /// KSP-435: `Iterable<T>.firstNotNullOfOrNull` is bundled Kotlin source, so it
+    /// binds to a source-backed declaration instead of the `kk_iterable_*` bridge.
+    @Test func testIterableFirstNotNullOfOrNullResolvesToBundledSourceAndNullableResult() throws {
         let source = """
         fun probe(values: Iterable<Int>) {
             val result: String? = values.firstNotNullOfOrNull { if (it > 1) "hit" else null }
@@ -30,7 +32,8 @@ struct IterableFirstNotNullOfOrNullSemaTests {
             }, "Expected firstNotNullOfOrNull member call")
             let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-            #expect(sema.symbols.externalLinkName(for: chosen) == "kk_iterable_firstNotNullOfOrNull")
+            #expect(sema.symbols.isSourceBackedSymbol(chosen))
+            #expect(sema.symbols.externalLinkName(for: chosen) == nil)
             #expect(sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.stringType))
         }
     }

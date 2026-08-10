@@ -163,7 +163,6 @@ extension DataFlowSemaPhase {
         symbols.setTypeAliasUnderlyingType(underlyingType, for: aliasSymbol)
     }
 
-
     func ensureSyntheticCInteropTypeAliasSymbol(
         named aliasName: String,
         in packageFQName: [InternedString],
@@ -216,103 +215,7 @@ extension DataFlowSemaPhase {
             + [MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalUnsignedTypes")]
     }
 
-    func registerSyntheticNativeBitSetConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        defaultValues: [Bool],
-        visibility: Visibility = .public,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let constructorFQName = ownerInfo.fqName + [initName]
-        let parameterTypes = parameters.map(\.type)
-        let existing = symbols.lookupAll(fqName: constructorFQName).contains { symbolID in
-            guard symbols.symbol(symbolID)?.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == parameterTypes
-        }
-        guard !existing else {
-            return
-        }
-
-        let constructorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: constructorFQName,
-            declSite: nil,
-            visibility: visibility,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
-
-        let valueParameterSymbols = parameters.map { parameter in
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: constructorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
-            symbols.setPropertyType(parameter.type, for: parameterSymbol)
-            return parameterSymbol
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameterTypes,
-                returnType: ownerType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: defaultValues,
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: constructorSymbol
-        )
-    }
-
-    func registerSyntheticNativeBitSetProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        propertyType: TypeID,
-        flags: SymbolFlags = [.synthetic],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookup(fqName: propertyFQName) {
-            symbols.setPropertyType(propertyType, for: existing)
-            symbols.insertFlags(flags, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(propertyType, for: propertySymbol)
-    }
-
-
-    func registerSyntheticNativeBitSetMemberFunction(
+    func registerSyntheticNativeMemberFunction(
         named name: String,
         ownerSymbol: SymbolID,
         receiverType: TypeID,
@@ -400,10 +303,6 @@ extension DataFlowSemaPhase {
         }
         appendMetadataAnnotations(annotations, to: functionSymbol, symbols: symbols)
     }
-
-
-
-
 
     func registerSyntheticNativeTopLevelFunction(
         named name: String,

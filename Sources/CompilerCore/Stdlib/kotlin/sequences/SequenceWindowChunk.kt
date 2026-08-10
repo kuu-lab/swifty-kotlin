@@ -238,8 +238,12 @@ public fun <T> Sequence<T>.windowed(
 
             fun advanceStep() {
                 var i = 0
-                while (i < step && buffer.isNotEmpty()) {
-                    buffer.removeAt(0)
+                while (i < step && (buffer.isNotEmpty() || sourceIterator.hasNext())) {
+                    if (buffer.isNotEmpty()) {
+                        buffer.removeAt(0)
+                    } else {
+                        sourceIterator.next()
+                    }
                     i = i + 1
                 }
                 // step > size: the buffer only ever holds up to `size` elements,
@@ -319,8 +323,12 @@ public fun <T, R> Sequence<T>.windowed(
 
             fun advanceStep() {
                 var i = 0
-                while (i < step && buffer.isNotEmpty()) {
-                    buffer.removeAt(0)
+                while (i < step && (buffer.isNotEmpty() || sourceIterator.hasNext())) {
+                    if (buffer.isNotEmpty()) {
+                        buffer.removeAt(0)
+                    } else {
+                        sourceIterator.next()
+                    }
                     i = i + 1
                 }
                 // step > size: the buffer only ever holds up to `size` elements,
