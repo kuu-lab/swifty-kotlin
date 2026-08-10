@@ -1,7 +1,7 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    private func isValueClassDeclaration(_ classDecl: ClassDecl) -> Bool {
+    func isValueClassDeclaration(_ classDecl: ClassDecl) -> Bool {
         classDecl.modifiers.contains(.value) || classDecl.modifiers.contains(.inline)
     }
 
@@ -1055,7 +1055,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func reusableSyntheticDeclarationSymbol(
+    func reusableSyntheticDeclarationSymbol(
         kind: SymbolKind,
         fqName: [InternedString],
         file: ASTFile,
@@ -1063,7 +1063,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> SymbolID? {
-        guard kind == .class || kind == .interface else { return nil }
+        guard kind == .class || kind == .interface || kind == .object else { return nil }
         let reusableKeys = reusableSyntheticSourceDeclarationKeys(
             for: file,
             sourceManager: sourceManager,
@@ -1112,6 +1112,12 @@ extension DataFlowSemaPhase {
             [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":
             [["kotlin", "Throwable"]]
+        case "__bundled_kotlin/time/TimeSource.kt":
+            [
+                ["kotlin", "time", "TimeSource"],
+                ["kotlin", "time", "TimeSource", "WithComparableMarks"],
+                ["kotlin", "time", "TimeSource", "Monotonic"],
+            ]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
         case "__bundled_kotlin/ranges/Ranges.kt":

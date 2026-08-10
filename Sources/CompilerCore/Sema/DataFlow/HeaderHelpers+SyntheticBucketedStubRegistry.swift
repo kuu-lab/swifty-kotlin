@@ -134,8 +134,8 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Clock") { phase, symbols, types, interner, _ in
             phase.registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ExperimentalTime") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ExperimentalTime") { phase, symbols, types, interner, context in
+            phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "PlatformTimeConversion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
