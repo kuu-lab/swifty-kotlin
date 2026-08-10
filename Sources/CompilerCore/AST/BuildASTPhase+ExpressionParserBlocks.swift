@@ -140,6 +140,16 @@ extension BuildASTPhase.ExpressionParser {
     func parseLocalDeclFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {
         let interner = interner
         let astArena = astArena
+        // Nested blocks (if/while/lambda bodies) reach declarations through this
+        // slice-based path, so destructuring has to be recognised here too;
+        // otherwise `val (a, b) = expr` degrades into `val a = expr`.
+        if let destructuring = BuildASTPhase.parseDestructuringDeclarationStatement(
+            from: Array(tokens),
+            interner: interner,
+            astArena: astArena
+        ) {
+            return destructuring
+        }
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
             astArena: astArena,

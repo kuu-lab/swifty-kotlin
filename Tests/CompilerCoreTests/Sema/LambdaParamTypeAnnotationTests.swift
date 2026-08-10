@@ -159,6 +159,78 @@ struct LambdaParamTypeAnnotationTests {
         )
     }
 
+    /// BUG-163: an `Any` written in source narrows just like any other concrete
+    /// parameter type — kotlinc reports an initializer type mismatch here.
+    @Test func testAnnotationNarrowingDeclaredAnyIsRejected() throws {
+        let source = """
+        fun main() {
+            val f: (Any) -> Int = { s: String -> s.length }
+            println(f(42))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "Narrowing a declared `Any` parameter must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationNarrowingDeclaredAnyOfTopLevelPropertyIsRejected() throws {
+        let source = """
+        val f: (Any) -> Int = { s: String -> s.length }
+
+        fun main() {
+            println(f(42))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "Narrowing a declared `Any` property parameter must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationNarrowingDeclaredAnyFunctionParameterIsRejected() throws {
+        let source = """
+        fun applyAny(f: (Any) -> Int): Int = f(42)
+
+        fun main() {
+            println(applyAny { s: String -> s.length })
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "Narrowing a declared `Any` function parameter must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationMatchingDeclaredAnyIsAccepted() throws {
+        let source = """
+        fun applyAny(f: (Any) -> String): String = f(42)
+
+        fun main() {
+            val f: (Any) -> String = { v: Any -> v.toString() }
+            println(f(7))
+            println(applyAny { v: Any -> v.toString() })
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "An `Any` annotation for a declared `Any` parameter is legal, got: \\(errors)")
+    }
+
     @Test func testAnnotationIsKeptWhereInferenceFallsBackToAny() throws {
         let source = """
         fun main() {

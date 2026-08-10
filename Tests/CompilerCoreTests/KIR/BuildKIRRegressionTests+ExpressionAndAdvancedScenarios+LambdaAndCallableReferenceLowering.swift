@@ -250,7 +250,7 @@ extension BuildKIRRegressionTests {
                 return callNames.contains("kk_op_mul") && callNames.contains("kk_op_gt")
             })
             let innerCallNames = extractCallees(from: innerLambda.body, interner: ctx.interner)
-            #expect(innerCallNames.contains("__string_struct_get_length"))
+            #expect(innerCallNames.contains("__kk_string_struct_get_length"))
             #expect(innerCallNames.contains("kk_op_mul"))
             #expect(innerCallNames.contains("kk_op_gt"))
 

@@ -176,8 +176,10 @@ final class CodegenPhase: CompilerPhase {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledKotlinStdlib.manifestHash()
         }
-        let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys])
-        try manifestData.write(to: URL(fileURLWithPath: manifestPath), options: .atomic)
+        let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
+        var manifestString = String(data: manifestData, encoding: .utf8) ?? ""
+        manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
+        try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
         let metadata = makeMetadata(ctx: ctx, module: module)
         try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
