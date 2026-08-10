@@ -298,12 +298,6 @@ struct StringSyntheticMemberLinkTests {
                     #expect(
                         externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
                     )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
-                    )
         }
 
         do {

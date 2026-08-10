@@ -231,7 +231,6 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c)→(b) | KSP-657 で `arrayOf`/`emptyArray`/`arrayOfNulls` を `Stdlib/kotlin/ArrayIntrinsics.kt` へ b-reclass 済み（第1弾）。primitive-array factory / HOF は後続バッチ。 |
 | `HeaderHelpers+SyntheticAtomicStubs.swift` | 2512 | (b) | `AtomicMigration.kt` owner; split Java atomic interop cleanup pockets first. |
 | `HeaderHelpers+SyntheticBase64Stubs.swift` | 830 | (b) | MIGRATION-ENC owner; Kotlin source exists but public stubs still dispatch directly. |
-| `HeaderHelpers+SyntheticBigIntegerStubs.swift` | 620 | (a) | `java.math.BigInteger` compatibility; target-out cleanup candidate. |
 | `HeaderHelpers+SyntheticBuilderDSLStubs.swift` | 414 | (b) | M3 collection builder source migration. |
 | `HeaderHelpers+SyntheticCInteropStubs.swift` | 3065 | (c) | Kotlin/Native interop compiler/runtime surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticCharStubs.swift` | 889 | (c) | Primitive `Char` shell plus helpers; RF-STUB-003 declarative residual registration started here. |
