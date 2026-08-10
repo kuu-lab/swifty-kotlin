@@ -41,9 +41,7 @@ struct RegexOptionEnumTests {
         return ctx
     }
 
-    /// Canonical entry list matching the Kotlin stdlib `RegexOption` enum
-    /// (mirrors `ensureRegexOptionEnumClass` in
-    /// `HeaderHelpers+SyntheticRegexStubs.swift`).
+    /// Canonical entry list matching the Kotlin stdlib `RegexOption` enum.
     private static let allEntries = [
         "IGNORE_CASE",
         "MULTILINE",
