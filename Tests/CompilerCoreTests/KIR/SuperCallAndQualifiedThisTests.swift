@@ -41,11 +41,12 @@ private func extractSuperCallFlagsAcrossOverrides(
 
 @Suite
 struct SuperCallAndQualifiedThisTests {
-    // MARK: - super.method(), qualified super, and regular member-call isSuperCall flags in KIR
+    // MARK: - super.method(), qualified super, regular member-call isSuperCall flags, and qualified this@Label
 
-    @Test func testSuperCallAndRegularCallKIR() throws {
+    @Test func testSuperCallAndQualifiedThisKIR() throws {
         let sources: [String] = [
             """
+            package sample0
             open class Base {
                 open fun greet(): String = "hello"
             }
@@ -54,6 +55,7 @@ struct SuperCallAndQualifiedThisTests {
             }
             """,
             """
+            package sample1
             interface Left {
                 fun default1(): String = "left"
             }
@@ -66,9 +68,27 @@ struct SuperCallAndQualifiedThisTests {
             }
             """,
             """
+            package sample2
             class Greeter {
                 fun greet(): String = "hello"
                 fun callGreet(): String = this.greet()
+            }
+            """,
+            """
+            package sample3
+            class Outer {
+                fun getOuter(): Outer = this
+                inner class Inner {
+                    fun getOuter(): Outer = this@Outer
+                }
+            }
+            """,
+            """
+            package sample4
+            class Outer2 {
+                class Inner {
+                    fun bad(): Int = this@NonExistent
+                }
             }
             """,
         ]
@@ -77,10 +97,13 @@ struct SuperCallAndQualifiedThisTests {
             let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected super/regular call programs to compile without sema errors, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            for path in paths[0..<4] {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                #expect(
+                    !(sampleDiags.contains(where: { $0.severity == .error })),
+                    "Expected super/regular call programs to compile without sema errors, got: \(sampleDiags.map(\.message))"
+                )
+            }
 
             let module = try #require(ctx.kir)
 
@@ -115,6 +138,20 @@ struct SuperCallAndQualifiedThisTests {
                     dumpOutput.contains("qualifiedSuper="),
                     "Expected KIR dump to contain 'qualifiedSuper=' for qualified super call, got:\n\(dumpOutput)"
                 )
+            }
+
+            do {
+                let sampleDiags = diagnosticsForPath(paths[3], in: ctx)
+                let hasError = sampleDiags.contains { $0.severity == .error }
+                #expect(
+                    !(hasError),
+                    "Expected this@Outer in nested class to resolve without errors, got: \(sampleDiags.map(\.message))"
+                )
+            }
+
+            do {
+                let sampleDiags = diagnosticsForPath(paths[4], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0053", in: sampleDiags)
             }
         }
     }
@@ -169,47 +206,6 @@ struct SuperCallAndQualifiedThisTests {
                     processCall != nil,
                     "Expected isSuperCall=true to survive ABI lowering with boxing, got: \(flags)"
                 )
-            }
-        }
-    }
-
-    // MARK: - Qualified this@Label
-
-    @Test func testQualifiedThisSema() throws {
-        let sources: [String] = [
-            """
-            class Outer {
-                fun getOuter(): Outer = this
-                inner class Inner {
-                    fun getOuter(): Outer = this@Outer
-                }
-            }
-            """,
-            """
-            class Outer2 {
-                class Inner {
-                    fun bad(): Int = this@NonExistent
-                }
-            }
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runSema(ctx)
-
-            do {
-                let sampleDiags = diagnosticsForPath(paths[0], in: ctx)
-                let hasError = sampleDiags.contains { $0.severity == .error }
-                #expect(
-                    !(hasError),
-                    "Expected this@Outer in nested class to resolve without errors, got: \(sampleDiags.map(\.message))"
-                )
-            }
-
-            do {
-                let sampleDiags = diagnosticsForPath(paths[1], in: ctx)
-                assertHasDiagnostic("KSWIFTK-SEMA-0053", in: sampleDiags)
             }
         }
     }
