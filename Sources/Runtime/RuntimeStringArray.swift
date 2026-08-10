@@ -1540,12 +1540,15 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
 
 @_cdecl("kk_array_get_inbounds")
 public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
+    // Uses the O(1) subscript rather than `elements`, which copies the whole
+    // backing store on every access. This is the hot path for object field
+    // reads as well as array indexing.
     guard let array = runtimeArrayBox(from: arrayRaw),
-          array.elements.indices.contains(index)
+          index >= 0, index < array.count
     else {
         runtimeStructuredPanic("kk_array_get_inbounds precondition failed")
     }
-    return array.elements[index]
+    return array[index]
 }
 
 @_cdecl("kk_array_set")

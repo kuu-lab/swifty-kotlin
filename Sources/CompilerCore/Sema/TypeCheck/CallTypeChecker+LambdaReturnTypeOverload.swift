@@ -110,6 +110,13 @@ extension CallTypeChecker {
                     sema: sema
                 )
                 contextualArgExpectedTypes[index] = expectation.type
+                if declaresConcreteLambdaParameterTypes(
+                    at: index,
+                    candidates: expectedTypeCandidates,
+                    sema: sema
+                ) {
+                    sema.bindings.markSourceDeclaredExpectedType(argument.expr)
+                }
                 if expectation.isInputOnly {
                     inputOnlyLambdaIndices.insert(index)
                 }
@@ -818,6 +825,28 @@ extension CallTypeChecker {
         "kk_string_chunked_sequence_transform",
         "kk_string_windowedSequence_transform",
     ]
+
+    /// Whether the only candidate for the call declares this argument as a
+    /// function type whose parameter types are written out concretely in source
+    /// (no type parameter left for inference to substitute). Such a signature
+    /// is authoritative even where it says `Any`, unlike the `Any` inference
+    /// falls back to when a type variable stays unsolved (BUG-163).
+    private func declaresConcreteLambdaParameterTypes(
+        at index: Int,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> Bool {
+        guard candidates.count == 1,
+              let candidate = candidates.first,
+              sema.symbols.isSourceBackedSymbol(candidate),
+              let signature = sema.symbols.functionSignature(for: candidate),
+              index < signature.parameterTypes.count,
+              case let .functionType(declared) = sema.types.kind(of: signature.parameterTypes[index])
+        else {
+            return false
+        }
+        return !declared.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+    }
 
     private func lambdaLiteralExpectedType(
         at index: Int,

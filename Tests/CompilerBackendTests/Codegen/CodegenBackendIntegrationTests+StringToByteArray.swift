@@ -1,14 +1,71 @@
-// STDLIB-TEXT-FN-092: End-to-end execution tests for String.toByteArray().
-// toByteArray() and its charset overload are Kotlin-sourced (kotlin/text/StringEncoding.kt)
-// and return an actual ByteArray/ArrayBox, backed by the __kk_string_toByteArray_flat /
-// __kk_string_toByteArray_charset_flat runtime bridges in RuntimeStringEncoding.swift.
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
+private func assertKotlinOutput(
+    _ source: String,
+    moduleName: String,
+    expected: String
+) throws {
+    try withTemporaryFile(contents: source) { path in
+        let outputBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        let ctx = try runCodegenPipeline(
+            inputPath: path,
+            moduleName: moduleName,
+            emit: .executable,
+            outputPath: outputBase
+        )
+        try LinkPhase().run(ctx)
+        let result = try CommandRunner.run(executable: outputBase, arguments: [])
+        let normalizedStdout = result.stdout
+            .replacingOccurrences(of: "\r\n", with: "\n")
+        #expect(normalizedStdout == expected)
+    }
+}
+
+@Suite
+struct CodegenBackendStringToByteArrayTests {
+
+    @Test
     func testCodegenStringToByteArrayNoArg() throws {
         let source = """
         fun main() {
@@ -22,6 +79,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "StringToByteArrayNoArg", expected: "3\n97\n98\n99\n")
     }
 
+    @Test
     func testCodegenStringToByteArrayCharsets() throws {
         let source = """
         fun main() {
@@ -46,4 +104,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "StringToByteArrayCharsets", expected: "5\n5\n5\n4\n4\n")
     }
 }
-
+#endif

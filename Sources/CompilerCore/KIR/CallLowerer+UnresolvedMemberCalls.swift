@@ -59,7 +59,7 @@ extension CallLowerer {
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("__string_struct_get_length")
+            return interner.intern("__kk_string_struct_get_length")
         }
         if memberName == "length",
            let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
