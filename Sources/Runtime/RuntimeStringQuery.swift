@@ -234,81 +234,10 @@ public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
     return runtimeCompareStrings(lhs, rhs)
 }
 
-@_cdecl("kk_string_compareToIgnoreCase")
-public func kk_string_compareToIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    if ignoreCaseRaw == 0 {
-        return runtimeCompareStrings(lhs, rhs)
-    }
-    let comparison = lhs.caseInsensitiveCompare(rhs)
-    switch comparison {
-    case .orderedAscending:
-        return -1
-    case .orderedDescending:
-        return 1
-    case .orderedSame:
-        return 0
-    }
-}
-
-@_cdecl("kk_string_compareToIgnoreCase_flat")
-public func kk_string_compareToIgnoreCase_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ otherData: UnsafePointer<UInt8>?,
-    _ otherLength: Int,
-    _ otherByteCount: Int,
-    _ otherHash: Int,
-    _ ignoreCaseRaw: Int
-) -> Int {
-    kk_string_compareToIgnoreCase(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash),
-        ignoreCaseRaw
-    )
-}
-
-// MARK: - STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals
-
-@_cdecl("kk_string_contentEquals")
-public func kk_string_contentEquals(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
-    let receiverIsNull = (receiverRaw == runtimeNullSentinelInt)
-    let otherIsNull = (otherRaw == runtimeNullSentinelInt)
-    if receiverIsNull && otherIsNull {
-        return kk_box_bool(1)
-    }
-    if receiverIsNull || otherIsNull {
-        return kk_box_bool(0)
-    }
-    guard let receiverStr = runtimeStringFromRaw(receiverRaw),
-          let otherStr = runtimeStringFromRaw(otherRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(receiverStr == otherStr ? 1 : 0)
-}
-
-@_cdecl("kk_string_contentEquals_ignoreCase")
-public func kk_string_contentEquals_ignoreCase(_ receiverRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let receiverIsNull = (receiverRaw == runtimeNullSentinelInt)
-    let otherIsNull = (otherRaw == runtimeNullSentinelInt)
-    if receiverIsNull && otherIsNull {
-        return kk_box_bool(1)
-    }
-    if receiverIsNull || otherIsNull {
-        return kk_box_bool(0)
-    }
-    guard let receiverStr = runtimeStringFromRaw(receiverRaw),
-          let otherStr = runtimeStringFromRaw(otherRaw) else {
-        return kk_box_bool(0)
-    }
-    if ignoreCaseRaw == 0 {
-        return kk_box_bool(receiverStr == otherStr ? 1 : 0)
-    }
-    return kk_box_bool(receiverStr.caseInsensitiveCompare(otherStr) == .orderedSame ? 1 : 0)
-}
+// KSP-413: compareTo(ignoreCase) and CharSequence?.contentEquals are bundled
+// Kotlin source (Stdlib/kotlin/text/StringComparison.kt); the
+// kk_string_compareToIgnoreCase / kk_string_contentEquals /
+// kk_string_contentEquals_ignoreCase bridges were removed.
 
 // MARK: - STDLIB-TEXT-FN-044: String.random()
 

@@ -1,4 +1,4 @@
-symbol fq=kotlin.ranges.OpenEndRange kind=interface vis=public flags=synthetic
+symbol fq=kotlin.ranges.OpenEndRange kind=interface vis=public flags=_
 symbol fq=kotlin.ranges.OpenEndRange.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.ranges.OpenEndRange.endExclusive kind=property vis=public flags=synthetic type=kotlin.ranges.OpenEndRange.T
 symbol fq=kotlin.ranges.OpenEndRange.start kind=property vis=public flags=synthetic type=kotlin.ranges.OpenEndRange.T

@@ -409,5 +409,95 @@ struct LibMetadataImportIntegrationTests {
             assertHasDiagnostic("KSWIFTK-LIB-0020", in: ctx)
         }
     }
+
+    /// KSP-461: an unparsable instruction used to be dropped silently, leaving the
+    /// following instructions reading registers that were never defined (the call
+    /// site then produced garbage). The whole body must be rejected instead.
+    @Test func testInlineKIRArtifactWithUnsupportedInstructionIsRejected() throws {
+        let ctx = try compileWithInlineKIRBody(
+            moduleName: "UnsupportedInline",
+            body: """
+            beginBlock
+            totallyUnknownOpcode result=1
+            returnValue value=1
+            """
+        )
+        assertHasDiagnostic("KSWIFTK-LIB-0023", in: ctx)
+    }
+
+    /// KSP-461: `virtualCall` is emitted into inline KIR artifacts (any inline
+    /// stdlib function that dispatches through an interface, e.g. a `Comparator`
+    /// parameter), so the importer has to understand it.
+    @Test func testInlineKIRArtifactWithVirtualCallIsImported() throws {
+        let ctx = try compileWithInlineKIRBody(
+            moduleName: "VirtualCallInline",
+            body: """
+            beginBlock
+            virtualCall symbol=_ calleeB64=\(base64("compare")) receiver=1 args=[2,3] result=4 canThrow=1 thrownResult=_ dispatch=itableDynamic:12345:0
+            virtualCall symbol=_ calleeB64=\(base64("size")) receiver=1 args=[] result=5 canThrow=0 thrownResult=_ dispatch=itable:0:1
+            virtualCall symbol=_ calleeB64=\(base64("hashCode")) receiver=1 args=[] result=6 canThrow=0 thrownResult=_ dispatch=vtable:2
+            returnValue value=4
+            """
+        )
+        assertNoDiagnostic("KSWIFTK-LIB-0023", in: ctx)
+    }
+
+    private func base64(_ value: String) -> String {
+        Data(value.utf8).base64EncodedString()
+    }
+
+    /// Builds a one-function library whose inline KIR artifact contains `body`,
+    /// then compiles a trivial program against it.
+    private func compileWithInlineKIRBody(
+        moduleName: String,
+        body: String
+    ) throws -> CompilationContext {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        let inlineDir = libDir.appendingPathComponent("inline-kir")
+        try fm.createDirectory(at: inlineDir, withIntermediateDirectories: true)
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "\(moduleName)",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin",
+          "inlineKIRDir": "inline-kir"
+        }
+        """
+        let metadata = """
+        symbols=1
+        function InlineBody fq=lib.foo schema=v1 arity=0 suspend=0 inline=1
+        """
+        let kirbin = """
+        version=2
+        params=0
+        suspend=false
+        body:
+        \(body)
+        """
+
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try kirbin.write(to: inlineDir.appendingPathComponent("InlineBody.kirbin"), atomically: true, encoding: .utf8)
+
+        var result: CompilationContext!
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: moduleName + "App",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            result = ctx
+        }
+        return result
+    }
 }
 #endif

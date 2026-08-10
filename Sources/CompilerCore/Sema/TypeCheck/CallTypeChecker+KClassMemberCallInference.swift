@@ -6,8 +6,7 @@
 ///   compiler-side allowlist (like `typeOf<T>()`).
 ///
 /// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
-/// class-kind flags/`members`/`constructors`/etc. now resolve as ordinary
-/// Kotlin extension declarations
+/// class-kind flags now resolve as ordinary Kotlin extension declarations
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt,
 /// KClassMemberIntrospection.kt) through normal overload resolution.
 ///
@@ -83,24 +82,6 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-        }
-        // KSP-496: cast/safeCast stay compiler special cases — this compiler's
-        // generic inference doesn't correctly unify T (inferred from a
-        // concrete receiver like KClass<String>) against an explicit expected
-        // type at the call site. See KClassBasicAPI.kt for details.
-        if calleeName == knownNames.kClassCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let targetType = sema.bindings.classRefTargetType(for: receiverID) ?? sema.types.anyType
-            let returnType = kClassCastReturnType(from: targetType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-        if calleeName == knownNames.kClassSafeCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let targetType = sema.bindings.classRefTargetType(for: receiverID) ?? sema.types.anyType
-            let returnType = kClassSafeCastReturnType(from: targetType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
         }
         // KSP-496: primaryConstructor stays a compiler special case for the same
         // reason as the collection-returning members below, but it returns a
@@ -205,20 +186,6 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-        }
-        // KSP-496: cast/safeCast stay compiler special cases (via variable
-        // receiver) — see KClassBasicAPI.kt for why.
-        if calleeName == knownNames.kClassCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let returnType = kClassCastReturnType(from: kClassArgumentType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-        if calleeName == knownNames.kClassSafeCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let returnType = kClassSafeCastReturnType(from: kClassArgumentType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
         }
         // KSP-496: primaryConstructor stays a compiler special case (via
         // variable receiver) for the same reason as the collection-returning

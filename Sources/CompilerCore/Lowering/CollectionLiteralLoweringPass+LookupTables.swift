@@ -9,7 +9,6 @@ struct CollectionLiteralLookupTables {
     let arrayLookup: ArrayLookupNames
     let rangeLookup: RangeLookupNames
     let stringLookup: StringLookupNames
-    let comparatorLookup: ComparatorLookupNames
     let builderDSLLookup: BuilderDSLLookupNames
     let fileIOLookup: FileIOLookupNames
     let commonLookup: CommonLookupNames
@@ -27,7 +26,6 @@ struct CollectionLiteralLookupTables {
         arrayLookup = ArrayLookupNames(interner: interner)
         rangeLookup = RangeLookupNames(interner: interner)
         stringLookup = StringLookupNames(interner: interner)
-        comparatorLookup = ComparatorLookupNames(interner: interner)
         builderDSLLookup = BuilderDSLLookupNames(interner: interner)
         fileIOLookup = FileIOLookupNames(interner: interner)
         commonLookup = CommonLookupNames(interner: interner)
@@ -363,15 +361,6 @@ struct CollectionLiteralLookupTables {
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-    var kkListToTypedArrayName: InternedString { arrayLookup.kkListToTypedArrayName }
-    var kkListToCharArrayName: InternedString { arrayLookup.kkListToCharArrayName }
-    var kkListToBooleanArrayName: InternedString { arrayLookup.kkListToBooleanArrayName }
-    var kkListToShortArrayName: InternedString { arrayLookup.kkListToShortArrayName }
-    var kkListToDoubleArrayName: InternedString { arrayLookup.kkListToDoubleArrayName }
-    var kkListToFloatArrayName: InternedString { arrayLookup.kkListToFloatArrayName }
-    var kkListToIntArrayName: InternedString { arrayLookup.kkListToIntArrayName }
-    var kkListToLongArrayName: InternedString { arrayLookup.kkListToLongArrayName }
-    var kkListToByteArrayName: InternedString { arrayLookup.kkListToByteArrayName }
     var kkListToUByteArrayName: InternedString { arrayLookup.kkListToUByteArrayName }
     var kkListToUShortArrayName: InternedString { arrayLookup.kkListToUShortArrayName }
     var kkListToUIntArrayName: InternedString { arrayLookup.kkListToUIntArrayName }
@@ -396,6 +385,7 @@ struct CollectionLiteralLookupTables {
     var kkArrayFlatMapName: InternedString { arrayLookup.kkArrayFlatMapName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
+    var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
     var kkArrayMapIndexedName: InternedString { arrayLookup.kkArrayMapIndexedName }
     var kkArrayFilterIndexedName: InternedString { arrayLookup.kkArrayFilterIndexedName }
     var kkArrayMapNotNullName: InternedString { arrayLookup.kkArrayMapNotNullName }
@@ -494,18 +484,6 @@ struct CollectionLiteralLookupTables {
 
     // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
 
-    var kkComparatorFromMultiSelectorsName: InternedString { comparatorLookup.kkComparatorFromMultiSelectorsName }
-    var kkComparatorFromMultiSelectors3Name: InternedString { comparatorLookup.kkComparatorFromMultiSelectors3Name }
-    var kkComparatorFromMultiSelectorsVarargName: InternedString { comparatorLookup.kkComparatorFromMultiSelectorsVarargName }
-    var kkComparatorFromMultiSelectorsTrampolineName: InternedString { comparatorLookup.kkComparatorFromMultiSelectorsTrampolineName }
-    var kkComparatorNullsFirstName: InternedString { comparatorLookup.kkComparatorNullsFirstName }
-    var kkComparatorNullsLastName: InternedString { comparatorLookup.kkComparatorNullsLastName }
-    var kkComparatorNullsFirstTrampolineName: InternedString { comparatorLookup.kkComparatorNullsFirstTrampolineName }
-    var kkComparatorNullsLastTrampolineName: InternedString { comparatorLookup.kkComparatorNullsLastTrampolineName }
-    var kkComparatorNullsFirstComparableName: InternedString { comparatorLookup.kkComparatorNullsFirstComparableName }
-    var kkComparatorNullsFirstComparableTrampolineName: InternedString { comparatorLookup.kkComparatorNullsFirstComparableTrampolineName }
-    var kkComparatorNullsLastNaturalName: InternedString { comparatorLookup.kkComparatorNullsLastNaturalName }
-    var kkComparatorNullsLastNaturalTrampolineName: InternedString { comparatorLookup.kkComparatorNullsLastNaturalTrampolineName }
 
     // MARK: - BuilderDSL lookup names (see CollectionLiteralLoweringPass+LookupTables+BuilderDSL.swift)
 
