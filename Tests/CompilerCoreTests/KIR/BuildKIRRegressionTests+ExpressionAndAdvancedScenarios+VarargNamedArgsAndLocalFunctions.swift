@@ -248,8 +248,11 @@ extension BuildKIRRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            let boxDoubleCount = callNames.filter { $0 == "kk_box_double" }.count
-            #expect(boxDoubleCount == 3, "Expected each Double vararg element to be boxed via kk_box_double, got: \(callNames)")
+            // Double literals are provably non-null, so BoxingCalleeTable routes
+            // them through kk_box_double_nonnull rather than the nullable-safe
+            // kk_box_double (see BoxingCalleeTable.nonNullOnlyBoxCalleeOverridesByPrimitive).
+            let boxDoubleCount = callNames.filter { $0 == "kk_box_double_nonnull" }.count
+            #expect(boxDoubleCount == 3, "Expected each Double vararg element to be boxed via kk_box_double_nonnull, got: \(callNames)")
         }
     }
 
@@ -298,10 +301,10 @@ extension BuildKIRRegressionTests {
                 interner: ctx.interner
             )
             #expect(
-                !doubleArrayCalls.contains("kk_box_double"),
+                !doubleArrayCalls.contains(where: { $0.hasPrefix("kk_box_double") }),
                 "Expected doubleArrayOf's raw Double elements NOT to be boxed, got: \(doubleArrayCalls)"
             )
-            let genericBoxDoubleCount = genericArrayCalls.filter { $0 == "kk_box_double" }.count
+            let genericBoxDoubleCount = genericArrayCalls.filter { $0 == "kk_box_double_nonnull" }.count
             #expect(
                 genericBoxDoubleCount == 2,
                 "Expected arrayOf<Double> to box each erased element, got: \(genericArrayCalls)"

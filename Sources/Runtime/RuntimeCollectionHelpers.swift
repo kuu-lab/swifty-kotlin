@@ -1,12 +1,25 @@
+/// `Collection` -> `Iterable` supertype edge, registered once so that boxes
+/// tagged as `List`/`Set` answer `is Collection<*>` / `is Iterable<*>` (and the
+/// erased `as Iterable<T>` cast) through the ordinary assignability walk.
+private let collectionRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection")
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+    )
+    return id
+}()
+
 let listRuntimeTypeID: Int64 = {
-    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-    for byte in "kotlin.collections.List".utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 0x100_0000_01B3
-    }
-    let payloadMask: Int64 = (1 << 55) - 1
-    let payload = Int64(bitPattern: hash) & payloadMask
-    return payload == 0 ? 1 : payload
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.List")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    return id
+}()
+
+let setRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    return id
 }()
 
 private let mapEntryRuntimeTypeID: Int64 = {
@@ -261,7 +274,9 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
-    return Int(bitPattern: opaque)
+    let raw = Int(bitPattern: opaque)
+    maybeRegisterCollectionIterableItable(raw: raw, box: box)
+    return raw
 }
 
 func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
@@ -274,6 +289,157 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
     registerRuntimeObject(box, typeID: mapRuntimeTypeID)
 }
 
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
+
+/// Register the `kotlin.collections.Iterator` itable on a raw object handle.
+private func registerIteratorItable(
+    raw: Int,
+    hasNext: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
+    next: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int
+) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeIteratorInterfaceTypeID), 0)
+    let hasNextPtr = unsafeBitCast(hasNext, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
+    let nextPtr = unsafeBitCast(next, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
+}
+
+/// Register the `kotlin.collections.Iterable` itable on a raw object handle.
+private func registerIterableItable(raw: Int, ifaceSlot: Int = 0) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeIterableInterfaceTypeID), ifaceSlot)
+    let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
+}
+
+/// Register the `kotlin.sequences.Sequence` itable on a raw object handle.
+private func registerSequenceItable(raw: Int, ifaceSlot: Int = 1) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeSequenceInterfaceTypeID), ifaceSlot)
+    let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
+}
+
+private let runtimeIterableIteratorThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterableRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator(iterableRaw)
+}
+
+private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
+    // Runtime-backed collection boxes may be passed as `Iterable<T>` from
+    // source-implemented `Sequence` wrappers (e.g. a `List` returned by a
+    // `flatMap` lambda typed as `Iterable`). Register `Iterable.iterator()`
+    // so interface dispatch works on those boxes.
+    //
+    // Some source-implemented `Sequence` HOF overloads are resolved to the
+    // `Sequence` variant even when the lambda returns a `List`/`Set`/array
+    // (which is `Iterable` but not actually `Sequence`); registering the
+    // `Sequence` itable lets the generated `Sequence.iterator()` dispatch
+    // reach the same runtime-backed iterator. `is` checks still consult the
+    // nominal class hierarchy, so this does not make `List`/`Set` report as
+    // `Sequence`.
+    if box is RuntimeListBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: listRuntimeTypeID)
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+    } else if box is RuntimeSetBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: setRuntimeTypeID)
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+    } else if type(of: box) == RuntimeArrayBox.self {
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+    }
+}
+
+// MARK: - Iterator box itable registration
+
+// Runtime-backed iterator boxes are returned by `iterator()` calls resolved
+// through the synthetic collection fallback (e.g. `List.iterator()`). When a
+// source-implemented `Sequence`/`Iterator` wrapper stores such an iterator as
+// an `Iterator<T>` interface value, subsequent `hasNext()`/`next()` calls use
+// itable dispatch and need the box to advertise those methods.
+
+private let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_hasNext(iterRaw)
+}
+
+private let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
+    return raw
+}
+
+private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_range_hasNext(iterRaw)
+}
+
+private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_range_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeRangeIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeRangeIteratorHasNextThunk, next: runtimeRangeIteratorNextThunk)
+    return raw
+}
+
+private let runtimeIndexingIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_indexing_iterable_hasNext(iterRaw)
+}
+
+private let runtimeIndexingIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_indexing_iterable_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeIndexingIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeIndexingIteratorHasNextThunk, next: runtimeIndexingIteratorNextThunk)
+    return raw
+}
+
+private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_map_iterator_hasNext(iterRaw)
+}
+
+private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_map_iterator_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeMapIteratorHasNextThunk, next: runtimeMapIteratorNextThunk)
+    return raw
+}
+
+private let runtimeStringIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_string_iterator_hasNext(iterRaw)
+}
+
+private let runtimeStringIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_string_iterator_next(iterRaw)
+}
+
+func registerRuntimeObject(_ box: RuntimeStringIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(raw: raw, hasNext: runtimeStringIteratorHasNextThunk, next: runtimeStringIteratorNextThunk)
+    return raw
+}
+
 func maybeUnbox(_ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
         return value
@@ -282,6 +448,12 @@ func maybeUnbox(_ value: Int) -> Int {
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     guard isObjectPointer else {
+        return value
+    }
+    // Recognize string/sequence boxes first so unrelated primitive casts do
+    // not trip on object pointers whose class metadata lives in libswiftCore.
+    if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
+        _ = stringBox
         return value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
@@ -313,7 +485,36 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
     if raw == runtimeNullSentinelInt {
         return nil
     }
-    return maybeUnbox(raw)
+    // `raw` is a transform's return value, already boxed by KIR's ABILoweringPass
+    // for its Any-typed return (see kk_array_map's comment). Callers store or
+    // forward this verbatim into a generically-typed collection/result, so it
+    // must stay boxed here too — unboxing would strip the type tag a later
+    // Boolean/Char render depends on.
+    return raw
+}
+
+/// IEEE754 bit pattern of a boxed `Double`/`Float`, or nil when `raw` is not
+/// one of those boxes. Unlike `maybeUnbox`, which leaves floating-point boxes
+/// as pointers, this exposes the payload so a box can be compared against a
+/// raw (never-boxed) floating-point word — the representation a `Double`
+/// argument still has when it reaches a generic `T` parameter.
+func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
+        return Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern))
+    }
+    if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
+        return Int(floatBox.value.bitPattern)
+    }
+    return nil
 }
 
 func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
@@ -332,6 +533,15 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         rhsPtr.map { state.objectPointers.contains(UInt(bitPattern: $0)) } ?? false
     }
     if lhsIsObjectPointer != rhsIsObjectPointer {
+        // Boxed Double/Float vs a raw floating-point word: compare bit
+        // patterns, matching Kotlin's boxed `equals` (NaN equals NaN,
+        // -0.0 does not equal 0.0). maybeUnbox leaves those boxes as
+        // pointers, so it would report every such pair unequal.
+        let boxedSide = lhsIsObjectPointer ? lhs : rhs
+        let rawSide = lhsIsObjectPointer ? rhs : lhs
+        if let bitPattern = runtimeFloatingBoxBitPattern(boxedSide) {
+            return bitPattern == rawSide
+        }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
@@ -365,15 +575,18 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         return lhsULong.value == rhsULong.value
     }
+    // Boxed floating-point equality follows Kotlin's `Double.equals`/
+    // `Float.equals` (bit pattern), not IEEE `==`: NaN equals NaN and
+    // -0.0 does not equal 0.0.
     if let lhsFloat = tryCast(lhsPtr, to: RuntimeFloatBox.self),
        let rhsFloat = tryCast(rhsPtr, to: RuntimeFloatBox.self)
     {
-        return lhsFloat.value == rhsFloat.value
+        return lhsFloat.value.bitPattern == rhsFloat.value.bitPattern
     }
     if let lhsDouble = tryCast(lhsPtr, to: RuntimeDoubleBox.self),
        let rhsDouble = tryCast(rhsPtr, to: RuntimeDoubleBox.self)
     {
-        return lhsDouble.value == rhsDouble.value
+        return lhsDouble.value.bitPattern == rhsDouble.value.bitPattern
     }
     if let lhsChar = tryCast(lhsPtr, to: RuntimeCharBox.self),
        let rhsChar = tryCast(rhsPtr, to: RuntimeCharBox.self)
