@@ -136,6 +136,24 @@ extension TypeSystem {
             return true
         }
 
+        // primitive / String <: Comparable<*>: the star projection erases the
+        // type argument, so every Comparable<Self> primitive satisfies it.
+        if case let .classType(rightClass) = rhs,
+           let comparableSym = comparableInterfaceSymbol,
+           rightClass.classSymbol == comparableSym,
+           rightClass.args.count == 1,
+           case .star = rightClass.args[0]
+        {
+            switch lhs {
+            case let .primitive(_, leftNullability):
+                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
+            case let .stringStruct(leftNullability):
+                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
+            default:
+                break
+            }
+        }
+
         // Support for invariant Comparable bounds (backward compatibility)
         if case let .primitive(_, leftNullability) = lhs,
            case let .classType(rightClass) = rhs,
@@ -161,7 +179,9 @@ extension TypeSystem {
             switch rightClass.args[0] {
             case let .in(argType), let .invariant(argType):
                 return argType == subtype
-            case .out, .star:
+            case .star:
+                return true
+            case .out:
                 return false
             }
         }

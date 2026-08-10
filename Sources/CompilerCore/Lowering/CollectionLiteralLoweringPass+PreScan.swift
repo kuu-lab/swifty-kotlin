@@ -306,14 +306,6 @@ extension CollectionLiteralLoweringSupport {
             sequenceExprIDs: &sequenceExprIDs,
             stringExprIDs: &stringExprIDs
         )
-        // Classify map property accessor results: keys/entries -> set, values -> list.
-        if let result {
-            if callee == lookup.kkMapKeysName || callee == lookup.kkMapEntriesName {
-                setExprIDs.insert(result.rawValue)
-            } else if callee == lookup.kkMapValuesName {
-                listExprIDs.insert(result.rawValue)
-            }
-        }
         // STDLIB-565: Classify File constructor calls.
         // KNOWN LIMITATION: Only direct File("...") / kk_file_new constructor
         // calls are seeded here.  File receivers originating from function
@@ -353,7 +345,11 @@ extension CollectionLiteralLoweringSupport {
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
                     || callee == lookup.kkMapOfName {
             mapExprIDs.insert(result.rawValue)
-        } else if lookup.arrayOfFactoryNames.contains(callee) || callee == lookup.kkArrayNewName {
+        } else if lookup.arrayOfFactoryNames.contains(callee)
+            || callee == lookup.kkArrayNewName
+            // CallLowerer may already lower intArrayOf/arrayOf to kk_array_of before this pass.
+            || callee == lookup.kkArrayOfName
+        {
             arrayExprIDs.insert(result.rawValue)
         }
     }

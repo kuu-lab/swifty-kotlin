@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendShortCircuitLogicalOperatorsTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenLogicalOrShortCircuitsWhenLhsIsTrue() throws {
         let source = """
         fun sideEffect(): Boolean {
@@ -20,6 +82,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "LogicalOrShortCircuitTrue", expected: "result=true\n")
     }
 
+    @Test
     func testCodegenLogicalAndShortCircuitsWhenLhsIsFalse() throws {
         let source = """
         fun sideEffect(): Boolean {
@@ -36,6 +99,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "LogicalAndShortCircuitFalse", expected: "result=false\n")
     }
 
+    @Test
     func testCodegenLogicalOrEvaluatesRhsWhenLhsIsFalse() throws {
         let source = """
         fun sideEffect(): Boolean {
@@ -56,6 +120,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenLogicalAndEvaluatesRhsWhenLhsIsTrue() throws {
         let source = """
         fun sideEffect(): Boolean {
@@ -78,6 +143,7 @@ extension CodegenBackendIntegrationTests {
 
     // Regression test: `list.isEmpty() || list.last() == x` must not evaluate
     // `list.last()` when the list is already empty, or it throws NoSuchElementException.
+    @Test
     func testCodegenLogicalOrShortCircuitAvoidsNoSuchElementException() throws {
         let source = """
         fun main() {
@@ -92,6 +158,7 @@ extension CodegenBackendIntegrationTests {
 
     // Regression test: `s.length >= 2 && s[1] == x` must not evaluate `s[1]`
     // when the length guard already fails, or it throws an out-of-bounds exception.
+    @Test
     func testCodegenLogicalAndShortCircuitAvoidsStringIndexOutOfBounds() throws {
         let source = """
         fun main() {
@@ -104,6 +171,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "LogicalAndAvoidsStringIndexCrash", expected: "result=false\n")
     }
 
+    @Test
     func testCodegenChainedLogicalAndShortCircuitsAtFirstFalse() throws {
         let source = """
         fun t(tag: String): Boolean { println("eval $tag"); return true }
@@ -122,6 +190,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenChainedLogicalOrShortCircuitsAtFirstTrue() throws {
         let source = """
         fun t(tag: String): Boolean { println("eval $tag"); return true }
@@ -140,6 +209,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenLogicalAndInIfConditionKeepsSmartCastAndShortCircuits() throws {
         let source = """
         fun main() {
@@ -155,3 +225,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "LogicalAndInIfConditionSmartCast", expected: "null-or-empty\n")
     }
 }
+#endif

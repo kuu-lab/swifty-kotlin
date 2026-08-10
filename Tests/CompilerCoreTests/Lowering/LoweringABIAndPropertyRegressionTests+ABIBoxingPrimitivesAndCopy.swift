@@ -13,16 +13,16 @@ extension LoweringABIAndPropertyRegressionTests {
         let anyNullableType = types.make(.any(.nullable))
 
         // Define primitives and their expected boxing callees.
-        // .long/.ulong resolve to the "_nonnull" callee variant here because
-        // the source TypeKind's nullability is provably `.nonNull`: see
-        // BoxingCalleeTable's nonNullOnlyBoxCalleeOverridesByPrimitive.
+        // .long/.ulong/.double resolve to the "_nonnull" callee variant here
+        // because the source TypeKind's nullability is provably `.nonNull`:
+        // see BoxingCalleeTable's nonNullOnlyBoxCalleeOverridesByPrimitive.
         let primitives: [(TypeKind, KIRExprKind, String)] = [
             (.primitive(.int, .nonNull), .intLiteral(1), "kk_box_int"),
             (.primitive(.boolean, .nonNull), .boolLiteral(true), "kk_box_bool"),
             (.primitive(.long, .nonNull), .longLiteral(1), "kk_box_long_nonnull"),
             (.primitive(.ulong, .nonNull), .ulongLiteral(1), "kk_box_ulong_nonnull"),
             (.primitive(.float, .nonNull), .floatLiteral(1), "kk_box_float"),
-            (.primitive(.double, .nonNull), .doubleLiteral(1), "kk_box_double"),
+            (.primitive(.double, .nonNull), .doubleLiteral(1), "kk_box_double_nonnull"),
             (.primitive(.char, .nonNull), .charLiteral(65), "kk_box_char"),
         ]
 
