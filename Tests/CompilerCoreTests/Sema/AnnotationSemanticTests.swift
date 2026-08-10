@@ -6,6 +6,791 @@ import Testing
 @Suite
 struct AnnotationSemanticTests {
 
+    @Test func testAnnotationSemanticSema() throws {
+        let sources: [String] = [
+            // testDeprecatedLevelErrorEmitsErrorAtCallSite
+            """
+            package sample0
+                    @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
+                    fun oldApi(): Int = 1
+
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedLevelErrorCanBeSuppressedWithDeprecationError
+            """
+            package sample1
+                    @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
+                    fun oldApi(): Int = 1
+
+                    @Suppress("DEPRECATION_ERROR")
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedStdlibApisCanBeSuppressedWithDeprecationError
+            """
+            package sample2
+                    import kotlin.io.createTempDir
+                    import kotlin.io.createTempFile
+
+                    @Suppress("DEPRECATION_ERROR", "KSWIFTK-SEMA-DEPRECATED")
+                    fun caller() {
+                        val legacyChar = 65.toChar()
+                        println(legacyChar)
+                        val legacySlice = "kotlin".subSequence(1, 4)
+                        println(legacySlice)
+                        val tempDir = createTempDir(prefix = "kswiftk-", suffix = "-dir")
+                        val tempFile = createTempFile(prefix = "kswiftk-", suffix = ".tmp", directory = tempDir)
+                        println(tempFile)
+                    }
+
+            """,
+
+            // testDeprecatedDefaultEmitsWarningAtCallSite
+            """
+            package sample3
+                    @Deprecated("Use replacement")
+                    fun oldApi(): Int = 1
+
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedOnCompanionMemberEmitsWarning
+            """
+            package sample4
+                    class Host {
+                        companion object {
+                            @Deprecated("Use create2")
+                            fun create(): Int = 1
+                        }
+                    }
+
+                    fun caller(): Int = Host.create()
+
+            """,
+
+            // testDeprecatedReplaceWithAddsMessageAndCodeAction
+            """
+            package sample5
+                    @Deprecated("Use replacement", replaceWith = ReplaceWith("newApi()"))
+                    fun oldApi(): Int = 1
+
+                    fun newApi(): Int = 2
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedReplaceWithNamedExpressionParses
+            """
+            package sample6
+                    @Deprecated(
+                        message = "Use replacement",
+                        replaceWith = ReplaceWith(expression = "newApi()")
+                    )
+                    fun oldApi(): Int = 1
+
+                    fun newApi(): Int = 2
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedErrorLevelWithReplaceWithStillEmitsError
+            """
+            package sample7
+                    @Deprecated("Use replacement", replaceWith = ReplaceWith("newApi()"), level = DeprecationLevel.ERROR)
+                    fun oldApi(): Int = 1
+
+                    fun newApi(): Int = 2
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedEmptyReplaceWithDoesNotAddSuggestion
+            """
+            package sample8
+                    @Deprecated("Use replacement", replaceWith = ReplaceWith())
+                    fun oldApi(): Int = 1
+
+                    fun caller(): Int = oldApi()
+
+            """,
+
+            // testDeprecatedSinceKotlinAcceptsDocumentedTargets
+            """
+            package sample9
+                    @DeprecatedSinceKotlin(warningSince = "1.0", errorSince = "1.1", hiddenSince = "1.2")
+                    class OldClass {
+                        @DeprecatedSinceKotlin
+                        constructor()
+                    }
+
+                    @DeprecatedSinceKotlin
+                    fun oldFun() {}
+
+                    @DeprecatedSinceKotlin
+                    val oldProperty: Int = 1
+
+                    @DeprecatedSinceKotlin
+                    annotation class OldAnnotation
+
+            """,
+
+            // testDeprecatedSinceKotlinRejectsFileTarget
+            """
+            package sample10
+                    @file:DeprecatedSinceKotlin
+
+
+            """,
+
+            // testSyntheticDeprecatedToCharEmitsWarning
+            """
+            package sample11
+                    fun caller(): Char = 65.toChar()
+
+            """,
+
+            // testSyntheticDeprecatedStringSubSequenceEmitsWarning
+            """
+            package sample12
+                    fun caller(): String = "kotlin".subSequence(1, 4).toString()
+
+            """,
+
+            // testSyntheticDeprecatedCreateTempDirEmitsError
+            """
+            package sample13
+                    import kotlin.io.createTempDir
+
+                    fun caller() = createTempDir(prefix = "demo")
+
+            """,
+
+            // testSuppressUncheckedCastByKotlinNameSuppressesDiagnostic
+            """
+            package sample14
+                    @Suppress("UNCHECKED_CAST")
+                    fun suppressed(v: Any): List<String> = v as List<String>
+
+                    fun unsuppressed(v: Any): List<String> = v as List<String>
+
+            """,
+
+            // testSuppressUncheckedCastByInternalCodeSuppressesDiagnostic
+            """
+            package sample15
+                    @Suppress("KSWIFTK-SEMA-UNCHECKED-CAST")
+                    fun suppressed(v: Any): List<String> = v as List<String>
+
+                    fun unsuppressed(v: Any): List<String> = v as List<String>
+
+            """,
+
+            // testAnnotationTargetEnumConstantResolves
+            """
+            package sample16
+                    fun targetSmoke(): AnnotationTarget = AnnotationTarget.CLASS
+
+            """,
+
+            // testOverloadResolutionByLambdaReturnTypeResolves
+            """
+            package sample17
+                    import kotlin.OverloadResolutionByLambdaReturnType
+
+                    fun marker(x: OverloadResolutionByLambdaReturnType?): Int = 0
+
+            """,
+
+            // testExperimentalTypeInferenceResolves
+            """
+            package sample18
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    fun marker(x: ExperimentalTypeInference?): Int = 0
+
+            """,
+
+            // testOptInResolves
+            """
+            package sample19
+                    fun marker(x: OptIn?): Int = 0
+
+            """,
+
+            // testSubclassOptInRequiredResolves
+            """
+            package sample20
+                    fun marker(x: SubclassOptInRequired?): Int = 0
+
+            """,
+
+            // testContextFunctionTypeParamsRejectsDeclarationUsage
+            """
+            package sample21
+                    @ContextFunctionTypeParams(1)
+                    class Bad
+
+            """,
+
+            // testContextFunctionTypeParamsRejectsTooLargeCount
+            """
+            package sample22
+                    interface Host {
+                        val invalid: @ContextFunctionTypeParams(3) Function2<String, Int, Unit>
+                    }
+
+            """,
+
+            // testConsistentCopyVisibilityRejectsFunctionUse
+            """
+            package sample23
+                    @ConsistentCopyVisibility
+                    fun bad() {}
+
+            """,
+
+            // testMustUseReturnValuesAllowsClassUse
+            """
+            package sample24
+                    @MustUseReturnValues
+                    class ApiScope
+
+            """,
+
+            // testMustUseReturnValuesAllowsFileUse
+            """
+            package sample25
+                    @file:MustUseReturnValues
+
+                    fun api(): Int = 1
+
+            """,
+
+            // testMustUseReturnValuesRejectsFunctionUse
+            """
+            package sample26
+                    @MustUseReturnValues
+                    fun bad() {}
+
+            """,
+
+            // testBuilderInferenceAcceptsDocumentedTargets
+            """
+            package sample27
+                    @BuilderInference
+                    fun builderFunction(block: () -> Unit) {}
+
+                    fun acceptsValueParameter(@BuilderInference block: () -> Unit) {}
+
+                    @BuilderInference
+                    val builderProperty: Int = 1
+
+            """,
+
+            // testBuilderInferenceRejectsClassTarget
+            """
+            package sample28
+                    @BuilderInference
+                    class Bad
+
+            """,
+
+            // testIgnorableReturnValueAllowsFunctionUse
+            """
+            package sample29
+                    @IgnorableReturnValue
+                    fun ignored(): Int = 1
+
+            """,
+
+            // testIgnorableReturnValueRejectsClassUse
+            """
+            package sample30
+                    @IgnorableReturnValue
+                    class Bad
+
+            """,
+
+            // testExposedCopyVisibilityRejectsFunctionUse
+            """
+            package sample31
+                    @ExposedCopyVisibility
+                    fun bad() {}
+
+            """,
+
+            // testParameterNameAcceptsTypeUse
+            """
+            package sample32
+                    interface Host {
+                        val value: @ParameterName(name = "value") String
+                    }
+
+            """,
+
+            // testParameterNameRejectsClassUse
+            """
+            package sample33
+                    @ParameterName("Bad")
+                    class Bad
+
+            """,
+
+            // testPublishedApiAcceptsDocumentedDeclarationTargets
+            """
+            package sample34
+                    @PublishedApi
+                    internal class InternalHost {
+                        @PublishedApi
+                        internal val value: Int = 1
+
+                        @PublishedApi
+                        internal fun expose(): Int = value
+                    }
+
+            """,
+
+            // testPublishedApiRejectsFileTarget
+            """
+            package sample35
+                    @file:PublishedApi
+
+
+            """,
+
+            // testDslMarkerAcceptsAnnotationClassAndRejectsRegularClassUse
+            """
+            package sample36
+                    @DslMarker
+                    annotation class HtmlDsl
+
+                    @DslMarker
+                    class Bad
+
+            """,
+
+            // testDslMarkerCanMarkCustomDslAnnotation
+            """
+            package sample37
+                    @DslMarker
+                    annotation class HtmlDsl
+
+                    @HtmlDsl
+                    class Tag
+
+            """,
+
+            // testDataClassCopyVisibilityWarningCanBeSuppressedByAlias
+            """
+            package sample38
+                    @Suppress("DATA_CLASS_COPY_VISIBILITY")
+                    data class Secret private constructor(val value: Int)
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testDeprecatedLevelErrorEmitsErrorAtCallSite
+            do {
+                let samplePath = paths[0]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                let v0 = diagnostics.contains(where: isError)
+                #expect(v0, "Expected deprecated(error) diagnostic, got: \(sampleDiags)")
+            }
+            // testDeprecatedLevelErrorCanBeSuppressedWithDeprecationError
+            do {
+                let samplePath = paths[1]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.isEmpty, "Expected deprecated(error) diagnostic to be suppressed, got: \(sampleDiags)")
+            }
+            // testDeprecatedStdlibApisCanBeSuppressedWithDeprecationError
+            do {
+                let samplePath = paths[2]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.isEmpty, "Expected stdlib deprecation diagnostics to be suppressed, got: \(sampleDiags)")
+            }
+            // testDeprecatedDefaultEmitsWarningAtCallSite
+            do {
+                let samplePath = paths[3]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                let v1 = diagnostics.contains(where: isWarning)
+                #expect(v1, "Expected deprecated(warning) diagnostic, got: \(sampleDiags)")
+                let v2 = diagnostics.contains(where: isError)
+                #expect(!v2, "Did not expect deprecated(error) diagnostic for default level")
+            }
+            // testDeprecatedOnCompanionMemberEmitsWarning
+            do {
+                let samplePath = paths[4]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                let v3 = diagnostics.contains(where: isWarning)
+                #expect(v3, "Expected deprecated warning on companion call, got: \(sampleDiags)")
+            }
+            // testDeprecatedReplaceWithAddsMessageAndCodeAction
+            do {
+                let samplePath = paths[5]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(sampleDiags)")
+                let v4 = diagnostics.contains(where: isWarning)
+                #expect(v4, "Expected deprecated warning, got: \(sampleDiags)")
+                #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
+                #expect(diagnostics[0].codeActions.map(\.title) == ["Replace with 'newApi()'"])
+            }
+            // testDeprecatedReplaceWithNamedExpressionParses
+            do {
+                let samplePath = paths[6]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(sampleDiags)")
+                #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
+                #expect(diagnostics[0].codeActions.map(\.title) == ["Replace with 'newApi()'"])
+            }
+            // testDeprecatedErrorLevelWithReplaceWithStillEmitsError
+            do {
+                let samplePath = paths[7]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(sampleDiags)")
+                let v5 = diagnostics.contains(where: isError)
+                #expect(v5, "Expected deprecated error, got: \(sampleDiags)")
+                #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
+            }
+            // testDeprecatedEmptyReplaceWithDoesNotAddSuggestion
+            do {
+                let samplePath = paths[8]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(sampleDiags)")
+                #expect(!(diagnostics[0].message.contains("Replace with:")), "Did not expect replaceWith message, got: \(diagnostics[0].message)")
+                #expect(diagnostics[0].codeActions.isEmpty, "Did not expect code actions for empty replaceWith")
+            }
+            // testDeprecatedSinceKotlinAcceptsDocumentedTargets
+            do {
+                let samplePath = paths[9]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.isEmpty, "Expected DeprecatedSinceKotlin target uses to be accepted, got: \(sampleDiags)")
+            }
+            // testDeprecatedSinceKotlinRejectsFileTarget
+            do {
+                let samplePath = paths[10]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected file-target diagnostic for DeprecatedSinceKotlin, got: \(sampleDiags)")
+                let v7 = diagnostics.allSatisfy(isError)
+                #expect(v7, "Annotation-target diagnostics should be errors")
+            }
+            // testSyntheticDeprecatedToCharEmitsWarning
+            do {
+                let samplePath = paths[11]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for toChar(), got: \(sampleDiags)")
+                let v8 = diagnostics.contains(where: isWarning)
+                #expect(v8, "Expected deprecated warning for toChar(), got: \(sampleDiags)")
+                #expect(diagnostics[0].message.contains("toChar"), "Expected toChar() in message, got: \(diagnostics[0].message)")
+            }
+            // testSyntheticDeprecatedStringSubSequenceEmitsWarning
+            do {
+                let samplePath = paths[12]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for subSequence(), got: \(sampleDiags)")
+                let v9 = diagnostics.contains(where: isWarning)
+                #expect(v9, "Expected deprecated warning for subSequence(), got: \(sampleDiags)")
+                #expect(diagnostics[0].message.contains("subSequence"), "Expected subSequence() in message, got: \(diagnostics[0].message)")
+            }
+            // testSyntheticDeprecatedCreateTempDirEmitsError
+            do {
+                let samplePath = paths[13]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+
+                #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for createTempDir(), got: \(sampleDiags)")
+                let v10 = diagnostics.contains(where: isError)
+                #expect(v10, "Expected deprecated error for createTempDir(), got: \(sampleDiags)")
+                #expect(diagnostics[0].message.contains("createTempDir"), "Expected createTempDir() in message, got: \(diagnostics[0].message)")
+            }
+            // testSuppressUncheckedCastByKotlinNameSuppressesDiagnostic
+            do {
+                let samplePath = paths[14]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-UNCHECKED-CAST" }
+
+                #expect(diagnostics.count == 1, "Expected exactly one unchecked-cast warning from unsuppressed function, got: \(diagnostics)")
+                let v11 = diagnostics.allSatisfy(isWarning)
+                #expect(v11, "Unchecked-cast diagnostics should be warnings")
+            }
+            // testSuppressUncheckedCastByInternalCodeSuppressesDiagnostic
+            do {
+                let samplePath = paths[15]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-UNCHECKED-CAST" }
+
+                #expect(diagnostics.count == 1, "Expected exactly one unchecked-cast warning from unsuppressed function, got: \(diagnostics)")
+                let v12 = diagnostics.allSatisfy(isWarning)
+                #expect(v12, "Unchecked-cast diagnostics should be warnings")
+            }
+            // testAnnotationTargetEnumConstantResolves
+            do {
+                let samplePath = paths[16]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected AnnotationTarget smoke test to compile cleanly, got: \(sampleDiags)")
+            }
+            // testOverloadResolutionByLambdaReturnTypeResolves
+            do {
+                let samplePath = paths[17]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected OverloadResolutionByLambdaReturnType smoke test to compile cleanly, got: \(sampleDiags)")
+            }
+            // testExperimentalTypeInferenceResolves
+            do {
+                let samplePath = paths[18]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected ExperimentalTypeInference smoke test to compile cleanly, got: \(sampleDiags)")
+            }
+            // testOptInResolves
+            do {
+                let samplePath = paths[19]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected OptIn smoke test to compile cleanly, got: \(sampleDiags)")
+            }
+            // testSubclassOptInRequiredResolves
+            do {
+                let samplePath = paths[20]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected SubclassOptInRequired smoke test to compile cleanly, got: \(sampleDiags)")
+            }
+            // testContextFunctionTypeParamsRejectsDeclarationUsage
+            do {
+                let samplePath = paths[21]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected one annotation-target diagnostic, got: \(sampleDiags)")
+                let v14 = diagnostics.allSatisfy(isError)
+                #expect(v14, "Annotation-target diagnostics should be errors")
+            }
+            // testContextFunctionTypeParamsRejectsTooLargeCount
+            do {
+                let samplePath = paths[22]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-CONTEXT-FN-TYPE" }
+
+                #expect(diagnostics.count == 1, "Expected one context-function-type diagnostic, got: \(sampleDiags)")
+                let v15 = diagnostics.allSatisfy(isError)
+                #expect(v15, "Context-function-type diagnostics should be errors")
+            }
+            // testConsistentCopyVisibilityRejectsFunctionUse
+            do {
+                let samplePath = paths[23]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected class-only annotation target diagnostic, got: \(sampleDiags)")
+                let v17 = diagnostics.allSatisfy(isError)
+                #expect(v17, "Annotation-target diagnostics should be errors")
+            }
+            // testMustUseReturnValuesAllowsClassUse
+            do {
+                let samplePath = paths[24]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.isEmpty, "Expected @MustUseReturnValues to be accepted on classes, got: \(sampleDiags)")
+            }
+            // testMustUseReturnValuesAllowsFileUse
+            do {
+                let samplePath = paths[25]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.isEmpty, "Expected @file:MustUseReturnValues to be accepted, got: \(sampleDiags)")
+            }
+            // testMustUseReturnValuesRejectsFunctionUse
+            do {
+                let samplePath = paths[26]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected file-or-class annotation target diagnostic, got: \(sampleDiags)")
+                let v19 = diagnostics.allSatisfy(isError)
+                #expect(v19, "Annotation-target diagnostics should be errors")
+            }
+            // testBuilderInferenceAcceptsDocumentedTargets
+            do {
+                let samplePath = paths[27]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.isEmpty, "Expected BuilderInference target uses to be accepted, got: \(sampleDiags)")
+            }
+            // testBuilderInferenceRejectsClassTarget
+            do {
+                let samplePath = paths[28]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected class-target diagnostic for BuilderInference, got: \(sampleDiags)")
+                let v23 = diagnostics.allSatisfy(isError)
+                #expect(v23, "Annotation-target diagnostics should be errors")
+            }
+            // testIgnorableReturnValueAllowsFunctionUse
+            do {
+                let samplePath = paths[29]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.isEmpty, "Expected @IgnorableReturnValue to be accepted on functions, got: \(sampleDiags)")
+            }
+            // testIgnorableReturnValueRejectsClassUse
+            do {
+                let samplePath = paths[30]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected function-only annotation target diagnostic, got: \(sampleDiags)")
+                let v25 = diagnostics.allSatisfy(isError)
+                #expect(v25, "Annotation-target diagnostics should be errors")
+            }
+            // testExposedCopyVisibilityRejectsFunctionUse
+            do {
+                let samplePath = paths[31]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected class-only annotation target diagnostic, got: \(sampleDiags)")
+                let v28 = diagnostics.allSatisfy(isError)
+                #expect(v28, "Annotation-target diagnostics should be errors")
+            }
+            // testParameterNameAcceptsTypeUse
+            do {
+                let samplePath = paths[32]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+
+                #expect(sampleDiags.isEmpty, "Expected ParameterName on a type use to compile, got: \(sampleDiags)")
+            }
+            // testParameterNameRejectsClassUse
+            do {
+                let samplePath = paths[33]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected ParameterName to reject class use, got: \(sampleDiags)")
+                let v31 = diagnostics.allSatisfy(isError)
+                #expect(v31, "Annotation-target diagnostics should be errors")
+            }
+            // testPublishedApiAcceptsDocumentedDeclarationTargets
+            do {
+                let samplePath = paths[34]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.isEmpty, "Expected PublishedApi declaration targets to be accepted, got: \(sampleDiags)")
+            }
+            // testPublishedApiRejectsFileTarget
+            do {
+                let samplePath = paths[35]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected PublishedApi to reject file target, got: \(sampleDiags)")
+                let v34 = diagnostics.allSatisfy(isError)
+                #expect(v34, "Annotation-target diagnostics should be errors")
+            }
+            // testDslMarkerAcceptsAnnotationClassAndRejectsRegularClassUse
+            do {
+                let samplePath = paths[36]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+
+                #expect(diagnostics.count == 1, "Expected DslMarker to reject regular class use, got: \(sampleDiags)")
+                let v35 = diagnostics.allSatisfy(isError)
+                #expect(v35, "Annotation-target diagnostics should be errors")
+            }
+            // testDslMarkerCanMarkCustomDslAnnotation
+            do {
+                let samplePath = paths[37]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected custom DslMarker annotation to compile, got: \(sampleDiags)")
+            }
+            // testDataClassCopyVisibilityWarningCanBeSuppressedByAlias
+            do {
+                let samplePath = paths[38]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-DATA-COPY-VISIBILITY" }
+
+                #expect(diagnostics.isEmpty, "Expected DATA_CLASS_COPY_VISIBILITY suppression alias to suppress diagnostic, got: \(sampleDiags)")
+            }
+
+        }
+    }
+
+
     @Test func testAnnotationSemanticSurfaceRegistrations() throws {
         let sources: [String] = [
             // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
@@ -421,332 +1206,6 @@ struct AnnotationSemanticTests {
         }
     }
 
-    @Test func testDeprecatedLevelErrorEmitsErrorAtCallSite() {
-        let source = """
-        @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
-        fun oldApi(): Int = 1
-
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        let v0 = diagnostics.contains(where: isError)
-        #expect(v0, "Expected deprecated(error) diagnostic, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testDeprecatedLevelErrorCanBeSuppressedWithDeprecationError() {
-        let source = """
-        @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
-        fun oldApi(): Int = 1
-
-        @Suppress("DEPRECATION_ERROR")
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected deprecated(error) diagnostic to be suppressed, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testDeprecatedStdlibApisCanBeSuppressedWithDeprecationError() {
-        let source = """
-        import kotlin.io.createTempDir
-        import kotlin.io.createTempFile
-
-        @Suppress("DEPRECATION_ERROR", "KSWIFTK-SEMA-DEPRECATED")
-        fun caller() {
-            val legacyChar = 65.toChar()
-            println(legacyChar)
-            val legacySlice = "kotlin".subSequence(1, 4)
-            println(legacySlice)
-            val tempDir = createTempDir(prefix = "kswiftk-", suffix = "-dir")
-            val tempFile = createTempFile(prefix = "kswiftk-", suffix = ".tmp", directory = tempDir)
-            println(tempFile)
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected stdlib deprecation diagnostics to be suppressed, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testDeprecatedDefaultEmitsWarningAtCallSite() {
-        let source = """
-        @Deprecated("Use replacement")
-        fun oldApi(): Int = 1
-
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        let v1 = diagnostics.contains(where: isWarning)
-        #expect(v1, "Expected deprecated(warning) diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v2 = diagnostics.contains(where: isError)
-        #expect(!v2, "Did not expect deprecated(error) diagnostic for default level")
-    }
-
-    @Test func testDeprecatedOnCompanionMemberEmitsWarning() {
-        let source = """
-        class Host {
-            companion object {
-                @Deprecated("Use create2")
-                fun create(): Int = 1
-            }
-        }
-
-        fun caller(): Int = Host.create()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        let v3 = diagnostics.contains(where: isWarning)
-        #expect(v3, "Expected deprecated warning on companion call, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testDeprecatedReplaceWithAddsMessageAndCodeAction() {
-        let source = """
-        @Deprecated("Use replacement", replaceWith = ReplaceWith("newApi()"))
-        fun oldApi(): Int = 1
-
-        fun newApi(): Int = 2
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v4 = diagnostics.contains(where: isWarning)
-        #expect(v4, "Expected deprecated warning, got: \(ctx.diagnostics.diagnostics)")
-        #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
-        #expect(diagnostics[0].codeActions.map(\.title) == ["Replace with 'newApi()'"])
-    }
-
-    @Test func testDeprecatedReplaceWithNamedExpressionParses() {
-        let source = """
-        @Deprecated(
-            message = "Use replacement",
-            replaceWith = ReplaceWith(expression = "newApi()")
-        )
-        fun oldApi(): Int = 1
-
-        fun newApi(): Int = 2
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
-        #expect(diagnostics[0].codeActions.map(\.title) == ["Replace with 'newApi()'"])
-    }
-
-    @Test func testDeprecatedErrorLevelWithReplaceWithStillEmitsError() {
-        let source = """
-        @Deprecated("Use replacement", replaceWith = ReplaceWith("newApi()"), level = DeprecationLevel.ERROR)
-        fun oldApi(): Int = 1
-
-        fun newApi(): Int = 2
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v5 = diagnostics.contains(where: isError)
-        #expect(v5, "Expected deprecated error, got: \(ctx.diagnostics.diagnostics)")
-        #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
-    }
-
-    @Test func testDeprecatedEmptyReplaceWithDoesNotAddSuggestion() {
-        let source = """
-        @Deprecated("Use replacement", replaceWith = ReplaceWith())
-        fun oldApi(): Int = 1
-
-        fun caller(): Int = oldApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        #expect(!(diagnostics[0].message.contains("Replace with:")), "Did not expect replaceWith message, got: \(diagnostics[0].message)")
-        #expect(diagnostics[0].codeActions.isEmpty, "Did not expect code actions for empty replaceWith")
-    }
-
-
-    @Test func testDeprecatedSinceKotlinAcceptsDocumentedTargets() {
-        let source = """
-        @DeprecatedSinceKotlin(warningSince = "1.0", errorSince = "1.1", hiddenSince = "1.2")
-        class OldClass {
-            @DeprecatedSinceKotlin
-            constructor()
-        }
-
-        @DeprecatedSinceKotlin
-        fun oldFun() {}
-
-        @DeprecatedSinceKotlin
-        val oldProperty: Int = 1
-
-        @DeprecatedSinceKotlin
-        annotation class OldAnnotation
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected DeprecatedSinceKotlin target uses to be accepted, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testDeprecatedSinceKotlinRejectsFileTarget() {
-        let source = """
-        @file:DeprecatedSinceKotlin
-
-        package sample
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected file-target diagnostic for DeprecatedSinceKotlin, got: \(ctx.diagnostics.diagnostics)")
-        let v7 = diagnostics.allSatisfy(isError)
-        #expect(v7, "Annotation-target diagnostics should be errors")
-    }
-
-    @Test func testSyntheticDeprecatedToCharEmitsWarning() {
-        let source = """
-        fun caller(): Char = 65.toChar()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for toChar(), got: \(ctx.diagnostics.diagnostics)")
-        let v8 = diagnostics.contains(where: isWarning)
-        #expect(v8, "Expected deprecated warning for toChar(), got: \(ctx.diagnostics.diagnostics)")
-        #expect(diagnostics[0].message.contains("toChar"), "Expected toChar() in message, got: \(diagnostics[0].message)")
-    }
-
-    @Test func testSyntheticDeprecatedStringSubSequenceEmitsWarning() {
-        let source = """
-        fun caller(): String = "kotlin".subSequence(1, 4).toString()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for subSequence(), got: \(ctx.diagnostics.diagnostics)")
-        let v9 = diagnostics.contains(where: isWarning)
-        #expect(v9, "Expected deprecated warning for subSequence(), got: \(ctx.diagnostics.diagnostics)")
-        #expect(diagnostics[0].message.contains("subSequence"), "Expected subSequence() in message, got: \(diagnostics[0].message)")
-    }
-
-    @Test func testSyntheticDeprecatedCreateTempDirEmitsError() {
-        let source = """
-        import kotlin.io.createTempDir
-
-        fun caller() = createTempDir(prefix = "demo")
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one deprecated diagnostic for createTempDir(), got: \(ctx.diagnostics.diagnostics)")
-        let v10 = diagnostics.contains(where: isError)
-        #expect(v10, "Expected deprecated error for createTempDir(), got: \(ctx.diagnostics.diagnostics)")
-        #expect(diagnostics[0].message.contains("createTempDir"), "Expected createTempDir() in message, got: \(diagnostics[0].message)")
-    }
-
-    @Test func testSuppressUncheckedCastByKotlinNameSuppressesDiagnostic() {
-        let source = """
-        @Suppress("UNCHECKED_CAST")
-        fun suppressed(v: Any): List<String> = v as List<String>
-
-        fun unsuppressed(v: Any): List<String> = v as List<String>
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-UNCHECKED-CAST", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected exactly one unchecked-cast warning from unsuppressed function, got: \(diagnostics)")
-        let v11 = diagnostics.allSatisfy(isWarning)
-        #expect(v11, "Unchecked-cast diagnostics should be warnings")
-    }
-
-    @Test func testSuppressUncheckedCastByInternalCodeSuppressesDiagnostic() {
-        let source = """
-        @Suppress("KSWIFTK-SEMA-UNCHECKED-CAST")
-        fun suppressed(v: Any): List<String> = v as List<String>
-
-        fun unsuppressed(v: Any): List<String> = v as List<String>
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-UNCHECKED-CAST", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected exactly one unchecked-cast warning from unsuppressed function, got: \(diagnostics)")
-        let v12 = diagnostics.allSatisfy(isWarning)
-        #expect(v12, "Unchecked-cast diagnostics should be warnings")
-    }
-
-    @Test func testAnnotationTargetEnumConstantResolves() {
-        let source = """
-        fun targetSmoke(): AnnotationTarget = AnnotationTarget.CLASS
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected AnnotationTarget smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testOverloadResolutionByLambdaReturnTypeResolves() {
-        let source = """
-        import kotlin.OverloadResolutionByLambdaReturnType
-
-        fun marker(x: OverloadResolutionByLambdaReturnType?): Int = 0
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected OverloadResolutionByLambdaReturnType smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testExperimentalTypeInferenceResolves() {
-        let source = """
-        import kotlin.experimental.ExperimentalTypeInference
-
-        fun marker(x: ExperimentalTypeInference?): Int = 0
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected ExperimentalTypeInference smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testOptInResolves() {
-        let source = """
-        fun marker(x: OptIn?): Int = 0
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected OptIn smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testSubclassOptInRequiredResolves() {
-        let source = """
-        fun marker(x: SubclassOptInRequired?): Int = 0
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected SubclassOptInRequired smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
 
 
 
@@ -798,255 +1257,6 @@ struct AnnotationSemanticTests {
         #expect(blockFunctionType.returnType == sema.types.unitType)
     }
 
-    @Test func testContextFunctionTypeParamsRejectsDeclarationUsage() {
-        let source = """
-        @ContextFunctionTypeParams(1)
-        class Bad
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v14 = diagnostics.allSatisfy(isError)
-        #expect(v14, "Annotation-target diagnostics should be errors")
-    }
-
-    @Test func testContextFunctionTypeParamsRejectsTooLargeCount() {
-        let source = """
-        interface Host {
-            val invalid: @ContextFunctionTypeParams(3) Function2<String, Int, Unit>
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-CONTEXT-FN-TYPE", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one context-function-type diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v15 = diagnostics.allSatisfy(isError)
-        #expect(v15, "Context-function-type diagnostics should be errors")
-    }
-
-
-    @Test func testConsistentCopyVisibilityRejectsFunctionUse() {
-        let source = """
-        @ConsistentCopyVisibility
-        fun bad() {}
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected class-only annotation target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v17 = diagnostics.allSatisfy(isError)
-        #expect(v17, "Annotation-target diagnostics should be errors")
-    }
-
-
-    @Test func testMustUseReturnValuesAllowsClassUse() {
-        let source = """
-        @MustUseReturnValues
-        class ApiScope
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected @MustUseReturnValues to be accepted on classes, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testMustUseReturnValuesAllowsFileUse() {
-        let source = """
-        @file:MustUseReturnValues
-
-        fun api(): Int = 1
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected @file:MustUseReturnValues to be accepted, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testMustUseReturnValuesRejectsFunctionUse() {
-        let source = """
-        @MustUseReturnValues
-        fun bad() {}
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected file-or-class annotation target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v19 = diagnostics.allSatisfy(isError)
-        #expect(v19, "Annotation-target diagnostics should be errors")
-    }
-
-
-    @Test func testBuilderInferenceAcceptsDocumentedTargets() {
-        let source = """
-        @BuilderInference
-        fun builderFunction(block: () -> Unit) {}
-
-        fun acceptsValueParameter(@BuilderInference block: () -> Unit) {}
-
-        @BuilderInference
-        val builderProperty: Int = 1
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected BuilderInference target uses to be accepted, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testBuilderInferenceRejectsClassTarget() {
-        let source = """
-        @BuilderInference
-        class Bad
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected class-target diagnostic for BuilderInference, got: \(ctx.diagnostics.diagnostics)")
-        let v23 = diagnostics.allSatisfy(isError)
-        #expect(v23, "Annotation-target diagnostics should be errors")
-    }
-
-
-    @Test func testIgnorableReturnValueAllowsFunctionUse() {
-        let source = """
-        @IgnorableReturnValue
-        fun ignored(): Int = 1
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected @IgnorableReturnValue to be accepted on functions, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testIgnorableReturnValueRejectsClassUse() {
-        let source = """
-        @IgnorableReturnValue
-        class Bad
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected function-only annotation target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v25 = diagnostics.allSatisfy(isError)
-        #expect(v25, "Annotation-target diagnostics should be errors")
-    }
-
-
-
-    @Test func testExposedCopyVisibilityRejectsFunctionUse() {
-        let source = """
-        @ExposedCopyVisibility
-        fun bad() {}
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected class-only annotation target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        let v28 = diagnostics.allSatisfy(isError)
-        #expect(v28, "Annotation-target diagnostics should be errors")
-    }
-
-
-    @Test func testParameterNameAcceptsTypeUse() {
-        let source = """
-        interface Host {
-            val value: @ParameterName(name = "value") String
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected ParameterName on a type use to compile, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testParameterNameRejectsClassUse() {
-        let source = """
-        @ParameterName("Bad")
-        class Bad
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected ParameterName to reject class use, got: \(ctx.diagnostics.diagnostics)")
-        let v31 = diagnostics.allSatisfy(isError)
-        #expect(v31, "Annotation-target diagnostics should be errors")
-    }
-
-
-    @Test func testPublishedApiAcceptsDocumentedDeclarationTargets() {
-        let source = """
-        @PublishedApi
-        internal class InternalHost {
-            @PublishedApi
-            internal val value: Int = 1
-
-            @PublishedApi
-            internal fun expose(): Int = value
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected PublishedApi declaration targets to be accepted, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testPublishedApiRejectsFileTarget() {
-        let source = """
-        @file:PublishedApi
-
-        package sample
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected PublishedApi to reject file target, got: \(ctx.diagnostics.diagnostics)")
-        let v34 = diagnostics.allSatisfy(isError)
-        #expect(v34, "Annotation-target diagnostics should be errors")
-    }
-
-    @Test func testDslMarkerAcceptsAnnotationClassAndRejectsRegularClassUse() {
-        let source = """
-        @DslMarker
-        annotation class HtmlDsl
-
-        @DslMarker
-        class Bad
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected DslMarker to reject regular class use, got: \(ctx.diagnostics.diagnostics)")
-        let v35 = diagnostics.allSatisfy(isError)
-        #expect(v35, "Annotation-target diagnostics should be errors")
-    }
-
-    @Test func testDslMarkerCanMarkCustomDslAnnotation() {
-        let source = """
-        @DslMarker
-        annotation class HtmlDsl
-
-        @HtmlDsl
-        class Tag
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected custom DslMarker annotation to compile, got: \(ctx.diagnostics.diagnostics)")
-    }
 
     @Test func testPrivateDataClassCopyVisibilityMigrationWarnsAndKeepsPublicCopy() throws {
         let source = """
@@ -1068,6 +1278,7 @@ struct AnnotationSemanticTests {
         )
     }
 
+
     @Test func testConsistentCopyVisibilityMakesCopyUseConstructorVisibility() throws {
         let source = """
         package test
@@ -1086,6 +1297,7 @@ struct AnnotationSemanticTests {
         )
     }
 
+
     @Test func testExposedCopyVisibilitySuppressesWarningAndKeepsPublicCopy() throws {
         let source = """
         package test
@@ -1102,18 +1314,6 @@ struct AnnotationSemanticTests {
             try symbolVisibility(["test", "Secret", "copy"], in: ctx) == .public,
             "ExposedCopyVisibility should keep copy() public"
         )
-    }
-
-    @Test func testDataClassCopyVisibilityWarningCanBeSuppressedByAlias() {
-        let source = """
-        @Suppress("DATA_CLASS_COPY_VISIBILITY")
-        data class Secret private constructor(val value: Int)
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DATA-COPY-VISIBILITY", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected DATA_CLASS_COPY_VISIBILITY suppression alias to suppress diagnostic, got: \(ctx.diagnostics.diagnostics)")
     }
 
 }
