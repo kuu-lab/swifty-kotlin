@@ -477,15 +477,18 @@ final class DataFlowAnalyzer {
         default:
             return nil
         }
+        // Local `var`s are smart-cast candidates in Kotlin as well: only members
+        // and captured-and-modified locals are unstable. Narrowing is dropped
+        // again when the local is reassigned (LocalDeclTypeChecker.inferLocalAssignExpr).
         let isStable: Bool = if let symbol = sema.symbols.symbol(local.symbol) {
             switch symbol.kind {
             case .valueParameter, .local:
-                !symbol.flags.contains(.mutable)
+                true
             default:
                 false
             }
         } else {
-            !local.isMutable
+            true
         }
         return (local.symbol, local.type, isStable)
     }

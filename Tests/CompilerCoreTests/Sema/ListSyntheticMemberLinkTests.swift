@@ -1272,8 +1272,8 @@ struct ListSyntheticMemberLinkTests {
             let iteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")]))
             let specs: [(className: String, nextName: String, elementType: TypeID)] = [
                 ("BooleanIterator", "nextBoolean", sema.types.booleanType),
-                ("ByteIterator", "nextByte", sema.types.intType),
-                ("ShortIterator", "nextShort", sema.types.intType),
+                ("ByteIterator", "nextByte", sema.types.byteType),
+                ("ShortIterator", "nextShort", sema.types.shortType),
                 ("IntIterator", "nextInt", sema.types.intType),
                 ("LongIterator", "nextLong", sema.types.longType),
                 ("FloatIterator", "nextFloat", sema.types.floatType),
