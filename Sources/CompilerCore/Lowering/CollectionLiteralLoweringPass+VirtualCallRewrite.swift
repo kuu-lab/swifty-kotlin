@@ -675,62 +675,16 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.sortedWithName || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
             || callee == lookup.minWithName || callee == lookup.minWithOrNullName, arguments.count == 1 {
             let comparatorExpr = arguments[0]
-            let source = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: context.functionBody,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
-            if let (trampolineName, closureExpr) = retainedComparatorRuntimePair(
-                source: source,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
-                loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
-                hofArgs = [trampolineExpr, closureExpr]
-            } else {
-                let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                hofArgs = [comparatorExpr, zero]
-            }
+            let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+            hofArgs = [comparatorExpr, zero]
         } else if callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
             || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName, arguments.count == 2 {
             let comparatorExpr = arguments[0]
             let selectorExpr = arguments[1]
-            let cmpSource = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: context.functionBody,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            if let (cmpTrampolineName, cmpClosureExpr) = retainedComparatorRuntimePair(
-                source: cmpSource,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let cmpTrampolineExpr = module.arena.appendExpr(.externSymbolAddress(cmpTrampolineName), type: nil)
-                loweredBody.append(.constValue(result: cmpTrampolineExpr, value: .externSymbolAddress(cmpTrampolineName)))
-                hofArgs = [cmpTrampolineExpr, cmpClosureExpr, selectorExpr, zeroExpr]
-            } else {
-                hofArgs = [comparatorExpr, zeroExpr, selectorExpr, zeroExpr]
-            }
+            hofArgs = [comparatorExpr, zeroExpr, selectorExpr, zeroExpr]
         } else {
             hofArgs = arguments
         }

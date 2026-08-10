@@ -89,7 +89,7 @@ extension CallLowerer {
         // bundled stdlib).  String is excluded above; Char and primitives are excluded by
         // tryLowerPrimitiveCompareTo which runs before this path.
         if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("kk_comparable_compareTo")
+            return interner.intern("__kk_comparable_compareTo")
         }
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
@@ -264,31 +264,6 @@ extension CallLowerer {
                 return interner.intern("kk_mutable_list_removeLast")
             case "removeLastOrNull":
                 return interner.intern("kk_mutable_list_removeLastOrNull")
-            default:
-                break
-            }
-        }
-
-        if isArrayDequeLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            case "addFirst":
-                return interner.intern("kk_arraydeque_addFirst")
-            case "addLast":
-                return interner.intern("kk_arraydeque_addLast")
-            case "removeFirst":
-                return interner.intern("kk_arraydeque_removeFirst")
-            case "removeLast":
-                return interner.intern("kk_arraydeque_removeLast")
-            case "first":
-                return interner.intern("kk_arraydeque_first")
-            case "last":
-                return interner.intern("kk_arraydeque_last")
-            case "size":
-                return interner.intern("kk_arraydeque_size")
-            case "isEmpty":
-                return interner.intern("kk_arraydeque_isEmpty")
-            case "toString":
-                return interner.intern("kk_arraydeque_toString")
             default:
                 break
             }
