@@ -29,61 +29,49 @@ struct StringSubstringFunctionTests {
             return if (take) s.substring(0, 1) else s.substring(1)
         }
         """)
+
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected String.substring(...) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test func testSubstringTwoArgOverloadIsSourceBacked() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "substring"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes.count == 2
-                    && signature.parameterTypes.allSatisfy { $0 == sema.types.intType }
-            })
-            #expect(
-                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
-                "String.substring(startIndex, endIndex) should return String"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: symbol) == nil,
-                "String.substring(startIndex, endIndex) is source-backed and must not link to a runtime helper"
-            )
-        }
-    }
+        let sema = try #require(ctx.sema)
+        let fq = ["kotlin", "text", "substring"].map { ctx.interner.intern($0) }
 
-    @Test func testSubstringOneArgOverloadIsSourceBacked() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "substring"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes.count == 1
-                    && signature.parameterTypes[0] == sema.types.intType
-            })
-            #expect(
-                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
-                "String.substring(startIndex) should return String"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: symbol) == nil,
-                "String.substring(startIndex) is source-backed and must not link to a runtime helper"
-            )
-        }
+        let twoArgSymbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes.count == 2
+                && signature.parameterTypes.allSatisfy { $0 == sema.types.intType }
+        })
+        #expect(
+            sema.symbols.functionSignature(for: twoArgSymbol)?.returnType == sema.types.stringType,
+            "String.substring(startIndex, endIndex) should return String"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: twoArgSymbol) == nil,
+            "String.substring(startIndex, endIndex) is source-backed and must not link to a runtime helper"
+        )
+
+        let oneArgSymbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes.count == 1
+                && signature.parameterTypes[0] == sema.types.intType
+        })
+        #expect(
+            sema.symbols.functionSignature(for: oneArgSymbol)?.returnType == sema.types.stringType,
+            "String.substring(startIndex) should return String"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: oneArgSymbol) == nil,
+            "String.substring(startIndex) is source-backed and must not link to a runtime helper"
+        )
     }
 }

@@ -231,5 +231,54 @@ extension BuildKIRRegressionTests {
             }
         }
     }
+
+    // KSP-452: a direct range `for-in` (Int / Long / Char, including progressions)
+    // lowers through the bundled `iterator()` operator like every other iterable,
+    // instead of the kk_range_iterator/hasNext/next special case.
+    @Test func testBuildKIRLowersDirectRangeForLoopThroughIteratorOperator() throws {
+        let source = """
+        fun sumInts(): Int {
+            var sum = 0
+            for (i in 1..10) { sum += i }
+            return sum
+        }
+
+        fun sumProgression(): Int {
+            var sum = 0
+            for (i in 10 downTo 1 step 3) { sum += i }
+            return sum
+        }
+
+        fun sumLongs(): Long {
+            var sum = 0L
+            for (l in 1L..4L) { sum += l }
+            return sum
+        }
+
+        fun sumChars(): Int {
+            var sum = 0
+            for (c in 'a'..'e') { sum += c.code }
+            return sum
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            for functionName in ["sumInts", "sumProgression", "sumLongs", "sumChars"] {
+                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                let callees = extractCallees(from: body, interner: ctx.interner)
+
+                #expect(callees.contains("iterator"), "\(functionName): expected bundled iterator() call, got: \(callees)")
+                #expect(callees.contains("kk_iterator_hasNext"), "\(functionName): expected generic hasNext dispatch, got: \(callees)")
+                #expect(callees.contains("kk_iterator_next"), "\(functionName): expected generic next dispatch, got: \(callees)")
+                #expect(!callees.contains("kk_range_iterator"), "\(functionName): range loop must not use kk_range_iterator, got: \(callees)")
+                #expect(!callees.contains("kk_range_hasNext"), "\(functionName): range loop must not use kk_range_hasNext, got: \(callees)")
+                #expect(!callees.contains("kk_range_next"), "\(functionName): range loop must not use kk_range_next, got: \(callees)")
+            }
+        }
+    }
 }
 #endif

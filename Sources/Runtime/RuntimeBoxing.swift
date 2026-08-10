@@ -270,7 +270,40 @@ public func kk_unbox_float(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_double")
 public func kk_box_double(_ value: Int) -> Int {
+    // Callers whose source may genuinely be null rely on this early-return —
+    // see kk_box_double_nonnull below for the counterpart used when the
+    // source's static type is provably non-null.
     if value == runtimeNullSentinelInt { return value }
+    // A nullable Double? read out of a generic container is already a
+    // RuntimeDoubleBox pointer; re-boxing it would reinterpret the pointer
+    // as an IEEE754 payload (mirrors kk_box_int / kk_box_long).
+    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: objPointer))
+        }
+        if isObjectPointer {
+            return value
+        }
+    }
+    let doubleBits = Double(bitPattern: UInt64(bitPattern: Int64(value)))
+    let box = RuntimeDoubleBox(doubleBits)
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    return Int(bitPattern: opaque)
+}
+
+/// Boxes a Double known (via static typing) to be non-null. Unlike
+/// kk_box_double, this does NOT special-case runtimeNullSentinelInt
+/// (Int64.min): that bit pattern is the IEEE754 encoding of -0.0, a
+/// legitimate Double value, so short-circuiting it would make every boxed
+/// -0.0 indistinguishable from null (wrong toString/equals/`is`).
+/// BoxingCalleeTable selects this callee only when the source type's
+/// nullability is provably `.nonNull`, so a genuine null can never reach
+/// this function.
+@_cdecl("kk_box_double_nonnull")
+public func kk_box_double_nonnull(_ value: Int) -> Int {
     let doubleBits = Double(bitPattern: UInt64(bitPattern: Int64(value)))
     let box = RuntimeDoubleBox(doubleBits)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())

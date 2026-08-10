@@ -235,28 +235,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // toTypedArray() on list -> kk_list_toTypedArray (result is Array)
-        if callee == lookup.toTypedArrayName,
-           arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue)
-        {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToTypedArrayName,
-                arguments: [receiver],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                arrayExprIDs.insert(result.rawValue)
-                arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
+        // KSP-628: the List receivers of toTypedArray / to{Char,Boolean,Short,
+        // Double,Float,Int,Long,Byte}Array are source-backed (ArrayConversions.kt)
+        // and lower through normal function resolution.
 
         // toTypedArray() on array → kk_array_copyOf (result is Array)
         if callee == lookup.toTypedArrayName, arguments.isEmpty, arrayExprIDs.contains(receiver.rawValue) {
@@ -278,72 +259,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // toIntArray() on list → kk_list_toIntArray (STDLIB-LIST-PRIM-ARRAY)
-        if callee == lookup.toIntArrayName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToIntArrayName,
-                arguments: [receiver],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                arrayExprIDs.insert(result.rawValue)
-                arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-
-        // toLongArray() on list → kk_list_toLongArray (STDLIB-LIST-PRIM-ARRAY)
-        if callee == lookup.toLongArrayName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToLongArrayName,
-                arguments: [receiver],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                arrayExprIDs.insert(result.rawValue)
-                arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-
-        // toByteArray() on list → kk_list_toByteArray (STDLIB-LIST-PRIM-ARRAY)
-        if callee == lookup.toByteArrayName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToByteArrayName,
-                arguments: [receiver],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                arrayExprIDs.insert(result.rawValue)
-                arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-
         let unsignedArrayCallee: InternedString? = switch callee {
-        case lookup.toCharArrayName: lookup.kkListToCharArrayName
-        case lookup.toBooleanArrayName: lookup.kkListToBooleanArrayName
-        case lookup.toShortArrayName: lookup.kkListToShortArrayName
-        case lookup.toDoubleArrayName: lookup.kkListToDoubleArrayName
-        case lookup.toFloatArrayName: lookup.kkListToFloatArrayName
         case lookup.toUByteArrayName: lookup.kkListToUByteArrayName
         case lookup.toUShortArrayName: lookup.kkListToUShortArrayName
         case lookup.toUIntArrayName: lookup.kkListToUIntArrayName
@@ -759,62 +675,16 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.sortedWithName || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
             || callee == lookup.minWithName || callee == lookup.minWithOrNullName, arguments.count == 1 {
             let comparatorExpr = arguments[0]
-            let source = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: context.functionBody,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
-            if let (trampolineName, closureExpr) = retainedComparatorRuntimePair(
-                source: source,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
-                loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
-                hofArgs = [trampolineExpr, closureExpr]
-            } else {
-                let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                hofArgs = [comparatorExpr, zero]
-            }
+            let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+            hofArgs = [comparatorExpr, zero]
         } else if callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
             || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName, arguments.count == 2 {
             let comparatorExpr = arguments[0]
             let selectorExpr = arguments[1]
-            let cmpSource = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: context.functionBody,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            if let (cmpTrampolineName, cmpClosureExpr) = retainedComparatorRuntimePair(
-                source: cmpSource,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let cmpTrampolineExpr = module.arena.appendExpr(.externSymbolAddress(cmpTrampolineName), type: nil)
-                loweredBody.append(.constValue(result: cmpTrampolineExpr, value: .externSymbolAddress(cmpTrampolineName)))
-                hofArgs = [cmpTrampolineExpr, cmpClosureExpr, selectorExpr, zeroExpr]
-            } else {
-                hofArgs = [comparatorExpr, zeroExpr, selectorExpr, zeroExpr]
-            }
+            hofArgs = [comparatorExpr, zeroExpr, selectorExpr, zeroExpr]
         } else {
             hofArgs = arguments
         }

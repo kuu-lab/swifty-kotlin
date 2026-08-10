@@ -192,6 +192,17 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
     }
 
     private func enumClassAncestor(of symbol: SymbolID, sema: SemaModule) -> SymbolID? {
+        // A declared return type is authoritative: a function nested in an enum
+        // (e.g. a companion member `EnumClass.f(): Int`) does not produce an
+        // enum ordinal just because an enum class is one of its ancestors.
+        if let signature = sema.symbols.functionSignature(for: symbol) {
+            guard let (classType, returnSym) = resolveClassTypeSymbol(signature.returnType, sema: sema),
+                  returnSym.kind == .enumClass
+            else {
+                return nil
+            }
+            return classType.classSymbol
+        }
         var current: SymbolID? = symbol
         while let candidate = current {
             guard let info = sema.symbols.symbol(candidate) else { return nil }
