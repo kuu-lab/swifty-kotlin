@@ -2,11 +2,9 @@
 /// STDLIB-NATIVE-REF-002: Sema-level tests for `kotlin.native.ref` and
 /// `kotlin.native.runtime` exposure.
 ///
-/// Verifies:
-/// 1. Name resolution — all symbols are registered and look-uppable.
-/// 2. Signature visibility — member signatures have the expected shape.
-/// 3. Opt-in requirements — symbols carry their expected native opt-in marker
-///    annotations so diagnostics fire.
+/// A single Sema pass resolves all source packages and both the opt-in diagnostic
+/// checks and the package surface registration assertions are verified in the
+/// same context.
 
 @testable import CompilerCore
 import Foundation
@@ -15,7 +13,7 @@ import Testing
 @Suite
 struct NativeRefRuntimeSemaTests {
 
-    @Test func testNativeRefRuntimeSemaSema() throws {
+    @Test func testNativeRefRuntimeSema() throws {
         let sources: [String] = [
             // testUsingWeakReferenceWithoutOptInProducesDiagnostic
             """
@@ -61,12 +59,23 @@ struct NativeRefRuntimeSemaTests {
                         GC.collect()
                     }
 
+            """,
+            // Ensure kotlin.native.ref and kotlin.native.runtime packages are loaded for surface assertions.
+            """
+            package sample4
+                    import kotlin.native.ref.*
+                    import kotlin.native.runtime.*
+
+                    fun noop() {}
             """
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
 
             // testUsingWeakReferenceWithoutOptInProducesDiagnostic
             do {
@@ -121,82 +130,6 @@ struct NativeRefRuntimeSemaTests {
                 )
             }
 
-        }
-    }
-
-    // MARK: - Shared helpers
-
-    private func hasOptInAnnotation(
-        on symbol: SymbolID,
-        markerContaining keyword: String,
-        sema: SemaModule
-    ) -> Bool {
-        sema.symbols.annotations(for: symbol).contains {
-            $0.annotationFQName.lowercased().contains(keyword.lowercased())
-        }
-    }
-
-    private func className(
-        for type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) throws -> String {
-        let typeKind = sema.types.kind(of: type)
-        let classType = try requireTestValue(
-            { () -> ClassType? in
-                guard case let .classType(classType) = typeKind else { return nil }
-                return classType
-            }(),
-            "Expected class type, got \(typeKind)"
-        )
-        let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
-        return interner.resolve(symbol.name)
-    }
-
-    private func mapValueClassName(
-        for type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) throws -> String {
-        let typeKind = sema.types.kind(of: type)
-        let mapType = try requireTestValue(
-            { () -> ClassType? in
-                guard case let .classType(mapType) = typeKind else { return nil }
-                return mapType
-            }(),
-            "Expected Map class type, got \(typeKind)"
-        )
-        let mapSymbol = try #require(sema.symbols.symbol(mapType.classSymbol))
-        #expect(interner.resolve(mapSymbol.name) == "Map")
-        let valueType = try requireTestValue(
-            { () -> TypeID? in
-                guard mapType.args.count >= 2,
-                      case let .out(valueType) = mapType.args[1]
-                else {
-                    return nil
-                }
-                return valueType
-            }(),
-            "Expected Map<String, V> value projection"
-        )
-        return try className(for: valueType, sema: sema, interner: interner)
-    }
-
-    // MARK: - Package hierarchy
-
-    @Test
-    func testNativeRefRuntimeSurfaceRegistrations() throws {
-
-        let source = """
-        fun noop() {}
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
 
             // === testNativeRefPackageIsRegistered ===
 
@@ -765,7 +698,64 @@ struct NativeRefRuntimeSemaTests {
         }
     }
 
-    // MARK: - Opt-in diagnostic integration
+    // MARK: - Shared helpers
+
+    private func hasOptInAnnotation(
+        on symbol: SymbolID,
+        markerContaining keyword: String,
+        sema: SemaModule
+    ) -> Bool {
+        sema.symbols.annotations(for: symbol).contains {
+            $0.annotationFQName.lowercased().contains(keyword.lowercased())
+        }
+    }
+
+    private func className(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) throws -> String {
+        let typeKind = sema.types.kind(of: type)
+        let classType = try requireTestValue(
+            { () -> ClassType? in
+                guard case let .classType(classType) = typeKind else { return nil }
+                return classType
+            }(),
+            "Expected class type, got \(typeKind)"
+        )
+        let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
+        return interner.resolve(symbol.name)
+    }
+
+    private func mapValueClassName(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) throws -> String {
+        let typeKind = sema.types.kind(of: type)
+        let mapType = try requireTestValue(
+            { () -> ClassType? in
+                guard case let .classType(mapType) = typeKind else { return nil }
+                return mapType
+            }(),
+            "Expected Map class type, got \(typeKind)"
+        )
+        let mapSymbol = try #require(sema.symbols.symbol(mapType.classSymbol))
+        #expect(interner.resolve(mapSymbol.name) == "Map")
+        let valueType = try requireTestValue(
+            { () -> TypeID? in
+                guard mapType.args.count >= 2,
+                      case let .out(valueType) = mapType.args[1]
+                else {
+                    return nil
+                }
+                return valueType
+            }(),
+            "Expected Map<String, V> value projection"
+        )
+        return try className(for: valueType, sema: sema, interner: interner)
+    }
+
 
 }
 #endif
