@@ -169,63 +169,85 @@ struct MathAPITargetInventoryTests {
         "roundHalfUp", "roundHalfDown", "roundHalfEven", "roundUnnecessary",
     ]
 
-    @Test func testTargetInventoryHasExpectedShape() {
-        #expect(Self.targetSignatureList.count == Self.targetSignatures.count)
-        #expect(Self.targetSignatures.count == 104)
-        #expect(Self.targetSignatures.filter { $0.hasPrefix("val ") }.count == 12)
-    }
+    @Test
+    func testMathAPITargetInventoryTestsSurfaceInventory() throws {
+        let source = """
+        fun noop() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
 
-    @Test func testCurrentSyntheticMathNamesAreOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
-        let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
-        let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
-            guard symbol.kind == .function || symbol.kind == .property,
-                  symbol.fqName.count == mathPrefix.count + 1,
-                  Array(symbol.fqName.prefix(mathPrefix.count)) == mathPrefix
-            else {
-                return nil
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+
+            // === testTargetInventoryHasExpectedShape ===
+            do {
+
+                #expect(Self.targetSignatureList.count == Self.targetSignatures.count)
+                #expect(Self.targetSignatures.count == 104)
+                #expect(Self.targetSignatures.filter { $0.hasPrefix("val ") }.count == 12)
             }
-            return interner.resolve(symbol.name)
-        })
 
-        #expect(currentNames.subtracting(Self.targetNames).sorted() == [])
-    }
+            // === testCurrentSyntheticMathNamesAreOfficialTargets ===
+            do {
 
-    @Test func testUnofficialRoundingHelpersAreNotPublished() throws {
-        let (sema, interner) = try makeSema()
-        let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
-        for name in Self.unofficialRoundingHelperNames.sorted() {
-            let fqName = mathPrefix + [interner.intern(name)]
-            let v = sema.symbols.lookupAll(fqName: fqName).isEmpty
-            #expect(v,
-                "\(name) should not be published as kotlin.math surface"
-            )
+                let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
+                let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
+                    guard symbol.kind == .function || symbol.kind == .property,
+                          symbol.fqName.count == mathPrefix.count + 1,
+                          Array(symbol.fqName.prefix(mathPrefix.count)) == mathPrefix
+                    else {
+                        return nil
+                    }
+                    return interner.resolve(symbol.name)
+                })
+
+                #expect(currentNames.subtracting(Self.targetNames).sorted() == [])
+            }
+
+            // === testUnofficialRoundingHelpersAreNotPublished ===
+            do {
+
+                let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
+                for name in Self.unofficialRoundingHelperNames.sorted() {
+                    let fqName = mathPrefix + [interner.intern(name)]
+                    let v = sema.symbols.lookupAll(fqName: fqName).isEmpty
+                    #expect(v,
+                        "\(name) should not be published as kotlin.math surface"
+                    )
+                }
+            }
+
+            // === testImplementedInventoryEntriesResolveToSyntheticLinks ===
+            do {
+
+                let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
+                for (signature, expectedLink) in Self.implementedLinksBySignature {
+                    let name = Self.declarationName(signature)
+                    let symbols = sema.symbols.lookupAll(fqName: mathPrefix + [interner.intern(name)])
+                    let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                    #expect(
+                        links.contains(expectedLink),
+                        "Expected \(signature) to resolve to \(expectedLink), got \(links.sorted())"
+                    )
+                }
+            }
+
+            // === testKnownGapsCoverEveryUnimplementedTargetSignature ===
+            do {
+
+                let implemented = Set(Self.implementedLinksBySignature.keys)
+                let gaps = Self.knownGapSignaturesByTodo.values.reduce(into: Set<String>()) { result, signatures in
+                    result.formUnion(signatures)
+                }
+
+                #expect(Self.targetSignatures.subtracting(implemented) == gaps)
+                let v = Self.knownGapSignaturesByTodo.keys.allSatisfy { $0.hasPrefix("STDLIB-MATH-") }
+                #expect(v)
+            }
         }
-    }
-
-    @Test func testImplementedInventoryEntriesResolveToSyntheticLinks() throws {
-        let (sema, interner) = try makeSema()
-        let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
-        for (signature, expectedLink) in Self.implementedLinksBySignature {
-            let name = Self.declarationName(signature)
-            let symbols = sema.symbols.lookupAll(fqName: mathPrefix + [interner.intern(name)])
-            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(
-                links.contains(expectedLink),
-                "Expected \(signature) to resolve to \(expectedLink), got \(links.sorted())"
-            )
-        }
-    }
-
-    @Test func testKnownGapsCoverEveryUnimplementedTargetSignature() {
-        let implemented = Set(Self.implementedLinksBySignature.keys)
-        let gaps = Self.knownGapSignaturesByTodo.values.reduce(into: Set<String>()) { result, signatures in
-            result.formUnion(signatures)
-        }
-
-        #expect(Self.targetSignatures.subtracting(implemented) == gaps)
-        let v = Self.knownGapSignaturesByTodo.keys.allSatisfy { $0.hasPrefix("STDLIB-MATH-") }
-        #expect(v)
     }
 
     private static var targetNames: Set<String> {
@@ -261,16 +283,6 @@ struct MathAPITargetInventoryTests {
             return declaration.split(separator: ".").last.map(String.init) ?? declaration
         }
         return signature
-    }
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
     }
 }
 #endif
