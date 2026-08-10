@@ -1122,16 +1122,6 @@ public extension RuntimeABISpec {
                     section: "Collection",
             isThrowing: false
                 ),
-                // STDLIB-532: Map?.orEmpty()
-                RuntimeABIFunctionSpec(
-                    name: "kk_map_orEmpty",
-                    parameters: [
-                        RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
             ])
         return functions
     }()

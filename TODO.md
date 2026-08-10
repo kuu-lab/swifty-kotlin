@@ -235,8 +235,9 @@
   - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
 - [x] KSP-430: Map HOF を Kotlin 化（`filter(Keys/Values/Not)`, `map(NotNull)`, `mapKeys(To)`, `mapValues(To)`, `flatMap`, `forEach`, `any`, `all`, `none`, `count`, `maxByOrNull`, `minByOrNull`, `plus`, `minus`） (PR #5023)
   - 削除 kk_*: `RuntimeCollectionHOF.swift` の `kk_map_*` HOF 18 関数 + `RuntimeSetAndMap.swift` の `kk_map_plus`, `kk_map_minus`
-- [ ] KSP-431: Map lookup・変換を Kotlin 化（`getValue`, `getOrDefault`, `getOrElse`, `getOrPut`, `containsKey/Value`, `keys`, `values`, `entries`, `toList`, `toMutableMap`, `orEmpty`, `withDefault`）
-  - ブリッジ残留: `kk_map_get`（キー探索コア）→ `__kk_map_get`、iterator 状態 → `__kk_map_iterator*`。他は Kotlin 化
+- [x] KSP-431: Map lookup・変換を Kotlin 化（`getValue`, `getOrDefault`, `getOrElse`, `getOrPut`, `containsKey/Value`, `keys`, `values`, `entries`, `toList`, `toMutableMap`, `orEmpty`, `withDefault`）
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/collections/MapLookupAndTransform.kt`。削除 kk_*: `kk_map_getValue`, `kk_map_getOrDefault`, `kk_map_getOrElse`, `kk_mutable_map_getOrPut`, `kk_map_contains_key`, `kk_map_contains_value`, `kk_map_keys`, `kk_map_values`, `kk_map_toList`, `kk_map_to_mutable_map`, `kk_map_orEmpty`
+  - ブリッジ残留: `kk_map_get`（キー探索コア）→ `__kk_map_get`、iterator 状態 → `__kk_map_iterator*`、entry 生成 → `__kk_map_entries`、`withDefault` 状態 → `__kk_map_withDefault` / `__kk_map_implicit_default`
 - [ ] KSP-432: Set 全般を Kotlin 化（述語 13, HOF 6, `intersect`/`union`/`subtract`, `sorted(Descending)`, `maxOrNull`/`minOrNull`, 変換 4）
   - 既存 `SetHOF.kt` に追記。ブリッジ残留: 要素探索コア等の最小集合を `__kk_` 降格し残りの `kk_set_*` を削除（`rg -o '@_cdecl\("kk_set_[a-zA-Z_]+"\)' Sources/Runtime` で全列挙してから分類）
 - [x] KSP-433: Array HOF を Kotlin 化（`map(NotNull)`, `filter`, `fold(Indexed)`, `flatMap`, `reduce(Indexed)(OrNull)`, `forEach`, `any`, `all`, `none`, `find(Last)`, `count`, `binarySearch`, `sortedArrayWith`, `asSequence`, `joinToString`）

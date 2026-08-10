@@ -2091,7 +2091,10 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(receiverName) == "map"
             })
             let mapCallee = try #require(sema.bindings.callBinding(for: mapCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: mapCallee) == "kk_map_getOrElse")
+            let mapSymbol = try #require(sema.symbols.symbol(mapCallee))
+            #expect(sema.symbols.externalLinkName(for: mapCallee) == nil)
+            #expect(!mapSymbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(mapSymbol.name) == "getOrElse")
 
             let mutableCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(receiver, callee, _, _, _) = expr,
@@ -2102,7 +2105,10 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(receiverName) == "mutableMap"
             })
             let mutableCallee = try #require(sema.bindings.callBinding(for: mutableCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: mutableCallee) == "kk_mutable_map_getOrPut")
+            let mutableSymbol = try #require(sema.symbols.symbol(mutableCallee))
+            #expect(sema.symbols.externalLinkName(for: mutableCallee) == nil)
+            #expect(!mutableSymbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(mutableSymbol.name) == "getOrPut")
         }
     }
 
