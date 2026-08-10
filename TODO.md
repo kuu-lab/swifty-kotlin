@@ -165,7 +165,7 @@
   - 追記（2026-07-13, PR #4578 / 発見元 KSP-401）: `Scripts/diff_cases/string_linesequence.kt` の `こんにちは\n世界\n` で、source-backed `String.replace` が `StringIndexOutOfBoundsException` 相当の未処理例外を起こし candidate が exit 1 になった。flat String の UTF-8 byte length と文字単位の走査長が不一致だったためで、`StringSearchReplace.kt` の走査を `toList()` ベースへ修正済み（マージ後に本項を `[x]` 化する）。
 - [x] KSP-404: prefix/suffix 系を Kotlin 化（`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, `removeSurrounding`） (PR #4999)
 - [x] KSP-405: take/drop 系を Kotlin 化（`take`, `takeLast`, `drop`, `dropLast`, `takeWhile`, `dropWhile`, `takeLastWhile`） (PR #5005)
-- [ ] KSP-406: substring/slice/range 編集系を Kotlin 化（`substring`, `subSequence`, `slice`, `removeRange`, `replaceRange`）
+- [x] KSP-406: substring/slice/range 編集系を Kotlin 化（`substring`, `subSequence`, `slice`, `removeRange`, `replaceRange`）
   - 削除 kk_*: `kk_string_substring`, `kk_string_subSequence`, `kk_string_slice_range`, `kk_string_slice_iterable`, `kk_string_removeRange`, `kk_string_removeRange_range`, `kk_string_replaceRange`, `kk_string_replaceRange_indices`（`RuntimeStringStdlib.swift`/`RuntimeStringSubstring.swift`）。基点の `substring(startIndex, endIndex)` のみ `__kk_` 降格可
 - [x] KSP-407: substringBefore/After・replaceBefore/After 系を Kotlin 化（各 String/Char 版）
   - 削除 kk_*: `kk_string_substringBefore(_char)`, `kk_string_substringAfter(_char)`, `kk_string_substringBeforeLast(_char)`, `kk_string_substringAfterLast(_char)`, `kk_string_replaceAfter(_char)`, `kk_string_replaceAfterLast(_char)`, `kk_string_replaceBefore(_char)`, `kk_string_replaceBeforeLast(_char)`（`RuntimeStringSubstring.swift`、計 16）
