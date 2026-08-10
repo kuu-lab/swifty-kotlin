@@ -122,7 +122,7 @@ extension KIRLoweringDriver {
         let globalRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
         initInstructions.append(.constValue(result: globalRef, value: .symbolRef(backingFieldSymbol)))
         initInstructions.append(.copy(from: initValue, to: globalRef))
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -218,7 +218,7 @@ extension KIRLoweringDriver {
             initInstructions.append(.constValue(result: backingFieldRef, value: .symbolRef(backingFieldSymbol)))
             initInstructions.append(.copy(from: initValue, to: backingFieldRef))
         }
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -260,7 +260,7 @@ extension KIRLoweringDriver {
             delegateType: delegateType, shared: shared,
             compilationCtx: compilationCtx, initInstructions: &initInstructions
         )
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 

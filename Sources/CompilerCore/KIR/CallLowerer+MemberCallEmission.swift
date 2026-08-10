@@ -205,12 +205,12 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_iterable_joinTo"
+           externalLinkName == "__kk_iterable_joinTo"
             || externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
-                firstDefaultParameterIndex: externalLinkName == "kk_iterable_joinTo" ? 1 : 0,
+                firstDefaultParameterIndex: externalLinkName == "__kk_iterable_joinTo" ? 1 : 0,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -446,7 +446,7 @@ extension CallLowerer {
             )
         }
         if loweredCallee == interner.intern("kk_list_joinToString_transform")
-            || loweredCallee == interner.intern("kk_iterable_joinToString_transform")
+            || loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
             || loweredCallee == interner.intern("kk_array_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
@@ -568,12 +568,7 @@ extension CallLowerer {
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
         case "kk_string_indexOfFirst",
-             "kk_string_indexOfLast",
-             "kk_string_map",
-             "kk_string_mapIndexed",
-             "kk_string_mapNotNull",
-             "kk_string_firstNotNullOf",
-             "kk_string_firstNotNullOfOrNull":
+             "kk_string_indexOfLast":
             true
         default:
             false
@@ -671,10 +666,10 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")
-            || loweredCallee == interner.intern("kk_iterable_any")
-            || loweredCallee == interner.intern("kk_iterable_all"),
+        if loweredCallee == interner.intern("__kk_iterable_firstNotNullOf")
+            || loweredCallee == interner.intern("__kk_iterable_firstNotNullOfOrNull")
+            || loweredCallee == interner.intern("__kk_iterable_any")
+            || loweredCallee == interner.intern("__kk_iterable_all"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -1085,11 +1080,11 @@ extension CallLowerer {
             interner.intern("kk_list_distinctBy"),
             interner.intern("kk_list_takeWhile"),
             interner.intern("kk_list_dropLastWhile"),
-            interner.intern("kk_iterable_firstNotNullOf"),
-            interner.intern("kk_iterable_firstNotNullOfOrNull"),
-            interner.intern("kk_iterable_any"),
-            interner.intern("kk_iterable_all"),
-            interner.intern("kk_iterable_requireNoNulls"),
+            interner.intern("__kk_iterable_firstNotNullOf"),
+            interner.intern("__kk_iterable_firstNotNullOfOrNull"),
+            interner.intern("__kk_iterable_any"),
+            interner.intern("__kk_iterable_all"),
+            interner.intern("__kk_iterable_requireNoNulls"),
             interner.intern("__kk_string_codePointCount_from"),
             interner.intern("__kk_string_codePointCount_range"),
             interner.intern("__kk_kclass_cast"),
@@ -1178,8 +1173,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_firstNotNullOf_flat"),
-            interner.intern("kk_string_firstNotNullOfOrNull_flat"),
             interner.intern("kk_string_zipTransform"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunked_sequence_transform"),

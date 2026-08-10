@@ -624,15 +624,22 @@ enum TypeRefParserCore {
 
         var refs: [TypeRefID] = []
         var segmentStart = range.lowerBound
+        var labelColonIndex: Int?
         var depth = BuildASTPhase.BracketDepth()
 
         for index in range {
             let token = tokens[index]
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
-                guard segmentStart < index,
+                let typeStart = parameterTypeStart(
+                    tokens: tokens,
+                    segmentStart: segmentStart,
+                    segmentEnd: index,
+                    labelColonIndex: labelColonIndex
+                )
+                guard typeStart < index,
                       let parsed = parseTypeRefPrefix(
                           tokens,
-                          from: segmentStart,
+                          from: typeStart,
                           interner: interner,
                           astArena: astArena,
                           options: options,
@@ -645,22 +652,33 @@ enum TypeRefParserCore {
                 }
                 refs.append(parsed.ref)
                 segmentStart = index + 1
+                labelColonIndex = nil
                 continue
+            }
+            if token.kind == .symbol(.colon), depth.isAtTopLevel, labelColonIndex == nil {
+                labelColonIndex = index
             }
             depth.track(token.kind)
         }
 
         if segmentStart < range.upperBound {
-            guard let parsed = parseTypeRefPrefix(
-                tokens,
-                from: segmentStart,
-                interner: interner,
-                astArena: astArena,
-                options: options,
-                diagnostics: diagnostics,
-                recursionDepth: recursionDepth + 1
-            ),
-                parsed.next == range.upperBound
+            let typeStart = parameterTypeStart(
+                tokens: tokens,
+                segmentStart: segmentStart,
+                segmentEnd: range.upperBound,
+                labelColonIndex: labelColonIndex
+            )
+            guard typeStart < range.upperBound,
+                  let parsed = parseTypeRefPrefix(
+                      tokens,
+                      from: typeStart,
+                      interner: interner,
+                      astArena: astArena,
+                      options: options,
+                      diagnostics: diagnostics,
+                      recursionDepth: recursionDepth + 1
+                  ),
+                  parsed.next == range.upperBound
             else {
                 return nil
             }
@@ -668,6 +686,31 @@ enum TypeRefParserCore {
         }
 
         return refs
+    }
+
+    /// Kotlin function type parameters may have an optional documentation-only
+    /// parameter label (`name: Type`). When a top-level colon is present in a
+    /// parameter segment and the preceding token is a valid parameter name, the
+    /// type starts after the colon. Otherwise the whole segment is the type.
+    private static func parameterTypeStart(
+        tokens: [Token],
+        segmentStart: Int,
+        segmentEnd: Int,
+        labelColonIndex: Int?
+    ) -> Int {
+        guard let colonIndex = labelColonIndex,
+              colonIndex > segmentStart,
+              colonIndex < segmentEnd
+        else {
+            return segmentStart
+        }
+        let nameIndex = colonIndex - 1
+        switch tokens[nameIndex].kind {
+        case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
+            return colonIndex + 1
+        default:
+            return segmentStart
+        }
     }
 
     private static func findMatchingCloseParen(in tokens: [Token], from openIndex: Int) -> Int? {

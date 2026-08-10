@@ -179,8 +179,16 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedType)
-                // Emit subtype constraint: return value must conform to expected (function) return type
-                if let expectedType {
+                // Emit subtype constraint: return value must conform to expected (function) return type.
+                // Range expressions keep their runtime representation separate from the
+                // source-level range interface (they infer as the scalar element type),
+                // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
+                // the local-declaration rule in LocalDeclTypeChecker.
+                let returnsRangeExpr = sema.bindings.isRangeExpr(value)
+                    && (expectedType.map {
+                        driver.helpers.isRangeLikeType($0, sema: sema, interner: interner)
+                    } ?? false)
+                if let expectedType, !returnsRangeExpr {
                     driver.emitSubtypeConstraint(
                         left: resolved,
                         right: expectedType,
@@ -581,8 +589,42 @@ final class ExprTypeChecker {
             )
         }
 
+        // Extension functions are excluded from scope by the scope builder so they
+        // don't shadow top-level calls. Fall back to a direct symbol-table lookup
+        // by short name to find synthetic extension functions (e.g. the
+        // String.contains(regex: Regex) synthetic stub used by the `in` operator).
+        // This mirrors the fallback in `inferRegularMemberCall` for member-style calls.
+        let syntheticExtensionCandidates = sema.symbols.lookupByShortName(containsName).filter { candidate in
+            guard !memberCandidates.contains(candidate),
+                  !scopeCandidates.contains(candidate),
+                  let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  symbol.flags.contains(SymbolFlags.operatorFunction),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  let receiverType = signature.receiverType
+            else {
+                return false
+            }
+            if let parentID = sema.symbols.parentSymbol(for: candidate),
+               let parentSym = sema.symbols.symbol(parentID),
+               parentSym.kind == .property
+            {
+                return false
+            }
+            guard symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate) else {
+                return false
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullContainerType,
+                declaredReceiver: receiverType,
+                sema: sema
+            )
+        }
+
         var candidates = memberCandidates
         candidates.append(contentsOf: scopeCandidates)
+        candidates.append(contentsOf: syntheticExtensionCandidates)
 
         // Drop synthetic supertype candidates when a bundled source implementation
         // exists on a subtype. Overload resolution currently treats extension

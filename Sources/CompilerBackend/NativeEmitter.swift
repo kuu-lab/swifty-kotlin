@@ -59,12 +59,6 @@ struct NativeEmitter {
     /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
     /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
     let linkOnceODRSymbols: Set<SymbolID>
-    /// Whether the emitter should also materialize compiler-generated inline-only functions.
-    ///
-    /// Normal user libraries intentionally omit these bodies because consumers import their
-    /// inline KIR. A precompiled stdlib must contain the bodies as well: a consumer can reach
-    /// an auto-inline function through a default-argument stub or another non-inlined path.
-    let emitInlineOnlyFunctions: Bool
 
     init(
         target: TargetTriple,
@@ -79,8 +73,7 @@ struct NativeEmitter {
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        linkOnceODRSymbols: Set<SymbolID> = [],
-        emitInlineOnlyFunctions: Bool = false
+        linkOnceODRSymbols: Set<SymbolID> = []
     ) {
         self.target = target
         self.optLevel = optLevel
@@ -95,7 +88,6 @@ struct NativeEmitter {
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
-        self.emitInlineOnlyFunctions = emitInlineOnlyFunctions
     }
 
     private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
@@ -527,7 +519,7 @@ struct NativeEmitter {
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
-                  emitInlineOnlyFunctions || !function.isInlineOnly
+                  !function.isInlineOnly
             else {
                 continue
             }

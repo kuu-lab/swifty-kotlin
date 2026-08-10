@@ -85,6 +85,11 @@ extension DataFlowSemaPhase {
                 if record.isOperator, record.kind == .function {
                     flags.insert(.operatorFunction)
                 }
+                // Overrides must stay marked so member lookup can shadow the
+                // supertype declaration instead of reporting an ambiguity.
+                if record.isOverride, record.kind == .function {
+                    flags.insert(.overrideMember)
+                }
                 if record.isDataClass {
                     flags.insert(.dataType)
                 }
@@ -374,6 +379,7 @@ extension DataFlowSemaPhase {
         let isSuspend: Bool
         let isInline: Bool
         let isOperator: Bool
+        let isOverride: Bool
         let valueParameterIsVararg: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         let canThrow: Bool
@@ -417,6 +423,7 @@ extension DataFlowSemaPhase {
             isSuspend: Bool = false,
             isInline: Bool = false,
             isOperator: Bool = false,
+            isOverride: Bool = false,
             valueParameterIsVararg: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             canThrow: Bool = false,
@@ -460,6 +467,7 @@ extension DataFlowSemaPhase {
             self.isSuspend = isSuspend
             self.isInline = isInline
             self.isOperator = isOperator
+            self.isOverride = isOverride
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.canThrow = canThrow
@@ -851,16 +859,26 @@ extension DataFlowSemaPhase {
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
             }
         }
-        // Member properties with custom getters also carry a precompiled getter
-        // link name. Restore a synthetic accessor so reads route through it.
+        // Member and top-level properties with custom getters also carry a
+        // precompiled getter link name. Restore a synthetic accessor so reads
+        // route through it instead of through a global slot the artifact never
+        // allocates.
+        // A nominal owner is restored by restoreImportedParentSymbol before this
+        // runs, so an owner that is absent or a package means the property is
+        // top-level and its getter takes no receiver.
+        let getterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
         if record.propertyGetterExternalLinkName != nil,
            record.propertyReceiverTypeSignature == nil,
-           let ownerSymbol = symbols.parentSymbol(for: symbol),
-           let ownerInfo = symbols.symbol(ownerSymbol),
-           (ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object)
+           getterOwnerInfo == nil || getterOwnerInfo?.kind == .package
+               || getterOwnerInfo?.kind == .class || getterOwnerInfo?.kind == .interface
+               || getterOwnerInfo?.kind == .object
         {
             symbols.setPropertyHasCustomGetter(true, for: symbol)
-            let ownerType = types.make(.classType(ClassType(classSymbol: ownerSymbol, args: [], nullability: .nonNull)))
+            let ownerType: TypeID? = getterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
             let getName = interner.intern("get")
             let getterFQName = record.fqName + [getName]
             let getterSymbol = symbols.define(
