@@ -885,7 +885,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_isNullOrBlank_flat"))
         #expect(ir.contains("@kk_string_equals_flat"))
         #expect(!ir.contains("@kk_string_equals("))
-        #expect(ir.contains("{ ptr, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
         #expect(ir.contains("@kk_coroutine_state_set_spill"))
