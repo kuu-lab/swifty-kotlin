@@ -158,9 +158,48 @@ struct DelegateStorageSymbolTableTests {
 
     // MARK: - Consolidated runSema clean tests
 
-    @Test
-    func testRunSemaClean() throws {
+    private func classChildren(
+        package: String,
+        className: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let fq = [interner.intern(package), interner.intern(className)]
+        return sema.symbols.children(ofFQName: fq)
+    }
 
+    private func childSymbol(
+        named name: String,
+        kind: SymbolKind,
+        package: String,
+        className: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        classChildren(package: package, className: className, sema: sema, interner: interner).first { symbolID in
+            guard let sym = sema.symbols.symbol(symbolID) else { return false }
+            return interner.resolve(sym.name) == name && sym.kind == kind
+        }
+    }
+
+    private func delegateStorageSymbol(
+        for propertyName: String,
+        package: String,
+        className: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        childSymbol(
+            named: "$delegate_\(propertyName)",
+            kind: .field,
+            package: package,
+            className: className,
+            sema: sema,
+            interner: interner
+        )
+    }
+
+    @Test func testDelegateSema() throws {
         let sources: [String] = [
             // testSetAndGetDelegateStorageSymbol
             """
@@ -182,14 +221,81 @@ struct DelegateStorageSymbolTableTests {
             package sample3
             fun noop() {}
             """,
+            """
+            package sample4
+
+            class MyDelegate {
+                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            }
+
+            class Foo {
+                val x: Int by MyDelegate()
+            }
+            """,
+            """
+            package sample5
+
+            class MyDelegate {
+                fun getValue(thisRef: Any?, property: Any?): Int = 42
+            }
+
+            class Foo {
+                val x by MyDelegate()
+            }
+            """,
+            """
+            package sample6
+
+            class MyDelegate {
+                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            }
+
+            class Foo {
+                val x: Int by MyDelegate()
+            }
+            """,
+            """
+            package sample7
+
+            class MyDelegate {
+                operator fun getValue(thisRef: Any?, property: Any?): Int = 0
+                operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
+            }
+
+            class Foo {
+                var x: Int by MyDelegate()
+            }
+            """,
+            """
+            package sample8
+
+            class MyDelegate {
+                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            }
+
+            class Foo {
+                val x: Int by MyDelegate()
+                val y: Int by MyDelegate()
+            }
+            """,
+            """
+            package sample9
+
+            class MyDelegate {
+                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            }
+
+            class Foo {
+                val x: Int by MyDelegate()
+            }
+            """,
+
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
 
             try runSema(ctx)
-
             let ast = try #require(ctx.ast)
 
             let sema = try #require(ctx.sema)
@@ -316,160 +422,22 @@ struct DelegateStorageSymbolTableTests {
                 #expect(symbols.delegateStorageSymbol(for: propA) != storageB)
 
             }
-
-        }
-    }
-
-}
-
-// MARK: - Sema Delegate Type Checking Tests
-
-@Suite
-struct SemaDelegateTypeCheckTests {
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func classChildren(
-        package: String,
-        className: String,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> [SymbolID] {
-        let fq = [interner.intern(package), interner.intern(className)]
-        return sema.symbols.children(ofFQName: fq)
-    }
-
-    private func childSymbol(
-        named name: String,
-        kind: SymbolKind,
-        package: String,
-        className: String,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> SymbolID? {
-        classChildren(package: package, className: className, sema: sema, interner: interner).first { symbolID in
-            guard let sym = sema.symbols.symbol(symbolID) else { return false }
-            return interner.resolve(sym.name) == name && sym.kind == kind
-        }
-    }
-
-    private func delegateStorageSymbol(
-        for propertyName: String,
-        package: String,
-        className: String,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> SymbolID? {
-        childSymbol(
-            named: "$delegate_\(propertyName)",
-            kind: .field,
-            package: package,
-            className: className,
-            sema: sema,
-            interner: interner
-        )
-    }
-
-    @Test func testDelegateTypeChecks() throws {
-        let sources: [String] = [
-            """
-            package sample0
-
-            class MyDelegate {
-                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-            }
-
-            class Foo {
-                val x: Int by MyDelegate()
-            }
-            """,
-            """
-            package sample1
-
-            class MyDelegate {
-                fun getValue(thisRef: Any?, property: Any?): Int = 42
-            }
-
-            class Foo {
-                val x by MyDelegate()
-            }
-            """,
-            """
-            package sample2
-
-            class MyDelegate {
-                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-            }
-
-            class Foo {
-                val x: Int by MyDelegate()
-            }
-            """,
-            """
-            package sample3
-
-            class MyDelegate {
-                operator fun getValue(thisRef: Any?, property: Any?): Int = 0
-                operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
-            }
-
-            class Foo {
-                var x: Int by MyDelegate()
-            }
-            """,
-            """
-            package sample4
-
-            class MyDelegate {
-                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-            }
-
-            class Foo {
-                val x: Int by MyDelegate()
-                val y: Int by MyDelegate()
-            }
-            """,
-            """
-            package sample5
-
-            class MyDelegate {
-                operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-            }
-
-            class Foo {
-                val x: Int by MyDelegate()
-            }
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-
-            // sample0: storage symbol exists and is linked to property 'x'.
+            // sample4: storage symbol exists and is linked to property 'x'.
             do {
-                let sample0Path = paths[0]
-                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+                let sample4Path = paths[4]
+                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
                 #expect(
-                    !sample0Diagnostics.contains { $0.severity == .error },
-                    "sample0 should be clean, got: \(sample0Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+                    !sample4Diagnostics.contains { $0.severity == .error },
+                    "sample4 should be clean, got: \(sample4Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
                 )
 
                 let xSymbol = try #require(
-                    childSymbol(named: "x", kind: .property, package: "sample0", className: "Foo", sema: sema, interner: interner),
-                    "Missing property symbol 'x' in sample0"
+                    childSymbol(named: "x", kind: .property, package: "sample4", className: "Foo", sema: sema, interner: interner),
+                    "Missing property symbol 'x' in sample4"
                 )
                 let storage = try #require(
-                    delegateStorageSymbol(for: "x", package: "sample0", className: "Foo", sema: sema, interner: interner),
-                    "Missing $delegate_x storage symbol in sample0"
+                    delegateStorageSymbol(for: "x", package: "sample4", className: "Foo", sema: sema, interner: interner),
+                    "Missing $delegate_x storage symbol in sample4"
                 )
 
                 if let storageSym = sema.symbols.symbol(storage) {
@@ -479,22 +447,22 @@ struct SemaDelegateTypeCheckTests {
 
                 #expect(
                     sema.symbols.delegateStorageSymbol(for: xSymbol) == storage,
-                    "Expected delegate storage to be linked to property 'x' in sample0"
+                    "Expected delegate storage to be linked to property 'x' in sample4"
                 )
             }
 
-            // sample1: missing getValue operator reports error; property type falls back to Any?.
+            // sample5: missing getValue operator reports error; property type falls back to Any?.
             do {
-                let sample1Path = paths[1]
-                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+                let sample5Path = paths[5]
+                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
                 #expect(
-                    sample1Diagnostics.contains { $0.severity == .error },
+                    sample5Diagnostics.contains { $0.severity == .error },
                     "Delegate type missing the 'getValue' operator should report an error"
                 )
 
                 let xSymbol = try #require(
-                    childSymbol(named: "x", kind: .property, package: "sample1", className: "Foo", sema: sema, interner: interner),
-                    "Missing property symbol 'x' in sample1"
+                    childSymbol(named: "x", kind: .property, package: "sample5", className: "Foo", sema: sema, interner: interner),
+                    "Missing property symbol 'x' in sample5"
                 )
                 let propType = sema.symbols.propertyType(for: xSymbol)
                 #expect(propType != nil, "Property type should be set even without explicit annotation")
@@ -506,18 +474,18 @@ struct SemaDelegateTypeCheckTests {
                 }
             }
 
-            // sample2: explicit Int type is preserved.
+            // sample6: explicit Int type is preserved.
             do {
-                let sample2Path = paths[2]
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+                let sample6Path = paths[6]
+                let sample6Diagnostics = diagnosticsForPath(sample6Path, in: ctx)
                 #expect(
-                    !sample2Diagnostics.contains { $0.severity == .error },
-                    "sample2 should be clean, got: \(sample2Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+                    !sample6Diagnostics.contains { $0.severity == .error },
+                    "sample6 should be clean, got: \(sample6Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
                 )
 
                 let xSymbol = try #require(
-                    childSymbol(named: "x", kind: .property, package: "sample2", className: "Foo", sema: sema, interner: interner),
-                    "Missing property symbol 'x' in sample2"
+                    childSymbol(named: "x", kind: .property, package: "sample6", className: "Foo", sema: sema, interner: interner),
+                    "Missing property symbol 'x' in sample6"
                 )
                 let propType = sema.symbols.propertyType(for: xSymbol)
                 #expect(propType != nil)
@@ -530,18 +498,18 @@ struct SemaDelegateTypeCheckTests {
                 }
             }
 
-            // sample3: var delegate creates $delegate_x storage field.
+            // sample7: var delegate creates $delegate_x storage field.
             do {
-                let sample3Path = paths[3]
-                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+                let sample7Path = paths[7]
+                let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
                 #expect(
-                    !sample3Diagnostics.contains { $0.severity == .error },
-                    "sample3 should be clean, got: \(sample3Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+                    !sample7Diagnostics.contains { $0.severity == .error },
+                    "sample7 should be clean, got: \(sample7Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
                 )
 
                 let storage = try #require(
-                    delegateStorageSymbol(for: "x", package: "sample3", className: "Foo", sema: sema, interner: interner),
-                    "Missing $delegate_x storage symbol for var delegate in sample3"
+                    delegateStorageSymbol(for: "x", package: "sample7", className: "Foo", sema: sema, interner: interner),
+                    "Missing $delegate_x storage symbol for var delegate in sample7"
                 )
 
                 if let storageSym = sema.symbols.symbol(storage) {
@@ -550,23 +518,23 @@ struct SemaDelegateTypeCheckTests {
                 }
             }
 
-            // sample4: multiple delegated properties create separate storage symbols.
+            // sample8: multiple delegated properties create separate storage symbols.
             do {
-                let sample4Path = paths[4]
-                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
+                let sample8Path = paths[8]
+                let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
                 #expect(
-                    !sample4Diagnostics.contains { $0.severity == .error },
-                    "sample4 should be clean, got: \(sample4Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+                    !sample8Diagnostics.contains { $0.severity == .error },
+                    "sample8 should be clean, got: \(sample8Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
                 )
 
-                let fooChildren = classChildren(package: "sample4", className: "Foo", sema: sema, interner: interner)
+                let fooChildren = classChildren(package: "sample8", className: "Foo", sema: sema, interner: interner)
                 let delegateStorageSymbols = fooChildren.filter { symbolID in
                     guard let sym = sema.symbols.symbol(symbolID) else { return false }
                     return interner.resolve(sym.name).hasPrefix("$delegate_")
                 }
                 #expect(
                     delegateStorageSymbols.count == 2,
-                    "Expected two separate delegate storage symbols in sample4, got \(delegateStorageSymbols.count)"
+                    "Expected two separate delegate storage symbols in sample8, got \(delegateStorageSymbols.count)"
                 )
 
                 let storageNames = delegateStorageSymbols.compactMap { id in
@@ -576,25 +544,27 @@ struct SemaDelegateTypeCheckTests {
                 #expect(storageNames.contains("$delegate_y"))
             }
 
-            // sample5: delegate type is recorded on a synthetic symbol offset.
+            // sample9: delegate type is recorded on a synthetic symbol offset.
             do {
-                let sample5Path = paths[5]
-                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
+                let sample9Path = paths[9]
+                let sample9Diagnostics = diagnosticsForPath(sample9Path, in: ctx)
                 #expect(
-                    !sample5Diagnostics.contains { $0.severity == .error },
-                    "sample5 should be clean, got: \(sample5Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+                    !sample9Diagnostics.contains { $0.severity == .error },
+                    "sample9 should be clean, got: \(sample9Diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
                 )
 
                 let xSymbol = try #require(
-                    childSymbol(named: "x", kind: .property, package: "sample5", className: "Foo", sema: sema, interner: interner),
-                    "Missing property symbol 'x' in sample5"
+                    childSymbol(named: "x", kind: .property, package: "sample9", className: "Foo", sema: sema, interner: interner),
+                    "Missing property symbol 'x' in sample9"
                 )
                 let syntheticID = SymbolID(rawValue: -(xSymbol.rawValue + 50000))
                 let delegateType = sema.symbols.propertyType(for: syntheticID)
                 #expect(delegateType != nil, "Delegate type should be recorded on synthetic symbol")
             }
+
         }
     }
+
 }
 
 // MARK: - KIR Delegate Lowering Tests
