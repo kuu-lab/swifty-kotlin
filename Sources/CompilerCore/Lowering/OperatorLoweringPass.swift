@@ -694,7 +694,9 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             }
             // Skip synthetic stubs (e.g., kotlin.text.StringBuilder.toString),
             // which are already lowered via normal member-call pathways.
-            guard !sym.flags.contains(.synthetic) else {
+            // Library-imported declarations are real source declarations that
+            // merely carry the synthetic flag, so they stay eligible.
+            guard !sym.flags.contains(.synthetic) || sym.flags.contains(.importedLibrary) else {
                 return false
             }
             let sig = sema.symbols.functionSignature(for: id)
@@ -710,9 +712,15 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let toStringResult = arena.appendTemporary(type: stringType
         )
         // Emit a direct call to the toString() method with the object as receiver.
+        let externalLinkName = sema.symbols.externalLinkName(for: toStringSym)
+        let toStringCallee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
+            interner.intern(externalLinkName)
+        } else {
+            toStringName
+        }
         body.append(.call(
             symbol: toStringSym,
-            callee: toStringName,
+            callee: toStringCallee,
             arguments: [argument],
             result: toStringResult,
             canThrow: false,

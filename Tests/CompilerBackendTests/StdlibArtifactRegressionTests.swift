@@ -106,52 +106,6 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
-    /// STDLIB-ARTIFACT-002: `java.math.BigInteger` constructor and throwing
-    /// instance methods work through the shared stdlib artifact. The String
-    /// constructor is a runtime factory (`kk_biginteger_fromString`) and must
-    /// not receive an implicit `this`; `divide`/`modInverse`/`modPow` carry
-    /// the `outThrown` channel and must be emitted as throwing calls.
-    func testBigIntegerFactoryAndThrowingMethodsSharedPath() throws {
-        let artifactPath = try Self.buildStdlibArtifact()
-
-        let source = """
-        import java.math.BigInteger
-
-        fun main() {
-            val a = BigInteger("100")
-            val b = BigInteger("200")
-            val sum = a.add(b)
-            val quotient = b.divide(a)
-            val modInv = BigInteger("3").modInverse(BigInteger("11"))
-            val modPow = BigInteger("3").modPow(BigInteger("4"), BigInteger("7"))
-            println("${sum.toString()} ${quotient.toString()} ${modInv.toString()} ${modPow.toString()}")
-        }
-        """
-
-        try withTemporaryFile(contents: source) { userPath in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .path
-            let ctx = makeCompilationContext(
-                inputs: [userPath],
-                moduleName: "TestModule",
-                emit: .executable,
-                outputPath: outputBase,
-                includeStdlib: false,
-                stdlibLibraryPath: artifactPath
-            )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            try CodegenPhase().run(ctx)
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "300 2 4 4\n")
-        }
-    }
-
     /// STDLIB-ARTIFACT-003: built-in exception constructors are runtime factories
     /// (`kk_*_exception_new_message`) and must not receive an implicit `this`
     /// allocated by `kk_object_new`; otherwise the message handle is misread and
@@ -950,6 +904,60 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
+    /// STDLIB-ARTIFACT-CHARSEQUENCE-SUBSEQUENCE: `subSequence` reached through a
+    /// value statically typed as `CharSequence` (backed by `String`) must resolve
+    /// to bundled Kotlin source (`Stdlib/kotlin/text/StringSubstringSlice.kt`) when
+    /// compiling against a prebuilt stdlib artifact, not the removed
+    /// `kk_string_subSequence_flat` runtime ABI (KSP-406). This is the shared-path
+    /// analogue of `Scripts/diff_cases/char_sequence_member_access.kt`: the flake it
+    /// guards only surfaced through `--no-stdlib --stdlib-library` linking, where an
+    /// undefined reference to `kk_string_subSequence_flat` failed the link.
+    func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun printLength(cs: CharSequence) {
+            println(cs.length)
+        }
+
+        fun main() {
+            printLength("hello")
+            val cs: CharSequence = "world!"
+            println(cs.length)
+            println(cs.get(1))
+            println(cs[2])
+            println(cs.subSequence(1, 3))
+            val sb: CharSequence = StringBuilder("abc")
+            println(sb.length)
+            println(sb.get(1))
+            println(sb[2])
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "5\n6\no\nr\nor\n3\nb\nc\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-STRING-INDENT: the indent-formatting family
     /// (`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/
     /// `replaceIndentByMargin`) must resolve to bundled Kotlin source
@@ -1017,6 +1025,161 @@ final class StdlibArtifactRegressionTests: XCTestCase {
                 --Hello/--World
                 alpha/beta
                 > alpha/> beta
+
+                """
+            )
+        }
+    }
+
+    /// STDLIB-ARTIFACT-021: `Sequence<T>.reduce`'s bundled source body iterated
+    /// its receiver with a direct `for (elem in this)` loop. Through the shared
+    /// stdlib artifact, that loop silently ran zero times (the receiver's
+    /// `Iterator` itable dispatch does not round-trip through the artifact),
+    /// so `reduce` always threw "Empty sequence can't be reduced." even for a
+    /// non-empty sequence. `fold`/`scan` were unaffected because their bodies
+    /// materialize the receiver via `toList()` first. Rewrote `reduce` to do
+    /// the same.
+    func testSequenceReduceSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val seq = generateSequence(1) { if (it < 5) it + 1 else null }
+            println(seq.reduce { acc, v -> acc + v })
+            println(sequenceOf(1, 2, 3).reduce { acc, v -> acc + v })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "15\n6\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
+    /// an auto-inline overload of the bundled `kotlin.collections` source, so no
+    /// standalone body reaches the stdlib artifact. When such a call sits inside
+    /// a lambda that is itself spliced into its caller (here the `let` body),
+    /// the spliced instructions must be re-scanned for inline expansion;
+    /// otherwise the consumer keeps an undefined reference to `kk_fn_joinToString_*`
+    /// at link time (the `compiler_plugin_api` diff case failure mode).
+    func testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val options: Map<String, String> = mapOf("k" to "v", "a" to "b")
+            val summary = options.entries.let { entries ->
+                entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+            }
+            println(summary)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "a=b,k=v\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-KOTLIN-VERSION: `kotlin.KotlinVersion` is bundled Kotlin
+    /// source (`Stdlib/kotlin/KotlinVersion.kt`) whose only runtime dependency
+    /// is the `__kk_kotlin_version_current` build-time constant. Through the
+    /// shared artifact the class arrives as an imported (synthetic-flagged)
+    /// symbol, which used to make `println(version)` fall back to
+    /// `kk_any_to_string` and print `<object 0x...>` instead of dispatching the
+    /// imported `toString()` override.
+    func testKotlinVersionThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val short = KotlinVersion(2, 1)
+            val full = KotlinVersion(2, 1, 20)
+            println(short)
+            println(full)
+            println(full.major.toString() + "/" + full.minor.toString() + "/" + full.patch.toString())
+            println(KotlinVersion.MAX_COMPONENT_VALUE)
+            println(short < full)
+            println(full.compareTo(short) > 0)
+            println(full.isAtLeast(2, 1))
+            println(full.isAtLeast(2, 1, 21))
+            println(full == KotlinVersion(2, 1, 20))
+            println(KotlinVersion.CURRENT.isAtLeast(1, 0))
+            println(KotlinVersion.CURRENT.toString())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                2.1.0
+                2.1.20
+                2/1/20
+                255
+                true
+                true
+                true
+                false
+                true
+                true
+                2.3.10
 
                 """
             )

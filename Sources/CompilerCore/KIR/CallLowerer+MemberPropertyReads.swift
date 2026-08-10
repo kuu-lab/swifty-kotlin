@@ -335,7 +335,7 @@ extension CallLowerer {
     func tryLowerEnumEntryPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
-        receiverExpr _: ExprID,
+        receiverExpr: ExprID,
         calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
@@ -346,22 +346,66 @@ extension CallLowerer {
         guard args.isEmpty else { return nil }
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "name" || calleeStr == "ordinal" else { return nil }
-        guard case let .symbolRef(entrySym) = arena.expr(loweredReceiverID),
-              isEnumEntryField(entrySym, sema: sema),
-              let entryInfo = sema.symbols.symbol(entrySym)
-        else { return nil }
-        let entryName = interner.resolve(entryInfo.name)
-        let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
-        let helperName = interner.intern(entryName + helperSuffix)
         let resultType = sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
                 ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
+        if case let .symbolRef(entrySym) = arena.expr(loweredReceiverID),
+           isEnumEntryField(entrySym, sema: sema),
+           let entryInfo = sema.symbols.symbol(entrySym)
+        {
+            let entryName = interner.resolve(entryInfo.name)
+            let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
+            let helperName = interner.intern(entryName + helperSuffix)
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: helperName,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        // The receiver isn't a compile-time-known entry (e.g. a reassigned
+        // `var` or a function parameter) — fall back to a dynamic lookup
+        // keyed off the receiver's own runtime value instead of returning
+        // nil. Returning nil here would fall through to the generic
+        // member-call path, which silently drops the receiver argument for
+        // this synthetic property (it has no FunctionSignature.receiverType
+        // for appendReceiverToMemberArguments to key off), producing an
+        // unresolved "name"/"ordinal" external symbol at link time.
+        guard let receiverType = sema.bindings.exprTypes[receiverExpr],
+              let (_, classSym) = resolveClassTypeSymbol(receiverType, sema: sema),
+              classSym.kind == .enumClass
+        else {
+            return nil
+        }
+        if calleeStr == "ordinal" {
+            // Enum values are represented as their boxed ordinal (see
+            // DataEnumSealedSynthesisPass's $enumOrdinalToName, which unboxes
+            // its receiver-typed parameter the same way), so `.ordinal` on a
+            // dynamic receiver is just that unboxing.
+            return emitNonThrowingCall(
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                arg: loweredReceiverID,
+                resultType: resultType,
+                arena: arena,
+                into: &instructions
+            )
+        }
+        // "name": the $enumOrdinalToName helper doesn't exist yet at
+        // KIR-build time (DataEnumSealedSynthesisPass synthesizes it during
+        // the later Lowering phase) — emit a receiverless-named placeholder
+        // call carrying the receiver as its sole argument, matching what
+        // EnumNameAccessLoweringPass rewrites into a real call to that
+        // helper once it exists.
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
-            callee: helperName,
-            arguments: [],
+            callee: calleeName,
+            arguments: [loweredReceiverID],
             result: result,
             canThrow: false,
             thrownResult: nil
@@ -476,7 +520,7 @@ extension CallLowerer {
         _ exprID: ExprID,
         receiverExpr: ExprID,
         args: [CallArgument],
-        ast _: ASTModule,
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         instructions: inout [KIRInstruction]
@@ -485,9 +529,17 @@ extension CallLowerer {
         // `Base64.PaddingOption` prefix of `Base64.PaddingOption.ABSENT`, where
         // `PaddingOption` is nested inside `Base64`), not just a bare name
         // reference. `identifierSymbol` already carries the resolved nominal
-        // type regardless of the receiver expression's AST shape.
+        // type regardless of the receiver expression's AST shape -- except when
+        // Sema itself resolved the receiver via the raw-name scope-lookup
+        // fallback in `classNameReceiverNominalSymbol`
+        // (CallTypeChecker+MemberCallInferenceRegularResolution.swift), which
+        // never binds anything to the receiver expression itself. Mirror that
+        // same fallback here (by short name, over the global symbol table
+        // rather than a scope, since KIR lowering has no scope stack) so a
+        // bare-nameRef receiver like `Outer` in `Outer.Color` still qualifies.
         guard args.isEmpty,
-              let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr),
+              let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr)
+                  ?? bareNameRefClassLikeSymbol(receiverExpr, ast: ast, sema: sema),
               let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
               receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass
         else {
@@ -497,9 +549,17 @@ extension CallLowerer {
         // sometimes bound via `identifierSymbol` and sometimes via a 0-arg
         // `CallBinding` (the same resolution path ordinary property reads use)
         // depending on how the type checker resolved the member — both carry
-        // the same target symbol, so accept either.
+        // the same target symbol, so accept either. A *further* nested-type
+        // qualifier segment (e.g. the `Color` in `Outer.Color.values()`) gets
+        // neither: Sema resolves a class-name-receiver call like
+        // `Outer.Color.values()` directly from `Outer`'s FQ name
+        // (CallTypeChecker+MemberCallInferenceRegularResolution.swift) without
+        // ever independently type-checking the `Outer.Color` prefix as its own
+        // expression, so no binding of any kind exists for it. Reconstruct the
+        // same answer directly from the symbol table.
         guard let valueSymbolID = sema.bindings.identifierSymbol(for: exprID)
-            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee
+            ?? nestedClassLikeMemberSymbol(exprID, ownerSymbol: receiverSymbolID, ast: ast, sema: sema),
             let valueSymbol = sema.symbols.symbol(valueSymbolID)
         else {
             return nil
@@ -528,7 +588,15 @@ extension CallLowerer {
             instructions.append(.constValue(result: valueID, value: .symbolRef(valueSymbolID)))
             return valueID
 
-        case .object:
+        case .object, .class, .interface, .enumClass:
+            // The "member" is itself a further nominal-type qualifier, e.g. the
+            // `Color` in `Outer.Color.values()`. Unlike `.object`, it isn't a
+            // singleton with an instance accessor, but it must short-circuit
+            // the same way: otherwise this falls through to the generic
+            // `driver.lowerExpr(receiverExpr, ...)` path below, which emits a
+            // `.call` using the qualifier's bare short name expecting a 0-arg
+            // instance accessor that was never synthesized, leaving an
+            // undefined symbol at link time.
             let valueType = sema.bindings.exprTypes[exprID] ?? sema.types.make(.classType(ClassType(
                 classSymbol: valueSymbolID,
                 args: [],
@@ -540,6 +608,55 @@ extension CallLowerer {
 
         default:
             return nil
+        }
+    }
+
+    /// Resolves a further nested-type qualifier segment (e.g. the `Color` in
+    /// `Outer.Color.values()`, once `Outer` is already known to be
+    /// `ownerSymbol`) directly from the symbol table, for the case described
+    /// above `tryLowerClassNameMemberValueExpr`'s callers where Sema left no
+    /// binding at all for this expression. Mirrors the `nestedOwnerSymbols`
+    /// lookup in `CallTypeChecker+MemberCallInferenceRegularResolution.swift`.
+    private func nestedClassLikeMemberSymbol(_ expr: ExprID, ownerSymbol: SymbolID, ast: ASTModule, sema: SemaModule) -> SymbolID? {
+        guard case let .memberCall(_, calleeName, _, memberArgs, _) = ast.arena.expr(expr), memberArgs.isEmpty,
+              let owner = sema.symbols.symbol(ownerSymbol)
+        else {
+            return nil
+        }
+        return sema.symbols.lookupAll(fqName: owner.fqName + [calleeName]).first { candidate in
+            guard sema.symbols.parentSymbol(for: candidate) == ownerSymbol else {
+                return false
+            }
+            switch sema.symbols.symbol(candidate)?.kind {
+            case .class, .interface, .enumClass, .object:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    /// Resolves a bare `nameRef` receiver (e.g. `Outer` in `Outer.Color`) to a
+    /// class/interface/enum-class symbol by short name, for the cases where
+    /// Sema's own `classNameReceiverNominalSymbol` fallback
+    /// (CallTypeChecker+MemberCallInferenceRegularResolution.swift) resolved it
+    /// via a raw-name scope lookup instead of `bindIdentifier`, leaving no
+    /// `identifierSymbol` binding for KIR lowering to read. A global
+    /// short-name lookup can't see local shadowing the way Sema's scope lookup
+    /// could, but by this point in a member-access chain the receiver can only
+    /// be a nominal type reference, not a local, so the ambiguity that matters
+    /// for Sema's lookup doesn't apply here.
+    private func bareNameRefClassLikeSymbol(_ expr: ExprID, ast: ASTModule, sema: SemaModule) -> SymbolID? {
+        guard case let .nameRef(name, _) = ast.arena.expr(expr) else {
+            return nil
+        }
+        return sema.symbols.lookupByShortName(name).first { candidate in
+            switch sema.symbols.symbol(candidate)?.kind {
+            case .class, .interface, .enumClass:
+                true
+            default:
+                false
+            }
         }
     }
 

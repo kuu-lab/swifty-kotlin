@@ -15,9 +15,11 @@ final class LinkPhase: CompilerPhase {
     /// written to a per-`LinkPhase` private temporary directory
     /// (`TMPDIR/kswiftk-link-stubs-<uid>-<pid>-<uuid>`, mode 0700). Because every compilation
     /// uses its own directory, parallel `kswiftc` processes and Swift test workers never share
-    /// the same stub path, and no cross-process file lock is required. The directory is created
-    /// with `mkdir(0700)` and validated to be owned by the current user with no group/other
-    /// permissions, so a local attacker cannot tamper with the build input.
+    /// the same stub path. The complete link operation is still guarded by a per-target
+    /// cross-process toolchain lock on Linux because concurrent `swiftc` invocations can
+    /// interfere on self-hosted runners. The directory is created with `mkdir(0700)` and
+    /// validated to be owned by the current user with no group/other permissions, so a local
+    /// attacker cannot tamper with the build input.
     private static let linuxAutolinkStubContents = """
     import Dispatch
     import Foundation
@@ -68,7 +70,9 @@ final class LinkPhase: CompilerPhase {
             )
             throw CompilerPipelineError.outputUnavailable
         }
-        try performLink(objectPath: objectPath, entrySymbol: entrySymbol, ctx: ctx)
+        try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
+            try performLink(objectPath: objectPath, entrySymbol: entrySymbol, ctx: ctx)
+        }
     }
 
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
@@ -209,11 +213,16 @@ final class LinkPhase: CompilerPhase {
         fileFacadeNamesByFileID: [Int32: String]
     ) -> String? {
         let knownNames = KnownCompilerNames(interner: interner)
+        let mainNameResolved = interner.resolve(knownNames.main)
         for decl in kir.arena.declarations {
             guard case let .function(function) = decl else {
                 continue
             }
-            if function.name == knownNames.main {
+            // Compare interned IDs first; fall back to the resolved string so
+            // an entry point is found even if `main` was interned on a
+            // different code path and received a distinct `InternedString`.
+            if function.name == knownNames.main
+                || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved) {
                 return CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: interner,

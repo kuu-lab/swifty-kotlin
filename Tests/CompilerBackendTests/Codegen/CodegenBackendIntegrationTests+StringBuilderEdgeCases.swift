@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+private func assertKotlinOutput(
+    _ source: String,
+    moduleName: String,
+    expected: String
+) throws {
+    try withTemporaryFile(contents: source) { path in
+        let outputBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        let ctx = try runCodegenPipeline(
+            inputPath: path,
+            moduleName: moduleName,
+            emit: .executable,
+            outputPath: outputBase
+        )
+        try LinkPhase().run(ctx)
+        let result = try CommandRunner.run(executable: outputBase, arguments: [])
+        let normalizedStdout = result.stdout
+            .replacingOccurrences(of: "\r\n", with: "\n")
+        #expect(normalizedStdout == expected)
+    }
+}
+
+@Suite
+struct CodegenBackendStringBuilderEdgeCasesTests {
+
+    @Test
     func testCodegenCompilesStringBuilderAppendRangeEdgeCases() throws {
         let source = """
         fun main() {
@@ -34,6 +96,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesStringBuilderDeleteAtEdgeCases() throws {
         let source = """
         fun main() {
@@ -64,6 +127,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesStringBuilderDeleteRangeEdgeCases() throws {
         let source = """
         fun main() {
@@ -95,6 +159,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // STDLIB-TEXT-FN-024: insert
+    @Test
     func testCodegenCompilesStringBuilderInsertEdgeCases() throws {
         let source = """
         fun main() {
@@ -126,6 +191,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesStringBuilderInsertRangeEdgeCases() throws {
         let source = """
         fun main() {
@@ -156,6 +222,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesStringBuilderSetRangeEdgeCases() throws {
         let source = """
         fun main() {
@@ -187,6 +254,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // STDLIB-TEXT-FN-003: Typed append overloads for StringBuilder
+    @Test
     func testCodegenCompilesStringBuilderTypedAppendOverloads() throws {
         let source = """
         fun main() {
@@ -224,6 +292,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesAppendableAppendOverloads() throws {
         let source = """
         import kotlin.text.Appendable
@@ -242,6 +311,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // DEBT-RT-001: StringBuilder bounds checks throw catchable IndexOutOfBoundsException.
+    @Test
     func testCodegenStringBuilderInsertOutOfBoundsThrowsIndexOutOfBoundsException() throws {
         let source = """
         fun main() {
@@ -300,6 +370,7 @@ extension CodegenBackendIntegrationTests {
     // Regression: StringBuilder(capacity: Int) used to crash (SIGSEGV) because the
     // Int argument was routed through the String-taking native constructor, which
     // reinterpreted the raw capacity value as a string data pointer.
+    @Test
     func testCodegenCompilesStringBuilderCapacityConstructor() throws {
         let source = """
         fun main() {
@@ -337,6 +408,7 @@ extension CodegenBackendIntegrationTests {
     // registrations that make `is`/`as` work for a hand-rolled runtime
     // object. `sb is CharSequence`/`sb is Appendable` fell through to
     // kk_op_is's exception-hierarchy fallback and always returned false.
+    @Test
     func testCodegenStringBuilderIsCharSequenceAndAppendable() throws {
         let source = """
         fun main() {
@@ -364,6 +436,7 @@ extension CodegenBackendIntegrationTests {
     // DSL entry point (RuntimeBuilderDSL.swift), not the `kk_string_builder_new*`
     // constructors the above test exercises. It needs the same
     // runtimeRegisterStringBuilderType registration independently.
+    @Test
     func testCodegenBuildStringBuilderResultIsCharSequenceAndAppendable() throws {
         let source = """
         fun main() {
@@ -401,6 +474,7 @@ extension CodegenBackendIntegrationTests {
     // because they currently fail overload resolution on an *implicit* receiver
     // (even inside a plain `with(StringBuilder()) { ... }`); that is a separate
     // pre-existing Sema issue unrelated to the BUG-043 runtime `this` handle.
+    @Test
     func testCodegenBuildStringReceiverMethodsUseValidThisHandle() throws {
         let source = """
         fun main() {
@@ -445,3 +519,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif
