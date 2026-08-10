@@ -188,6 +188,37 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-618 regression: kotlin.synchronized is bundled Kotlin source delegating to the
+    // demoted __kk_synchronized bridge. The block reaches the wrapper as a boxed function
+    // value, so the closure-thunk expansion must recover its (fnPtr, closureRaw) pair —
+    // otherwise a capturing block either crashes or loses its captures.
+    @Test
+    func testSynchronizedMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val lock = object {}
+                var counter = 0
+                val result = synchronized(lock) {
+                    counter += 1
+                    val nested = synchronized(lock) { counter + 40 }
+                    nested + 1
+                }
+                println(result)
+                println(counter)
+                val text: String = synchronized(lock) { "hello" }
+                println(text)
+                try {
+                    synchronized(lock) { throw IllegalStateException("boom") }
+                } catch (e: Throwable) {
+                    println(e.message ?: "missing")
+                }
+            }
+            """,
+            expectedOutput: "42\n1\nhello\nboom\n"
+        )
+    }
+
     // KSP-677 regression: Semaphore.withPermit is bundled Kotlin source (a generic suspend
     // extension composing the c-soft acquire/release kernel).
     @Test
@@ -246,6 +277,50 @@ struct BundledStdlibExecutionTests {
             true
             false
             true
+
+            """
+        )
+    }
+
+    // KSP-642: rotateLeft / rotateRight は bundled Kotlin (kotlin.Numbers) で
+    // shl / ushr / or だけを使って実装される。シフト量のマスク（Int は 5bit、
+    // Long は 6bit）に依存するため、0 / 幅ちょうど / 幅超過 / 負値の境界を検証する。
+    @Test
+    func testRotateExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(1.rotateLeft(1))
+                println(1.rotateLeft(31))
+                println(1.rotateLeft(32))
+                println(1.rotateLeft(-1))
+                println((-1).rotateLeft(5))
+                println(Int.MIN_VALUE.rotateLeft(1))
+                println(1.rotateRight(1))
+                println(1.rotateRight(32))
+                println(0x12345678.rotateRight(8))
+                println(1L.rotateLeft(63))
+                println(1L.rotateLeft(64))
+                println(1L.rotateRight(1))
+                println(Long.MIN_VALUE.rotateRight(1))
+                println(0x0F0F0F0F.rotateLeft(4).rotateRight(4))
+            }
+            """,
+            expectedOutput: """
+            2
+            -2147483648
+            1
+            -2147483648
+            -1
+            1
+            -2147483648
+            1
+            2014458966
+            -9223372036854775808
+            1
+            -9223372036854775808
+            4611686018427387904
+            252645135
 
             """
         )

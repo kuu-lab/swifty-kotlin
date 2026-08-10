@@ -23,11 +23,22 @@ extension DeclTypeChecker {
             expectedType: inferredPropertyType
         )
         if let declaredType = inferredPropertyType {
-            driver.emitSubtypeConstraint(
-                left: getterType, right: declaredType,
-                range: getter.range, solver: solver,
-                sema: sema, diagnostics: diagnostics
-            )
+            // Range expressions infer as their scalar element type rather than the
+            // source-level range interface, so `val r: IntRange get() = a..b` skips
+            // the nominal subtype check like the equivalent expression-bodied
+            // function and local declaration do.
+            let bodyIsRangeExpr = {
+                guard case let .expr(bodyExprID, _) = getter.body else { return false }
+                return sema.bindings.isRangeExpr(bodyExprID)
+                    && driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
+            }()
+            if !bodyIsRangeExpr {
+                driver.emitSubtypeConstraint(
+                    left: getterType, right: declaredType,
+                    range: getter.range, solver: solver,
+                    sema: sema, diagnostics: diagnostics
+                )
+            }
             return inferredPropertyType
         }
         return getterType
@@ -255,7 +266,7 @@ extension DeclTypeChecker {
         // the ordinary call-argument inference above never visits it, so without
         // this, none of its identifiers -- not even a reference to an unrelated
         // outer instance field like `initCount` in `lazy { initCount += 1; ... }`
-        // -- get bound by Sema at all (BUG-170). Bind the lambda's own synthetic
+        // -- get bound by Sema at all (BUG-200). Bind the lambda's own synthetic
         // parameters (empty for `lazy`) using the same symbol scheme KIR lowering
         // allocates them with, then type-check the body in the same `ctx` used
         // for this property's getter/initializer above so implicit-`this` member

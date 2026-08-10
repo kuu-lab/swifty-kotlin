@@ -798,17 +798,24 @@ extension ExprTypeChecker {
     /// Otherwise only widening is allowed (function types are contravariant in
     /// their parameters): `(String) -> Int = { s: Any -> ... }` is fine, while
     /// `(Any) -> Int = { s: String -> ... }` is a mismatch.
-    func lambdaAnnotationIsCompatible(annotated: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
+    ///
+    /// `expectedTypeIsSourceDeclared` tells the two kinds of `Any` apart: an
+    /// `Any` written in source constrains the annotation, while an `Any` the
+    /// compiler synthesized for a call whose type variable stayed unsolved
+    /// (`Grouping<K, E>`'s accumulator) carries no information.
+    func lambdaAnnotationIsCompatible(
+        annotated: TypeID,
+        declared: TypeID,
+        expectedTypeIsSourceDeclared: Bool,
+        sema: SemaModule
+    ) -> Bool {
         if annotated == declared || declared == sema.types.errorType || annotated == sema.types.errorType {
             return true
         }
         if typeMentionsTypeParameter(declared, sema: sema) {
             return true
         }
-        // A declared `Any` is also what inference falls back to when a type
-        // variable stays unsolved (`Grouping<K, E>.fold`'s accumulator), so it
-        // carries no information either.
-        if case .any = sema.types.kind(of: declared) {
+        if !expectedTypeIsSourceDeclared, case .any = sema.types.kind(of: declared) {
             return true
         }
         return sema.types.isSubtype(declared, annotated)
@@ -955,6 +962,7 @@ extension ExprTypeChecker {
         // expected type is a raw functional interface (BUG-046). An annotation
         // that contradicts a concrete expected parameter type is an error.
         let annotatedParameterTypes = resolveLambdaParamAnnotations(id, ctx: ctx, paramCount: effectiveParams.count)
+        let expectedTypeIsSourceDeclared = sema.bindings.hasSourceDeclaredExpectedType(id)
         let parameterTypes: [TypeID] = effectiveParams.indices.map { offset in
             let fallback = offset < expectedParameterTypes.count ? expectedParameterTypes[offset] : sema.types.anyType
             guard let annotated = annotatedParameterTypes?[offset] else {
@@ -963,7 +971,12 @@ extension ExprTypeChecker {
             guard let declared = declaredParameterTypes?[offset] else {
                 return annotated
             }
-            if lambdaAnnotationIsCompatible(annotated: annotated, declared: declared, sema: sema) {
+            if lambdaAnnotationIsCompatible(
+                annotated: annotated,
+                declared: declared,
+                expectedTypeIsSourceDeclared: expectedTypeIsSourceDeclared,
+                sema: sema
+            ) {
                 return annotated
             }
             ctx.semaCtx.diagnostics.error(
@@ -1075,17 +1088,13 @@ extension ExprTypeChecker {
                 }
                 return true
             }()
-            let expectedReturnIsUnconstrainedTypeParam: Bool = {
-                guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
-                    return false
-                }
-                return sema.symbols.typeParameterUpperBounds(for: tp.symbol).isEmpty
-            }()
+            // A bounded type parameter (`fun <R : Any> f(g: () -> R)`) cannot be
+            // constrained locally either — `Int <: R` is never satisfiable while
+            // `R` is still a placeholder, and the upper bound is verified by the
+            // overload resolver once `R` is inferred (`checkTypeParameterBounds`).
             let shouldSkipSubtypeConstraint =
                 expectedFunctionType.returnType == sema.types.unitType
-                || (expectedFunctionType.receiver != nil
-                    ? expectedReturnIsTypeParam
-                    : expectedReturnIsUnconstrainedTypeParam)
+                || expectedReturnIsTypeParam
             if !shouldSkipSubtypeConstraint {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
@@ -1105,9 +1114,7 @@ extension ExprTypeChecker {
             // or `box.run2 { myValue }` fails to infer `R`). Substitute the
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
-            let shouldReturnResolvedFunctionType =
-                expectedReturnIsUnconstrainedTypeParam
-                || (expectedFunctionType.receiver != nil && expectedReturnIsTypeParam)
+            let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,

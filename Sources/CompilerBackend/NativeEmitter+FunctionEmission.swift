@@ -59,6 +59,26 @@ extension NativeEmitter {
             throw LLVMBackendError.nativeEmissionFailed("failed to create entry block")
         }
 
+        // Dedicated builder for stack slots. Slots requested while a loop body is
+        // being emitted must be allocated in the entry block, otherwise every
+        // iteration allocates a fresh slot and long loops overflow the stack.
+        let allocaBuilder = bindings.createBuilder(context: context)
+        defer {
+            if let allocaBuilder {
+                bindings.disposeBuilder(allocaBuilder)
+            }
+        }
+
+        func buildEntrySlot(name: String, type: LLVMCAPIBindings.LLVMTypeRef? = nil) -> LLVMCAPIBindings.LLVMValueRef? {
+            bindings.buildEntryAlloca(
+                type: type ?? int64Type,
+                name: name,
+                entryBlock: entryBlock,
+                allocaBuilder: allocaBuilder,
+                fallbackBuilder: builder
+            )
+        }
+
         var labelBlocks: [Int32: LLVMCAPIBindings.LLVMBasicBlockRef] = [:]
         for instruction in function.body {
             guard case let .label(id) = instruction else {
@@ -174,7 +194,9 @@ extension NativeEmitter {
             zeroValue: zeroValue,
             context: context,
             module: llvmModule,
-            typeLowering: typeLowering
+            typeLowering: typeLowering,
+            entryBlock: entryBlock,
+            allocaBuilder: allocaBuilder
         )
 
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
@@ -255,7 +277,7 @@ extension NativeEmitter {
                                            argumentCount == 1,
                                            !appendThrownChannel
             {
-                "__string_struct_get_length"
+                "__kk_string_struct_get_length"
             } else {
                 calleeName
             }
@@ -590,7 +612,7 @@ extension NativeEmitter {
         }
 
         func allocateI64Slot(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let slot = bindings.buildAlloca(builder, type: int64Type, name: name) else {
+            guard let slot = buildEntrySlot(name: name) else {
                 return nil
             }
             _ = bindings.buildStore(builder, value: zeroValue, pointer: slot)
@@ -886,15 +908,15 @@ extension NativeEmitter {
                 // KSP-407: substringBefore/After/BeforeLast/AfterLast and
                 // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
                 // source (StringSearchReplace.kt); no flat emission spec.
-                "kk_string_format_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_format_flat",
+                "__kk_string_format_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_format_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0],
                     canThrow: false
                 ),
-                "kk_string_format_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_format_locale_flat",
+                "__kk_string_format_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_format_locale_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     stringArgumentPositions: [1],
@@ -1131,8 +1153,8 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_match_group_collection_get": FlatScalarReturnCallSpec(
-                    flatName: "kk_match_group_collection_get_flat",
+                "__kk_match_result_group_index_of_name": FlatScalarReturnCallSpec(
+                    flatName: "__kk_match_result_group_index_of_name_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
@@ -2176,7 +2198,7 @@ extension NativeEmitter {
                             defaultType: int64Type
                         )
                         let localAlloca = copyTargetAllocas[result.rawValue]
-                            ?? bindings.buildAlloca(builder, type: debugStorageType, name: "dbg_\(varName)")
+                            ?? buildEntrySlot(name: "dbg_\(varName)", type: debugStorageType)
                         if let localAlloca {
                             if copyTargetAllocas[result.rawValue] == nil {
                                 _ = bindings.buildStore(builder, value: constLLVMValue, pointer: localAlloca)
@@ -2245,11 +2267,7 @@ extension NativeEmitter {
                     argumentCount: 1,
                     appendThrownChannel: true
                 ) {
-                    let thrownSlot = bindings.buildAlloca(
-                        builder,
-                        type: int64Type,
-                        name: "notnull_thrown_\(instructionIndex)"
-                    )
+                    let thrownSlot = buildEntrySlot(name: "notnull_thrown_\(instructionIndex)")
                     if let thrownSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                         let callValue = bindings.buildCall(
@@ -2522,11 +2540,7 @@ extension NativeEmitter {
 
                 // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
                 if calleeName == "kk_channel_receive" {
-                    let outValueSlot = bindings.buildAlloca(
-                        builder,
-                        type: int64Type,
-                        name: "channel_out_value_\(instructionIndex)"
-                    )
+                    let outValueSlot = buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
                     if let outValueSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
                     }
@@ -2599,7 +2613,7 @@ extension NativeEmitter {
                     calleeFunction = nil
                 } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
                     calleeFunction = declareExternalFunction(
-                        named: "__string_struct_get_length",
+                        named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -2690,11 +2704,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = bindings.buildAlloca(
-                            builder,
-                            type: int64Type,
-                            name: "thrown_slot_\(instructionIndex)"
-                        )
+                        let thrownSlot = buildEntrySlot(name: "thrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
@@ -2902,7 +2912,7 @@ extension NativeEmitter {
                     nil
                 } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
                     declareExternalFunction(
-                        named: "__string_struct_get_length",
+                        named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -3050,11 +3060,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = bindings.buildAlloca(
-                            builder,
-                            type: int64Type,
-                            name: "vthrown_slot_\(instructionIndex)"
-                        )
+                        let thrownSlot = buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
@@ -3461,7 +3467,7 @@ extension NativeEmitter {
 
     private static func effectiveExternalCalleeNameForArity(_ calleeName: String, argumentCount: Int) -> String {
         if isStringLengthAggregateAccessorName(calleeName), argumentCount == 1 {
-            "__string_struct_get_length"
+            "__kk_string_struct_get_length"
         } else {
             calleeName
         }
@@ -3469,7 +3475,7 @@ extension NativeEmitter {
 
     private static func isStringLengthAggregateAccessorName(_ calleeName: String) -> Bool {
         calleeName == "length"
-            || calleeName == "__string_struct_get_length"
+            || calleeName == "__kk_string_struct_get_length"
             || calleeName == "kk_string_struct_get_length"
     }
 
@@ -3482,7 +3488,6 @@ extension NativeEmitter {
         case "__getTimeMicros": "kk_system_getTimeMicros"
         case "__getTimeMillis": "kk_system_getTimeMillis"
         case "__getTimeNanos": "kk_system_getTimeNanos"
-        case "__synchronized": "kk_synchronized"
         case "__doubleToBits": "kk_double_toBits"
         case "__doubleToRawBits": "kk_double_toRawBits"
         case "__floatToBits": "kk_float_toBits"
@@ -3502,29 +3507,15 @@ extension NativeEmitter {
         case "__intCountTrailingZeroBits": "kk_int_countTrailingZeroBits"
         case "__intHighestOneBit": "kk_int_highestOneBit"
         case "__intLowestOneBit": "kk_int_lowestOneBit"
-        case "__intRotateLeft": "kk_int_rotateLeft"
-        case "__intRotateRight": "kk_int_rotateRight"
         case "__longHighestOneBit": "kk_long_highestOneBit"
         case "__longLowestOneBit": "kk_long_lowestOneBit"
-        case "__longRotateLeft": "kk_long_rotateLeft"
-        case "__longRotateRight": "kk_long_rotateRight"
         case "__requireLazy": "kk_require_lazy"
         case "__checkLazy": "kk_check_lazy"
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
-        case "__todo": argumentCount == 0 ? "kk_todo_noarg" : "kk_todo"
         case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
-        case "__string_compareTo_flat": "kk_string_compareTo_flat"
-        case "__string_concat": "kk_string_concat_flat"
-        case "__string_isEmpty_flat": "kk_string_isEmpty_flat"
-        case "__string_isNotEmpty_flat": "kk_string_isNotEmpty_flat"
-        case "__string_isBlank_flat": "kk_string_isBlank_flat"
-        case "__string_isNotBlank_flat": "kk_string_isNotBlank_flat"
-        case "__string_isNullOrEmpty_flat": "kk_string_isNullOrEmpty_flat"
-        case "__string_isNullOrBlank_flat": "kk_string_isNullOrBlank_flat"
-        case "__string_get_flat": "kk_string_get_flat"
         case "__testAssertEquals": "kk_test_assertEquals"
         case "__testAssertEqualsMessage": "kk_test_assertEquals_message"
         case "__testAssertTrue": "kk_test_assertTrue"
