@@ -477,7 +477,7 @@ extension CallLowerer {
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_contains")
             }
-            return interner.intern("kk_range_contains")
+            return interner.intern("__kk_range_contains")
         case "isEmpty":
             if elementType == sema.types.uintType {
                 return interner.intern("kk_uint_range_isEmpty")
@@ -485,7 +485,7 @@ extension CallLowerer {
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_isEmpty")
             }
-            return interner.intern("kk_range_isEmpty")
+            return interner.intern("__kk_range_isEmpty")
         default:
             return nil
         }

@@ -749,9 +749,6 @@ public extension RuntimeABISpec {
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_range_end", parameters: [
-            p("rangeRaw", .intptr),
-        ]),
         abiParitySpec("kk_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],

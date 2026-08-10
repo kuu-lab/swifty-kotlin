@@ -437,28 +437,28 @@ extension CallLowerer {
                         ? "kk_ulong_range_first"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_first"
-                            : (isLongRange ? "kk_long_range_first" : "kk_range_first")))
+                            : "__kk_range_first"))
                 // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
                 case "end", "endInclusive":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_last"
-                            : (isLongRange ? "kk_long_range_last" : "kk_range_last")))
+                            : "__kk_range_last"))
                 case "endExclusive":
-                    interner.intern("kk_range_endExclusive")
+                    interner.intern("__kk_range_endExclusive")
                 case "first":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_first"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_first"
-                            : (isLongRange ? "kk_long_range_first" : "kk_range_first")))
+                            : "__kk_range_first"))
                 case "last":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_last"
-                            : (isLongRange ? "kk_long_range_last" : "kk_range_last")))
+                            : "__kk_range_last"))
                 case "step":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_step"
@@ -835,7 +835,7 @@ extension CallLowerer {
         // Int/Long/UInt/ULong.coerceIn(range) — single ClosedRange argument (STDLIB-525, STDLIB-CONV-006)
         // Decompose the range into first/last and delegate to kk_{int,long,uint,ulong}_coerceIn.
         // The shared emitCoerceInRange helper types the extracted bounds as the non-nullable
-        // receiver type and kk_range_first/kk_range_last return the range's element type.
+        // receiver type and __kk_range_first/__kk_range_last return the range's element type.
         if interner.resolve(calleeName) == "coerceIn", args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let intType = sema.types.intType

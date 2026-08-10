@@ -741,7 +741,7 @@ extension CallLowerer {
 
         // Int/Long/UInt/ULong.coerceIn(range) — single ClosedRange argument (STDLIB-525)
         // Only integer-typed receivers are supported here; floating-point
-        // receivers must not enter this path because kk_range_first/kk_range_last
+        // receivers must not enter this path because __kk_range_first/__kk_range_last
         // return integer-typed bounds that would be incorrect for float coercion.
         if args.count == 1, interner.resolve(effectiveCalleeName) == "coerceIn" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType

@@ -1098,7 +1098,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
-        #expect(callees.contains("kk_range_reversed"), "range.reversed should become kk_range_reversed")
+        #expect(callees.contains("__kk_range_reversed"), "range.reversed should become __kk_range_reversed")
     }
 
     @Test
@@ -1116,7 +1116,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
-        #expect(callees.contains("kk_range_endExclusive"), "range.endExclusive should become kk_range_endExclusive")
+        #expect(callees.contains("__kk_range_endExclusive"), "range.endExclusive should become __kk_range_endExclusive")
     }
 
     @Test
@@ -1162,7 +1162,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(callees.contains("asReversed"), "range.asReversed should remain unresolved for non-list receivers")
-        #expect(!callees.contains("kk_range_reversed"), "range.asReversed must not become kk_range_reversed")
+        #expect(!callees.contains("__kk_range_reversed"), "range.asReversed must not become __kk_range_reversed")
     }
 
     @Test
