@@ -245,7 +245,6 @@ struct CollectionLiteralLookupTables {
     var kkSequenceMapName: InternedString { sequenceLookup.kkSequenceMapName }
     var kkSequenceFilterName: InternedString { sequenceLookup.kkSequenceFilterName }
     var kkSequenceRequireNoNullsName: InternedString { sequenceLookup.kkSequenceRequireNoNullsName }
-    var kkSequenceTakeName: InternedString { sequenceLookup.kkSequenceTakeName }
     var kkSequenceToListName: InternedString { sequenceLookup.kkSequenceToListName }
     var kkSequenceConstrainOnceName: InternedString { sequenceLookup.kkSequenceConstrainOnceName }
     var kkSequenceBuilderBuildName: InternedString { sequenceLookup.kkSequenceBuilderBuildName }
@@ -260,17 +259,12 @@ struct CollectionLiteralLookupTables {
     var kkSequenceForEachName: InternedString { sequenceLookup.kkSequenceForEachName }
     var kkSequenceFlatMapName: InternedString { sequenceLookup.kkSequenceFlatMapName }
     var kkSequenceFlatMapIndexedName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedName }
-    var kkSequenceDropName: InternedString { sequenceLookup.kkSequenceDropName }
-    var kkSequenceDistinctName: InternedString { sequenceLookup.kkSequenceDistinctName }
-    var kkSequenceZipName: InternedString { sequenceLookup.kkSequenceZipName }
     var kkSequenceShuffledName: InternedString { sequenceLookup.kkSequenceShuffledName }
     var kkSequenceShuffledRandomName: InternedString { sequenceLookup.kkSequenceShuffledRandomName }
     var kkSequenceAssociateToName: InternedString { sequenceLookup.kkSequenceAssociateToName }
     var kkSequenceAssociateByToName: InternedString { sequenceLookup.kkSequenceAssociateByToName }
     var kkSequenceAssociateWithToName: InternedString { sequenceLookup.kkSequenceAssociateWithToName }
     var kkSequenceForEachIndexedName: InternedString { sequenceLookup.kkSequenceForEachIndexedName }
-    var kkSequenceZipWithNextName: InternedString { sequenceLookup.kkSequenceZipWithNextName }
-    var kkSequenceZipWithNextTransformName: InternedString { sequenceLookup.kkSequenceZipWithNextTransformName }
     var kkSequenceScanName: InternedString { sequenceLookup.kkSequenceScanName }
     var kkSequenceRunningFoldName: InternedString { sequenceLookup.kkSequenceRunningFoldName }
     var kkSequenceRunningReduceName: InternedString { sequenceLookup.kkSequenceRunningReduceName }

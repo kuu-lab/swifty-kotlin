@@ -418,11 +418,6 @@ extension CallLowerer {
             return interner.intern("kk_list_sortedByDescending")
         case "partition":
             return interner.intern("kk_list_partition")
-        case "zipWithNext" where isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner):
-            return interner.intern(hasHOFLambdaArg
-                ? "kk_sequence_zipWithNextTransform"
-                : "kk_sequence_zipWithNext")
-
         case "maxBy":
             return interner.intern("kk_list_maxBy")
         case "maxByOrNull":
@@ -519,17 +514,11 @@ extension CallLowerer {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
             let filterName = interner.intern("filter")
-            let takeName = interner.intern("take")
             let toListName = interner.intern("toList")
             let forEachName = interner.intern("forEach")
             let flatMapName = interner.intern("flatMap")
             let flatMapIndexedName = interner.intern("flatMapIndexed")
-            let dropName = interner.intern("drop")
-            let distinctName = interner.intern("distinct")
-            let zipName = interner.intern("zip")
-            let takeWhileName = interner.intern("takeWhile")
             let takeLastWhileName = interner.intern("takeLastWhile")
-            let dropWhileName = interner.intern("dropWhile")
             let sortedName = interner.intern("sorted")
             let sortedByName = interner.intern("sortedBy")
             let sortedWithName = interner.intern("sortedWith")
@@ -553,8 +542,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_map")
             case filterName:
                 return interner.intern("kk_sequence_filter")
-            case takeName:
-                return interner.intern("kk_sequence_take")
             case interner.intern("takeLast"):
                 return interner.intern("kk_sequence_takeLast")
             case toListName:
@@ -567,24 +554,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_flatMap")
             case flatMapIndexedName:
                 return interner.intern("kk_sequence_flatMapIndexed")
-            case dropName:
-                return interner.intern("kk_sequence_drop")
-            case distinctName:
-                return interner.intern("kk_sequence_distinct")
-            case zipName:
-                if hofArity == 1 {
-                    return interner.intern("kk_sequence_zip")
-                }
-                if hofArity == 2 {
-                    return interner.intern("kk_sequence_zip_transform")
-                }
-                break
-            case takeWhileName:
-                return interner.intern("kk_sequence_takeWhile")
             case takeLastWhileName:
                 return interner.intern("kk_sequence_takeLastWhile")
-            case dropWhileName:
-                return interner.intern("kk_sequence_dropWhile")
             case sortedName:
                 return interner.intern("kk_sequence_sorted")
             case sortedByName:
@@ -694,12 +665,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_flatMapIndexed")
             case interner.intern("withIndex"):
                 return interner.intern("kk_sequence_withIndex")
-            case interner.intern("chunked"):
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_sequence_chunked_transform"
-                    : "kk_sequence_chunked")
-            case interner.intern("windowed"):
-                return interner.intern("kk_sequence_windowed")
             case interner.intern("onEach"):
                 return interner.intern("kk_sequence_onEach")
             case interner.intern("onEachIndexed"):
