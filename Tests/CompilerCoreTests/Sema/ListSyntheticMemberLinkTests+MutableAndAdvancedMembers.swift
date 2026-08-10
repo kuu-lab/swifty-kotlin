@@ -696,7 +696,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListPrimitiveArrayConversionsUseRuntimeExternalLinks() throws {
+    func testListPrimitiveArrayConversionsResolveToSourceBackedDeclarations() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
                 source: """
@@ -705,7 +705,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toBooleanArray",
-                expectedExternalLink: "kk_list_toBooleanArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("BooleanArray")
             ),
             .init(
@@ -715,7 +715,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toByteArray",
-                expectedExternalLink: "kk_list_toByteArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("ByteArray")
             ),
             .init(
@@ -725,7 +725,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toShortArray",
-                expectedExternalLink: "kk_list_toShortArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("ShortArray")
             ),
             .init(
@@ -735,7 +735,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toIntArray",
-                expectedExternalLink: "kk_list_toIntArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("IntArray")
             ),
             .init(
@@ -745,7 +745,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toDoubleArray",
-                expectedExternalLink: "kk_list_toDoubleArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("DoubleArray")
             ),
             .init(
@@ -755,7 +755,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toFloatArray",
-                expectedExternalLink: "kk_list_toFloatArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("FloatArray")
             ),
         ]
@@ -2307,7 +2307,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToBooleanArrayUsesRuntimeExternalLink() throws {
+    func testListToBooleanArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Boolean>) {
             values.toBooleanArray()
@@ -2324,7 +2324,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toBooleanArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toBooleanArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2336,7 +2337,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToShortArrayUsesRuntimeExternalLink() throws {
+    func testListToShortArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Short>) {
             values.toShortArray()
@@ -2353,7 +2354,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toShortArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toShortArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2365,7 +2367,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToDoubleArrayUsesRuntimeExternalLink() throws {
+    func testListToDoubleArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Double>) {
             values.toDoubleArray()
@@ -2382,7 +2384,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toDoubleArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toDoubleArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2394,7 +2397,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToFloatArrayUsesRuntimeExternalLink() throws {
+    func testListToFloatArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Float>) {
             values.toFloatArray()
@@ -2411,7 +2414,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toFloatArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toFloatArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)

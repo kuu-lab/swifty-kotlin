@@ -589,8 +589,8 @@ struct RuntimeCoroutineStateTests {
         let thrownRaw = kk_coroutine_check_cancellation(continuation, &outThrown)
         #expect(thrownRaw == 1, "Cancellation check should report cancellation")
         #expect(outThrown != 0, "Cancellation should materialize a throwable")
-        #expect(runtimeStringValue(kk_throwable_message(outThrown)) == "custom stop")
-        #expect(runtimeStringValue(kk_throwable_message(kk_throwable_cause(outThrown))) == "root cause")
+        #expect(runtimeStringValue(__kk_throwable_message(outThrown)) == "custom stop")
+        #expect(runtimeStringValue(__kk_throwable_message(__kk_throwable_cause(outThrown))) == "root cause")
     }
 
     @Test func testIsCancellationExceptionReturnsFalseForRegularThrowable() {

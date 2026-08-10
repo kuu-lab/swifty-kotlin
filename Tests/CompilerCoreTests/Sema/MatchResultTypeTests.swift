@@ -3,30 +3,61 @@
 import Foundation
 import Testing
 
-/// STDLIB-TEXT-TYPE-010: Validates that the synthetic `kotlin.text.MatchResult`
-/// sealed interface and its nested `MatchResult.Destructured` class are correctly
-/// registered in the symbol table after sema, with all expected properties and
-/// functions wired to their runtime ABI link names.
+/// STDLIB-TEXT-TYPE-010 / KSP-486: Validates that the `kotlin.text.MatchResult`
+/// public layer (value / range / groupValues / groups / componentN / next /
+/// destructured) resolves to the bundled Kotlin source
+/// (`__bundled_kotlin/text/MatchResult.kt`) rather than to synthetic stubs wired
+/// to `kk_match_result_*` runtime entry points.
 @Suite
 struct MatchResultTypeTests {
 
+    private static let bundledSourcePath = "__bundled_kotlin/text/MatchResult.kt"
+
     // MARK: - Shared sema fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
+    private func makeSema() throws -> (SemaModule, StringInterner, CompilationContext) {
+        var result: (SemaModule, StringInterner, CompilationContext)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
+            result = (sema, ctx.interner, ctx)
         }
         return try #require(result)
+    }
+
+    private func sourcePath(
+        for symbol: SymbolID,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> String? {
+        let fileID = sema.symbols.sourceFileID(for: symbol)
+            ?? sema.symbols.symbol(symbol)?.declSite?.start.file
+        guard let fileID else { return nil }
+        return ctx.sourceManager.path(of: fileID)
+    }
+
+    /// Resolves the symbol a `receiver.member` read/call in `source` binds to.
+    private func memberSymbol(
+        _ memberName: String,
+        in ctx: CompilationContext
+    ) throws -> SymbolID {
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let exprID = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == memberName
+        }, "Expected a `.\(memberName)` member access in the test source")
+        if let callee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
+            return callee
+        }
+        return try #require(sema.bindings.identifierSymbol(for: exprID))
     }
 
     // MARK: - 1. MatchResult class symbol
 
     @Test func testMatchResultClassSymbolIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner, _) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),
@@ -37,96 +68,10 @@ struct MatchResultTypeTests {
                        "MatchResult should be registered with kind=class")
     }
 
-    // MARK: - 2. MatchResult.value: String
-
-    @Test func testMatchResultValuePropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "value"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_result_value"),
-            "MatchResult.value must link to kk_match_result_value; found: \(links)"
-        )
-    }
-
-    // MARK: - 3. MatchResult.range: IntRange
-
-    @Test func testMatchResultRangePropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "range"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_result_range"),
-            "MatchResult.range must link to kk_match_result_range; found: \(links)"
-        )
-    }
-
-    // MARK: - 4. MatchResult.groupValues: List<String>
-
-    @Test func testMatchResultGroupValuesPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "groupValues"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "MatchResult.groupValues property must be registered"
-        )
-        #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_groupValues",
-            "MatchResult.groupValues must link to kk_match_result_groupValues"
-        )
-    }
-
-    // MARK: - 5. MatchResult.groups: MatchGroupCollection
-
-    @Test func testMatchResultGroupsPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "groups"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "MatchResult.groups property must be registered"
-        )
-        #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_groups",
-            "MatchResult.groups must link to kk_match_result_groups"
-        )
-    }
-
-    // MARK: - 6. MatchResult.next(): MatchResult?
-
-    @Test func testMatchResultNextFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "next"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "MatchResult.next() function must be registered"
-        )
-        #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_next",
-            "MatchResult.next() must link to kk_match_result_next"
-        )
-    }
-
-    // MARK: - 7. MatchResult.destructured: MatchResult.Destructured
-
-    @Test func testMatchResultDestructuredPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "destructured"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "MatchResult.destructured property must be registered"
-        )
-        #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_destructured",
-            "MatchResult.destructured must link to kk_match_result_destructured"
-        )
-    }
-
-    // MARK: - 8. MatchResult.Destructured nested class
+    // MARK: - 2. MatchResult.Destructured nested class
 
     @Test func testMatchResultDestructuredClassSymbolIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner, _) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "Destructured"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),
@@ -137,40 +82,81 @@ struct MatchResultTypeTests {
                        "MatchResult.Destructured should be registered with kind=class")
     }
 
-    // MARK: - 9. MatchResult.Destructured.match: MatchResult
+    // MARK: - 3. Public members resolve to bundled Kotlin source
 
-    @Test func testMatchResultDestructuredMatchPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchResult", "Destructured", "match"]
-            .map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookup(fqName: fq),
-            "MatchResult.Destructured.match property must be registered"
-        )
+    @Test func testMatchResultMembersResolveToBundledKotlinSource() throws {
+        let ctx = makeContextFromSource("""
+        fun probe(input: String): String? {
+            val match = Regex("(a)(b)").find(input) ?: return null
+            val value = match.value
+            val range = match.range
+            val groupValues = match.groupValues
+            val groups = match.groups
+            val first = match.component1()
+            val second = match.component2()
+            val nextMatch = match.next()
+            val destructured = match.destructured
+            return value + range.first + groupValues.size + groups.size +
+                first + second + destructured.component1() + destructured.match.value +
+                (nextMatch?.value ?: "")
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_destructured_match",
-            "MatchResult.Destructured.match must link to kk_match_result_destructured_match"
+            errors.isEmpty,
+            "Expected MatchResult members to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    // MARK: - 10. MatchResult.Destructured.component1()..component9()
-
-    @Test func testMatchResultDestructuredComponentFunctionsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-        for index in 1...9 {
-            let fq = ["kotlin", "text", "MatchResult", "Destructured", "component\(index)"]
-                .map { interner.intern($0) }
-            let syms = sema.symbols.lookupAll(fqName: fq)
-            let expectedLink = "kk_match_result_destructured_component\(index)"
-            let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
+        let sema = try #require(ctx.sema)
+        let members = [
+            "value", "range", "groupValues", "groups",
+            "component1", "component2", "next", "destructured", "match",
+        ]
+        for member in members {
+            let symbol = try memberSymbol(member, in: ctx)
             #expect(
-                links.contains(expectedLink),
-                "MatchResult.Destructured.component\(index)() must link to \(expectedLink); found: \(links)"
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "MatchResult.\(member) must not be wired to a kk_* runtime entry point"
+            )
+            #expect(
+                sourcePath(for: symbol, sema: sema, ctx: ctx)?.contains(Self.bundledSourcePath) == true,
+                "MatchResult.\(member) must resolve to the bundled Kotlin source"
             )
         }
     }
 
-    // MARK: - 11. Source-level usage: basic MatchResult access type-checks
+    // MARK: - 4. Regex accessors resolve to bundled Kotlin source
+
+    @Test func testRegexAccessorsResolveToBundledKotlinSource() throws {
+        let ctx = makeContextFromSource("""
+        fun probe(): Int {
+            val regex = Regex("(?<a>x)")
+            return regex.pattern.length + regex.options.size + regex.groupNames.size
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected Regex accessors to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+
+        let sema = try #require(ctx.sema)
+        for member in ["pattern", "options", "groupNames"] {
+            let symbol = try memberSymbol(member, in: ctx)
+            #expect(
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "Regex.\(member) must not be wired to a kk_* runtime entry point"
+            )
+            #expect(
+                sourcePath(for: symbol, sema: sema, ctx: ctx)?.contains(Self.bundledSourcePath) == true,
+                "Regex.\(member) must resolve to the bundled Kotlin source"
+            )
+        }
+    }
+
+    // MARK: - 5. Source-level usage: basic MatchResult access type-checks
 
     @Test func testBasicMatchResultAccessTypeChecks() throws {
         let ctx = makeContextFromSource("""
@@ -188,7 +174,7 @@ struct MatchResultTypeTests {
         )
     }
 
-    // MARK: - 12. Source-level usage: MatchResult.destructured access type-checks
+    // MARK: - 6. Source-level usage: MatchResult.destructured access type-checks
 
     @Test func testDestructuredPropertyAccessTypeChecks() throws {
         let ctx = makeContextFromSource("""
@@ -207,7 +193,7 @@ struct MatchResultTypeTests {
         )
     }
 
-    // MARK: - 13. Source-level usage: MatchResult.next() chaining type-checks
+    // MARK: - 7. Source-level usage: MatchResult.next() chaining type-checks
 
     @Test func testMatchResultNextChainingTypeChecks() throws {
         let ctx = makeContextFromSource("""
