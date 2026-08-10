@@ -22,9 +22,7 @@ struct IntegerNarrowingPassTests {
         )
     }
 
-    private func makeSema() -> SemaModule {
-        makeSemaModule(symbols: SymbolTable(), types: TypeSystem(), bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-    }
+    private let sharedSema: SemaModule = makeSemaModule().ctx
 
     private func makeModule(
         body: [KIRInstruction],
@@ -56,8 +54,7 @@ struct IntegerNarrowingPassTests {
     func testIntAdditionResultIsNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
-        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let intType = sharedSema.types.make(.primitive(.int, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: intType)
         let rhs = arena.appendExpr(.temporary(1), type: intType)
@@ -70,7 +67,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
 
         #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
@@ -95,8 +92,7 @@ struct IntegerNarrowingPassTests {
     func testLongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
-        let longType = sema.types.make(.primitive(.long, .nonNull))
+        let longType = sharedSema.types.make(.primitive(.long, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: longType)
         let rhs = arena.appendExpr(.temporary(1), type: longType)
@@ -109,7 +105,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
@@ -134,8 +130,7 @@ struct IntegerNarrowingPassTests {
     func testIntShiftLeftIsRewrittenToWidthAwareVariant() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
-        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let intType = sharedSema.types.make(.primitive(.int, .nonNull))
 
         let value = arena.appendExpr(.temporary(0), type: intType)
         let distance = arena.appendExpr(.temporary(1), type: intType)
@@ -148,7 +143,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
@@ -165,9 +160,8 @@ struct IntegerNarrowingPassTests {
     func testLongShiftLeftUsesSixBitMaskedVariantWithoutNarrowing() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
-        let longType = sema.types.make(.primitive(.long, .nonNull))
-        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let longType = sharedSema.types.make(.primitive(.long, .nonNull))
+        let intType = sharedSema.types.make(.primitive(.int, .nonNull))
 
         let value = arena.appendExpr(.temporary(0), type: longType)
         let distance = arena.appendExpr(.temporary(1), type: intType)
@@ -180,7 +174,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
@@ -206,8 +200,7 @@ struct IntegerNarrowingPassTests {
     func testUIntAdditionResultIsNarrowedToUInt() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
-        let uintType = sema.types.make(.primitive(.uint, .nonNull))
+        let uintType = sharedSema.types.make(.primitive(.uint, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: uintType)
         let rhs = arena.appendExpr(.temporary(1), type: uintType)
@@ -220,7 +213,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
 
         #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
@@ -244,8 +237,7 @@ struct IntegerNarrowingPassTests {
     func testULongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
-        let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
+        let ulongType = sharedSema.types.make(.primitive(.ulong, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: ulongType)
         let rhs = arena.appendExpr(.temporary(1), type: ulongType)
@@ -258,7 +250,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
@@ -284,7 +276,6 @@ struct IntegerNarrowingPassTests {
     func testShouldRunReturnsFalseWithoutRelevantCallees() {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
         let v0 = arena.appendExpr(.temporary(0))
         let v1 = arena.appendExpr(.temporary(1))
         let (module, _) = makeModule(
@@ -295,7 +286,7 @@ struct IntegerNarrowingPassTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let ctx = makeKIRContext(interner: interner, sema: sharedSema)
         #expect(!IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
     }
 
