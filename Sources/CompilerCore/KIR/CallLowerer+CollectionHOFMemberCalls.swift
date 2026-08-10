@@ -117,9 +117,11 @@ extension CallLowerer {
         return finalArgs
     }
 
-    /// Comparator-taking runtime entries expect a `(function-or-object, closureRaw)`
-    /// pair. Source-backed comparators are plain objects, so the closure slot is null.
-    func makeComparatorArgumentPair(
+    /// Comparator-taking collection HOFs use the `(comparator, closureRaw)` runtime
+    /// ABI pair. KSP-461 moved every comparator factory to bundled Kotlin source, so
+    /// the comparator is always a `Comparator<T>` object dispatched through its
+    /// itable compare slot and the closure slot is always zero.
+    func makeComparatorObjectArgumentPair(
         loweredComparatorID: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,
@@ -142,14 +144,14 @@ extension CallLowerer {
         let comparatorOnlyHOFNames: Set<String> = [
             "sortWith", "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
         ]
+        _ = argExprIDs
         guard comparatorOnlyHOFNames.contains(interner.resolve(calleeName)),
               loweredArgIDs.count == 1,
-              let comparatorArgID = loweredArgIDs.first,
-              argExprIDs.first != nil
+              let comparatorArgID = loweredArgIDs.first
         else {
             return loweredArgIDs
         }
-        return makeComparatorArgumentPair(
+        return makeComparatorObjectArgumentPair(
             loweredComparatorID: comparatorArgID,
             sema: sema,
             arena: arena,
@@ -173,8 +175,10 @@ extension CallLowerer {
             interner.intern("kk_list_minWithOrNull"),
             interner.intern("kk_mutable_list_sortWith"),
         ]
-        if comparatorOnlyCallees.contains(loweredCallee), finalArguments.count == 2 {
-            let comparatorArgs = makeComparatorArgumentPair(
+        if comparatorOnlyCallees.contains(loweredCallee),
+           finalArguments.count == 2
+        {
+            let comparatorArgs = makeComparatorObjectArgumentPair(
                 loweredComparatorID: finalArguments[1],
                 sema: sema,
                 arena: arena,
@@ -187,7 +191,7 @@ extension CallLowerer {
            finalArguments.count == 5,
            sourceArgExprs.count >= 2
         {
-            let comparatorArgs = makeComparatorArgumentPair(
+            let comparatorArgs = makeComparatorObjectArgumentPair(
                 loweredComparatorID: finalArguments[2],
                 sema: sema,
                 arena: arena,
@@ -212,15 +216,16 @@ extension CallLowerer {
             let receiverArg = hasReceiver ? finalArguments[0] : nil
             let comparatorIndex = hasReceiver ? 1 : 0
             let selectorStartIndex = hasReceiver ? 2 : 1
-            guard finalArguments.count >= selectorStartIndex + 2 else {
-                return finalArguments
-            }
-            let comparatorArgs = makeComparatorArgumentPair(
+            let comparatorArgs = makeComparatorObjectArgumentPair(
                 loweredComparatorID: finalArguments[comparatorIndex],
                 sema: sema,
                 arena: arena,
                 instructions: &instructions
             )
+            guard finalArguments.count >= selectorStartIndex + 2
+            else {
+                return finalArguments
+            }
 
             var adapted: [KIRExprID] = []
             if let receiverArg {

@@ -170,29 +170,24 @@ extension CallLowerer {
         // (minOf) / greater (maxOf) than the running result.
         let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
 
-        // KSP-461: the Comparator overloads are ordinary bundled Kotlin source
-        // bodies that dispatch through `Comparator.compare`, so they are emitted
-        // and called normally instead of open-coding a runtime comparator bridge
-        // here (see KIRLoweringDriver+ModuleLowering+FunDecl).
         let isComparatorOverload = signature.parameterTypes.contains(where: { paramType in
             isComparatorType(paramType, sema: sema, interner: interner)
         })
-        guard !isComparatorOverload else {
-            return nil
-        }
         let hasComparableUpperBound = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
             upperBounds.contains(where: { bound in
                 isComparableUpperBound(bound, sema: sema)
             })
         })
         let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
+            && !isComparatorOverload
             && isUniformTypeParameterOverload(signature, sema: sema)
         let isGenericComparable = hasComparableUpperBound || isGenericTypeParameterOverload
         let isPrimitiveOverload = !isGenericComparable
+            && !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
             && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
 
-        guard isGenericComparable || isPrimitiveOverload else {
+        guard isGenericComparable || isComparatorOverload || isPrimitiveOverload else {
             return nil
         }
 
@@ -208,7 +203,7 @@ extension CallLowerer {
             )
         }
 
-        let comparisonArgIndices = Array(args.indices)
+        var comparisonArgIndices = Array(args.indices)
         let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
@@ -235,6 +230,7 @@ extension CallLowerer {
             /// signed-zero ordering match Kotlin's minOf/maxOf (see lowerTwoArgComparison).
             case floatingPoint(runtimeCallee: InternedString)
             case genericComparable
+            case comparator(comparatorArgIndex: Int)
         }
 
         let comparisonStrategy: ComparisonStrategy
@@ -245,8 +241,22 @@ extension CallLowerer {
             comparisonStrategy = .floatingPoint(runtimeCallee: interner.intern(floatingPointCallee))
         } else if isPrimitiveOverload {
             comparisonStrategy = .primitive
-        } else {
+        } else if isGenericComparable {
             comparisonStrategy = .genericComparable
+        } else {
+            guard let callBinding else {
+                return nil
+            }
+            guard let comparatorParamIndex = signature.parameterTypes.indices.last else {
+                return nil
+            }
+            let comparatorArgIndex = callBinding.parameterMapping.first(where: { $0.value == comparatorParamIndex })?.key
+                ?? (args.count - 1)
+            guard comparatorArgIndex >= 0, comparatorArgIndex < loweredArgIDs.count else {
+                return nil
+            }
+            comparisonArgIndices = args.indices.filter { $0 != comparatorArgIndex }
+            comparisonStrategy = .comparator(comparatorArgIndex: comparatorArgIndex)
         }
 
         guard !comparisonArgIndices.isEmpty else {
@@ -290,6 +300,25 @@ extension CallLowerer {
                     arguments: [candidateExpr, currentExpr],
                     result: compareResultExpr,
                     canThrow: false,
+                    thrownResult: nil
+                ))
+                conditionExpr = arena.appendTemporary(type: boolType
+                )
+                instructions.append(.binary(
+                    op: primitiveOp,
+                    lhs: compareResultExpr,
+                    rhs: zeroExpr,
+                    result: conditionExpr
+                ))
+            case let .comparator(comparatorArgIndex):
+                let compareResultExpr = arena.appendTemporary(type: intType
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_compare_with_comparator"),
+                    arguments: [loweredArgIDs[comparatorArgIndex], candidateExpr, currentExpr],
+                    result: compareResultExpr,
+                    canThrow: true,
                     thrownResult: nil
                 ))
                 conditionExpr = arena.appendTemporary(type: boolType

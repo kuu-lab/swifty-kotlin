@@ -154,23 +154,4 @@ extension DataFlowSemaPhase {
             )
         }
     }
-
-    private func defineSyntheticTypeParameter(
-        named name: String,
-        fqName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID {
-        if let existing = symbols.lookup(fqName: fqName) {
-            return existing
-        }
-        return symbols.define(
-            kind: .typeParameter,
-            name: interner.intern(name),
-            fqName: fqName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-    }
 }

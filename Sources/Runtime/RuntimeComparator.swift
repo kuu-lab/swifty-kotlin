@@ -1,13 +1,8 @@
 import Foundation
 
-// KSP-461: the comparator factories and compareValues(By) helpers now live in
-// bundled Kotlin source (Stdlib/kotlin/comparisons/). What remains here is the
-// CASE_INSENSITIVE_ORDER singleton (String.Companion members cannot be declared
-// in source yet) and the erased comparison core.
-//
-// The hand-built CASE_INSENSITIVE_ORDER object implements `Comparator<T>` at a
-// fixed itable slot (0, 0) but is constructed directly in Swift rather than
-// through compiler-emitted class construction, so it never goes through the
+// The hand-built comparator objects below implement `Comparator<T>` at a fixed
+// itable slot (0, 0) but are constructed directly in Swift rather than
+// through compiler-emitted class construction, so they never go through the
 // normal per-class kk_object_register_itable_iface emission (see
 // KIRVtableRegistrationLowering.swift). Call sites that only see the static
 // interface type (e.g. a `Comparator<T>` parameter) resolve the slot
@@ -93,7 +88,7 @@ public func kk_string_case_insensitive_order() -> Int {
     return raw
 }
 
-// MARK: - Erased comparison core
+// MARK: - Generic comparison core
 
 func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     let aIsNull = (a == runtimeNullSentinelInt)
@@ -104,12 +99,24 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     return runtimeCompareValues(a, b)
 }
 
-/// Comparable<T>.compareTo(other: T): Int — generic interface dispatch for bundled stdlib bodies.
+/// Comparable<T>.compareTo(other: T): Int -- generic interface dispatch for bundled stdlib bodies.
 /// Emitted when a generic `T : Comparable<T>` receiver calls `.compareTo(other)` and no
-/// concrete primitive or synthetic-stub handler matches (e.g. inside `sorted()`), and called
-/// directly by `kotlin.comparisons.compareValues` (KSP-461): comparing two erased
-/// `Comparable<*>` operands needs their dynamic type, which source Kotlin cannot recover.
+/// concrete primitive or synthetic-stub handler matches (e.g. inside `sorted()` or
+/// `kotlin.comparisons.compareValues`).
 @_cdecl("__kk_comparable_compareTo")
 public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
+}
+
+/// Invokes a `Comparator<T>` object through its itable compare slot. Emitted for
+/// `maxOf`/`minOf` with an explicit comparator argument.
+@_cdecl("__kk_compare_with_comparator")
+public func __kk_compare_with_comparator(
+    _ comparatorRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: comparatorRaw, closureRaw: 0)
+    return comparatorInvoke(a, b, outThrown)
 }

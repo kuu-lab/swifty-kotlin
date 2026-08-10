@@ -1,12 +1,8 @@
 
 /// Synthetic anchor for the built-in `kotlin.Comparator` fun interface.
-///
-/// KSP-309 moved compareBy/compareByDescending, naturalOrder/reverseOrder,
-/// reversed, and then* composition helpers to bundled Kotlin source; KSP-461
-/// moved the remaining factories (multi-selector compareBy, nullsFirst/
-/// nullsLast, compareValues*) there as well. Only the interface declaration
-/// itself is still synthesized here, because `Comparator` is a compiler-known
-/// nominal type whose `compare` slot is wired into itable dispatch.
+/// KSP-309 / KSP-461 moved every comparison helper (compareBy, compareValues*,
+/// nullsFirst/nullsLast, naturalOrder/reverseOrder, reversed, then*) to bundled
+/// Kotlin source; only the interface itself stays synthetic.
 extension DataFlowSemaPhase {
     func registerSyntheticComparatorStubs(
         symbols: SymbolTable,
@@ -14,7 +10,10 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let comparisonsPkg: [InternedString] = kotlinPkg + [interner.intern("comparisons")]
         _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
+        _ = ensureSyntheticPackage(fqName: comparisonsPkg, symbols: symbols)
+
         _ = registerComparatorInterface(
             symbols: symbols,
             types: types,

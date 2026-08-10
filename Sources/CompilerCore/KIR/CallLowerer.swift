@@ -427,32 +427,6 @@ final class CallLowerer {
             return loweredMeasureNano
         }
 
-        if let loweredMeasureTimeDuration = lowerMeasureTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimeDuration
-        }
-
-        if let loweredMeasureTimedValue = lowerMeasureTimedValueCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimedValue
-        }
-
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
             exprID,
             args: args,
@@ -974,20 +948,9 @@ final class CallLowerer {
             return loweredNumericConversion
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-        var varargNormalizedArgIDs = loweredArgIDs
-        materializeVarargFunctionValueArguments(
-            chosenCallee: chosen,
-            callBinding: callBinding,
-            args: args,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions,
-            arguments: &varargNormalizedArgIDs
-        )
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
-                providedArguments: varargNormalizedArgIDs,
+                providedArguments: loweredArgIDs,
                 callBinding: callBinding,
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),

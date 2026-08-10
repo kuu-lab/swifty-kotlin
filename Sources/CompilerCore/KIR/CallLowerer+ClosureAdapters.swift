@@ -452,7 +452,23 @@ extension CallLowerer {
             return
         }
 
-        guard requiresFunctionValueMaterialization(chosenCallee: chosenCallee, sema: sema) else {
+        let symbol = sema.symbols.symbol(chosenCallee)
+        let isImported = symbol?.flags.contains(.importedLibrary) == true
+        let isInline = symbol?.flags.contains(.inlineFunction) == true
+
+        // Source-backed inline functions are fully expanded in the same
+        // module, so lambda arguments can be consumed directly there.
+        if isInline, !isImported {
+            return
+        }
+
+        // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
+        // raw function-pointer expansion; they must not receive a wrapped
+        // function-value object. Imported Kotlin functions compiled to .kklib
+        // carry a `kk_fn_` C symbol and still need materialization.
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
+           !externalLinkName.isEmpty,
+           !externalLinkName.hasPrefix("kk_fn_") {
             return
         }
 
@@ -488,89 +504,6 @@ extension CallLowerer {
             arguments[finalArgIndex] = materializeFunctionValueArgument(
                 loweredArgID: arguments[finalArgIndex],
                 argExprID: sourceArgExprs[sourceArgExprIndex],
-                functionType: functionType,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-        }
-    }
-
-    /// Whether function-typed arguments of `chosenCallee` must be wrapped into
-    /// runtime function values before the call.
-    ///
-    /// Kotlin-source callees (bundled stdlib source or a `.kklib` import) invoke
-    /// their function-typed parameters through `kk_function_invoke`'s uniform
-    /// ABI, so a raw lambda symbol -- which keeps the ABI of its declared
-    /// parameter types -- cannot be passed straight through. Imported inline
-    /// callees need it too: their expansion may hand the parameter to non-inline
-    /// code (e.g. a Comparator SAM wrapper) that expects a function object.
-    /// A callee bridged to a `kk_*` runtime function is excluded (the runtime
-    /// takes an explicit `(fnPtr, closureRaw)` pair instead), as is a
-    /// same-module inline function, which is expanded here and consumes the
-    /// lambda directly. An imported Kotlin function is recognized by its
-    /// compiler-emitted `kk_fn_` link name, which distinguishes it from a
-    /// runtime bridge imported through the same library metadata.
-    func requiresFunctionValueMaterialization(
-        chosenCallee: SymbolID,
-        sema: SemaModule
-    ) -> Bool {
-        let symbol = sema.symbols.symbol(chosenCallee)
-        let isImported = symbol?.flags.contains(.importedLibrary) == true
-        let isInline = symbol?.flags.contains(.inlineFunction) == true
-        if isInline, !isImported {
-            return false
-        }
-        let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee) ?? ""
-        return externalLinkName.isEmpty || externalLinkName.hasPrefix("kk_fn_")
-    }
-
-    /// Materialize lambda arguments bound to a function-typed *vararg*
-    /// parameter into runtime function values.
-    ///
-    /// `materializeSourceBackedFunctionValueArguments` skips vararg parameters
-    /// because their arguments are already packed into one array slot by the
-    /// time it runs. The packed elements are raw lambda symbols, which the
-    /// callee can only call back through `kk_function_invoke`'s uniform
-    /// `(value, outThrown)` ABI -- but a raw lambda keeps the ABI of its
-    /// declared parameter types, so a `String` parameter is passed as the flat
-    /// 4-word string struct and the indirect call lands on shifted arguments.
-    /// Wrapping each element in `kk_function_create_N` gives it the adapter's
-    /// raw callback ABI, matching what the callee invokes.
-    func materializeVarargFunctionValueArguments(
-        chosenCallee: SymbolID?,
-        callBinding: CallBinding?,
-        args: [CallArgument],
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
-    ) {
-        guard let chosenCallee,
-              let callBinding,
-              let signature = sema.symbols.functionSignature(for: chosenCallee),
-              requiresFunctionValueMaterialization(chosenCallee: chosenCallee, sema: sema)
-        else {
-            return
-        }
-        for (argIndex, parameterIndex) in callBinding.parameterMapping.sorted(by: { $0.key < $1.key }) {
-            guard signature.valueParameterIsVararg.indices.contains(parameterIndex),
-                  signature.valueParameterIsVararg[parameterIndex],
-                  arguments.indices.contains(argIndex),
-                  args.indices.contains(argIndex),
-                  !args[argIndex].isSpread
-            else {
-                continue
-            }
-            let elementType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
-            guard case let .functionType(functionType) = sema.types.kind(of: elementType) else {
-                continue
-            }
-            arguments[argIndex] = materializeFunctionValueArgument(
-                loweredArgID: arguments[argIndex],
-                argExprID: args[argIndex].expr,
                 functionType: functionType,
                 sema: sema,
                 arena: arena,

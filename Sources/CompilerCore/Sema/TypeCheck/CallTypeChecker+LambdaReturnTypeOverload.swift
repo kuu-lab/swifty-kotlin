@@ -85,7 +85,6 @@ extension CallTypeChecker {
             let narrowedCandidates = narrowedCallCandidates(
                 candidates: candidates,
                 args: args,
-                explicitTypeArgs: explicitTypeArgs,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 ctx: ctx
             )
@@ -414,20 +413,13 @@ extension CallTypeChecker {
     private func narrowedCallCandidates(
         candidates: [SymbolID],
         args: [CallArgument],
-        explicitTypeArgs: [TypeID],
         inferredNonLambdaArgTypes: [Int: TypeID],
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
         let narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  isCallableArityCompatible(signature: signature, argCount: args.count),
-                  acceptsExplicitTypeArgumentCount(
-                      explicitTypeArgs.count,
-                      signature: signature,
-                      candidate: candidate,
-                      sema: sema
-                  )
+                  isCallableArityCompatible(signature: signature, argCount: args.count)
             else {
                 return false
             }
@@ -435,145 +427,13 @@ extension CallTypeChecker {
                 guard let parameterType = parameterTypeForArgument(at: otherIndex, in: signature) else {
                     return false
                 }
-                if !argumentTypeCanSatisfy(inferredType, parameterType: parameterType, sema: sema) {
+                if !sema.types.isSubtype(inferredType, parameterType) {
                     return false
                 }
             }
-            return acceptsLambdaArgumentArities(signature: signature, args: args, ctx: ctx)
-        }
-        guard !narrowed.isEmpty else {
-            return candidates
-        }
-        return preferringFixedArityCandidates(narrowed, argCount: args.count, sema: sema)
-    }
-
-    /// Drops vararg candidates when a fixed-arity candidate takes exactly the
-    /// call's arguments. Kotlin resolution treats a vararg overload as less
-    /// specific than its fixed-arity sibling, and keeping both alive here leaves
-    /// two structurally different expected types for a lambda argument (e.g.
-    /// `compareValuesBy(a, b) { it }` sees both the 1-selector overload and its
-    /// vararg sibling), which suppresses the expected type entirely and leaves
-    /// `it` untyped.
-    private func preferringFixedArityCandidates(
-        _ candidates: [SymbolID],
-        argCount: Int,
-        sema: SemaModule
-    ) -> [SymbolID] {
-        let fixedArity = candidates.filter { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
-            }
-            return !signature.valueParameterIsVararg.contains(true)
-                && signature.parameterTypes.count == argCount
-        }
-        return fixedArity.isEmpty ? candidates : fixedArity
-    }
-
-    /// Whether an already-inferred argument type can still satisfy `parameterType`.
-    /// A concrete parameter type is checked by ordinary subtyping; one that still
-    /// mentions type parameters cannot be, because the substitution that would make
-    /// it match is exactly what the call is solving for. Such a parameter is only
-    /// rejected on a structural mismatch: a function-typed parameter cannot accept
-    /// an argument that is neither a function of the same arity nor a functional
-    /// interface whose SAM has that arity.
-    private func argumentTypeCanSatisfy(
-        _ argumentType: TypeID,
-        parameterType: TypeID,
-        sema: SemaModule
-    ) -> Bool {
-        guard typeMentionsTypeParameter(parameterType, sema: sema) else {
-            return sema.types.isSubtype(argumentType, parameterType)
-        }
-        let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-        guard case let .functionType(parameterFunction) = sema.types.kind(of: nonNullParameterType) else {
             return true
         }
-        let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
-        switch sema.types.kind(of: nonNullArgumentType) {
-        case let .functionType(argumentFunction):
-            return argumentFunction.params.count == parameterFunction.params.count
-        case .classType:
-            guard let samFunctionType = driver.helpers.samFunctionType(
-                for: nonNullArgumentType,
-                sema: sema
-            ) else {
-                return false
-            }
-            return samFunctionType.params.count == parameterFunction.params.count
-        default:
-            // Type parameters, error types and other non-class shapes carry no
-            // reliable arity information; leave the candidate for the resolver.
-            return true
-        }
-    }
-
-    /// Rejects a candidate whose parameter at a lambda-literal argument position
-    /// takes a different number of lambda parameters than the literal declares
-    /// (counting the SAM method's parameters for functional-interface parameters).
-    /// Without this, e.g. `compareBy({ p: P -> p.age }, { p: P -> p.name })` keeps
-    /// the `compareBy(comparator: Comparator<in K>, selector: (T) -> K)` overload
-    /// alive, which pushes `Comparator` as the first lambda's expected type and
-    /// makes the multi-selector overload unresolvable.
-    private func acceptsLambdaArgumentArities(
-        signature: FunctionSignature,
-        args: [CallArgument],
-        ctx: TypeInferenceContext
-    ) -> Bool {
-        let sema = ctx.sema
-        for (index, argument) in args.enumerated() {
-            guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr),
-                  let parameterType = parameterTypeForArgument(at: index, in: signature)
-            else {
-                continue
-            }
-            let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-            let expectedParameterCount: Int
-            if case let .functionType(functionType) = sema.types.kind(of: nonNullParameterType) {
-                expectedParameterCount = functionType.params.count
-            } else if let samFunctionType = driver.helpers.samFunctionType(
-                for: nonNullParameterType,
-                sema: sema
-            ) {
-                expectedParameterCount = samFunctionType.params.count
-            } else {
-                continue
-            }
-            if lambdaParams.isEmpty {
-                // A lambda without a parameter list can only stand for a zero- or
-                // one-parameter function (the implicit `it`), so an overload wanting
-                // two or more parameters here is not a candidate.
-                if expectedParameterCount > 1 {
-                    return false
-                }
-                continue
-            }
-            if lambdaParams.count != expectedParameterCount {
-                return false
-            }
-        }
-        return true
-    }
-
-    /// Mirrors the explicit type-argument arity check `OverloadResolver` applies when it
-    /// evaluates a candidate, so a candidate that resolution will reject cannot influence
-    /// the expected type pushed into a lambda argument. Without it, an unrelated overload
-    /// keeps the surviving candidate list at 2+ entries, which suppresses explicit
-    /// type-argument substitution and leaks a raw type parameter into the lambda's
-    /// expected type.
-    private func acceptsExplicitTypeArgumentCount(
-        _ count: Int,
-        signature: FunctionSignature,
-        candidate: SymbolID,
-        sema: SemaModule
-    ) -> Bool {
-        guard count > 0 else {
-            return true
-        }
-        let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
-        let expected = isConstructor
-            ? signature.classTypeParameterCount
-            : signature.typeParameterSymbols.count - signature.classTypeParameterCount
-        return expected == count
+        return narrowed.isEmpty ? candidates : narrowed
     }
 
     /// Applies explicit type arguments to a parameter type from a given signature.
@@ -871,8 +731,9 @@ extension CallTypeChecker {
                Self.inputOnlyExternalLinkNames.contains(sema.symbols.externalLinkName(for: $0) ?? "")
            }),
            let signature = sema.symbols.functionSignature(for: candidates[0]),
-           let rawType = parameterTypeForArgument(at: index, in: signature)
+           index < signature.parameterTypes.count
         {
+            let rawType = signature.parameterTypes[index]
             let explicitSubstituted = applyExplicitTypeArgs(
                 to: rawType,
                 signature: signature,
@@ -898,8 +759,9 @@ extension CallTypeChecker {
 
         if candidates.count == 1,
            let signature = sema.symbols.functionSignature(for: candidates[0]),
-           let rawType = parameterTypeForArgument(at: index, in: signature)
+           index < signature.parameterTypes.count
         {
+            let rawType = signature.parameterTypes[index]
             let explicitSubstituted = applyExplicitTypeArgs(
                 to: rawType,
                 signature: signature,
@@ -1018,7 +880,7 @@ extension CallTypeChecker {
     ) -> [LambdaParameterCandidate] {
         candidates.compactMap { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let rawParameterType = parameterTypeForArgument(at: index, in: signature)
+                  index < signature.parameterTypes.count
             else {
                 return nil
             }
@@ -1027,7 +889,7 @@ extension CallTypeChecker {
             // (`Iterable<T>.f(transform: (T) -> R)` called on `List<Int>` must
             // expose `it: Int`, not the bare declaration type parameter `T`).
             let explicitSubstituted = applyExplicitTypeArgs(
-                to: rawParameterType,
+                to: signature.parameterTypes[index],
                 signature: signature,
                 candidate: candidate,
                 explicitTypeArgs: explicitTypeArgs,

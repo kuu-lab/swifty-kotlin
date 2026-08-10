@@ -166,9 +166,20 @@ final class LambdaLowerer {
             }
             return types
         }()
-        let lambdaReturnType = functionType?.returnType
+        let substitutedReturnType = functionType?.returnType
             ?? sema.bindings.exprTypes[bodyExpr]
             ?? sema.types.anyType
+        // A return the callee declares as a type parameter carries a boxed value
+        // at runtime even though the body is checked against the substituted
+        // concrete type, so box on the way out.
+        let returnsErasedGeneric = !needsClosureParam && !isSamConversion
+            && driver.ctx.lambdaReturnsErasedGeneric(for: exprID, ast: ast, sema: sema)
+        let lambdaReturnType = erasedLambdaReturnType(
+            substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            interner: interner
+        )
 
         let captureSymbols = computeCaptureSymbolsForLambda(
             lambdaExprID: exprID,
@@ -189,6 +200,8 @@ final class LambdaLowerer {
                 hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
                 lambdaReturnType: lambdaReturnType,
+                substitutedReturnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
                 functionType: functionType,
                 isSamConversion: isSamConversion,
                 boundType: boundType,
@@ -386,7 +399,16 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        lambdaBody.append(.returnValue(loweredBody))
+        let returnedBody = boxErasedReturnValue(
+            loweredBody,
+            returnType: substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
         // The expected/contextual function type (e.g. a plain `(T) -> R)` HOF
@@ -1437,6 +1459,8 @@ final class LambdaLowerer {
         hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
         lambdaReturnType: TypeID,
+        substitutedReturnType: TypeID,
+        returnsErasedGeneric: Bool,
         functionType: FunctionType?,
         isSamConversion: Bool,
         boundType: TypeID?,
@@ -1500,7 +1524,16 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        lambdaBody.append(.returnValue(loweredBody))
+        let returnedBody = boxErasedReturnValue(
+            loweredBody,
+            returnType: substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
         // See the matching comment in lowerLambdaLiteralExpr: the expected/

@@ -51,13 +51,13 @@ public inline fun <T : Comparable<T>> minOf(vararg values: T): T {
 
 // Comparator overloads
 
-public fun <T> maxOf(a: T, b: T, comparator: Comparator<T>): T =
+public inline fun <T> maxOf(a: T, b: T, comparator: Comparator<T>): T =
     if (comparator.compare(a, b) >= 0) a else b
 
-public fun <T> maxOf(a: T, b: T, c: T, comparator: Comparator<T>): T =
+public inline fun <T> maxOf(a: T, b: T, c: T, comparator: Comparator<T>): T =
     maxOf(maxOf(a, b, comparator), c, comparator)
 
-public fun <T> maxOf(a: T, vararg other: T, comparator: Comparator<T>): T {
+public inline fun <T> maxOf(a: T, vararg other: T, comparator: Comparator<T>): T {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -67,13 +67,13 @@ public fun <T> maxOf(a: T, vararg other: T, comparator: Comparator<T>): T {
     return result
 }
 
-public fun <T> minOf(a: T, b: T, comparator: Comparator<T>): T =
+public inline fun <T> minOf(a: T, b: T, comparator: Comparator<T>): T =
     if (comparator.compare(a, b) <= 0) a else b
 
-public fun <T> minOf(a: T, b: T, c: T, comparator: Comparator<T>): T =
+public inline fun <T> minOf(a: T, b: T, c: T, comparator: Comparator<T>): T =
     minOf(minOf(a, b, comparator), c, comparator)
 
-public fun <T> minOf(a: T, vararg other: T, comparator: Comparator<T>): T {
+public inline fun <T> minOf(a: T, vararg other: T, comparator: Comparator<T>): T {
     var result = a
     var i = 0
     while (i < other.size) {

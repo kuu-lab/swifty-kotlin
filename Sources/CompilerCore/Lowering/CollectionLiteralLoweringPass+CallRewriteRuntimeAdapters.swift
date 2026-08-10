@@ -121,7 +121,7 @@ extension CollectionLiteralConstructionLoweringPass {
 
         // --- sortedWith with Comparator argument (STDLIB-649) ---
         // When kk_list_sortedWith is emitted as a .call (from synthetic stub),
-        // the comparator argument still needs the trailing closure slot.
+        // the comparator argument needs trampoline/closure expansion.
         // args layout: [receiver, comparatorExpr]
         if callee == lookup.kkListSortedWithName, arguments.count == 2 {
             let receiverID = arguments[0]

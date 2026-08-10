@@ -84,6 +84,10 @@ package struct MetadataRecord {
     let propertyGetterAbiReturnTypeSignature: String?
     /// True for `var` properties/fields.
     package let isMutable: Bool
+    /// Declaration-order type parameters of a nominal type, encoded as
+    /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`), so consumers can
+    /// restore the generic arity used by constructor/member resolution.
+    let nominalTypeParameters: String?
 
     init(
         kind: SymbolKind,
@@ -127,7 +131,8 @@ package struct MetadataRecord {
         propertyGetterExternalLinkName: String? = nil,
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
-        isMutable: Bool = false
+        isMutable: Bool = false,
+        nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -171,6 +176,7 @@ package struct MetadataRecord {
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
+        self.nominalTypeParameters = nominalTypeParameters
     }
 }
 
@@ -686,9 +692,17 @@ package final class MetadataEncoder {
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
         var enumStaticInitLinkName: String?
+        var nominalTypeParameters: String?
 
         if Self.nominalKinds.contains(symbol.kind) {
             superFQName = computedSuperFQName
+            nominalTypeParameters = serializeNominalTypeParameters(
+                for: symbol.id,
+                symbols: symbols,
+                types: types,
+                mangler: mangler,
+                interner: interner
+            )
             if let layout = symbols.nominalLayout(for: symbol.id) {
                 declaredInstanceSizeWords = layout.instanceSizeWords
                 declaredFieldCount = layout.instanceFieldCount
@@ -803,8 +817,41 @@ package final class MetadataEncoder {
             propertyGetterExternalLinkName: propertyGetterExternalLinkName,
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
-            isMutable: isMutable
+            isMutable: isMutable,
+            nominalTypeParameters: nominalTypeParameters
         )
+    }
+
+    /// Encodes a nominal type's declaration-order type parameters as
+    /// `<typeSignature>:<variance>` pairs so importers can restore the generic
+    /// arity (constructor/member type-argument resolution needs it).
+    private func serializeNominalTypeParameters(
+        for symbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        mangler: NameMangler,
+        interner: StringInterner
+    ) -> String? {
+        let typeParameterSymbols = types.nominalTypeParameterSymbols(for: symbol)
+        guard !typeParameterSymbols.isEmpty else {
+            return nil
+        }
+        let variances = types.nominalTypeParameterVariances(for: symbol)
+        let entries: [String] = typeParameterSymbols.enumerated().map { index, typeParameterSymbol in
+            let encoded = mangler.encodeType(
+                types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol, nullability: .nonNull))),
+                symbols: symbols,
+                types: types,
+                nameResolver: { interner.resolve($0) }
+            )
+            let variance: String = switch index < variances.count ? variances[index] : .invariant {
+            case .invariant: "i"
+            case .out: "o"
+            case .in: "n"
+            }
+            return "\(encoded):\(variance)"
+        }
+        return entries.joined(separator: ",")
     }
 
     /// Nominal kinds that carry layout information in metadata.
@@ -924,6 +971,9 @@ package final class MetadataEncoder {
                 }
                 if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
                     fields.append("enumStaticInitLink=\(enumStaticInitLink)")
+                }
+                if let typeParams = record.nominalTypeParameters, !typeParams.isEmpty {
+                    fields.append("typeParams=\(typeParams)")
                 }
             }
             if record.isDataClass {
@@ -1202,7 +1252,8 @@ final class MetadataDecoder {
                 propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
-                isMutable: rec.isMutable
+                isMutable: rec.isMutable,
+                nominalTypeParameters: rec.nominalTypeParameters
             ))
         }
         return records
@@ -1252,6 +1303,7 @@ final class MetadataDecoder {
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
+        var nominalTypeParameters: String?
         var schemaVersion: String?
     }
 
@@ -1305,6 +1357,8 @@ final class MetadataDecoder {
             record.vtableSlots = value.isEmpty ? nil : value
         case "itableSlots":
             record.itableSlots = value.isEmpty ? nil : value
+        case "typeParams":
+            record.nominalTypeParameters = value.isEmpty ? nil : value
         case "objectInitLink":
             record.objectInitializerLinkName = value.isEmpty ? nil : value
         case "companionInitLink":

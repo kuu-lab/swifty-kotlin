@@ -16,22 +16,18 @@ struct ComparisonsNullsLastComparableFunctionTests {
         #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
-    /// KSP-461: nullsLast() is bundled Kotlin source, so no overload may keep a
-    /// kk_* runtime link, and the no-argument Comparable form must exist.
+    // KSP-461: nullsLast() (Comparable版) is bundled Kotlin source and delegates to
+    // naturalOrder(); no runtime entry point may remain.
     @Test func testNullsLastComparableIsSourceBacked() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "comparisons", "nullsLast"].map { interner.intern($0) }
         let symbols = sema.symbols.lookupAll(fqName: fqName)
         let links = symbols.compactMap { sema.symbols.externalLinkName(for: $0) }
         #expect(links.isEmpty, "nullsLast must not keep runtime links; found: \(links)")
-        #expect(
-            symbols.contains { symbol in
-                sema.symbols.functionSignature(for: symbol).map {
-                    $0.parameterTypes.isEmpty && $0.receiverType == nil
-                } ?? false
-            },
-            "nullsLast<T : Comparable<T>>() must be registered from bundled stdlib source"
-        )
+        let hasNoArgOverload = symbols.contains { symbolID in
+            sema.symbols.functionSignature(for: symbolID)?.parameterTypes.isEmpty == true
+        }
+        #expect(hasNoArgOverload, "nullsLast() (Comparable版) must be registered from bundled stdlib source")
     }
 }
 #endif

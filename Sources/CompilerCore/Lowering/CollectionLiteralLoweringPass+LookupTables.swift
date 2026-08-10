@@ -217,8 +217,6 @@ struct CollectionLiteralLookupTables {
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
-    var kkMapContainsKeyName: InternedString { mapLookup.kkMapContainsKeyName }
-    var kkMapContainsValueName: InternedString { mapLookup.kkMapContainsValueName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
     var kkMapForEachName: InternedString { mapLookup.kkMapForEachName }
     var kkMapMapName: InternedString { mapLookup.kkMapMapName }
@@ -234,15 +232,11 @@ struct CollectionLiteralLookupTables {
     var kkMapFlatMapName: InternedString { mapLookup.kkMapFlatMapName }
     var kkMapMaxByOrNullName: InternedString { mapLookup.kkMapMaxByOrNullName }
     var kkMapMinByOrNullName: InternedString { mapLookup.kkMapMinByOrNullName }
-    var kkMapToListName: InternedString { mapLookup.kkMapToListName }
     var kkMapToStringName: InternedString { mapLookup.kkMapToStringName }
     var kkMapIteratorName: InternedString { mapLookup.kkMapIteratorName }
     var kkMapIteratorHasNextName: InternedString { mapLookup.kkMapIteratorHasNextName }
     var kkMapIteratorNextName: InternedString { mapLookup.kkMapIteratorNextName }
     var kkMutableMapPutAllName: InternedString { mapLookup.kkMutableMapPutAllName }
-    var kkMapKeysName: InternedString { mapLookup.kkMapKeysName }
-    var kkMapValuesName: InternedString { mapLookup.kkMapValuesName }
-    var kkMapEntriesName: InternedString { mapLookup.kkMapEntriesName }
     var mapFactoryNames: Set<InternedString> { mapLookup.mapFactoryNames }
     var mutableMapConstructorNames: Set<InternedString> { mapLookup.mutableMapConstructorNames }
 
@@ -481,6 +475,9 @@ struct CollectionLiteralLookupTables {
     var kkStringIteratorHasNextName: InternedString { stringLookup.kkStringIteratorHasNextName }
     var kkStringIteratorNextName: InternedString { stringLookup.kkStringIteratorNextName }
     var stringProducingCallees: Set<InternedString> { stringLookup.stringProducingCallees }
+
+    // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
+
 
     // MARK: - BuilderDSL lookup names (see CollectionLiteralLoweringPass+LookupTables+BuilderDSL.swift)
 

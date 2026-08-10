@@ -249,14 +249,8 @@ extension KIRLoweringDriver {
         if packageFQName == kotlinComparisonsPackage {
             // Calls to these source-backed declarations are lowered by
             // CallLowerer+StdlibComparisons rather than by emitting the
-            // declaration bodies into every consumer module. The Comparator
-            // overloads are excluded (KSP-461): their bodies dispatch through
-            // `Comparator.compare`, so they are emitted and called normally
-            // instead of open-coding a runtime comparator bridge.
-            guard name == "maxOf" || name == "minOf" else {
-                return false
-            }
-            return !signatureTakesComparator(symbol: symbol, sema: sema, interner: interner)
+            // declaration bodies into every consumer module.
+            return name == "maxOf" || name == "minOf"
         }
 
         let kotlinCollectionsPackage = [
@@ -299,23 +293,5 @@ extension KIRLoweringDriver {
         }
 
         return false
-    }
-
-    private func signatureTakesComparator(
-        symbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let signature = sema.symbols.functionSignature(for: symbol) else {
-            return false
-        }
-        return signature.parameterTypes.contains { parameterType in
-            guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(parameterType)),
-                  let parameterSymbol = sema.symbols.symbol(classType.classSymbol)
-            else {
-                return false
-            }
-            return interner.resolve(parameterSymbol.name) == "Comparator"
-        }
     }
 }

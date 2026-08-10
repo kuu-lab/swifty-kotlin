@@ -2,20 +2,24 @@ import Foundation
 @testable import Runtime
 import Testing
 
-// MARK: - Comparator function values
-// Local @convention(c) closures. We must NOT pass @_cdecl functions directly to
-// comparatorPtr() because Swift would re-export the C symbol in this module,
-// causing duplicate symbol linker errors.
-
-// Orders the null sentinel before every value, then by natural order.
-private let nullsFirstNatural: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, a, b, _ in
-    __kk_comparable_compareTo(a, b)
-}
+// MARK: - Trampoline wrappers
+// Local @convention(c) closures that delegate to the @_cdecl runtime functions.
+// We must NOT pass @_cdecl functions directly to comparatorPtr() because Swift
+// would re-export the C symbol in this module, causing duplicate symbol linker errors.
 
 // MARK: - Test lambdas
 
+private let selectIdentity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value
+}
+
 private let selectModTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 10
+}
+
+private let throwingSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
+    outThrown?.pointee = 1
+    return 0
 }
 
 private let comparatorNatural: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, a, b, _ in
@@ -35,6 +39,11 @@ private let comparatorByModTen: @convention(c) (Int, Int, Int, UnsafeMutablePoin
 private let comparatorReversed: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, a, b, _ in
     if a < b { return 1 }
     if a > b { return -1 }
+    return 0
+}
+
+private let throwingComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
+    outThrown?.pointee = 1
     return 0
 }
 
@@ -66,9 +75,22 @@ private func comparatorPtr(_ fn: @convention(c) (Int, Int, Int, UnsafeMutablePoi
     unsafeBitCast(fn, to: Int.self)
 }
 
+private func primitiveComparatorPtr(_ fn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int) -> Int {
+    unsafeBitCast(fn, to: Int.self)
+}
+
 private func makeList(_ elements: [Int]) -> Int {
     let box = RuntimeListBox(elements: elements)
     return registerRuntimeObject(box)
+}
+
+private func makeArray(_ elements: [Int]) -> Int {
+    let array = kk_array_new(elements.count)
+    var thrown = 0
+    for (index, element) in elements.enumerated() {
+        _ = kk_array_set(array, index, element, &thrown)
+    }
+    return array
 }
 
 private func makeRuntimeString(_ value: String) -> Int {
@@ -104,17 +126,24 @@ private func withComparatorObject(mode: Int, body: (Int) -> Void) {
 
 @Suite(.runtimeIsolation(.all))
 struct RuntimeComparatorTests {
-    // MARK: - Erased comparison core (__kk_comparable_compareTo)
+    // MARK: - compareBy ascending
 
+    // MARK: - compareByDescending
+
+    // MARK: - compareValues
+
+    // KSP-461: `compareValues` is bundled Kotlin source; the residual runtime
+    // entry point is the generic comparison core reached through `compareTo` on a
+    // `Comparable<*>` receiver.
     @Test
-    func testComparableCompareToOrdersBoxedInts() {
+    func testComparableCompareToOrdersBoxedValues() {
         #expect(__kk_comparable_compareTo(kk_box_int(3), kk_box_int(7)) < 0)
         #expect(__kk_comparable_compareTo(kk_box_int(5), kk_box_int(5)) == 0)
         #expect(__kk_comparable_compareTo(kk_box_int(9), kk_box_int(2)) > 0)
     }
 
     @Test
-    func testComparableCompareToOrdersNullSentinelFirst() {
+    func testComparableCompareToOrdersNullsFirst() {
         #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_int(1)) < 0)
         #expect(__kk_comparable_compareTo(kk_box_int(1), runtimeNullSentinelInt) > 0)
         #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, runtimeNullSentinelInt) == 0)
@@ -124,17 +153,64 @@ struct RuntimeComparatorTests {
     // value 0 (e.g. the generic element argument of `Array<Int>.binarySearch(0)`).
     // It must compare as the integer zero and must not be mistaken for `null`.
     @Test
-    func testComparableCompareToTreatsBoxedZeroAsZero() {
+    func testComparableCompareToBoxedZeroIsNotNull() {
         #expect(__kk_comparable_compareTo(kk_box_int(0), 0) == 0)
         #expect(__kk_comparable_compareTo(0, kk_box_int(0)) == 0)
         #expect(__kk_comparable_compareTo(0, 0) == 0)
         #expect(__kk_comparable_compareTo(0, kk_box_int(5)) < 0)
         #expect(__kk_comparable_compareTo(kk_box_int(5), 0) > 0)
+    }
+
+    // Regression (KSP-461): `String.compareTo` returns the difference of the first
+    // differing characters in Kotlin, and the generic comparison core has to report
+    // the same magnitude (it used to normalise the result to -1/0/1).
+    @Test
+    func testComparableCompareToReportsKotlinStringDifference() {
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("a"), makeRuntimeString("c")) == -2
+        )
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("c"), makeRuntimeString("a")) == 2
+        )
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("ab"), makeRuntimeString("abcd")) == -2
+        )
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("abc"), makeRuntimeString("abc")) == 0
+        )
+    }
+
+    // Regression (KSP-659): only the null sentinel counts as `null`, so a real
+    // null orders strictly below a boxed zero (previously they compared equal).
+    @Test
+    func testComparableCompareToNullOrdersBelowBoxedZero() {
         #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, 0) < 0)
         #expect(__kk_comparable_compareTo(0, runtimeNullSentinelInt) > 0)
     }
 
-    // MARK: - CASE_INSENSITIVE_ORDER
+    // KSP-461: explicit comparator arguments (e.g. `maxWith`) route through the
+    // demoted invocation bridge, which dispatches the comparator object's compare.
+    @Test
+    func testCompareWithComparatorDispatchesComparatorObject() {
+        withComparatorObject(mode: 0) { comparatorRaw in
+            #expect(__kk_compare_with_comparator(comparatorRaw, 3, 7, nil) < 0)
+            #expect(__kk_compare_with_comparator(comparatorRaw, 7, 3, nil) > 0)
+            #expect(__kk_compare_with_comparator(comparatorRaw, 7, 7, nil) == 0)
+        }
+        withComparatorObject(mode: 1) { comparatorRaw in
+            #expect(__kk_compare_with_comparator(comparatorRaw, 3, 7, nil) > 0)
+        }
+    }
+
+    // MARK: - thenBy
+
+    // MARK: - thenDescending
+
+    // MARK: - thenComparator
+
+    // MARK: - reversed
+
+    // MARK: - naturalOrder / reverseOrder
 
     @Test
     func testCaseInsensitiveOrderComparatorObjectDispatchesThroughITable() {
@@ -422,17 +498,11 @@ struct RuntimeComparatorTests {
         #expect(listElements(source) == [22, 12, 21, 11])
     }
 
-    @Test
-    func testSortedWithNullsFirstComparator() {
-        let source = makeList([5, runtimeNullSentinelInt, 3, runtimeNullSentinelInt, 4, 1])
-        let sorted = kk_list_sortedWith(
-            source,
-            comparatorPtr(nullsFirstNatural),
-            0,
-            nil
-        )
-        #expect(listElements(sorted) == [runtimeNullSentinelInt, runtimeNullSentinelInt, 1, 3, 4, 5])
-    }
+    // MARK: - Exception propagation
+
+    // MARK: - Edge cases
+
+    // MARK: - naturalOrder / reverseOrder: runtimeNullSentinelInt 挙動 (TEST-COMP-011)
 
     // MARK: - 参照型オブジェクトの安定ソート（原順序保持：インデックスベース検証）(TEST-COMP-011)
 
