@@ -41,10 +41,8 @@ struct BuildKIRCodegenRegressionTests {
         #expect(callees.contains(interner.intern("kk_list_intersect")))
         #expect(callees.contains(interner.intern("kk_list_union")))
         #expect(callees.contains(interner.intern("kk_list_subtract")))
-        #expect(callees.contains(interner.intern("kk_set_toList")))
-        #expect(callees.contains(interner.intern("kk_set_intersect")))
-        #expect(callees.contains(interner.intern("kk_set_union")))
-        #expect(callees.contains(interner.intern("kk_set_subtract")))
+        #expect(callees.contains(interner.intern("__kk_set_contains")))
+        #expect(callees.contains(interner.intern("__kk_set_size")))
     }
 
     @Test
@@ -69,7 +67,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersSetBinaryMembersToCollectionRuntimeCalls() throws {
+    func testBuildKIRLowersSetBinaryMembersToBundledSourceCalls() throws {
         let source = """
         fun main(values: Set<Int>, other: List<Int>) {
             values.intersect(other)
@@ -86,12 +84,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_set_intersect"))
-            #expect(callNames.contains("kk_set_union"))
-            #expect(callNames.contains("kk_set_subtract"))
-            #expect(!(callNames.contains("intersect")))
-            #expect(!(callNames.contains("union")))
-            #expect(!(callNames.contains("subtract")))
+            #expect(callNames.contains("intersect"))
+            #expect(callNames.contains("union"))
+            #expect(callNames.contains("subtract"))
+            #expect(!(callNames.contains("kk_set_intersect")))
+            #expect(!(callNames.contains("kk_set_union")))
+            #expect(!(callNames.contains("kk_set_subtract")))
         }
     }
 

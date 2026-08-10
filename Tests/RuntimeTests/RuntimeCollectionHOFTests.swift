@@ -934,10 +934,6 @@ struct RuntimeCollectionHOFTests {
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
         #expect(listElements(listMapped) == [2, 99, 6])
 
-        let setSource = kk_set_of(makeArray([1, runtimeNullSentinelInt, 3]), 3)
-        let setMapped = kk_set_mapNotNull(setSource, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
-        #expect(Set(listElements(setMapped)) == Set([2, 99, 6]))
-
         let arraySource = makeArray([1, runtimeNullSentinelInt, 3])
         let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
         #expect(listElements(arrayMapped) == [2, 99, 6])
@@ -991,10 +987,6 @@ struct RuntimeCollectionHOFTests {
 
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
         #expect(listElements(listMapped) == [0, 1, 2])
-
-        let setSource = kk_set_of(makeArray([0, 1, 2]), 3)
-        let setMapped = kk_set_mapNotNull(setSource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        #expect(Set(listElements(setMapped)) == Set([0, 1, 2]))
 
         let arraySource = makeArray([0, 1, 2])
         let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
@@ -1599,39 +1591,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testSetBinaryOperationsWithStringHandlesUseValueEqualityAndPreserveLeftOrder() {
-        let leftAlpha = makeRuntimeStringRaw("alpha")
-        let leftBeta = makeRuntimeStringRaw("beta")
-        let rightBeta = makeRuntimeStringRaw("beta")
-        let rightGamma = makeRuntimeStringRaw("gamma")
-
-        let left = registerRuntimeObject(RuntimeSetBox(elements: [leftAlpha, leftBeta]))
-        let right = registerRuntimeObject(RuntimeListBox(elements: [rightBeta, rightGamma, rightBeta]))
-
-        let intersected = kk_set_intersect(left, right)
-        let unioned = kk_set_union(left, right)
-        let subtracted = kk_set_subtract(left, right)
-
-        #expect(setElements(intersected) == [leftBeta])
-        #expect(setElements(unioned) == [leftAlpha, leftBeta, rightGamma])
-        #expect(setElements(subtracted) == [leftAlpha])
-    }
-
-    @Test
-    func testSetBinaryOperationsAcceptSetInputAndPreserveOrder() {
-        let left = registerRuntimeObject(RuntimeSetBox(elements: [1, 2, 3]))
-        let right = registerRuntimeObject(RuntimeSetBox(elements: [3, 4, 2]))
-
-        let intersected = kk_set_intersect(left, right)
-        let unioned = kk_set_union(left, right)
-        let subtracted = kk_set_subtract(left, right)
-
-        #expect(setElements(intersected) == [2, 3])
-        #expect(setElements(unioned) == [1, 2, 3, 4])
-        #expect(setElements(subtracted) == [1])
-    }
-
-    @Test
     func testListSubtractAcceptsIterableInputDeduplicatesAndPreservesReceiverOrder() {
         let left = makeList([1, 2, 2, 3, 4])
         let right = makeList([2, 4, 2])
@@ -1654,8 +1613,6 @@ struct RuntimeCollectionHOFTests {
         let set = kk_set_of(makeArray([1, 2, 3]), 3)
         #expect(kk_unbox_bool(kk_set_contains(set, 2)) == 1)
         #expect(kk_unbox_bool(kk_set_contains(set, 9)) == 0)
-        #expect(kk_unbox_bool(kk_set_containsAll(set, makeList([1, 3]))) == 1)
-        #expect(kk_unbox_bool(kk_set_containsAll(set, makeList([1, 9]))) == 0)
 
         let keys = makeArray([1, 2])
         let values = makeArray([10, 20])
