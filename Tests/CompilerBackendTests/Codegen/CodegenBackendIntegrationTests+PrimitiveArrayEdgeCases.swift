@@ -1,10 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
+@Suite
+struct CodegenBackendPrimitiveArrayEdgeCasesTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testPrimitiveArrayZeroInit() throws {
         let source = """
         fun main() {
@@ -25,6 +86,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArrayZeroInit", expected: "4\n0\n0\n2\n0\n3\nfalse\n")
     }
 
+    @Test
     func testPrimitiveArraySizeZero() throws {
         let source = """
         fun main() {
@@ -41,6 +103,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArraySizeZero", expected: "0\n0\n0\n")
     }
 
+    @Test
     func testPrimitiveArrayFactoryVsZeroInit() throws {
         let source = """
         fun main() {
@@ -59,6 +122,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArrayFactoryVsZeroInit", expected: "0\n4\n8\n0\n0\n")
     }
 
+    @Test
     func testPrimitiveArrayMultipleTypes() throws {
         let source = """
         fun main() {
@@ -82,6 +146,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArrayMultipleTypes", expected: "3\n20\n3\n1\n2\n1.5\n2\n4.0\n")
     }
 
+    @Test
     func testUIntArrayFactoryAndAccess() throws {
         let source = """
         fun main() {
@@ -94,6 +159,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "UIntArrayFactoryAndAccess", expected: "3\n1\n3\n")
     }
 
+    @Test
     func testUnsignedPrimitiveArrayCopyOfRange() throws {
         let source = """
         fun main() {
@@ -118,6 +184,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testArrayReversedArrayOverloads() throws {
         let source = """
         fun main() {
@@ -144,6 +211,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testArraySortedArrayOverloads() throws {
         let source = """
         fun main() {
@@ -166,6 +234,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testArraySortedArrayDescendingOverloads() throws {
         let source = """
         fun main() {
@@ -188,6 +257,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testArrayCopyIntoOverloads() throws {
         let source = """
         fun main() {
@@ -224,6 +294,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testArraySliceArrayOverloads() throws {
         let source = """
         fun main() {
@@ -251,6 +322,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSignedArrayViewConversionsFromUnsignedArrays() throws {
         let source = """
         fun main() {
@@ -284,6 +356,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testUnsignedArrayViewConversions() throws {
         let source = """
         fun main() {
@@ -317,6 +390,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testUnsignedCollectionToPrimitiveArrayConversions() throws {
         let source = """
         fun main() {
@@ -341,6 +415,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "UnsignedCollectionToPrimitiveArrayConversions", expected: "2\n1\n255\n2\n65535\n2\n4000000000\n2\n4000000000\n")
     }
 
+    @Test
     func testPrimitiveArrayFill() throws {
         let source = """
         fun main() {
@@ -360,6 +435,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArrayFill", expected: "0\n7\n7\nfalse\ntrue\ntrue\n")
     }
 
+    @Test
     func testPrimitiveArrayCopyOf() throws {
         let source = """
         fun main() {
@@ -377,6 +453,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArrayCopyOf", expected: "1\n3\n1\n99\n")
     }
 
+    @Test
     func testBoxedIntArrayContentEquals() throws {
         let source = """
         fun main() {
@@ -394,6 +471,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "BoxedIntArrayContentEquals", expected: "true\nfalse\ntrue\n")
     }
 
+    @Test
     func testPrimitiveArrayToListRoundTrip() throws {
         let source = """
         fun main() {
@@ -412,6 +490,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimitiveArrayToListRoundTrip", expected: "3\n10\n30\n2\n200\n")
     }
 
+    @Test
     func testUnsignedPrimitiveArrayAsListViewReflectsMutations() throws {
         let source = """
         fun main() {
@@ -426,6 +505,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayAsListView", expected: "3\n200\n900\n")
     }
 
+    @Test
     func testUnsignedPrimitiveArrayToTypedArrayReturnsGenericArrays() throws {
         let source = """
         fun main() {
@@ -453,6 +533,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayToTypedArray", expected: "200\n200\n900\n1000\n1000\n9000\n")
     }
 
+    @Test
     func testUnsignedPrimitiveArrayCopyOfNewSizeAndInit() throws {
         let source = """
         fun main() {
@@ -488,6 +569,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayCopyOfNewSizeAndInit", expected: "2\n1\n4\n10\n20\n700\n700\n10\n1\n10\n100\n9000\n9000\n")
     }
 
+    @Test
     func testUnsignedPrimitiveArrayCopyOfRangeReturnsUnsignedArrays() throws {
         let source = """
         fun main() {
@@ -519,6 +601,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayCopyOfRangeReturnsUnsignedArrays", expected: "0\n0\n2\n200\n200\n900\n2\n2000\n2000\n9000\n")
     }
 
+    @Test
     func testListToIntArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -537,6 +620,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToIntArrayRoundTrip", expected: "3\n5\n15\n5\n99\n")
     }
 
+    @Test
     func testListToByteArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -555,6 +639,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToByteArrayRoundTrip", expected: "3\n1\n-2\n127\n1\n-8\n")
     }
 
+    @Test
     func testListToLongArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -572,6 +657,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToLongArrayRoundTrip", expected: "3\n5\n15\n5\n99\n")
     }
 
+    @Test
     func testListToBooleanArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -589,6 +675,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToBooleanArrayRoundTrip", expected: "3\nT\nF\nF\nT\n")
     }
 
+    @Test
     func testListToShortArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -607,6 +694,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToShortArrayRoundTrip", expected: "3\n1\n-2\n32767\n1\n7\n")
     }
 
+    @Test
     func testListToDoubleArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -625,6 +713,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToDoubleArrayRoundTrip", expected: "3\n1.5\n-2.25\n0.5\n1.5\n9.25\n")
     }
 
+    @Test
     func testListToFloatArrayRoundTrip() throws {
         let source = """
         fun main() {
@@ -643,6 +732,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToFloatArrayRoundTrip", expected: "3\n1.5\n-2.25\n0.5\n1.5\n9.25\n")
     }
 
+    @Test
     func testBoxedIntArrayContentHashCode() throws {
         let source = """
         fun main() {
@@ -658,6 +748,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "BoxedIntArrayContentHashCode", expected: "true\nfalse\n")
     }
 
+    @Test
     func testArrayContentDeepToString() throws {
         let source = """
         fun main() {
@@ -672,6 +763,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayContentDeepToString", expected: "[[1, 2], [x, y], [3, 4]]\n[[...]]\n")
     }
 
+    @Test
     func testArrayContentAndJoinToStringOverloads() throws {
         let source = """
         @OptIn(ExperimentalUnsignedTypes::class)
@@ -747,6 +839,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testArrayContentDeepHashCode() throws {
         let source = """
         fun main() {
@@ -769,6 +862,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayContentDeepHashCode", expected: "true\nfalse\nfalse\ntrue\nfalse\n")
     }
 
+    @Test
     func testArrayContentDeepEquals() throws {
         let source = """
         fun main() {
@@ -796,6 +890,7 @@ extension CodegenBackendIntegrationTests {
     // indexed `get(index: Int)` unresolvable and surfaced as a TYPE-0001 error
     // pointing at both operands of `a[i] != b[i]`. Locks in that indexing +
     // comparison combination now that the loop variable is correctly typed Int.
+    @Test
     func testByteArrayElementNotEqualsInsideUntilRangeLoop() throws {
         let source = """
         fun main() {
@@ -822,3 +917,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ByteArrayElementNotEqualsInsideUntilRangeLoop", expected: "true\nfalse\n")
     }
 }
+#endif

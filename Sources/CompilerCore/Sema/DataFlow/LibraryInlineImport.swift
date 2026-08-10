@@ -122,14 +122,25 @@ extension DataFlowSemaPhase {
         var importLabelCounter: Int32 = 900_000
         var importExprCounter: Int32 = 900_000
         for line in bodyLines {
-            let instructions = parseImportedInlineInstructions(
+            guard let instructions = parseImportedInlineInstructions(
                 line: line,
                 parameterSymbolMapping: parameterSymbolMapping,
                 interner: interner,
                 labelCounter: &importLabelCounter,
                 exprCounter: &importExprCounter,
                 externalLinkNameToSymbol: externalLinkNameToSymbol
-            )
+            ) else {
+                // Dropping a single instruction leaves the remaining ones reading
+                // registers that are never defined, which silently miscompiles the
+                // call site. Skip the inline body entirely instead so the call
+                // keeps targeting the library function.
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0023",
+                    "Unsupported instruction in inline KIR artifact '\(path)'; the function will not be inlined",
+                    range: nil
+                )
+                return nil
+            }
             body.append(contentsOf: instructions)
         }
         if body.isEmpty {
@@ -218,10 +229,10 @@ extension DataFlowSemaPhase {
         labelCounter: inout Int32,
         exprCounter: inout Int32,
         externalLinkNameToSymbol: [String: SymbolID]
-    ) -> [KIRInstruction] {
+    ) -> [KIRInstruction]? {
         let parts = line.split(separator: " ")
         guard let opcode = parts.first else {
-            return []
+            return nil
         }
         let pairs = parseInlineKeyValuePairs(parts.dropFirst())
 
@@ -232,7 +243,7 @@ extension DataFlowSemaPhase {
                   let elseRaw = pairs["else"], let elseValue = Int32(elseRaw),
                   let resultRaw = pairs["result"], let result = Int32(resultRaw)
             else {
-                return []
+                return nil
             }
             let elseLabel = labelCounter
             let endLabel = labelCounter + 1
@@ -260,7 +271,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             externalLinkNameToSymbol: externalLinkNameToSymbol
         ) else {
-            return []
+            return nil
         }
         return [instruction]
     }
@@ -438,16 +449,25 @@ extension DataFlowSemaPhase {
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
             let isSuperCall = isSuperCallRaw == "1" || isSuperCallRaw == "true"
             var callSymbol: SymbolID? = nil
+            var resolvedCalleeName = calleeName
             if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
-               !linkName.isEmpty,
-               let consumerSymbol = externalLinkNameToSymbol[linkName]
+               !linkName.isEmpty
             {
-                callSymbol = consumerSymbol
+                if let consumerSymbol = externalLinkNameToSymbol[linkName] {
+                    callSymbol = consumerSymbol
+                } else {
+                    // The callee is defined by the library itself (a mangled
+                    // `kk_fn_*` symbol in its object archive) and has no
+                    // counterpart in the consumer's symbol table. The declared
+                    // name would not resolve at link time, so call the library
+                    // symbol directly.
+                    resolvedCalleeName = linkName
+                }
             }
             return .call(
                 symbol: callSymbol,
-                callee: interner.intern(calleeName),
+                callee: interner.intern(resolvedCalleeName),
                 arguments: args,
                 result: result,
                 canThrow: canThrow,

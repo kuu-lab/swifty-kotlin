@@ -12,9 +12,8 @@ package kotlin.time
 //   kk_duration_toString            (Any.toString() is a class member and takes precedence
 //                                    over extension functions; stays native)
 //   kk_duration_parse*              (complex parsing logic, stays native — invoked via bridges)
-//   kk_duration_toDuration_*, kk_duration_zero/infinite, kk_duration_from_nanoseconds
-//                                    (internal Int64-nanosecond construction, stays native;
-//                                     from_nanoseconds is also the measureTime epilogue callee)
+//   kk_duration_toDuration_*, kk_duration_zero/infinite
+//                                    (internal Int64-nanosecond construction, stays native)
 
 public operator fun Duration.plus(other: Duration): Duration =
     this.__kk_duration_plus(other)

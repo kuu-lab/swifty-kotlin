@@ -59,7 +59,6 @@ extension ABILoweringPass {
         "kk_mutable_set_add",
         "kk_mutable_map_put",
         "kk_mutable_map_putAll",
-        "kk_mutable_map_getOrPut",
         "kk_mutable_map_plusAssign_pair",
     ]
 
