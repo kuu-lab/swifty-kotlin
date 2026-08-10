@@ -1,10 +1,70 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenCompilesArrayEdgeCases() throws {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendArrayEdgeCasesTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test func testCodegenCompilesArrayEdgeCases() throws {
         let source = """
         @OptIn(ExperimentalUnsignedTypes::class)
         fun main() {
@@ -90,7 +150,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenCompilesArrayBinarySearchWithComparator() throws {
+    @Test func testCodegenCompilesArrayBinarySearchWithComparator() throws {
         let source = """
         fun main() {
             val values = arrayOf(1, 3, 4, 9)
@@ -111,7 +171,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenCompilesArraySortedArrayWith() throws {
+    @Test func testCodegenCompilesArraySortedArrayWith() throws {
         let source = """
         fun main() {
             val numbers = arrayOf(3, 1, 2)
@@ -137,7 +197,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenCompilesArrayOfNulls() throws {
+    @Test func testCodegenCompilesArrayOfNulls() throws {
         let source = """
         fun main() {
             val values: Array<String?> = arrayOfNulls<String>(3)
@@ -158,7 +218,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenArrayFirstNotNullOfOrNullReturnsFirstMatchOrNull() throws {
+    @Test func testCodegenArrayFirstNotNullOfOrNullReturnsFirstMatchOrNull() throws {
         let source = """
         fun main() {
             val result: String? = arrayOf(1, 2, 3).firstNotNullOfOrNull { if (it > 1) "hit" else null }
@@ -171,7 +231,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
 
-    func testArrayOfBoxesPrimitiveElementsForFilterIsInstance() throws {
+    @Test func testArrayOfBoxesPrimitiveElementsForFilterIsInstance() throws {
         let source = """
         fun main() {
             val values: Array<Any> = arrayOf(1, "two", 3)
@@ -199,4 +259,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-
+#endif

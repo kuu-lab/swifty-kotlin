@@ -61,7 +61,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String.length should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -88,16 +88,16 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
     func testLLVMBackendLowersStringLengthRuntimePrimitiveToAggregateFieldExtract() throws {
         let source = """
-        import kswiftk.internal.__string_struct_get_length
+        import kswiftk.internal.__kk_string_struct_get_length
 
         fun lengthViaPrimitive(value: String): Int {
-            return __string_struct_get_length(value)
+            return __kk_string_struct_get_length(value)
         }
 
         fun main() {
@@ -120,7 +120,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String length primitive should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -147,7 +147,7 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -227,7 +227,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("@kk_string_to_flat"))
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -482,8 +482,14 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertFalse(ir.contains("@__kk_string_format("), "Unexpected raw String format call")
             XCTAssertFalse(ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
-            XCTAssertTrue(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
-            XCTAssertTrue(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
+            XCTAssertTrue(ir.contains("@__kk_string_format_flat"), "Missing flat String format call")
+            XCTAssertTrue(ir.contains("@__kk_string_format_locale_flat"), "Missing flat String format(locale) call")
+            // KSP-418: the public kk_ entry points are demoted to private __kk_ bridges.
+            XCTAssertFalse(ir.contains("@kk_string_format_flat"), "Undemoted flat String format call")
+            XCTAssertFalse(
+                ir.contains("@kk_string_format_locale_flat"),
+                "Undemoted flat String format(locale) call"
+            )
         }
     }
 
@@ -639,16 +645,11 @@ extension CodegenBackendIntegrationTests {
         let filterNotThrown = arena.appendExpr(.temporary(52), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
         let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
-        let ignoreCaseTrue = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
-        let compareIgnoreCaseResult = arena.appendExpr(.temporary(19), type: types.intType)
         let compareLocaleResult = arena.appendExpr(.temporary(30), type: types.intType)
         let localeRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
         let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
         let isNullOrEmptyResult = arena.appendExpr(.temporary(23), type: types.booleanType)
         let isNullOrBlankResult = arena.appendExpr(.temporary(24), type: types.booleanType)
-        let contentEqualsResult = arena.appendExpr(.temporary(25), type: types.booleanType)
-        let contentEqualsIgnoreCaseResult = arena.appendExpr(.temporary(26), type: types.booleanType)
-        let equalsIgnoreCaseResult = arena.appendExpr(.temporary(27), type: types.booleanType)
         let equalsResult = arena.appendExpr(.temporary(42), type: types.booleanType)
         let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
         let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
@@ -690,17 +691,12 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_filterNot_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterNotResult, canThrow: true, thrownResult: filterNotThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
                 .call(symbol: nil, callee: interner.intern("kk_string_isBlank_flat"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
-                .constValue(result: ignoreCaseTrue, value: .boolLiteral(true)),
-                .call(symbol: nil, callee: interner.intern("kk_string_compareToIgnoreCase_flat"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: compareIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .constValue(result: localeRaw, value: .intLiteral(0)),
-                .call(symbol: nil, callee: interner.intern("kk_string_compareTo_locale_flat"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_string_compareTo_locale_flat"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
                 .constValue(result: nullStringExpr, value: .null),
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty_flat"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_contentEquals_flat"), arguments: [trimResult, nullStringExpr], result: contentEqualsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_contentEquals_ignoreCase_flat"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: contentEqualsIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_equals_flat"), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_equalsIgnoreCase_flat"), arguments: [trimResult, nullStringExpr, ignoreCaseTrue], result: equalsIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
@@ -829,15 +825,11 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_filterIndexed_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filterNot_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_compareToIgnoreCase_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_compareTo_locale_flat"))
+        XCTAssertTrue(ir.contains("@__kk_string_compareTo_locale_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isNullOrEmpty_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isNullOrBlank_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_contentEquals_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_contentEquals_ignoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_equals_flat"))
         XCTAssertFalse(ir.contains("@kk_string_equals("))
-        XCTAssertTrue(ir.contains("@kk_string_equalsIgnoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
         XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))
@@ -1076,7 +1068,7 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
-        appendRegexCall("kk_match_group_collection_get", arguments: [matchGroupCollectionExpr, patternExpr])
+        appendRegexCall("__kk_match_result_group_index_of_name", arguments: [matchGroupCollectionExpr, patternExpr])
         appendRegexCall("kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
@@ -1119,7 +1111,7 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_matchEntire",
             "kk_regex_containsMatchIn",
             "kk_regex_from_literal",
-            "kk_match_group_collection_get",
+            "__kk_match_result_group_index_of_name",
             "kk_regex_matches",
         ]
         for rawName in rawNames {
@@ -1490,11 +1482,6 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_map_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapIndexed_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapNotNull_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_firstNotNullOf_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_firstNotNullOfOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexed_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexedOrNull_flat", resultType: types.intType)
@@ -1538,11 +1525,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_find_flat",
             "kk_string_findLast_flat",
             "kk_string_partition_flat",
-            "kk_string_map_flat",
-            "kk_string_mapIndexed_flat",
-            "kk_string_mapNotNull_flat",
-            "kk_string_firstNotNullOf_flat",
-            "kk_string_firstNotNullOfOrNull_flat",
             "kk_string_reduceOrNull_flat",
             "kk_string_reduceRightIndexed_flat",
             "kk_string_reduceRightIndexedOrNull_flat",
@@ -1928,6 +1910,32 @@ extension CodegenBackendIntegrationTests {
             interner: interner
         )
         XCTAssertTrue(fnName.hasPrefix("kk_fn__1_bad_name_9"))
+    }
+
+    /// A synthetic (negative) symbol must not share its C name with a real
+    /// symbol of the same magnitude and name: duplicate definitions get silently
+    /// renamed by LLVM and calls bind to whichever definition came first.
+    func testCodegenFunctionSymbolDistinguishesSyntheticSymbolsFromRealOnes() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+
+        func name(forSymbolRawValue rawValue: Int32) -> String {
+            CodegenSymbolSupport.cFunctionSymbol(
+                for: KIRFunction(
+                    symbol: SymbolID(rawValue: rawValue),
+                    name: interner.intern("get"),
+                    params: [],
+                    returnType: types.unitType,
+                    body: [.returnUnit],
+                    isSuspend: false,
+                    isInline: false
+                ),
+                interner: interner
+            )
+        }
+
+        XCTAssertEqual(name(forSymbolRawValue: 104_789), "kk_fn_get_104789")
+        XCTAssertEqual(name(forSymbolRawValue: -104_789), "kk_fn_get_s104789")
     }
 
     func testCodegenFunctionSymbolUsesJvmNameAnnotationForFunction() {

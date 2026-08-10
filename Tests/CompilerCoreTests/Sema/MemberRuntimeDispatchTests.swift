@@ -46,7 +46,7 @@ struct MemberRuntimeDispatchTests {
 
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
-            (.iterable, "firstNotNullOf", 1, "kk_iterable_firstNotNullOf"),
+            (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),
             (.set, "map", 1, "kk_list_map"),
             (.sequence, "firstNotNullOf", 1, "kk_sequence_firstNotNullOf"),
         ]
@@ -114,7 +114,6 @@ struct MemberRuntimeDispatchTests {
             ("lowercase", 0, "kk_string_lowercase_flat", false, .lowered, .none),
             ("toInt", 0, "kk_string_toInt_flat", true, .lowered, .none),
             ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
-            ("mapIndexed", 1, "kk_string_mapIndexed_flat", false, .normalized, .none),
             ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
         ]
 

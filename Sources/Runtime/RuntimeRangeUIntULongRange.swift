@@ -117,7 +117,7 @@ public func kk_uint_range_step(_ rangeRaw: Int) -> Int {
 @_cdecl("kk_uint_range_count")
 public func kk_uint_range_count(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_uint_range_count") { range in
-        RuntimeUnsignedRangeHOFKind.count(range)
+        runtimeUnsignedRangeCount(range)
     }
 }
 
