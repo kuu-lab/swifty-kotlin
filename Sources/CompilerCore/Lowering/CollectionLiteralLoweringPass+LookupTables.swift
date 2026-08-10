@@ -72,18 +72,8 @@ struct CollectionLiteralLookupTables {
     var kkListIteratorPreviousName: InternedString { listLookup.kkListIteratorPreviousName }
     var kkListToStringName: InternedString { listLookup.kkListToStringName }
     var kkCollectionToMutableListName: InternedString { listLookup.kkCollectionToMutableListName }
-    var kkListMapName: InternedString { listLookup.kkListMapName }
-    var kkListMapNotNullName: InternedString { listLookup.kkListMapNotNullName }
-    var kkListMapToName: InternedString { listLookup.kkListMapToName }
-    var kkListFlatMapToName: InternedString { listLookup.kkListFlatMapToName }
-    var kkListMapNotNullToName: InternedString { listLookup.kkListMapNotNullToName }
-    var kkListMapIndexedToName: InternedString { listLookup.kkListMapIndexedToName }
-    var kkListMapIndexedNotNullToName: InternedString { listLookup.kkListMapIndexedNotNullToName }
-    var kkListFlatMapIndexedToName: InternedString { listLookup.kkListFlatMapIndexedToName }
-    var kkListFlatMapIndexedName: InternedString { listLookup.kkListFlatMapIndexedName }
     var kkListAssociateToName: InternedString { listLookup.kkListAssociateToName }
     var kkListForEachName: InternedString { listLookup.kkListForEachName }
-    var kkListFlatMapName: InternedString { listLookup.kkListFlatMapName }
     var kkCollectionToCollectionName: InternedString { listLookup.kkCollectionToCollectionName }
     var kkListFoldName: InternedString { listLookup.kkListFoldName }
     var kkListFoldRightName: InternedString { listLookup.kkListFoldRightName }
@@ -119,8 +109,6 @@ struct CollectionLiteralLookupTables {
     var kkListForEachIndexedName: InternedString { listLookup.kkListForEachIndexedName }
     var kkListOnEachName: InternedString { listLookup.kkListOnEachName }
     var kkListOnEachIndexedName: InternedString { listLookup.kkListOnEachIndexedName }
-    var kkListMapIndexedName: InternedString { listLookup.kkListMapIndexedName }
-    var kkListMapIndexedNotNullName: InternedString { listLookup.kkListMapIndexedNotNullName }
     var kkListFoldIndexedName: InternedString { listLookup.kkListFoldIndexedName }
     var kkListFoldRightIndexedName: InternedString { listLookup.kkListFoldRightIndexedName }
     var kkListReduceIndexedName: InternedString { listLookup.kkListReduceIndexedName }
@@ -164,7 +152,6 @@ struct CollectionLiteralLookupTables {
     var kkListPlusCollectionName: InternedString { listLookup.kkListPlusCollectionName }
     var kkListMinusElementName: InternedString { listLookup.kkListMinusElementName }
     var kkListMinusCollectionName: InternedString { listLookup.kkListMinusCollectionName }
-    var kkListFlattenName: InternedString { listLookup.kkListFlattenName }
     var kkListChunkedBridgeName: InternedString { listLookup.kkListChunkedBridgeName }
     var kkListChunkedTransformBridgeName: InternedString { listLookup.kkListChunkedTransformBridgeName }
     var kkListWindowedBridgeName: InternedString { listLookup.kkListWindowedBridgeName }

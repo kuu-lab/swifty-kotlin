@@ -94,8 +94,6 @@ extension CallLowerer {
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "flatMapIndexed":
-                return interner.intern("kk_list_flatMapIndexed")
             // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
             // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
             case "sorted":
