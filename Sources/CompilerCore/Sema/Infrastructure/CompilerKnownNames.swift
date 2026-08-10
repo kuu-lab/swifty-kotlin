@@ -246,7 +246,6 @@ package struct KnownCompilerNames {
     package let main: InternedString
     let with: InternedString
     let run: InternedString
-    let runCatching: InternedString
     let withContext: InternedString
     let withTimeout: InternedString
     let withTimeoutOrNull: InternedString
@@ -367,7 +366,6 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
     let atomicScalarFactoryFQNames: Set<[InternedString]>
-    let boxedRuntimeFactoryFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
 
@@ -435,7 +433,6 @@ package struct KnownCompilerNames {
         main = interner.intern("main")
         with = interner.intern("with")
         run = interner.intern("run")
-        runCatching = interner.intern("runCatching")
         withContext = interner.intern("withContext")
         withTimeout = interner.intern("withTimeout")
         withTimeoutOrNull = interner.intern("withTimeoutOrNull")
@@ -579,8 +576,6 @@ package struct KnownCompilerNames {
         let util = interner.intern("util")
         let javaConcurrent = interner.intern("concurrent")
         let javaAtomic = interner.intern("atomic")
-        let math = interner.intern("math")
-        let bigIntegerName = interner.intern("BigInteger")
         atomicScalarFactoryFQNames = [
             [kotlin, kotlinConcurrent, atomicIntName],
             [kotlin, kotlinConcurrent, atomicLongName],
@@ -591,9 +586,6 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicBooleanName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicReferenceName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
-        ]
-        boxedRuntimeFactoryFQNames = [
-            [java, math, bigIntegerName],
         ]
     }
 
@@ -654,13 +646,6 @@ package struct KnownCompilerNames {
     /// `kk_object_new` instance before calling the constructor.
     func isAtomicScalarFactorySymbol(_ symbol: SemanticSymbol) -> Bool {
         atomicScalarFactoryFQNames.contains(symbol.fqName)
-    }
-
-    /// True for synthetic runtime-backed boxed classes whose constructors
-    /// are factory functions (e.g. `kk_biginteger_fromString`) rather than
-    /// `(this, ...)` initializers.
-    func isBoxedRuntimeFactorySymbol(_ symbol: SemanticSymbol) -> Bool {
-        boxedRuntimeFactoryFQNames.contains(symbol.fqName)
     }
 
     func isSequenceSymbol(_ symbol: SemanticSymbol) -> Bool {
