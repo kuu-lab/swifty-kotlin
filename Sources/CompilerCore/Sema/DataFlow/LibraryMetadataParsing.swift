@@ -549,6 +549,12 @@ extension DataFlowSemaPhase {
             if consume(prefix: "UJ") {
                 return types.ulongType
             }
+            if consume(character: "B") {
+                return types.make(.primitive(.byte, .nonNull))
+            }
+            if consume(character: "S") {
+                return types.make(.primitive(.short, .nonNull))
+            }
             if consume(character: "U") {
                 return types.unitType
             }
