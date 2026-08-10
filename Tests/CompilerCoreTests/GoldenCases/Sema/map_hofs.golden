@@ -11,7 +11,6 @@ symbol fq=kotlin.collections.Map.Entry.key kind=function vis=public flags=synthe
 symbol fq=kotlin.collections.Map.Entry.value kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.V
 symbol fq=kotlin.collections.Map.K kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Map.toList kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.List<out kotlin.Pair<kotlin.collections.Map.K, kotlin.collections.Map.V>>
 symbol fq=render kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=Unit
 symbol fq=render.$0.values kind=valueParameter vis=private flags=_
 file fmap_hofs package=_
@@ -65,5 +64,5 @@ expr e@9:28 lambda params=[] body=e@9:30#2 label=mapKeys type=(kotlin.collection
 expr e@9:13#1 memberCall recv=e@9:13 callee=mapKeys args=[_:e@9:28] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapKeys targs=[String,Int,String]
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
 expr e@10:13 name(values) type=kotlin.collections.Map<String, Int> ref=render.$0.values
-expr e@10:13#1 memberCall recv=e@10:13 callee=toList args=[] type=kotlin.collections.List<kotlin.collections.Map.Entry<out String, out Int>> call=kotlin.collections.Map.toList
+expr e@10:13#1 memberCall recv=e@10:13 callee=toList args=[] type=kotlin.collections.List<out kotlin.Pair<String, Int>> call=kotlin.collections.toList#1
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
