@@ -36,7 +36,17 @@ extension DeclTypeChecker {
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        let classType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        // Mirror the header pass: a generic class's `this` type carries its own
+        // type parameters as arguments. Member functions get this through their
+        // signature receiver type, but property accessors fall back to the
+        // context's implicit receiver, so a raw type here would make calls like
+        // `f(this)` (where `f` takes `C<T>`) fail to resolve.
+        let classTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        let classType = sema.types.make(.classType(ClassType(
+            classSymbol: symbol, args: classTypeArgs, nullability: .nonNull
+        )))
         let classScope = buildClassMemberScope(
             ownerSymbol: symbol,
             ownerType: classType,
@@ -203,8 +213,11 @@ extension DeclTypeChecker {
         if let companionDeclID = interfaceDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
+        let interfaceTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
         let interfaceType = sema.types.make(.classType(ClassType(
-            classSymbol: symbol, args: [], nullability: .nonNull
+            classSymbol: symbol, args: interfaceTypeArgs, nullability: .nonNull
         )))
         let interfaceScope = buildClassMemberScope(
             ownerSymbol: symbol,

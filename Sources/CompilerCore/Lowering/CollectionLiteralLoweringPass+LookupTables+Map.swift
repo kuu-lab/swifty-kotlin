@@ -15,8 +15,6 @@ struct MapLookupNames {
     let kkMapOfName: InternedString
     let kkMapSizeName: InternedString
     let kkMapGetName: InternedString
-    let kkMapContainsKeyName: InternedString
-    let kkMapContainsValueName: InternedString
     let kkMapIsEmptyName: InternedString
     let kkMapForEachName: InternedString
     let kkMapMapName: InternedString
@@ -32,15 +30,11 @@ struct MapLookupNames {
     let kkMapFlatMapName: InternedString
     let kkMapMaxByOrNullName: InternedString
     let kkMapMinByOrNullName: InternedString
-    let kkMapToListName: InternedString
     let kkMapToStringName: InternedString
     let kkMapIteratorName: InternedString
     let kkMapIteratorHasNextName: InternedString
     let kkMapIteratorNextName: InternedString
     let kkMutableMapPutAllName: InternedString
-    let kkMapKeysName: InternedString
-    let kkMapValuesName: InternedString
-    let kkMapEntriesName: InternedString
     let mapFactoryNames: Set<InternedString>
     let mutableMapConstructorNames: Set<InternedString>
 
@@ -56,8 +50,6 @@ struct MapLookupNames {
         kkMapOfName = interner.intern("__kk_map_of")
         kkMapSizeName = interner.intern("kk_map_size")
         kkMapGetName = interner.intern("__kk_map_get")
-        kkMapContainsKeyName = interner.intern("kk_map_contains_key")
-        kkMapContainsValueName = interner.intern("kk_map_contains_value")
         kkMapIsEmptyName = interner.intern("kk_map_is_empty")
         kkMapForEachName = interner.intern("kk_map_forEach")
         kkMapMapName = interner.intern("kk_map_map")
@@ -73,15 +65,11 @@ struct MapLookupNames {
         kkMapFlatMapName = interner.intern("kk_map_flatMap")
         kkMapMaxByOrNullName = interner.intern("kk_map_maxByOrNull")
         kkMapMinByOrNullName = interner.intern("kk_map_minByOrNull")
-        kkMapToListName = interner.intern("kk_map_toList")
         kkMapToStringName = interner.intern("kk_map_to_string")
         kkMapIteratorName = interner.intern("__kk_map_iterator")
         kkMapIteratorHasNextName = interner.intern("__kk_map_iterator_hasNext")
         kkMapIteratorNextName = interner.intern("__kk_map_iterator_next")
         kkMutableMapPutAllName = interner.intern("kk_mutable_map_putAll")
-        kkMapKeysName = interner.intern("kk_map_keys")
-        kkMapValuesName = interner.intern("kk_map_values")
-        kkMapEntriesName = interner.intern("kk_map_entries")
         mapFactoryNames = [mapOfName, mutableMapOfName, hashMapOfName, linkedMapOfName, emptyMapName]
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
     }

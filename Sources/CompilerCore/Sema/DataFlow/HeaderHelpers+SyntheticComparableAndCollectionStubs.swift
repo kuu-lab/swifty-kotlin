@@ -367,13 +367,6 @@ extension DataFlowSemaPhase {
             keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
             valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol
         )
-        registerMapToMutableMapMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
-            valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol
-        )
         registerMapHigherOrderMembers(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
@@ -385,10 +378,9 @@ extension DataFlowSemaPhase {
             skipStats: skipStats
         )
 
-        registerSyntheticArrayDequeStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
+        // KSP-625: ArrayDeque is provided by bundled Kotlin source
+        // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
+        // registered for it here.
 
         registerSyntheticCollectionFactoryStubs(
             symbols: symbols, types: types, interner: interner,

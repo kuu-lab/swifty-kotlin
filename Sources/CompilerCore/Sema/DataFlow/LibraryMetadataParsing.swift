@@ -121,7 +121,8 @@ extension DataFlowSemaPhase {
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
-                isMutable: metadataRecord.isMutable
+                isMutable: metadataRecord.isMutable,
+                nominalTypeParameters: metadataRecord.nominalTypeParameters
             ))
         }
 
@@ -219,8 +220,49 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             typeParameterSymbols: typeParameterSymbols,
-            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+            classTypeParameterCount: ownerNominalTypeParameterCount(
+                of: functionType,
+                record: record,
+                symbols: symbols,
+                types: types
+            )
         )
+    }
+
+    /// Number of leading type parameters that belong to the owner nominal type
+    /// rather than the callable itself. `collectTypeParameterSymbols` visits the
+    /// receiver first, so a member of a generic class starts with exactly the
+    /// type parameters carried by its owner's type arguments. Extension
+    /// callables are excluded: their receiver type arguments are the function's
+    /// own type parameters.
+    private func ownerNominalTypeParameterCount(
+        of functionType: FunctionType,
+        record: ImportedLibrarySymbolRecord,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Int {
+        guard record.fqName.count >= 2,
+              let receiver = functionType.receiver,
+              case let .classType(classType) = types.kind(of: types.makeNonNullable(receiver)),
+              let ownerSymbol = symbols.symbol(classType.classSymbol),
+              ownerSymbol.fqName == Array(record.fqName.dropLast())
+        else {
+            return 0
+        }
+        var seen: Set<SymbolID> = []
+        for arg in classType.args {
+            switch arg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                guard case let .typeParam(typeParam) = types.kind(of: inner) else {
+                    return 0
+                }
+                seen.insert(typeParam.symbol)
+            case .star:
+                return 0
+            }
+        }
+        return seen.count
     }
 
     /// Collects the type parameter symbols referenced by a decoded function type
