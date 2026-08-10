@@ -896,7 +896,7 @@ public extension RuntimeABISpec {
                     section: "Collection",
             isThrowing: false
                 ),
-                // ArrayDeque ring-buffer bridges (STDLIB-240 / KSP-625)
+                // ArrayDeque (STDLIB-240 / KSP-625 ring-buffer bridges)
                 RuntimeABIFunctionSpec(
                     name: "__kk_arraydeque_new",
                     parameters: [],
@@ -1117,16 +1117,6 @@ public extension RuntimeABISpec {
                     name: "kk_list_orEmpty",
                     parameters: [
                         RuntimeABIParameter(name: "listRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                // STDLIB-532: Map?.orEmpty()
-                RuntimeABIFunctionSpec(
-                    name: "kk_map_orEmpty",
-                    parameters: [
-                        RuntimeABIParameter(name: "mapRaw", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",

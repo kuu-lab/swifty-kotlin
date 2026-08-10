@@ -2,87 +2,75 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-625
-// ArrayDeque public surface migrated to bundled Kotlin source. first/last/
-// isEmpty/toString are pure Kotlin now; only the ring-buffer mutation core
-// stays in the runtime behind the demoted __kk_arraydeque_* bridges
-// (Sources/Runtime/RuntimeArrayDequeAndUtility.swift).
-
-@KsSymbolName("__kk_arraydeque_new")
-private external fun __kkArrayDequeNew(): Any
+// KSP-625: ArrayDeque migrated to bundled Kotlin source.
+// `first` / `last` / `isEmpty` / `toString` and the emptiness / bounds checks
+// are Kotlin logic; only the ring-buffer mutation primitives stay in the
+// runtime (`__kk_arraydeque_*`), because the element storage is a
+// runtime-managed, GC-traced buffer.
 
 @KsSymbolName("__kk_arraydeque_size")
-private external fun __kkArrayDequeSize(handle: Any): Int
+private external fun <E> __kkArrayDequeSize(deque: ArrayDeque<E>): Int
 
 @KsSymbolName("__kk_arraydeque_get")
-private external fun __kkArrayDequeGet(handle: Any, index: Int): Any?
-
-@KsSymbolName("__kk_arraydeque_addFirst")
-private external fun __kkArrayDequeAddFirst(handle: Any, element: Any?): Int
-
-@KsSymbolName("__kk_arraydeque_addLast")
-private external fun __kkArrayDequeAddLast(handle: Any, element: Any?): Int
+private external fun <E> __kkArrayDequeGet(deque: ArrayDeque<E>, index: Int): E
 
 @KsSymbolName("__kk_arraydeque_removeFirst")
-private external fun __kkArrayDequeRemoveFirst(handle: Any): Any?
+private external fun <E> __kkArrayDequeRemoveFirst(deque: ArrayDeque<E>): E
 
 @KsSymbolName("__kk_arraydeque_removeLast")
-private external fun __kkArrayDequeRemoveLast(handle: Any): Any?
+private external fun <E> __kkArrayDequeRemoveLast(deque: ArrayDeque<E>): E
 
 /**
  * Resizable-array implementation of the deque data structure.
- *
- * The element storage is the runtime ring buffer reached through [handle];
- * every operation above the raw buffer mutation is implemented here.
  */
 public class ArrayDeque<E> {
-    private val handle: Any = __kkArrayDequeNew()
+    @KsSymbolName("__kk_arraydeque_new")
+    public constructor()
 
     public val size: Int
-        get() = __kkArrayDequeSize(handle)
+        get() = __kkArrayDequeSize(this)
 
-    public fun isEmpty(): Boolean = size == 0
+    public fun isEmpty(): Boolean = __kkArrayDequeSize(this) == 0
 
-    public fun isNotEmpty(): Boolean = size != 0
+    public fun isNotEmpty(): Boolean = !isEmpty()
 
-    public fun addFirst(element: E) {
-        __kkArrayDequeAddFirst(handle, element)
-    }
+    @KsSymbolName("__kk_arraydeque_addFirst")
+    public external fun addFirst(element: E): Unit
 
-    public fun addLast(element: E) {
-        __kkArrayDequeAddLast(handle, element)
-    }
+    @KsSymbolName("__kk_arraydeque_addLast")
+    public external fun addLast(element: E): Unit
 
-    @Suppress("UNCHECKED_CAST")
     public operator fun get(index: Int): E {
-        checkElementIndex(index)
-        return __kkArrayDequeGet(handle, index) as E
+        val currentSize = __kkArrayDequeSize(this)
+        if (index < 0 || index >= currentSize) {
+            throw IndexOutOfBoundsException("index: $index, size: $currentSize")
+        }
+        return __kkArrayDequeGet(this, index)
     }
 
     public fun first(): E {
-        checkNotEmpty()
-        return get(0)
+        if (__kkArrayDequeSize(this) == 0) throw NoSuchElementException("ArrayDeque is empty.")
+        return __kkArrayDequeGet(this, 0)
     }
 
     public fun last(): E {
-        checkNotEmpty()
-        return get(size - 1)
+        val currentSize = __kkArrayDequeSize(this)
+        if (currentSize == 0) throw NoSuchElementException("ArrayDeque is empty.")
+        return __kkArrayDequeGet(this, currentSize - 1)
     }
 
-    public fun firstOrNull(): E? = if (isEmpty()) null else get(0)
+    public fun firstOrNull(): E? = if (isEmpty()) null else first()
 
-    public fun lastOrNull(): E? = if (isEmpty()) null else get(size - 1)
+    public fun lastOrNull(): E? = if (isEmpty()) null else last()
 
-    @Suppress("UNCHECKED_CAST")
     public fun removeFirst(): E {
-        checkNotEmpty()
-        return __kkArrayDequeRemoveFirst(handle) as E
+        if (__kkArrayDequeSize(this) == 0) throw NoSuchElementException("ArrayDeque is empty.")
+        return __kkArrayDequeRemoveFirst(this)
     }
 
-    @Suppress("UNCHECKED_CAST")
     public fun removeLast(): E {
-        checkNotEmpty()
-        return __kkArrayDequeRemoveLast(handle) as E
+        if (__kkArrayDequeSize(this) == 0) throw NoSuchElementException("ArrayDeque is empty.")
+        return __kkArrayDequeRemoveLast(this)
     }
 
     public fun removeFirstOrNull(): E? = if (isEmpty()) null else removeFirst()
@@ -90,25 +78,16 @@ public class ArrayDeque<E> {
     public fun removeLastOrNull(): E? = if (isEmpty()) null else removeLast()
 
     override fun toString(): String {
-        var result = "["
+        val builder = StringBuilder()
+        builder.append("[")
         var index = 0
-        val count = size
-        while (index < count) {
-            if (index > 0) result += ", "
-            result += get(index).toString()
+        val currentSize = __kkArrayDequeSize(this)
+        while (index < currentSize) {
+            if (index > 0) builder.append(", ")
+            builder.append(__kkArrayDequeGet(this, index).toString())
             index += 1
         }
-        return result + "]"
-    }
-
-    private fun checkNotEmpty() {
-        if (size == 0) throw NoSuchElementException("ArrayDeque is empty.")
-    }
-
-    private fun checkElementIndex(index: Int) {
-        val count = size
-        if (index < 0 || index >= count) {
-            throw IndexOutOfBoundsException("index: $index, size: $count")
-        }
+        builder.append("]")
+        return builder.toString()
     }
 }

@@ -1164,19 +1164,6 @@ public func kk_list_orEmpty(_ listRaw: Int) -> Int {
     return listRaw
 }
 
-// MARK: - STDLIB-532: Map?.orEmpty()
-
-/// Cached singleton handle for the empty map, allocated once on first use.
-private let cachedEmptyMapHandle: Int = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-
-@_cdecl("kk_map_orEmpty")
-public func kk_map_orEmpty(_ mapRaw: Int) -> Int {
-    if mapRaw == runtimeNullSentinelInt || mapRaw == 0 {
-        return cachedEmptyMapHandle
-    }
-    return mapRaw
-}
-
 // MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)
 
 /// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).

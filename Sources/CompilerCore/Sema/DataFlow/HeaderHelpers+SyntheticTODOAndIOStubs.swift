@@ -810,44 +810,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // measureTime returns Duration (STDLIB-585)
-        let measureTimeBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.unitType
-        )))
-        registerSyntheticTopLevelFunction(
-            named: "measureTime",
-            packageFQName: kotlinTimePkg,
-            parameters: [(name: "block", type: measureTimeBlockType)],
-            returnType: durationClassType,
-            externalLinkName: "kk_measureTime",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // measureTimedValue returns TimedValue (STDLIB-660)
-        let timedValueFQName = kotlinTimePkg + [interner.intern("TimedValue")]
-        let timedValueType: TypeID
-        if let timedValueSymbol = symbols.lookup(fqName: timedValueFQName) {
-            timedValueType = types.make(.classType(ClassType(
-                classSymbol: timedValueSymbol, args: [], nullability: .nonNull
-            )))
-        } else {
-            timedValueType = types.anyType
-        }
-        let measureTimedValueBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.makeNullable(types.anyType)
-        )))
-        registerSyntheticTopLevelFunction(
-            named: "measureTimedValue",
-            packageFQName: kotlinTimePkg,
-            parameters: [(name: "block", type: measureTimedValueBlockType)],
-            returnType: timedValueType,
-            externalLinkName: "kk_measureTimedValue",
-            symbols: symbols,
-            interner: interner
-        )
+        // measureTime / measureTimedValue live in bundled Kotlin source
+        // (Stdlib/kotlin/time/MeasureTime.kt).
 
         // --- STDLIB-HOF-029: 関数型完全実装 ---
         registerSyntheticFunctionTypes(

@@ -149,6 +149,7 @@ extension CallLowerer {
            isFlowReceiverType(receiverType, sema: sema, interner: interner)
         {
             arguments.insert(loweredReceiverID, at: 0)
+            return
         }
     }
 
@@ -558,12 +559,7 @@ extension CallLowerer {
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
         case "kk_string_indexOfFirst",
-             "kk_string_indexOfLast",
-             "kk_string_map",
-             "kk_string_mapIndexed",
-             "kk_string_mapNotNull",
-             "kk_string_firstNotNullOf",
-             "kk_string_firstNotNullOfOrNull":
+             "kk_string_indexOfLast":
             true
         default:
             false
@@ -830,16 +826,14 @@ extension CallLowerer {
             interner.intern("kk_list_sortedWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
-           finalArguments.count == 2,
-           let comparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: nil,
-               loweredComparatorID: finalArguments[1],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
+           finalArguments.count == 2
         {
+            let comparatorArgs = makeComparatorObjectArgumentPair(
+                loweredComparatorID: finalArguments[1],
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
             finalArguments = [finalArguments[0]] + comparatorArgs
         }
         if loweredCallee == interner.intern("kk_channel_send")
@@ -853,16 +847,6 @@ extension CallLowerer {
             )
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
-        }
-        if (loweredCallee == interner.intern("kk_comparator_nulls_first")
-            || loweredCallee == interner.intern("kk_comparator_nulls_last")
-            || loweredCallee == interner.intern("kk_comparator_nulls_first_of")
-            || loweredCallee == interner.intern("kk_comparator_nulls_last_of")),
-           finalArguments.count == 1
-        {
-            let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
-            finalArguments.append(zeroClosureExpr)
         }
         // KSP-677: Mutex.withLock / Semaphore.withPermit / Lock.withLock are Kotlin
         // source (Stdlib/kotlinx/coroutines/sync/Sync.kt, Stdlib/kotlin/concurrent/Lock.kt).
@@ -1128,7 +1112,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_associateBy"),
             interner.intern("kk_sequence_associateTo"),
             interner.intern("kk_sequence_associateByTo"),
-            interner.intern("kk_map_getValue"),
             interner.intern("kk_map_mapKeysTo"),
             interner.intern("kk_map_mapValuesTo"),
             interner.intern("kk_sequence_mapNotNull"),
@@ -1168,8 +1151,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_firstNotNullOf_flat"),
-            interner.intern("kk_string_firstNotNullOfOrNull_flat"),
             interner.intern("kk_string_zipTransform"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunked_sequence_transform"),

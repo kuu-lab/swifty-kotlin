@@ -4,12 +4,12 @@
 //
 // Split out from `RuntimeCollections.swift`.
 
-// MARK: - ArrayDeque ring-buffer bridges (STDLIB-240 / KSP-625)
+// MARK: - ArrayDeque ring-buffer bridges (KSP-625)
 //
-// The public ArrayDeque surface lives in
-// `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayDeque.kt`; only the raw
-// buffer mutation below stays here. Emptiness is validated on the Kotlin side,
-// so these bridges never throw.
+// `first` / `last` / `isEmpty` / `toString` and the emptiness checks that guard
+// `removeFirst` / `removeLast` now live in
+// `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayDeque.kt`; only the
+// element-storage mutation primitives remain here.
 
 @_cdecl("__kk_arraydeque_new")
 public func __kk_arraydeque_new() -> Int {
@@ -21,7 +21,7 @@ public func __kk_arraydeque_addFirst(_ dequeRaw: Int, _ element: Int) -> Int {
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
         return 0
     }
-    deque.insertRawFirst(element)
+    deque.pushFirst(RuntimeValue(raw: element))
     return 0
 }
 
@@ -30,34 +30,38 @@ public func __kk_arraydeque_addLast(_ dequeRaw: Int, _ element: Int) -> Int {
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
         return 0
     }
-    deque.appendRawLast(element)
+    deque.pushLast(RuntimeValue(raw: element))
     return 0
 }
 
 @_cdecl("__kk_arraydeque_removeFirst")
 public func __kk_arraydeque_removeFirst(_ dequeRaw: Int) -> Int {
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw), deque.count > 0 else {
+    guard let deque = runtimeArrayDequeBox(from: dequeRaw),
+          let value = deque.popFirst()
+    else {
         return 0
     }
-    return deque.removeRawFirst()
+    return value.legacyRawValue
 }
 
 @_cdecl("__kk_arraydeque_removeLast")
 public func __kk_arraydeque_removeLast(_ dequeRaw: Int) -> Int {
-    guard let deque = runtimeArrayDequeBox(from: dequeRaw), deque.count > 0 else {
+    guard let deque = runtimeArrayDequeBox(from: dequeRaw),
+          let value = deque.popLast()
+    else {
         return 0
     }
-    return deque.removeRawLast()
+    return value.legacyRawValue
 }
 
 @_cdecl("__kk_arraydeque_get")
 public func __kk_arraydeque_get(_ dequeRaw: Int, _ index: Int) -> Int {
     guard let deque = runtimeArrayDequeBox(from: dequeRaw),
-          index >= 0, index < deque.count
+          let value = deque.element(at: index)
     else {
         return 0
     }
-    return deque.rawElement(at: index)
+    return value.legacyRawValue
 }
 
 @_cdecl("__kk_arraydeque_size")

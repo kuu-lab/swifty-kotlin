@@ -89,7 +89,7 @@ extension CallLowerer {
         // bundled stdlib).  String is excluded above; Char and primitives are excluded by
         // tryLowerPrimitiveCompareTo which runs before this path.
         if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("kk_comparable_compareTo")
+            return interner.intern("__kk_comparable_compareTo")
         }
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
@@ -1028,17 +1028,6 @@ extension CallLowerer {
         switch memberName {
         case "count":
             return argumentCount == 0 ? interner.intern("kk_map_size") : nil
-        case "getValue":
-            return interner.intern("kk_map_getValue")
-        case "getOrDefault":
-            return interner.intern("kk_map_getOrDefault")
-        case "getOrElse":
-            return interner.intern("kk_map_getOrElse")
-        case "getOrPut":
-            guard knownNames.isMutableMapSymbol(symbol) else {
-                return nil
-            }
-            return interner.intern("kk_mutable_map_getOrPut")
         case "putAll":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil

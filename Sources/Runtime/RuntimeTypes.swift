@@ -510,45 +510,104 @@ final class RuntimeMapBox {
 }
 
 /// Runtime box for `ArrayDeque<T>`.
-/// Stores elements in a mutable runtime-value array.
+///
+/// Elements live in a ring buffer so that both ends mutate in place: `head` is
+/// the buffer slot of the logical first element and `count` the number of live
+/// elements. Growth doubles the buffer and re-linearizes it.
 final class RuntimeArrayDequeBox {
-    private var storage: [RuntimeValue]
+    private var buffer: [RuntimeValue]
+    private var head: Int
+    private(set) var count: Int
+
+    private static let minimumCapacity = 8
 
     var values: [RuntimeValue] {
         get {
-            storage
+            (0 ..< count).map { buffer[slot(forOffset: $0)] }
         }
         set {
-            storage = newValue
+            buffer = newValue
+            head = 0
+            count = newValue.count
+            reserve(newValue.count)
         }
     }
 
     var elements: [Int] {
         get {
-            storage.map(\.legacyRawValue)
+            values.map(\.legacyRawValue)
         }
         set {
-            storage = newValue.map { RuntimeValue(raw: $0) }
+            values = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
-    var count: Int { storage.count }
-
-    /// Buffer mutations used by the `__kk_arraydeque_*` bridges. They work on
-    /// `storage` directly so a single element operation does not rebuild the
-    /// whole raw-value array through `elements`.
-    func rawElement(at index: Int) -> Int { storage[index].legacyRawValue }
-
-    func insertRawFirst(_ rawValue: Int) { storage.insert(RuntimeValue(raw: rawValue), at: 0) }
-
-    func appendRawLast(_ rawValue: Int) { storage.append(RuntimeValue(raw: rawValue)) }
-
-    func removeRawFirst() -> Int { storage.removeFirst().legacyRawValue }
-
-    func removeRawLast() -> Int { storage.removeLast().legacyRawValue }
-
     init(elements: [Int]) {
-        self.storage = elements.map { RuntimeValue(raw: $0) }
+        let capacity = max(Self.minimumCapacity, elements.count)
+        buffer = elements.map { RuntimeValue(raw: $0) }
+            + Array(repeating: RuntimeValue(raw: 0), count: capacity - elements.count)
+        head = 0
+        count = elements.count
+    }
+
+    func element(at index: Int) -> RuntimeValue? {
+        guard index >= 0, index < count else { return nil }
+        return buffer[slot(forOffset: index)]
+    }
+
+    func pushFirst(_ value: RuntimeValue) {
+        growIfNeeded()
+        head = slot(forOffset: buffer.count - 1)
+        buffer[head] = value
+        count += 1
+    }
+
+    func pushLast(_ value: RuntimeValue) {
+        growIfNeeded()
+        buffer[slot(forOffset: count)] = value
+        count += 1
+    }
+
+    func popFirst() -> RuntimeValue? {
+        guard count > 0 else { return nil }
+        let value = buffer[head]
+        buffer[head] = RuntimeValue(raw: 0)
+        head = slot(forOffset: 1)
+        count -= 1
+        return value
+    }
+
+    func popLast() -> RuntimeValue? {
+        guard count > 0 else { return nil }
+        let tail = slot(forOffset: count - 1)
+        let value = buffer[tail]
+        buffer[tail] = RuntimeValue(raw: 0)
+        count -= 1
+        return value
+    }
+
+    private func slot(forOffset offset: Int) -> Int {
+        let capacity = buffer.count
+        let index = head + offset
+        return index < capacity ? index : index % capacity
+    }
+
+    private func growIfNeeded() {
+        guard count == buffer.count else { return }
+        reserve(max(Self.minimumCapacity, buffer.count * 2))
+    }
+
+    /// Re-linearizes the buffer so that `head == 0`, growing it to at least
+    /// `capacity` slots.
+    private func reserve(_ capacity: Int) {
+        let target = max(Self.minimumCapacity, capacity)
+        guard target != buffer.count || head != 0 else { return }
+        var linearized = (0 ..< count).map { buffer[slot(forOffset: $0)] }
+        if linearized.count < target {
+            linearized += Array(repeating: RuntimeValue(raw: 0), count: target - linearized.count)
+        }
+        buffer = linearized
+        head = 0
     }
 }
 
