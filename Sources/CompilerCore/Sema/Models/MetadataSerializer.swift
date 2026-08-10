@@ -92,6 +92,10 @@ package struct MetadataRecord {
     /// declaration, with the child's type parameters substituted in (e.g.
     /// `Lkotlinx.coroutines.flow.SharedFlow<T8154>;`).
     let nominalSupertypeSignatures: [String]
+    /// Declaration-order type parameters of a nominal type, encoded as
+    /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`), so consumers can
+    /// restore the generic arity used by constructor/member resolution.
+    let nominalTypeParameters: String?
 
     init(
         kind: SymbolKind,
@@ -137,7 +141,8 @@ package struct MetadataRecord {
         propertyGetterAbiReturnTypeSignature: String? = nil,
         isMutable: Bool = false,
         nominalTypeParametersSignature: String? = nil,
-        nominalSupertypeSignatures: [String] = []
+        nominalSupertypeSignatures: [String] = [],
+        nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -183,6 +188,7 @@ package struct MetadataRecord {
         self.isMutable = isMutable
         self.nominalTypeParametersSignature = nominalTypeParametersSignature
         self.nominalSupertypeSignatures = nominalSupertypeSignatures
+        self.nominalTypeParameters = nominalTypeParameters
     }
 }
 
@@ -279,7 +285,12 @@ package final class MetadataEncoder {
                 }
                 // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
                 // These are compiler internals and are always re-injected on every compilation.
+                // Source-backed nominal types that reuse a synthetic shell carry a sourceFileID
+                // but leave declSite nil, so also filter by the tracked source file ID.
                 if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
+                    return false
+                }
+                if let sourceFileID = symbols.sourceFileID(for: symbol.id), excludeSourceFileIDs.contains(sourceFileID.rawValue) {
                     return false
                 }
                 return true
@@ -738,11 +749,19 @@ package final class MetadataEncoder {
         var enumStaticInitLinkName: String?
         var nominalTypeParametersSignature: String?
         var nominalSupertypeSignatures: [String] = []
+        var nominalTypeParameters: String?
 
         if Self.nominalKinds.contains(symbol.kind) {
             superFQName = computedSuperFQName
             let generics = nominalGenericSignatures(
                 symbol: symbol,
+                symbols: symbols,
+                types: types,
+                mangler: mangler,
+                interner: interner
+            )
+            nominalTypeParameters = serializeNominalTypeParameters(
+                for: symbol.id,
                 symbols: symbols,
                 types: types,
                 mangler: mangler,
@@ -866,8 +885,41 @@ package final class MetadataEncoder {
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
             isMutable: isMutable,
             nominalTypeParametersSignature: nominalTypeParametersSignature,
-            nominalSupertypeSignatures: nominalSupertypeSignatures
+            nominalSupertypeSignatures: nominalSupertypeSignatures,
+            nominalTypeParameters: nominalTypeParameters
         )
+    }
+
+    /// Encodes a nominal type's declaration-order type parameters as
+    /// `<typeSignature>:<variance>` pairs so importers can restore the generic
+    /// arity (constructor/member type-argument resolution needs it).
+    private func serializeNominalTypeParameters(
+        for symbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        mangler: NameMangler,
+        interner: StringInterner
+    ) -> String? {
+        let typeParameterSymbols = types.nominalTypeParameterSymbols(for: symbol)
+        guard !typeParameterSymbols.isEmpty else {
+            return nil
+        }
+        let variances = types.nominalTypeParameterVariances(for: symbol)
+        let entries: [String] = typeParameterSymbols.enumerated().map { index, typeParameterSymbol in
+            let encoded = mangler.encodeType(
+                types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol, nullability: .nonNull))),
+                symbols: symbols,
+                types: types,
+                nameResolver: { interner.resolve($0) }
+            )
+            let variance: String = switch index < variances.count ? variances[index] : .invariant {
+            case .invariant: "i"
+            case .out: "o"
+            case .in: "n"
+            }
+            return "\(encoded):\(variance)"
+        }
+        return entries.joined(separator: ",")
     }
 
     /// Nominal kinds that carry layout information in metadata.
@@ -993,6 +1045,9 @@ package final class MetadataEncoder {
                 }
                 if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
                     fields.append("enumStaticInitLink=\(enumStaticInitLink)")
+                }
+                if let typeParams = record.nominalTypeParameters, !typeParams.isEmpty {
+                    fields.append("typeParams=\(typeParams)")
                 }
             }
             if record.isDataClass {
@@ -1273,7 +1328,8 @@ final class MetadataDecoder {
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
                 isMutable: rec.isMutable,
                 nominalTypeParametersSignature: rec.nominalTypeParametersSignature,
-                nominalSupertypeSignatures: rec.nominalSupertypeSignatures
+                nominalSupertypeSignatures: rec.nominalSupertypeSignatures,
+                nominalTypeParameters: rec.nominalTypeParameters
             ))
         }
         return records
@@ -1325,6 +1381,7 @@ final class MetadataDecoder {
         var isMutable: Bool = false
         var nominalTypeParametersSignature: String?
         var nominalSupertypeSignatures: [String] = []
+        var nominalTypeParameters: String?
         var schemaVersion: String?
     }
 
@@ -1382,6 +1439,8 @@ final class MetadataDecoder {
             record.vtableSlots = value.isEmpty ? nil : value
         case "itableSlots":
             record.itableSlots = value.isEmpty ? nil : value
+        case "typeParams":
+            record.nominalTypeParameters = value.isEmpty ? nil : value
         case "objectInitLink":
             record.objectInitializerLinkName = value.isEmpty ? nil : value
         case "companionInitLink":

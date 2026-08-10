@@ -123,7 +123,8 @@ extension DataFlowSemaPhase {
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
                 isMutable: metadataRecord.isMutable,
                 nominalTypeParametersSignature: metadataRecord.nominalTypeParametersSignature,
-                nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures
+                nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
+                nominalTypeParameters: metadataRecord.nominalTypeParameters
             ))
         }
 
@@ -222,59 +223,48 @@ extension DataFlowSemaPhase {
             valueParameterIsVararg: valueParameterIsVararg,
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
-            classTypeParameterCount: importedClassTypeParameterCount(
+            classTypeParameterCount: ownerNominalTypeParameterCount(
+                of: functionType,
                 record: record,
-                functionType: functionType,
-                typeParameterSymbols: typeParameterSymbols,
                 symbols: symbols,
                 types: types
             )
         )
     }
 
-    /// Number of leading `typeParameterSymbols` entries that belong to the owner
-    /// class rather than to the callable itself.
-    ///
-    /// Source-declared members record this in `MemberHeaderCollection`; imported
-    /// members must recover it from the receiver type, whose arguments are the
-    /// owner's type parameters (`collectTypeParameterSymbols` visits the receiver
-    /// first, so they occupy the front of the list). Extension callables declared
-    /// at package level keep a count of zero even when their receiver is generic.
-    private func importedClassTypeParameterCount(
+    /// Number of leading type parameters that belong to the owner nominal type
+    /// rather than the callable itself. `collectTypeParameterSymbols` visits the
+    /// receiver first, so a member of a generic class starts with exactly the
+    /// type parameters carried by its owner's type arguments. Extension
+    /// callables are excluded: their receiver type arguments are the function's
+    /// own type parameters.
+    private func ownerNominalTypeParameterCount(
+        of functionType: FunctionType,
         record: ImportedLibrarySymbolRecord,
-        functionType: FunctionType,
-        typeParameterSymbols: [SymbolID],
         symbols: SymbolTable,
         types: TypeSystem
     ) -> Int {
-        guard record.kind == .constructor || record.kind == .function,
-              record.fqName.count >= 2,
+        guard record.fqName.count >= 2,
               let receiver = functionType.receiver,
-              case let .classType(receiverClass) = types.kind(of: receiver),
-              !receiverClass.args.isEmpty
+              case let .classType(classType) = types.kind(of: types.makeNonNullable(receiver)),
+              let ownerSymbol = symbols.symbol(classType.classSymbol),
+              ownerSymbol.fqName == Array(record.fqName.dropLast())
         else {
             return 0
         }
-        let ownerFQName = Array(record.fqName.dropLast())
-        let ownerIsReceiverClass = symbols.lookupAll(fqName: ownerFQName).contains { candidate in
-            candidate == receiverClass.classSymbol
-        }
-        guard ownerIsReceiverClass else {
-            return 0
-        }
-
-        var count = 0
-        for arg in receiverClass.args {
-            guard case let .invariant(argType) = arg,
-                  case let .typeParam(typeParam) = types.kind(of: argType),
-                  count < typeParameterSymbols.count,
-                  typeParameterSymbols[count] == typeParam.symbol
-            else {
-                break
+        var seen: Set<SymbolID> = []
+        for arg in classType.args {
+            switch arg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                guard case let .typeParam(typeParam) = types.kind(of: inner) else {
+                    return 0
+                }
+                seen.insert(typeParam.symbol)
+            case .star:
+                return 0
             }
-            count += 1
         }
-        return count
+        return seen.count
     }
 
     /// Collects the type parameter symbols referenced by a decoded function type
