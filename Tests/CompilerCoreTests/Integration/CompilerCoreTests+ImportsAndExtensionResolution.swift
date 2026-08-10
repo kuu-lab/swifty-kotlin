@@ -5,7 +5,7 @@ import Testing
 
 extension CompilerCoreTests {
 
-    @Test func testImportsAndExtensionResolutionSema() throws {
+    @Test func testImportsAndExtensionResolution() throws {
         let sources: [String] = [
             // testCallRejectsSpreadForNonVarargParameter
             """
@@ -99,7 +99,25 @@ extension CompilerCoreTests {
                     import kotlin.io.println as
                     fun use() = 1
 
+            """,
+
+            // testBuildASTParsesExtensionFunctionReceiverType
             """
+            package sample10
+            fun String.echo(): String = this
+            """,
+
+            // testBuildASTParsesNullableExtensionFunctionReceiverType
+            """
+            package sample11
+            fun String?.echoNullable(): String = this ?: ""
+            """,
+
+            // testBuildASTParsesClassTypeParameterVariance
+            """
+            package sample12
+            class Box<out T, in U, V>
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -215,6 +233,68 @@ extension CompilerCoreTests {
 
             }
 
+            let ast = try #require(ctx.ast)
+            let sourceFileIDs = try paths.map { path in
+                try #require(ctx.sourceManager.fileID(forPath: path))
+            }
+
+            // testBuildASTParsesExtensionFunctionReceiverType
+            do {
+                let file = try #require(ast.files.first { $0.fileID == sourceFileIDs[10] })
+                let declID = try #require(file.topLevelDecls.first)
+                let decl = try #require(ast.arena.decl(declID))
+                guard case let .funDecl(funDecl) = decl else {
+                    Issue.record("Expected function declaration")
+                    return
+                }
+
+                #expect(funDecl.name != .invalid)
+                let receiverTypeID = try #require(funDecl.receiverType)
+                let receiverType = try #require(ast.arena.typeRef(receiverTypeID))
+                if case let .named(path, _, nullable) = receiverType {
+                    #expect(!nullable)
+                    #expect(path.count == 1)
+                    #expect(ctx.interner.resolve(path[0]) == "String")
+                } else {
+                    Issue.record("Expected named receiver type")
+                }
+            }
+
+            // testBuildASTParsesNullableExtensionFunctionReceiverType
+            do {
+                let file = try #require(ast.files.first { $0.fileID == sourceFileIDs[11] })
+                let declID = try #require(file.topLevelDecls.first)
+                let decl = try #require(ast.arena.decl(declID))
+                guard case let .funDecl(funDecl) = decl else {
+                    Issue.record("Expected function declaration")
+                    return
+                }
+
+                let receiverTypeID = try #require(funDecl.receiverType)
+                let receiverType = try #require(ast.arena.typeRef(receiverTypeID))
+                if case let .named(path, _, nullable) = receiverType {
+                    #expect(nullable)
+                    #expect(path.count == 1)
+                    #expect(ctx.interner.resolve(path[0]) == "String")
+                } else {
+                    Issue.record("Expected named receiver type")
+                }
+            }
+
+            // testBuildASTParsesClassTypeParameterVariance
+            do {
+                let file = try #require(ast.files.first { $0.fileID == sourceFileIDs[12] })
+                let declID = try #require(file.topLevelDecls.first)
+                let decl = try #require(ast.arena.decl(declID))
+                guard case let .classDecl(classDecl) = decl else {
+                    Issue.record("Expected class declaration")
+                    return
+                }
+
+                #expect(classDecl.typeParams.count == 3)
+                #expect(classDecl.typeParams.map(\.variance) == [.out, .in, .invariant])
+                #expect(classDecl.typeParams.map { ctx.interner.resolve($0.name) } == ["T", "U", "V"])
+            }
         }
     }
 
@@ -414,83 +494,5 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
     }
 
-
-    @Test func testBuildASTParsesExtensionFunctionReceiverType() throws {
-        let source = """
-        fun String.echo(): String = this
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        let ast = try #require(ctx.ast)
-        let firstFile = try #require(ast.files.first)
-        let firstDeclID = try #require(firstFile.topLevelDecls.first)
-        let decl = try #require(ast.arena.decl(firstDeclID))
-        guard case let .funDecl(funDecl) = decl else {
-            Issue.record("Expected function declaration")
-            return
-        }
-
-        #expect(funDecl.name != .invalid)
-        let receiverTypeID = try #require(funDecl.receiverType)
-        let receiverType = try #require(ast.arena.typeRef(receiverTypeID))
-        if case let .named(path, _, nullable) = receiverType {
-            #expect(!(nullable))
-            #expect(path.count == 1)
-            #expect(ctx.interner.resolve(path[0]) == "String")
-        } else {
-            Issue.record("Expected named receiver type")
-        }
-    }
-
-
-    @Test func testBuildASTParsesNullableExtensionFunctionReceiverType() throws {
-        let source = """
-        fun String?.echoNullable(): String = this ?: ""
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        let ast = try #require(ctx.ast)
-        let firstFile = try #require(ast.files.first)
-        let firstDeclID = try #require(firstFile.topLevelDecls.first)
-        let decl = try #require(ast.arena.decl(firstDeclID))
-        guard case let .funDecl(funDecl) = decl else {
-            Issue.record("Expected function declaration")
-            return
-        }
-
-        let receiverTypeID = try #require(funDecl.receiverType)
-        let receiverType = try #require(ast.arena.typeRef(receiverTypeID))
-        if case let .named(path, _, nullable) = receiverType {
-            #expect(nullable)
-            #expect(path.count == 1)
-            #expect(ctx.interner.resolve(path[0]) == "String")
-        } else {
-            Issue.record("Expected named receiver type")
-        }
-    }
-
-
-    @Test func testBuildASTParsesClassTypeParameterVariance() throws {
-        let source = """
-        class Box<out T, in U, V>
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        let ast = try #require(ctx.ast)
-        let firstFile = try #require(ast.files.first)
-        let firstDeclID = try #require(firstFile.topLevelDecls.first)
-        let decl = try #require(ast.arena.decl(firstDeclID))
-        guard case let .classDecl(classDecl) = decl else {
-            Issue.record("Expected class declaration")
-            return
-        }
-
-        #expect(classDecl.typeParams.count == 3)
-        #expect(classDecl.typeParams.map(\.variance) == [.out, .in, .invariant])
-        #expect(classDecl.typeParams.map { ctx.interner.resolve($0.name) } == ["T", "U", "V"])
-    }
 }
 #endif
