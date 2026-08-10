@@ -7,16 +7,16 @@ import Testing
 ///
 /// Verifies that
 /// `fun <T> compareValuesBy(a: T, b: T, selector: (T) -> Comparable<*>?): Int`
-/// is registered as a synthetic stub in the kotlin.comparisons package and
-/// resolves cleanly from user source code.
+/// KSP-461: it is provided by bundled Kotlin source (Stdlib/kotlin/comparisons/
+/// Comparators.kt) and must resolve cleanly from user source code.
 @Suite
 struct ComparisonsCompareValuesByFunctionTests {
 
     /// Calling `compareValuesBy(a, b, selector)` from user source must resolve
-    /// to the synthetic 1-selector stub without semantic errors.
+    /// to the 1-selector overload without semantic errors.
 
-    /// The 1-selector overload of `kotlin.comparisons.compareValuesBy`
-    /// must be registered with the `kk_compareValuesBy1` external link.
+    /// KSP-461: the source-backed overloads must remain unambiguous and carry
+    /// no runtime external links.
 
     // MARK: - Per-source diagnostic helpers
 
@@ -184,9 +184,17 @@ struct ComparisonsCompareValuesByFunctionTests {
                     }
 
             """,
-            // testCompareValuesByOneSelectorIsRegistered
+            // testCompareValuesByTwoSelectorsResolvesInSource
             """
             package sample1
+
+                    fun cmp(): Int =
+                        compareValuesBy("ab", "cd", { s: String -> s.length }, { s: String -> s })
+
+            """,
+            // testCompareValuesByOneSelectorIsSourceBacked
+            """
+            package sample2
             fun noop() {}
             """,
         ]
@@ -217,22 +225,34 @@ struct ComparisonsCompareValuesByFunctionTests {
 
             }
 
-            // === testCompareValuesByOneSelectorIsRegistered ===
+            // === testCompareValuesByTwoSelectorsResolvesInSource ===
 
             do {
 
                 let sample1Path = paths[1]
 
-                let path = sample1Path
-
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+                #expect(!(sample1Diagnostics.contains { $0.severity == .error }), "compareValuesBy (2-selector) must resolve without errors; got: \(sample1Diagnostics)")
+
+            }
+
+            // === testCompareValuesByOneSelectorIsSourceBacked ===
+
+            do {
+
+                let sample2Path = paths[2]
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+                #expect(!(sample2Diagnostics.contains { $0.severity == .error }))
 
                 let fq = ["kotlin", "comparisons", "compareValuesBy"].map { interner.intern($0) }
-                let links = Set(
-                    sema.symbols.lookupAll(fqName: fq)
-                        .compactMap { sema.symbols.externalLinkName(for: $0) }
-                )
-                #expect(links.contains("kk_compareValuesBy1"), "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)")
+                let symbols = sema.symbols.lookupAll(fqName: fq)
+                let isSourceBacked = symbols.contains { symbolID in
+                    sema.symbols.externalLinkName(for: symbolID) == nil
+                        && sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == 3
+                }
+                #expect(isSourceBacked, "compareValuesBy (1-selector) must be bundled Kotlin source")
+                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.isEmpty, "compareValuesBy must not keep runtime links; found: \(links)")
 
             }
 

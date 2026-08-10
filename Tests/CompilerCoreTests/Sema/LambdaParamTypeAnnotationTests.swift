@@ -298,6 +298,51 @@ struct LambdaParamTypeAnnotationTests {
                     }
 
             """,
+            // testAnnotationNarrowingDeclaredAnyIsRejected
+            """
+            package sample13
+
+                    fun main() {
+                        val f: (Any) -> Int = { s: String -> s.length }
+                        println(f(42))
+                    }
+
+            """,
+            // testAnnotationNarrowingDeclaredAnyOfTopLevelPropertyIsRejected
+            """
+            package sample14
+
+                    val f: (Any) -> Int = { s: String -> s.length }
+
+                    fun main() {
+                        println(f(42))
+                    }
+
+            """,
+            // testAnnotationNarrowingDeclaredAnyFunctionParameterIsRejected
+            """
+            package sample15
+
+                    fun applyAny(f: (Any) -> Int): Int = f(42)
+
+                    fun main() {
+                        println(applyAny { s: String -> s.length })
+                    }
+
+            """,
+            // testAnnotationMatchingDeclaredAnyIsAccepted
+            """
+            package sample16
+
+                    fun applyAny(f: (Any) -> String): String = f(42)
+
+                    fun main() {
+                        val f: (Any) -> String = { v: Any -> v.toString() }
+                        println(f(7))
+                        println(applyAny { v: Any -> v.toString() })
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -514,6 +559,30 @@ struct LambdaParamTypeAnnotationTests {
                 #expect(annotated.first?.allSatisfy { $0 != nil } == true, "Both annotations should resolve to a type ref")
 
             }
+
+            // === testAnnotationNarrowingDeclaredAnyIsRejected ===
+
+            for (index, description) in [
+                (13, "Narrowing a declared Any parameter"),
+                (14, "Narrowing a declared Any property parameter"),
+                (15, "Narrowing a declared Any function parameter"),
+            ] {
+                let diagnostics = diagnosticsForPath(paths[index], in: ctx)
+                let mismatches = diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+                #expect(
+                    mismatches.count == 1,
+                    "\(description) must be reported, got: \(diagnostics)"
+                )
+            }
+
+            // === testAnnotationMatchingDeclaredAnyIsAccepted ===
+
+            let sample16Diagnostics = diagnosticsForPath(paths[16], in: ctx)
+            let sample16Errors = sample16Diagnostics.filter { $0.severity == .error }
+            #expect(
+                sample16Errors.isEmpty,
+                "An Any annotation for a declared Any parameter is legal, got: \(sample16Errors)"
+            )
 
         }
     }

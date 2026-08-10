@@ -891,7 +891,7 @@ extension ListSyntheticMemberLinkTests {
 
             }
 
-            // === testCollectionAndIterableConversionMembersUseRuntimeExternalLinks ===
+            // === testCollectionAndIterableConversionMembersResolveToBundledSource ===
 
             do {
 
@@ -909,7 +909,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toMutableList",
-                        expectedExternalLink: "kk_collection_toMutableList",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("MutableList")
                     ),
                     .init(
@@ -919,7 +919,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toTypedArray",
-                        expectedExternalLink: "kk_collection_toTypedArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("Array")
                     ),
                     .init(
@@ -929,7 +929,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toMutableList",
-                        expectedExternalLink: "kk_iterable_toMutableList",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("MutableList")
                     ),
                     .init(
@@ -939,7 +939,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toMutableSet",
-                        expectedExternalLink: "kk_iterable_toMutableSet",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("MutableSet")
                     ),
                 ]
@@ -1383,7 +1383,7 @@ extension ListSyntheticMemberLinkTests {
 
             }
 
-            // === testListPrimitiveArrayConversionsUseRuntimeExternalLinks ===
+            // === testListPrimitiveArrayConversionsResolveToSourceBackedDeclarations ===
 
             do {
 
@@ -1401,7 +1401,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toBooleanArray",
-                        expectedExternalLink: "kk_list_toBooleanArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("BooleanArray")
                     ),
                     .init(
@@ -1411,7 +1411,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toByteArray",
-                        expectedExternalLink: "kk_list_toByteArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("ByteArray")
                     ),
                     .init(
@@ -1421,7 +1421,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toShortArray",
-                        expectedExternalLink: "kk_list_toShortArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("ShortArray")
                     ),
                     .init(
@@ -1431,7 +1431,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toIntArray",
-                        expectedExternalLink: "kk_list_toIntArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("IntArray")
                     ),
                     .init(
@@ -1441,7 +1441,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toDoubleArray",
-                        expectedExternalLink: "kk_list_toDoubleArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("DoubleArray")
                     ),
                     .init(
@@ -1451,7 +1451,7 @@ extension ListSyntheticMemberLinkTests {
                         }
                         """,
                         memberName: "toFloatArray",
-                        expectedExternalLink: "kk_list_toFloatArray",
+                        expectedExternalLink: nil,
                         expectedTypeShape: .classNamed("FloatArray")
                     ),
                 ]
@@ -2822,7 +2822,7 @@ extension ListSyntheticMemberLinkTests {
 
             }
 
-            // === testListToBooleanArrayUsesRuntimeExternalLink ===
+            // === testListToBooleanArrayResolvesToSourceBackedDeclaration ===
 
             do {
 
@@ -2837,7 +2837,7 @@ extension ListSyntheticMemberLinkTests {
                     return interner.resolve(callee) == "toBooleanArray"
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toBooleanArray")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
                 let resultType = try #require(sema.bindings.exprTypes[callExpr])
                 guard case let .classType(classType) = sema.types.kind(of: resultType),
                       let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2848,7 +2848,7 @@ extension ListSyntheticMemberLinkTests {
 
             }
 
-            // === testListToShortArrayUsesRuntimeExternalLink ===
+            // === testListToShortArrayResolvesToSourceBackedDeclaration ===
 
             do {
 
@@ -2863,7 +2863,7 @@ extension ListSyntheticMemberLinkTests {
                     return interner.resolve(callee) == "toShortArray"
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toShortArray")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
                 let resultType = try #require(sema.bindings.exprTypes[callExpr])
                 guard case let .classType(classType) = sema.types.kind(of: resultType),
                       let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2874,7 +2874,7 @@ extension ListSyntheticMemberLinkTests {
 
             }
 
-            // === testListToDoubleArrayUsesRuntimeExternalLink ===
+            // === testListToDoubleArrayResolvesToSourceBackedDeclaration ===
 
             do {
 
@@ -2889,7 +2889,7 @@ extension ListSyntheticMemberLinkTests {
                     return interner.resolve(callee) == "toDoubleArray"
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toDoubleArray")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
                 let resultType = try #require(sema.bindings.exprTypes[callExpr])
                 guard case let .classType(classType) = sema.types.kind(of: resultType),
                       let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2900,7 +2900,7 @@ extension ListSyntheticMemberLinkTests {
 
             }
 
-            // === testListToFloatArrayUsesRuntimeExternalLink ===
+            // === testListToFloatArrayResolvesToSourceBackedDeclaration ===
 
             do {
 
@@ -2915,7 +2915,7 @@ extension ListSyntheticMemberLinkTests {
                     return interner.resolve(callee) == "toFloatArray"
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toFloatArray")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
                 let resultType = try #require(sema.bindings.exprTypes[callExpr])
                 guard case let .classType(classType) = sema.types.kind(of: resultType),
                       let symbol = sema.symbols.symbol(classType.classSymbol)

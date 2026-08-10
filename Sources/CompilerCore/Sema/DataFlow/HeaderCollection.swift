@@ -1095,6 +1095,12 @@ extension DataFlowSemaPhase {
             [["kotlin", "Comparable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
             [["kotlin", "collections", "RandomAccess"]]
+        case "__bundled_kotlin/collections/MutableIterable.kt":
+            [["kotlin", "collections", "MutableIterable"]]
+        case "__bundled_kotlin/collections/AbstractCollection.kt":
+            [["kotlin", "collections", "AbstractCollection"]]
+        case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
+            [["kotlin", "collections", "AbstractMutableCollection"]]
         case "__bundled_kotlin/Result.kt":
             [["kotlin", "Result"]]
         case "__bundled_kotlin/text/StringBuilder.kt":

@@ -108,8 +108,6 @@ public enum StdlibSpecialCallKind: Equatable {
     case measureTimeMillis
     case measureTimeMicros
     case measureNanoTime
-    case measureTime
-    case measureTimedValue
     case suspendCoroutineUninterceptedOrReturn
     case enumValues
     case enumValueOf

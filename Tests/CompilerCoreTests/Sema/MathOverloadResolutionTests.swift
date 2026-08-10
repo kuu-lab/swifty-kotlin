@@ -91,6 +91,33 @@ struct MathOverloadResolutionTests {
         return results
     }
 
+    private func resolvedCallCallees(
+        in function: FunDecl,
+        ctx: CompilationContext
+    ) -> [SymbolID] {
+        let ast = try! #require(ctx.ast)
+        let sema = try! #require(ctx.sema)
+        guard let functionBodyRange = bodyRange(of: function) else { return [] }
+        var results: [SymbolID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let exprRange = ast.arena.exprRange(exprID),
+                  functionBodyRange.contains(exprRange)
+            else { continue }
+
+            switch expr {
+            case .call, .memberCall:
+                break
+            default:
+                continue
+            }
+            guard let binding = sema.bindings.callBinding(for: exprID) else { continue }
+            results.append(binding.chosenCallee)
+        }
+        return results
+    }
+
     private func allCallLinks(
         names: Set<String>,
         in function: FunDecl,
@@ -153,6 +180,37 @@ struct MathOverloadResolutionTests {
             "No external link resolved for \(callName) in \(functionName)"
         )
         #expect(link == expected, "\(functionName).\(callName) should resolve to \(expected), got \(link)")
+    }
+
+    private func assertSourceBackedSignature(
+        forCall callName: String,
+        inFunction functionName: String,
+        expected: String,
+        ctx: CompilationContext
+    ) throws {
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let function = try #require(
+            functionDecl(named: functionName, in: ast, interner: interner),
+            "Missing function \(functionName)"
+        )
+        let exprID = try #require(
+            firstCallExpr(named: callName, in: function, ast: ast, interner: interner),
+            "Missing \(callName) call in \(functionName)"
+        )
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: exprID)?.chosenCallee,
+            "No call binding for \(callName) in \(functionName)"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) == nil,
+            "\(functionName).\(callName) must resolve to bundled Kotlin source"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+        let parameters = signature.parameterTypes.map { sema.types.renderType($0) }.joined(separator: ", ")
+        let rendered = "(\(parameters)) -> \(sema.types.renderType(signature.returnType))"
+        #expect(rendered == expected, "\(functionName).\(callName) resolved to \(rendered), expected \(expected)")
     }
 
     // MARK: - Consolidated math overload resolution
@@ -339,10 +397,10 @@ struct MathOverloadResolutionTests {
         let interner = ctx.interner
 
         // Positive overload assertions
-        try assertLink(forCall: "abs", inFunction: "absInt", expected: "kk_math_abs_int", ctx: ctx)
-        try assertLink(forCall: "abs", inFunction: "absLong", expected: "kk_math_abs_long", ctx: ctx)
-        try assertLink(forCall: "abs", inFunction: "absDouble", expected: "kk_math_abs", ctx: ctx)
-        try assertLink(forCall: "abs", inFunction: "absFloat", expected: "kk_math_abs_float", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "abs", inFunction: "absInt", expected: "(Int) -> Int", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "abs", inFunction: "absLong", expected: "(Long) -> Long", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "abs", inFunction: "absDouble", expected: "(Double) -> Double", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "abs", inFunction: "absFloat", expected: "(Float) -> Float", ctx: ctx)
 
         try assertLink(forCall: "sqrt", inFunction: "sqrtDouble", expected: "kk_math_sqrt", ctx: ctx)
         try assertLink(forCall: "sqrt", inFunction: "sqrtFloat", expected: "kk_math_sqrt_float", ctx: ctx)
@@ -437,25 +495,23 @@ struct MathOverloadResolutionTests {
         try assertLink(forCall: "hypot", inFunction: "hypotDouble", expected: "kk_math_hypot", ctx: ctx)
         try assertLink(forCall: "hypot", inFunction: "hypotFloat", expected: "kk_math_hypot_float", ctx: ctx)
 
-        try assertLink(forCall: "max", inFunction: "maxDouble", expected: "kk_math_max", ctx: ctx)
-        try assertLink(forCall: "max", inFunction: "maxFloat", expected: "kk_math_max_float", ctx: ctx)
-        try assertLink(forCall: "max", inFunction: "maxInt", expected: "kk_math_max_int", ctx: ctx)
-        try assertLink(forCall: "max", inFunction: "maxLong", expected: "kk_math_max_long", ctx: ctx)
-        try assertLink(forCall: "max", inFunction: "maxUInt", expected: "kk_math_max_uint", ctx: ctx)
-        try assertLink(forCall: "max", inFunction: "maxULong", expected: "kk_math_max_ulong", ctx: ctx)
-
-        try assertLink(forCall: "min", inFunction: "minDouble", expected: "kk_math_min", ctx: ctx)
-        try assertLink(forCall: "min", inFunction: "minFloat", expected: "kk_math_min_float", ctx: ctx)
-        try assertLink(forCall: "min", inFunction: "minInt", expected: "kk_math_min_int", ctx: ctx)
-        try assertLink(forCall: "min", inFunction: "minLong", expected: "kk_math_min_long", ctx: ctx)
-        try assertLink(forCall: "min", inFunction: "minUInt", expected: "kk_math_min_uint", ctx: ctx)
-        try assertLink(forCall: "min", inFunction: "minULong", expected: "kk_math_min_ulong", ctx: ctx)
+        for name in ["max", "min"] {
+            for type in ["Double", "Float", "Int", "Long", "UInt", "ULong"] {
+                let functionName = name + type
+                try assertSourceBackedSignature(
+                    forCall: name,
+                    inFunction: functionName,
+                    expected: "(\(type), \(type)) -> \(type)",
+                    ctx: ctx
+                )
+            }
+        }
 
         try assertLink(forCall: "cbrt", inFunction: "cbrtDouble", expected: "kk_math_cbrt", ctx: ctx)
         try assertLink(forCall: "cbrt", inFunction: "cbrtFloat", expected: "kk_math_cbrt_float", ctx: ctx)
 
-        try assertLink(forCall: "sign", inFunction: "signDouble", expected: "kk_math_sign", ctx: ctx)
-        try assertLink(forCall: "sign", inFunction: "signFloat", expected: "kk_math_sign_float", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "sign", inFunction: "signDouble", expected: "(Double) -> Double", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "sign", inFunction: "signFloat", expected: "(Float) -> Float", ctx: ctx)
 
         try assertLink(forCall: "truncate", inFunction: "truncateDouble", expected: "kk_math_truncate", ctx: ctx)
         try assertLink(forCall: "truncate", inFunction: "truncateFloat", expected: "kk_math_truncate_float", ctx: ctx)
@@ -465,19 +521,15 @@ struct MathOverloadResolutionTests {
         try assertLink(forCall: "roundToLong", inFunction: "roundToLongDouble", expected: "kk_double_roundToLong", ctx: ctx)
         try assertLink(forCall: "roundToLong", inFunction: "roundToLongFloat", expected: "kk_float_roundToLong", ctx: ctx)
 
-        try assertLink(forCall: "abs", inFunction: "fqnAbsInt", expected: "kk_math_abs_int", ctx: ctx)
-        try assertLink(forCall: "abs", inFunction: "fqnAbsDouble", expected: "kk_math_abs", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "abs", inFunction: "fqnAbsInt", expected: "(Int) -> Int", ctx: ctx)
+        try assertSourceBackedSignature(forCall: "abs", inFunction: "fqnAbsDouble", expected: "(Double) -> Double", ctx: ctx)
         try assertLink(forCall: "sqrt", inFunction: "fqnSqrtDouble", expected: "kk_math_sqrt", ctx: ctx)
 
         // Distinct overload sets
         let absDistinctFunction = try #require(functionDecl(named: "absDistinct", in: ast, interner: interner))
-        let absDistinctLinks = resolvedCallLinks(in: absDistinctFunction, ctx: ctx)
-        #expect(Set(absDistinctLinks).isSuperset(of: [
-            "kk_math_abs_int",
-            "kk_math_abs_long",
-            "kk_math_abs",
-            "kk_math_abs_float",
-        ]))
+        let absDistinctCallees = resolvedCallCallees(in: absDistinctFunction, ctx: ctx)
+        #expect(absDistinctCallees.count == 4, "Expected one chosen callee per abs call")
+        #expect(Set(absDistinctCallees).count == 4, "Each abs overload should resolve to a different declaration")
 
         let sqrtDistinctFunction = try #require(functionDecl(named: "sqrtDistinct", in: ast, interner: interner))
         let sqrtDistinctLinks = resolvedCallLinks(in: sqrtDistinctFunction, ctx: ctx)

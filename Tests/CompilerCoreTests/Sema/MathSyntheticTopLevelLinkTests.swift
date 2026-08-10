@@ -343,7 +343,6 @@ struct MathSyntheticTopLevelLinkTests {
                     ("round", "kk_math_round_float"),
                     ("ceil", "kk_math_ceil_float"),
                     ("floor", "kk_math_floor_float"),
-                    ("abs", "kk_math_abs_float"),
                     ("exp", "kk_math_exp_float"),
                     ("expm1", "kk_math_expm1_float"),
                     ("ln", "kk_math_ln_float"),
@@ -351,7 +350,6 @@ struct MathSyntheticTopLevelLinkTests {
                     ("log2", "kk_math_log2_float"),
                     ("log10", "kk_math_log10_float"),
                     ("log", "kk_math_log_float"),
-                    ("sign", "kk_math_sign_float"),
                     ("hypot", "kk_math_hypot_float"),
                 ]
 
@@ -387,6 +385,9 @@ struct MathSyntheticTopLevelLinkTests {
                     guard let expr = ast.arena.expr(exprID) else { continue }
                     guard case let .call(calleeExpr, _, _, _) = expr else { continue }
                     guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else { continue }
+                    guard let range = ast.arena.exprRange(exprID),
+                          ctx.sourceManager.path(of: range.start.file) == sample2Path
+                    else { continue }
                     let name = interner.resolve(calleeName)
                     callByName[name, default: []].append(exprID)
                     if name == "abs" {
@@ -395,10 +396,18 @@ struct MathSyntheticTopLevelLinkTests {
                 }
 
                 #expect(absCalls.count == 2, "Expected int and double abs calls")
+                for absCall in absCalls {
+                    let chosenCallee = try #require(
+                        sema.bindings.callBinding(for: absCall)?.chosenCallee,
+                        "Expected chosen callee for abs"
+                    )
+                    #expect(
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "abs is Kotlin-source backed and must not carry a runtime link"
+                    )
+                }
 
                 let expectedOrder: [(String, String)] = [
-                    ("abs", "kk_math_abs_int"),
-                    ("abs", "kk_math_abs"),
                     ("sqrt", "kk_math_sqrt"),
                     ("pow", "kk_math_pow"),
                     ("ceil", "kk_math_ceil"),
@@ -407,12 +416,9 @@ struct MathSyntheticTopLevelLinkTests {
                 ]
                 var consumedByName: [String: Int] = [:]
 
-                for (index, expected) in expectedOrder.enumerated() {
+                for expected in expectedOrder {
                     let (name, expectedLink) = expected
                     let callExpr: ExprID = {
-                        if name == "abs" {
-                            return absCalls[index == 0 ? 0 : 1]
-                        }
                         let selectedIndex = consumedByName[name, default: 0]
                         consumedByName[name] = selectedIndex + 1
                         let candidates = callByName[name] ?? []
@@ -479,15 +485,15 @@ struct MathSyntheticTopLevelLinkTests {
 
                 let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
 
-                let expected: [(String, TypeID, TypeID, String)] = [
-                    ("absoluteValue", sema.types.doubleType, sema.types.doubleType, "kk_math_abs"),
-                    ("absoluteValue", sema.types.floatType, sema.types.floatType, "kk_math_abs_float"),
-                    ("absoluteValue", sema.types.intType, sema.types.intType, "kk_math_abs_int"),
-                    ("absoluteValue", sema.types.longType, sema.types.longType, "kk_math_abs_long"),
-                    ("sign", sema.types.doubleType, sema.types.doubleType, "kk_math_sign"),
-                    ("sign", sema.types.floatType, sema.types.floatType, "kk_math_sign_float"),
-                    ("sign", sema.types.intType, sema.types.intType, "kk_math_sign_int"),
-                    ("sign", sema.types.longType, sema.types.intType, "kk_math_sign_long"),
+                let expected: [(String, TypeID, TypeID, String?)] = [
+                    ("absoluteValue", sema.types.doubleType, sema.types.doubleType, nil),
+                    ("absoluteValue", sema.types.floatType, sema.types.floatType, nil),
+                    ("absoluteValue", sema.types.intType, sema.types.intType, nil),
+                    ("absoluteValue", sema.types.longType, sema.types.longType, nil),
+                    ("sign", sema.types.doubleType, sema.types.doubleType, nil),
+                    ("sign", sema.types.floatType, sema.types.floatType, nil),
+                    ("sign", sema.types.intType, sema.types.intType, nil),
+                    ("sign", sema.types.longType, sema.types.intType, nil),
                     ("ulp", sema.types.doubleType, sema.types.doubleType, "kk_double_ulp"),
                     ("ulp", sema.types.floatType, sema.types.floatType, "kk_float_ulp"),
                 ]
@@ -526,6 +532,8 @@ struct MathSyntheticTopLevelLinkTests {
                     guard let expr = ast.arena.expr(exprID),
                           case let .memberCall(_, calleeName, _, _, _) = expr,
                           propertyNames.contains(interner.resolve(calleeName)),
+                          let range = ast.arena.exprRange(exprID),
+                          ctx.sourceManager.path(of: range.start.file) == sample5Path,
                           let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
                           let link = sema.symbols.externalLinkName(for: chosenCallee)
                     else {
@@ -535,19 +543,15 @@ struct MathSyntheticTopLevelLinkTests {
                 }
 
                 for expectedLink in [
-                    "kk_math_abs_int",
-                    "kk_math_abs_long",
-                    "kk_math_abs_float",
-                    "kk_math_abs",
-                    "kk_math_sign_int",
-                    "kk_math_sign_long",
-                    "kk_math_sign_float",
-                    "kk_math_sign",
                     "kk_float_ulp",
                     "kk_double_ulp",
                 ] {
                     #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
                 }
+                #expect(
+                    !resolvedLinks.contains { $0.hasPrefix("kk_math_") },
+                    "absoluteValue/sign are Kotlin-source backed, got \(resolvedLinks)"
+                )
 
             }
 
