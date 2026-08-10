@@ -684,8 +684,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             withFlatString("swift") { needleData, needleLength, needleByteCount, needleHash in
-                XCTAssertEqual(
-                    kk_string_compareToIgnoreCase_flat(
+                XCTAssertLessThan(
+                    kk_string_compareTo_flat(
                         data,
                         length,
                         byteCount,
@@ -693,10 +693,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         needleData,
                         needleLength,
                         needleByteCount,
-                        needleHash,
-                        1
+                        needleHash
                     ),
-                    -1
+                    0
                 )
             }
             XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 1)
@@ -713,15 +712,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(nil, 0, 0, 0, nil, 0, 0, 0, 1)), 1)
 
         withFlatString("") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)), 1)
-            XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
             XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
-            XCTAssertEqual(kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)), 0)
         }
 
         withFlatString("  \n\t") { data, length, byteCount, hash in
@@ -732,10 +727,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 0)
             XCTAssertEqual(
                 kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)),
-                0
-            )
-            XCTAssertEqual(
-                kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)),
                 0
             )
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
@@ -753,38 +744,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         )
                     ),
                     0
-                )
-                XCTAssertEqual(
-                    kk_unbox_bool(
-                        kk_string_contentEquals_ignoreCase_flat(
-                            data,
-                            length,
-                            byteCount,
-                            hash,
-                            otherData,
-                            otherLength,
-                            otherByteCount,
-                            otherHash,
-                            1
-                        )
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_unbox_bool(
-                        kk_string_equalsIgnoreCase_flat(
-                            data,
-                            length,
-                            byteCount,
-                            hash,
-                            otherData,
-                            otherLength,
-                            otherByteCount,
-                            otherHash,
-                            1
-                        )
-                    ),
-                    1
                 )
             }
             withFlatString("KSwiftK") { sameData, sameLength, sameByteCount, sameHash in
@@ -810,7 +769,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringBooleanRuntimeAPIsReturnRawScalars() {
         XCTAssertEqual(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0), 1)
         XCTAssertEqual(kk_string_isNullOrBlank_flat(nil, 0, 0, 0), 1)
-        XCTAssertEqual(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0), 1)
         XCTAssertEqual(kk_string_toBoolean_flat(nil, 0, 0, 0), 0)
 
         withFlatString("KSwiftK") { data, length, byteCount, hash in
@@ -834,34 +792,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         otherHash
                     ),
                     0
-                )
-                XCTAssertEqual(
-                    kk_string_equalsIgnoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash,
-                        1
-                    ),
-                    1
-                )
-                XCTAssertEqual(
-                    kk_string_contentEquals_ignoreCase_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash,
-                        1
-                    ),
-                    1
                 )
             }
         }
@@ -2311,7 +2241,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern)),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%s:%d %.2f", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%s:%d %.2f", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "age:7 3.50")
     }
 
@@ -2323,14 +2253,14 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ])
         let baselineObjectCount = kk_debugging_global_object_count()
 
-        let formatted = flatStringReturnValueNoThrow("%s:%d %.1f", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%s:%d %.1f", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "age:7 3.5")
 
         let formattedWithLocale = flatStringReturnValue(
             "%1$s %3$.1f",
             leadingIntArg: runtimeNullSentinelInt,
             trailingIntArg: args,
-            using: kk_string_format_locale_flat
+            using: __kk_string_format_locale_flat
         )
         XCTAssertEqual(formattedWithLocale, "age 3.5")
         XCTAssertEqual(
@@ -2347,7 +2277,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 2.5.bitPattern))),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%.1f %.1f %.1f", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%.1f %.1f %.1f", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "3.0 1.5 2.5")
     }
 
@@ -2357,7 +2287,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             rawFromRuntimeString("age"),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%2$s:%1$d", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%2$s:%1$d", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "age:7")
     }
 
@@ -2368,7 +2298,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             runtimeNullSentinelInt,
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%b %B %b", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%b %B %b", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "true FALSE false")
     }
 
@@ -2377,7 +2307,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let unsigned = Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
         let args = makeRuntimeArray([signed, unsigned])
 
-        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "9223372036854775807 ffffffffffffffff")
     }
 
@@ -2386,7 +2316,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let boxedUnsigned = kk_box_long(Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
         let args = makeRuntimeArray([boxedSigned, boxedUnsigned])
 
-        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "9223372036854775807 ffffffffffffffff")
     }
 
@@ -2399,30 +2329,36 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             kk_box_bool(1),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%s %s %s %s %s", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%s %s %s %s %s", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "9223372036854775807 1.5 2.5 A true")
     }
 
     func testStringFormatSupportsEscapedPercentWithoutArguments() {
-        let formatted = flatStringReturnValueNoThrow("progress=100%%", intArg: kk_array_new(0), using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("progress=100%%", intArg: kk_array_new(0), using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "progress=100%")
     }
 
     func testStringFormatTreatsUnsupportedUnsignedConversionAsLiteral() {
         let args = makeRuntimeArray([7])
-        let formatted = flatStringReturnValueNoThrow("%u", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%u", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "%u")
     }
 
-    func testStringFormatTreatsUnsupportedGroupingFlagsAsLiteral() {
+    func testStringFormatGroupsIntegersForGroupingFlag() {
+        let args = makeRuntimeArray([1234567])
+        let formatted = flatStringReturnValueNoThrow("%,d", intArg: args, using: __kk_string_format_flat)
+        XCTAssertEqual(formatted, "1,234,567")
+    }
+
+    func testStringFormatZeroPadsGroupedIntegersAfterGrouping() {
         let args = makeRuntimeArray([1234])
-        let formatted = flatStringReturnValueNoThrow("%,d", intArg: args, using: kk_string_format_flat)
-        XCTAssertEqual(formatted, "%,d")
+        let formatted = flatStringReturnValueNoThrow("%,012d", intArg: args, using: __kk_string_format_flat)
+        XCTAssertEqual(formatted, "00000001,234")
     }
 
     func testStringFormatSupportsScientificNotationForDouble() {
         let args = makeRuntimeArray([kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 1234.5.bitPattern)))])
-        let formatted = flatStringReturnValueNoThrow("%.2e", intArg: args, using: kk_string_format_flat)
+        let formatted = flatStringReturnValueNoThrow("%.2e", intArg: args, using: __kk_string_format_flat)
         XCTAssertEqual(formatted, "1.23e+03")
     }
 
@@ -2435,9 +2371,28 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             "%.1f",
             leadingIntArg: locale,
             trailingIntArg: args,
-            using: kk_string_format_locale_flat
+            using: __kk_string_format_locale_flat
         )
         XCTAssertEqual(formatted, "3,5")
+    }
+
+    func testStringFormatLocaleGroupsOnlyWithGroupingFlag() {
+        let locale = makeLocale(language: "de", country: "DE")
+        let ungrouped = flatStringReturnValue(
+            "%d",
+            leadingIntArg: locale,
+            trailingIntArg: makeRuntimeArray([1234567]),
+            using: __kk_string_format_locale_flat
+        )
+        XCTAssertEqual(ungrouped, "1234567")
+
+        let grouped = flatStringReturnValue(
+            "%,d",
+            leadingIntArg: makeLocale(language: "de", country: "DE"),
+            trailingIntArg: makeRuntimeArray([1234567]),
+            using: __kk_string_format_locale_flat
+        )
+        XCTAssertEqual(grouped, "1.234.567")
     }
 
     func testStringFormatNullLocaleKeepsNonLocalizedFormatting() {
@@ -2448,7 +2403,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             "%.1f",
             leadingIntArg: runtimeNullSentinelInt,
             trailingIntArg: args,
-            using: kk_string_format_locale_flat
+            using: __kk_string_format_locale_flat
         )
         XCTAssertEqual(formatted, "3.5")
     }

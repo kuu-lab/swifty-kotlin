@@ -286,9 +286,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KSP-413: locale-aware compareTo stays a runtime bridge (ICU/Foundation
+        // collation), demoted to `__kk_` so only bundled stdlib source
+        // (StringComparison.kt) reaches it.
         registerSyntheticStringExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_string_compareTo_locale",
+            named: "__kk_string_compareTo_locale",
+            externalLinkName: "__kk_string_compareTo_locale",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -878,19 +881,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_string_compareToIgnoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-413: compareTo(other, ignoreCase) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         // KSP-401: isEmpty/isBlank/ifEmpty/ifBlank are bundled Kotlin source.
 
@@ -940,7 +932,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-192: equals(other, ignoreCase) ---
+        // --- STDLIB-192: equals(other) ---
+        // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         let nullableStringType = types.make(.stringStruct(.nullable))
 
@@ -950,20 +944,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "equals",
-            externalLinkName: "kk_string_equalsIgnoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-                ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
             packageFQName: kotlinTextPkg,
@@ -1127,190 +1107,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // KSP-410: filterIndexed/onEachIndexed and the whole reduce/fold
-        // family are bundled Kotlin source (StringHOF.kt); no synthetic
-        // stub registration.
-        // BUG-170: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay as
-        // synthetic stubs (see TODO.md BUG-170).
-        // BUG-171: map/mapIndexed also stay as synthetic stubs — a bundled
-        // `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns
-        // raw unboxed scalars instead of boxed elements whenever `R`
-        // resolves to `Char`/`Boolean` (see TODO.md BUG-171).
-        let charToNullableAnyType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: types.nullableAnyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticStringExtensionFunction(
-            named: "mapNotNull",
-            externalLinkName: "kk_string_mapNotNull",
-            receiverType: stringType,
-            parameters: [("transform", charToNullableAnyType, false, false)],
-            returnType: listAnyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let charToAnyType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticStringExtensionFunction(
-            named: "map",
-            externalLinkName: "kk_string_map",
-            receiverType: stringType,
-            parameters: [("transform", charToAnyType, false, false)],
-            returnType: types.anyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let intCharToAnyType = types.make(.functionType(FunctionType(
-            params: [intType, charType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticStringExtensionFunction(
-            named: "mapIndexed",
-            externalLinkName: "kk_string_mapIndexed",
-            receiverType: stringType,
-            parameters: [("transform", intCharToAnyType, false, false)],
-            returnType: listAnyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
-        let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
-        if !symbols.lookupAll(fqName: firstNotNullOfFQName).contains(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
-        }) {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: firstNotNullOfFQName + [rName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let transformType = types.make(.functionType(FunctionType(
-                params: [charType],
-                returnType: types.makeNullable(rType),
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("firstNotNullOf"),
-                fqName: firstNotNullOfFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
-            }
-            symbols.setExternalLinkName("kk_string_firstNotNullOf_flat", for: memberSymbol)
-
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: firstNotNullOfFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: charSequenceType,
-                    parameterTypes: [transformType],
-                    returnType: rType,
-                    valueParameterSymbols: [transformParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [rSymbol],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // --- STDLIB-TEXT-HOF-002: CharSequence.firstNotNullOfOrNull(transform) ---
-        let firstNotNullOfOrNullFQName = kotlinTextPkg + [interner.intern("firstNotNullOfOrNull")]
-        if !symbols.lookupAll(fqName: firstNotNullOfOrNullFQName).contains(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
-        }) {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: firstNotNullOfOrNullFQName + [rName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let nullableRType = types.makeNullable(rType)
-            let transformType = types.make(.functionType(FunctionType(
-                params: [charType],
-                returnType: nullableRType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("firstNotNullOfOrNull"),
-                fqName: firstNotNullOfOrNullFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
-            }
-            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull_flat", for: memberSymbol)
-
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: firstNotNullOfOrNullFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: charSequenceType,
-                    parameterTypes: [transformType],
-                    returnType: nullableRType,
-                    valueParameterSymbols: [transformParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [rSymbol],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
+        // KSP-410: map/mapIndexed/mapNotNull/firstNotNullOf(OrNull),
+        // filterIndexed/onEachIndexed and the whole reduce/fold family are
+        // bundled Kotlin source (StringHOF.kt); no synthetic stub registration.
 
         // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
         // (StringTakeDrop.kt).
@@ -1516,7 +1315,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_flat",
+            externalLinkName: "__kk_string_format_flat",
             returnType: stringType,
             parameters: [
                 (name: "format", type: stringType),
@@ -1529,7 +1328,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_locale_flat",
+            externalLinkName: "__kk_string_format_locale_flat",
             returnType: stringType,
             parameters: [
                 (name: "locale", type: types.makeNullable(localeType)),
@@ -1569,10 +1368,10 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-I18N-COMMON-001: String.format instance extension method ---
         // Kotlin: "...".format(vararg args: Any?) -> String
-        // Receiver is the format string; routes to kk_string_format.
+        // Receiver is the format string; routes to __kk_string_format_flat.
         registerSyntheticStringExtensionFunction(
             named: "format",
-            externalLinkName: "kk_string_format_flat",
+            externalLinkName: "__kk_string_format_flat",
             receiverType: stringType,
             parameters: [
                 ("args", types.nullableAnyType, false, true),
@@ -2075,34 +1874,8 @@ extension DataFlowSemaPhase {
 
         // KSP-401: String?.orEmpty() is bundled Kotlin source.
 
-        // --- STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_flat",
-            receiverType: nullableStringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_ignoreCase_flat",
-            receiverType: nullableStringType,
-            parameters: [
-                ("other", nullableStringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-413: CharSequence?.contentEquals is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringComparison.kt).
 
         // --- STDLIB-TEXT-FN-011: shares kk_string_concat with the `+` operator ---
         registerSyntheticStringExtensionFunction(

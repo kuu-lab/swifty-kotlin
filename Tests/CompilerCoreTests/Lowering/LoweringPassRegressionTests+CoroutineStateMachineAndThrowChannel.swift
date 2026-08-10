@@ -119,8 +119,8 @@ extension LoweringPassRegressionTests {
             let rangeYieldFunctions = functions.filter { function in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
                 return callees.contains("kk_sequence_builder_yield")
-                    && callees.contains("kk_range_hasNext")
-                    && callees.contains("kk_range_next")
+                    && callees.contains("kk_iterator_hasNext")
+                    && callees.contains("kk_iterator_next")
             }
             #expect(!rangeYieldFunctions.isEmpty, "Expected a CPS-lowered range-loop builder, callees: \(allCallees)")
             #expect(rangeYieldFunctions.allSatisfy { function in

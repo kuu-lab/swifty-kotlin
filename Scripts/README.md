@@ -241,16 +241,21 @@ mismatched compiler/stdlib versions are rejected with `KSWIFTK-LIB-0021` / `KSWI
 ## CI test sharding
 
 `shard_swift_tests.sh` splits one test target across several CI jobs using the
-same interleaved rule as `diff_kotlinc.sh` sharding. Pure XCTest targets can
-shard per-test (`--mode dynamic`, backed by `swift test list`); targets that
-mix Swift Testing shard per-suite with source-estimated test weights
-(`--mode static`, backed by source scanning):
+same interleaved rule as `diff_kotlinc.sh` sharding. XCTest and Swift Testing
+targets can shard documented test specifiers per method (`--mode dynamic`,
+backed by `swift test list`); targets that cannot be listed reliably can shard
+per-suite with source-estimated test weights (`--mode static`, backed by source
+scanning). Dynamic mode can exclude suites that need separate execution:
 
 ```bash
 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\.' \
   --shard-index 0 --shard-count 6
-bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests \
-  --target-prefix CompilerCoreTests --shard-index 0 --shard-count 4
+bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\.' \
+  --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|SmokeTests)/' \
+  --target-prefix CompilerCoreTests \
+  --shard-index 0 --shard-count 3
+bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
+  --target-prefix RuntimeTests
 ```
 
 ## Refactoring guard metrics

@@ -106,7 +106,7 @@ struct RuntimeStringLocaleTests {
         let locale = makeLocale("en_US")
         withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
             withFlatString("abd") { rhsData, rhsLength, rhsByteCount, rhsHash in
-                let result = kk_string_compareTo_locale_flat(
+                let result = __kk_string_compareTo_locale_flat(
                     lhsData,
                     lhsLength,
                     lhsByteCount,
