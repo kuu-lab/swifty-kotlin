@@ -73,7 +73,7 @@ struct StringLineSequenceFunctionTests {
                 in: ast,
                 interner: ctx.interner
             )
-            #expect(callIDs.count == 3, "Expected three lineSequence calls")
+            #expect(callIDs.count == 4, "Expected four lineSequence calls")
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(
