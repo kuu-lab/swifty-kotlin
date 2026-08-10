@@ -226,11 +226,10 @@ struct DataFlowAndSemaRegressionTests {
         return nil
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaClean() throws {
-
+    func testDataFlowAndSemaRegressionSema() throws {
         let sources: [String] = [
             // testStarProjectionInTypeAnnotationDoesNotCrashCompiler
             """
@@ -451,18 +450,96 @@ struct DataFlowAndSemaRegressionTests {
                     fun main(): Int = Forward().get()
 
             """,
+            // testDuplicateParameterNameEmitsDiagnostic
+            """
+            package sample22
+
+                    fun bad(x: Int, x: Int): Int = x
+
+            """,
+            // testReifiedOnNonInlineFunctionEmitsDiagnostic
+            """
+            package sample23
+
+                    fun <reified T> badReified(x: Any): Boolean = x is T
+                    fun main(): Int = 0
+
+            """,
+            // testDuplicateTopLevelDeclarationEmitsDiagnostic
+            """
+            package sample24
+
+                    val x: Int = 1
+                    val x: Int = 2
+                    fun main(): Int = 0
+
+            """,
+            // testDuplicateClassDeclarationStillConflicts
+            """
+            package sample25
+
+                    class Box(val value: Int)
+                    class Box(val other: Int)
+                    fun main(): Int = 0
+
+            """,
+            // testAbstractClassInstantiationStillErrorsWithoutCoexistingFunction
+            """
+            package sample26
+
+                    abstract class Shape {
+                        abstract fun area(): Double
+                    }
+                    fun main() {
+                        val s = Shape()
+                    }
+
+            """,
+            // testGenuinelyUnknownTypeStillErrors
+            """
+            package sample27
+
+                    fun make(): Missing = TODO()
+                    fun main() {}
+
+            """,
+            // testSelfReferentialTopLevelInitializerIsDetected
+            """
+            package sample28
+
+                    val cyclic: List<*> = listOf(cyclic)
+                    fun main() {}
+
+            """,
+            // testMemberFunctionWithGenuinelyWrongReturnTypeStillErrorsAcrossPropertyForwardReference
+            """
+            package sample29
+
+                    class Forward {
+                        fun get(): String = value
+                        var value = 10
+                    }
+                    fun main() {}
+
+            """,
+            // testForwardReferencedPropertyOwnInitializerMismatchStillErrors
+            """
+            package sample30
+
+                    class Forward {
+                        fun get(): Int = value
+                        var value: Int = "oops"
+                    }
+                    fun main() {}
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
-
             let ast = try #require(ctx.ast)
-
             let sema = try #require(ctx.sema)
-
             let interner = ctx.interner
 
             // === testStarProjectionInTypeAnnotationDoesNotCrashCompiler ===
@@ -848,117 +925,11 @@ struct DataFlowAndSemaRegressionTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnostics() throws {
-
-        let sources: [String] = [
-            // testDuplicateParameterNameEmitsDiagnostic
-            """
-            package sample0
-
-                    fun bad(x: Int, x: Int): Int = x
-
-            """,
-            // testReifiedOnNonInlineFunctionEmitsDiagnostic
-            """
-            package sample1
-
-                    fun <reified T> badReified(x: Any): Boolean = x is T
-                    fun main(): Int = 0
-
-            """,
-            // testDuplicateTopLevelDeclarationEmitsDiagnostic
-            """
-            package sample2
-
-                    val x: Int = 1
-                    val x: Int = 2
-                    fun main(): Int = 0
-
-            """,
-            // testDuplicateClassDeclarationStillConflicts
-            """
-            package sample3
-
-                    class Box(val value: Int)
-                    class Box(val other: Int)
-                    fun main(): Int = 0
-
-            """,
-            // testAbstractClassInstantiationStillErrorsWithoutCoexistingFunction
-            """
-            package sample4
-
-                    abstract class Shape {
-                        abstract fun area(): Double
-                    }
-                    fun main() {
-                        val s = Shape()
-                    }
-
-            """,
-            // testGenuinelyUnknownTypeStillErrors
-            """
-            package sample5
-
-                    fun make(): Missing = TODO()
-                    fun main() {}
-
-            """,
-            // testSelfReferentialTopLevelInitializerIsDetected
-            """
-            package sample6
-
-                    val cyclic: List<*> = listOf(cyclic)
-                    fun main() {}
-
-            """,
-            // testMemberFunctionWithGenuinelyWrongReturnTypeStillErrorsAcrossPropertyForwardReference
-            """
-            package sample7
-
-                    class Forward {
-                        fun get(): String = value
-                        var value = 10
-                    }
-                    fun main() {}
-
-            """,
-            // testForwardReferencedPropertyOwnInitializerMismatchStillErrors
-            """
-            package sample8
-
-                    class Forward {
-                        fun get(): Int = value
-                        var value: Int = "oops"
-                    }
-                    fun main() {}
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testDuplicateParameterNameEmitsDiagnostic ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample0Path = paths[22]
 
                 let path = sample0Path
 
@@ -972,7 +943,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample1Path = paths[1]
+                let sample1Path = paths[23]
 
                 let path = sample1Path
 
@@ -986,7 +957,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample2Path = paths[2]
+                let sample2Path = paths[24]
 
                 let path = sample2Path
 
@@ -1000,7 +971,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample3Path = paths[3]
+                let sample3Path = paths[25]
 
                 let path = sample3Path
 
@@ -1016,7 +987,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample4Path = paths[4]
+                let sample4Path = paths[26]
 
                 let path = sample4Path
 
@@ -1033,7 +1004,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample5Path = paths[5]
+                let sample5Path = paths[27]
 
                 let _ = sample5Path
 
@@ -1048,7 +1019,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample6Path = paths[6]
+                let sample6Path = paths[28]
 
                 let path = sample6Path
 
@@ -1062,7 +1033,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample7Path = paths[7]
+                let sample7Path = paths[29]
 
                 let path = sample7Path
 
@@ -1080,7 +1051,7 @@ struct DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample8Path = paths[8]
+                let sample8Path = paths[30]
 
                 let path = sample8Path
 
@@ -1099,8 +1070,7 @@ struct DataFlowAndSemaRegressionTests {
 
         }
     }
-
-    // MARK: - Consolidated runToKIR clean tests
+// MARK: - Consolidated runToKIR clean tests
 
     @Test
     func testRunToKIRClean() throws {

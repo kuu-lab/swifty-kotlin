@@ -282,11 +282,10 @@ extension DiagnosticCodeCoverageTests {
         }
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaClean() throws {
-
+    func testDiagnosticCodeCoverageSema() throws {
         let sources: [String] = [
             // testSema0021SuperDelegationWithoutSuperclass
             """
@@ -439,19 +438,158 @@ extension DiagnosticCodeCoverageTests {
                     }
 
             """,
+            // testSema0042ReturnAtInvalidLabel
+            """
+            package sample15
+
+                    fun test() {
+                        val list = listOf(1, 2, 3)
+                        list.forEach {
+                            return@nonExistentLabel
+                        }
+                    }
+
+            """,
+            // testSema0043SignedUnsignedMixInBinaryAdd
+            """
+            package sample16
+
+                    fun mix(a: Int, b: UInt): Int {
+                        val r = a + b
+                        return r
+                    }
+
+            """,
+            // testSema0050SuperOutsideClassBody
+            """
+            package sample17
+
+                    fun test() {
+                        val x = super.toString()
+                    }
+
+            """,
+            // testSema0054SecondaryCtorMissingDelegation
+            """
+            package sample18
+
+                    class Bar(val x: Int) {
+                        constructor(x: Int, y: Int) {
+                        }
+                    }
+
+            """,
+            // testSema0070ValueClassMustHaveExactlyOneParam
+            """
+            package sample19
+
+                    @JvmInline
+                    value class Pair(val a: Int, val b: Int)
+
+            """,
+            // testSema0072DuplicateWhenCondition
+            """
+            package sample20
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1, 1 -> "one or one"
+                            else -> "other"
+                        }
+                    }
+
+            """,
+            // testSema0073DuplicateConditionAcrossBranches
+            """
+            package sample21
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1 -> "one"
+                            1 -> "also one"
+                            else -> "other"
+                        }
+                    }
+
+            """,
+            // testSema0074WhenBranchGuardNotBoolean
+            """
+            package sample22
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1 if 42 -> "bad"
+                            else -> "ok"
+                        }
+                    }
+
+            """,
+            // testSema0080ConstVar
+            """
+            package sample23
+
+                    const var X = 42
+
+            """,
+            // testSema0081ConstValWithoutInitializer
+            """
+            package sample24
+
+                    const val X: Int
+
+            """,
+            // testSema0083ConstValNonLiteralInitializer
+            """
+            package sample25
+
+                    fun compute(): Int = 42
+                    const val X = compute()
+
+            """,
+            // testSema0097BreakAtInvalidLabel
+            """
+            package sample26
+
+                    fun test() {
+                        outer@ for (i in 1..5) {
+                            break@nonExistent
+                        }
+                    }
+
+            """,
+            // testSema0098ContinueAtInvalidLabel
+            """
+            package sample27
+
+                    fun test() {
+                        outer@ for (i in 1..5) {
+                            continue@ghost
+                        }
+                    }
+
+            """,
+            // testSema0300CompoundAssignOperatorMustReturnUnit
+            """
+            package sample28
+
+                    class Counter(var value: Int) {
+                        operator fun plusAssign(other: Int): Int {
+                            value += other
+                            return value
+                        }
+                    }
+                    fun test() {
+                        val c = Counter(0)
+                        c += 1
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
             let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
 
             // === testSema0021SuperDelegationWithoutSuperclass ===
 
@@ -661,180 +799,11 @@ extension DiagnosticCodeCoverageTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnostics() throws {
-
-        let sources: [String] = [
-            // testSema0042ReturnAtInvalidLabel
-            """
-            package sample0
-
-                    fun test() {
-                        val list = listOf(1, 2, 3)
-                        list.forEach {
-                            return@nonExistentLabel
-                        }
-                    }
-
-            """,
-            // testSema0043SignedUnsignedMixInBinaryAdd
-            """
-            package sample1
-
-                    fun mix(a: Int, b: UInt): Int {
-                        val r = a + b
-                        return r
-                    }
-
-            """,
-            // testSema0050SuperOutsideClassBody
-            """
-            package sample2
-
-                    fun test() {
-                        val x = super.toString()
-                    }
-
-            """,
-            // testSema0054SecondaryCtorMissingDelegation
-            """
-            package sample3
-
-                    class Bar(val x: Int) {
-                        constructor(x: Int, y: Int) {
-                        }
-                    }
-
-            """,
-            // testSema0070ValueClassMustHaveExactlyOneParam
-            """
-            package sample4
-
-                    @JvmInline
-                    value class Pair(val a: Int, val b: Int)
-
-            """,
-            // testSema0072DuplicateWhenCondition
-            """
-            package sample5
-
-                    fun test(x: Int): String {
-                        return when (x) {
-                            1, 1 -> "one or one"
-                            else -> "other"
-                        }
-                    }
-
-            """,
-            // testSema0073DuplicateConditionAcrossBranches
-            """
-            package sample6
-
-                    fun test(x: Int): String {
-                        return when (x) {
-                            1 -> "one"
-                            1 -> "also one"
-                            else -> "other"
-                        }
-                    }
-
-            """,
-            // testSema0074WhenBranchGuardNotBoolean
-            """
-            package sample7
-
-                    fun test(x: Int): String {
-                        return when (x) {
-                            1 if 42 -> "bad"
-                            else -> "ok"
-                        }
-                    }
-
-            """,
-            // testSema0080ConstVar
-            """
-            package sample8
-
-                    const var X = 42
-
-            """,
-            // testSema0081ConstValWithoutInitializer
-            """
-            package sample9
-
-                    const val X: Int
-
-            """,
-            // testSema0083ConstValNonLiteralInitializer
-            """
-            package sample10
-
-                    fun compute(): Int = 42
-                    const val X = compute()
-
-            """,
-            // testSema0097BreakAtInvalidLabel
-            """
-            package sample11
-
-                    fun test() {
-                        outer@ for (i in 1..5) {
-                            break@nonExistent
-                        }
-                    }
-
-            """,
-            // testSema0098ContinueAtInvalidLabel
-            """
-            package sample12
-
-                    fun test() {
-                        outer@ for (i in 1..5) {
-                            continue@ghost
-                        }
-                    }
-
-            """,
-            // testSema0300CompoundAssignOperatorMustReturnUnit
-            """
-            package sample13
-
-                    class Counter(var value: Int) {
-                        operator fun plusAssign(other: Int): Int {
-                            value += other
-                            return value
-                        }
-                    }
-                    fun test() {
-                        val c = Counter(0)
-                        c += 1
-                    }
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testSema0042ReturnAtInvalidLabel ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample0Path = paths[15]
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
@@ -846,7 +815,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample1Path = paths[1]
+                let sample1Path = paths[16]
 
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
@@ -858,7 +827,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample2Path = paths[2]
+                let sample2Path = paths[17]
 
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
@@ -870,7 +839,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample3Path = paths[3]
+                let sample3Path = paths[18]
 
                 let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
 
@@ -882,7 +851,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample4Path = paths[4]
+                let sample4Path = paths[19]
 
                 let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
 
@@ -894,7 +863,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample5Path = paths[5]
+                let sample5Path = paths[20]
 
                 let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
 
@@ -909,7 +878,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample6Path = paths[6]
+                let sample6Path = paths[21]
 
                 let sample6Diagnostics = diagnosticsForPath(sample6Path, in: ctx)
 
@@ -924,7 +893,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample7Path = paths[7]
+                let sample7Path = paths[22]
 
                 let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
 
@@ -936,7 +905,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample8Path = paths[8]
+                let sample8Path = paths[23]
 
                 let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
 
@@ -948,7 +917,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample9Path = paths[9]
+                let sample9Path = paths[24]
 
                 let sample9Diagnostics = diagnosticsForPath(sample9Path, in: ctx)
 
@@ -960,7 +929,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample10Path = paths[10]
+                let sample10Path = paths[25]
 
                 let sample10Diagnostics = diagnosticsForPath(sample10Path, in: ctx)
 
@@ -972,7 +941,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample11Path = paths[11]
+                let sample11Path = paths[26]
 
                 let sample11Diagnostics = diagnosticsForPath(sample11Path, in: ctx)
 
@@ -984,7 +953,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample12Path = paths[12]
+                let sample12Path = paths[27]
 
                 let sample12Diagnostics = diagnosticsForPath(sample12Path, in: ctx)
 
@@ -996,7 +965,7 @@ extension DiagnosticCodeCoverageTests {
 
             do {
 
-                let sample13Path = paths[13]
+                let sample13Path = paths[28]
 
                 let sample13Diagnostics = diagnosticsForPath(sample13Path, in: ctx)
 
@@ -1006,7 +975,6 @@ extension DiagnosticCodeCoverageTests {
 
         }
     }
-
 }
 
 #endif
