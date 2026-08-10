@@ -1329,6 +1329,26 @@ extension ExprTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
                 resultType = expectedType
+            } else if let expectedType,
+                      let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema)
+            {
+                // BUG-164: A callable reference passed to a fun-interface parameter
+                // must be SAM-converted and bound to the interface type, not left as a
+                // bare function type.  `lowerCallableRefExpr` checks `isSamConversion`
+                // and emits the wrapper object that makes interface dispatch work.
+                let samFTTypeID = sema.types.make(.functionType(samFT))
+                driver.emitSubtypeConstraint(
+                    left: inferredType,
+                    right: samFTTypeID,
+                    range: range,
+                    solver: ConstraintSolver(),
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                sema.bindings.markSamConversion(id)
+                sema.bindings.bindSamUnderlyingFunctionType(id, type: samFTTypeID)
+                sema.bindings.bindSamInterfaceType(id, type: expectedType)
+                resultType = expectedType
             } else {
                 resultType = inferredType
             }
