@@ -35,7 +35,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
-        // BUG-185: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
+        // BUG-190: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
         // the fallback, so it must not run when lhs is already non-null.
         if op == .elvis {
             return lowerShortCircuitElvisExpr(
@@ -740,7 +740,7 @@ extension CallLowerer {
     /// previous strict lowering handed both operands to `kk_op_elvis`, which
     /// evaluated the fallback unconditionally: `x ?: return -1` always
     /// returned, `x ?: throw e` always threw, and any fallback with side
-    /// effects always ran (BUG-185).
+    /// effects always ran (BUG-190).
     ///
     /// A `String`-typed result keeps the `kk_any_to_string` conversion the
     /// strict lowering applied to `kk_op_elvis`'s result -- both operands reach

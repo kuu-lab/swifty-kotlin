@@ -263,6 +263,24 @@ final class RuntimeErrorBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeNotImplementedErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.NotImplementedError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.NotImplementedError",
+            "kotlin.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        "NotImplementedError: \(message)"
+    }
+}
+
 final class RuntimeIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.IndexOutOfBoundsException"
@@ -477,6 +495,19 @@ func runtimeAllocateRuntimeException(message: String, cause: Int = 0) -> Int {
 /// Allocates an `Error` with the given message.
 func runtimeAllocateError(message: String, cause: Int = 0) -> Int {
     let throwable = RuntimeErrorBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Message used by `NotImplementedError()` when no reason is supplied.
+let runtimeNotImplementedDefaultMessage = "An operation is not implemented."
+
+/// Allocates a `NotImplementedError` with the given message.
+func runtimeAllocateNotImplementedError(message: String, cause: Int = 0) -> Int {
+    let throwable = RuntimeNotImplementedErrorBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -778,6 +809,18 @@ public func kk_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> In
     runtimeAllocateError(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_not_implemented_error_new")
+public func __kk_not_implemented_error_new() -> Int {
+    runtimeAllocateNotImplementedError(message: runtimeNotImplementedDefaultMessage)
+}
+
+@_cdecl("__kk_not_implemented_error_new_message")
+public func __kk_not_implemented_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateNotImplementedError(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: runtimeNotImplementedDefaultMessage)
     )
 }
 

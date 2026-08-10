@@ -51,17 +51,20 @@ struct RuntimeABIExternalLinkValidationTests {
         let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
         var failures: [String] = []
 
-        for declaration in annotatedDeclarations.sorted(by: { $0.linkName < $1.linkName }) {
-            guard let specs = runtimeABIByName[declaration.linkName], !specs.isEmpty else {
-                failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
+        // Overloads (notably constructors) can share one link name, so a spec is
+        // satisfied as soon as any declaration bound to that name matches it.
+        for (linkName, declarations) in annotatedDeclarations.groupedByLinkName {
+            guard let specs = runtimeABIByName[linkName], !specs.isEmpty else {
+                let paths = declarations.relativePathList
+                failures.append("\(linkName) in \(paths) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedArities = runtimeABIArityCandidates(for: declaration, specs: specs)
+            let expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
             if !specs.contains(where: { expectedArities.contains($0.parameters.count) }) {
                 let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
                 let expected = expectedArities.map(String.init).sorted().joined(separator: ", ")
                 failures.append(
-                    "\(declaration.linkName) in \(declaration.relativePath) has Kotlin arity candidates [\(expected)], RuntimeABI arities [\(arities)]"
+                    "\(linkName) in \(declarations.relativePathList) has Kotlin arity candidates [\(expected)], RuntimeABI arities [\(arities)]"
                 )
             }
         }
@@ -78,31 +81,47 @@ struct RuntimeABIExternalLinkValidationTests {
         let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
         var failures: [String] = []
 
-        for declaration in annotatedDeclarations.sorted(by: { $0.linkName < $1.linkName }) {
-            guard let specs = runtimeABIByName[declaration.linkName], !specs.isEmpty else {
-                failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
+        for (linkName, declarations) in annotatedDeclarations.groupedByLinkName {
+            guard let specs = runtimeABIByName[linkName], !specs.isEmpty else {
+                failures.append("\(linkName) in \(declarations.relativePathList) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedParameterTypes = expectedRuntimeABIParameterTypes(for: declaration)
-            let expectedReturnType = expectedRuntimeABIReturnType(for: declaration)
+            // Constructors allocate the instance, so their ABI shape (nullable message
+            // pointer, allocation return) does not follow the value-parameter mapping
+            // used for functions. Arity is still validated above.
+            let functionDeclarations = declarations.filter { !$0.isConstructor }
+            guard !functionDeclarations.isEmpty else {
+                continue
+            }
+            let expectedParameterTypes = functionDeclarations.map {
+                canonicalHandleTypes(expectedRuntimeABIParameterTypes(for: $0))
+            }
+            let expectedReturnTypes = Set(functionDeclarations.compactMap {
+                expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
+            })
             for spec in specs {
                 let actualParameterTypes = spec.parameterTypeStrings
                 let coreActual: [String]
                 if spec.isThrowing,
                    actualParameterTypes.last == RuntimeABICType.nullableIntptrPointer.rawValue {
-                    coreActual = Array(actualParameterTypes.dropLast())
+                    coreActual = canonicalHandleTypes(actualParameterTypes.dropLast().map { $0 })
                 } else {
-                    coreActual = actualParameterTypes
+                    coreActual = canonicalHandleTypes(actualParameterTypes)
                 }
 
-                if coreActual != expectedParameterTypes {
+                if !expectedParameterTypes.contains(coreActual) {
+                    let expected = expectedParameterTypes
+                        .map { "[\($0.joined(separator: ", "))]" }
+                        .joined(separator: " or ")
                     failures.append(
-                        "\(declaration.linkName) in \(declaration.relativePath) has expected ABI parameter types [\(expectedParameterTypes.joined(separator: ", "))], but RuntimeABI spec has [\(actualParameterTypes.joined(separator: ", "))]"
+                        "\(linkName) in \(declarations.relativePathList) has expected ABI parameter types \(expected), but RuntimeABI spec has [\(actualParameterTypes.joined(separator: ", "))]"
                     )
                 }
-                if let expectedReturnType, expectedReturnType != spec.returnTypeString {
+                if !expectedReturnTypes.isEmpty,
+                   !expectedReturnTypes.contains(canonicalHandleType(spec.returnTypeString)) {
+                    let expected = expectedReturnTypes.sorted().joined(separator: " or ")
                     failures.append(
-                        "\(declaration.linkName) in \(declaration.relativePath) has expected ABI return type \(expectedReturnType), but RuntimeABI spec has \(spec.returnTypeString)"
+                        "\(linkName) in \(declarations.relativePathList) has expected ABI return type \(expected), but RuntimeABI spec has \(spec.returnTypeString)"
                     )
                 }
             }
@@ -149,7 +168,7 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
-            "__string_struct_get_length",
+            "__kk_string_struct_get_length",
         ]
     }
 
@@ -189,7 +208,7 @@ struct RuntimeABIExternalLinkValidationTests {
         return names
     }
 
-    private struct BundledKsSymbolNameDeclaration {
+    fileprivate struct BundledKsSymbolNameDeclaration {
         let linkName: String
         let arity: Int
         let functionTypedParameterCount: Int
@@ -198,6 +217,7 @@ struct RuntimeABIExternalLinkValidationTests {
         let valueParameterTypes: [String]
         let valueParameterIsVararg: [Bool]
         let returnType: String?
+        let isConstructor: Bool
         let relativePath: String
     }
 
@@ -260,22 +280,26 @@ struct RuntimeABIExternalLinkValidationTests {
                 continue
             }
 
+            // Constructors carry their own lowering (the runtime allocates the
+            // object) and have no `fun` header to derive a signature from, so
+            // their annotations must not leak onto the next function below.
+            if isConstructorDeclaration(line) {
+                pendingLinkNames.removeAll()
+                pendingScope = nil
+                continue
+            }
+
             guard !pendingLinkNames.isEmpty,
                   let functionHeader = functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
                 continue
             }
-            // An annotated `constructor(...)` consumes its pending link names so
-            // that they are not attributed to a later `fun` in the same file, but
-            // its ABI shape is not compared here — see DEBT-ABI-CTOR-001 in
-            // docs/runtime-abi-external-link-validation-gaps.md.
-            if isConstructorHeader(functionHeader), !functionHeader.contains(" fun ") {
-                pendingLinkNames.removeAll()
-                pendingScope = nil
-                continue
-            }
-            let hasReceiver = (pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader)
+            // A constructor allocates the instance instead of receiving one, so it has no
+            // receiver parameter even though it is declared inside a class scope.
+            let isConstructor = headerIsConstructor(functionHeader)
+            let hasReceiver = !isConstructor
+                && ((pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
@@ -287,6 +311,7 @@ struct RuntimeABIExternalLinkValidationTests {
                         valueParameterTypes: signature.valueParameterTypes,
                         valueParameterIsVararg: signature.valueParameterIsVararg,
                         returnType: signature.returnType,
+                        isConstructor: isConstructor,
                         relativePath: relativePath
                     )
                 )
@@ -296,6 +321,15 @@ struct RuntimeABIExternalLinkValidationTests {
         }
 
         return declarations
+    }
+
+    private func isConstructorDeclaration(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("//") && !trimmed.hasPrefix("*") else { return false }
+        guard let range = trimmed.range(of: "constructor(") else { return false }
+        let prefix = trimmed[..<range.lowerBound]
+        return prefix.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            .allSatisfy { ["public", "internal", "private", "protected"].contains(String($0)) }
     }
 
     private func ksSymbolNameArgument(in line: String) -> String? {
@@ -320,15 +354,15 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         let trimmed = header.trimmingCharacters(in: .whitespaces)
-        let isFunction = header.contains(" fun ") || trimmed.hasPrefix("fun ")
-        return isFunction || isConstructorHeader(header) ? header : nil
+        if header.contains(" fun ") || trimmed.hasPrefix("fun ") {
+            return header
+        }
+        return headerIsConstructor(header) ? header : nil
     }
 
-    /// A bridged constructor (`@KsSymbolName("__kk_pair_new") constructor(...)`)
-    /// is an annotated declaration just like a bridged `fun`, but it takes no
-    /// receiver: the runtime entry point allocates and returns the new handle.
-    private func isConstructorHeader(_ header: String) -> Bool {
-        header.contains(" constructor(") || header.trimmingCharacters(in: .whitespaces).hasPrefix("constructor(")
+    private func headerIsConstructor(_ header: String) -> Bool {
+        let trimmed = header.trimmingCharacters(in: .whitespaces)
+        return header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
     }
 
     private struct FunctionSignatureInfo {
@@ -343,17 +377,19 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
-        let isConstructor = isConstructorHeader(header) && header.range(of: "fun ") == nil
-        let declarationKeyword = isConstructor ? "constructor" : "fun "
-        guard let funRange = header.range(of: declarationKeyword) else {
+        let suffix: Substring
+        if let funRange = header.range(of: "fun ") {
+            suffix = header[funRange.upperBound...]
+        } else if let constructorRange = header.range(of: "constructor") {
+            suffix = header[constructorRange.upperBound...]
+        } else {
             return nil
         }
-        let suffix = header[funRange.upperBound...]
         guard let openParen = suffix.firstIndex(of: "(") else {
             return nil
         }
         let namePrefix = suffix[..<openParen].trimmingCharacters(in: .whitespacesAndNewlines)
-        let receiverType = isConstructor ? nil : namePrefix.lastIndex(of: ".").map {
+        let receiverType = namePrefix.lastIndex(of: ".").map {
             String(namePrefix[..<$0]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
@@ -576,6 +612,21 @@ struct RuntimeABIExternalLinkValidationTests {
         return RuntimeABICType.intptr.rawValue
     }
 
+    /// Object handles cross the ABI either as `intptr_t` or as an opaque
+    /// pointer; both spellings describe the same single-word value.
+    private func canonicalHandleTypes(_ types: [String]) -> [String] {
+        types.map(canonicalHandleType)
+    }
+
+    private func canonicalHandleType(_ type: String) -> String {
+        switch type {
+        case RuntimeABICType.opaquePointer.rawValue, RuntimeABICType.nullableOpaquePointer.rawValue:
+            RuntimeABICType.intptr.rawValue
+        default:
+            type
+        }
+    }
+
     private func isFunctionType(_ type: String) -> Bool {
         type.contains("->")
     }
@@ -601,5 +652,17 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         return names
+    }
+}
+
+private extension [RuntimeABIExternalLinkValidationTests.BundledKsSymbolNameDeclaration] {
+    var groupedByLinkName: [(String, Self)] {
+        Dictionary(grouping: self, by: \.linkName)
+            .sorted { $0.key < $1.key }
+            .map { ($0.key, $0.value) }
+    }
+
+    var relativePathList: String {
+        Set(map(\.relativePath)).sorted().joined(separator: ", ")
     }
 }

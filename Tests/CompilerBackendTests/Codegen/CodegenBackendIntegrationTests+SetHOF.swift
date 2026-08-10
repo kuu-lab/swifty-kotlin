@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendSetHOFTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenSetFilterKeepsMatchingElements() throws {
         let source = """
         fun main() {
@@ -14,6 +76,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetFilter", expected: "[2, 4]\n")
     }
 
+    @Test
     func testCodegenSetFilterEmptySetReturnsEmptyList() throws {
         let source = """
         fun main() {
@@ -24,6 +87,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetFilterEmpty", expected: "[]\n")
     }
 
+    @Test
     func testCodegenSetFilterNotExcludesMatchingElements() throws {
         let source = """
         fun main() {
@@ -34,6 +98,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetFilterNot", expected: "[1, 3]\n")
     }
 
+    @Test
     func testCodegenSetMapTransformsAllElements() throws {
         let source = """
         fun main() {
@@ -44,6 +109,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetMap", expected: "[2, 4, 6]\n")
     }
 
+    @Test
     func testCodegenSetFlatMapFlattensSubCollections() throws {
         let source = """
         fun main() {
@@ -54,6 +120,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetFlatMap", expected: "[1, 10, 2, 20]\n")
     }
 
+    @Test
     func testCodegenSetAllReturnsTrueOnlyWhenAllElementsMatch() throws {
         let source = """
         fun main() {
@@ -64,6 +131,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetAll", expected: "true\nfalse\n")
     }
 
+    @Test
     func testCodegenSetAnyReturnsTrueWhenAtLeastOneElementMatches() throws {
         let source = """
         fun main() {
@@ -74,6 +142,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetAny", expected: "true\nfalse\n")
     }
 
+    @Test
     func testCodegenSetForEachAccumulatesSideEffects() throws {
         let source = """
         fun main() {
@@ -85,6 +154,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetForEach", expected: "6\n")
     }
 
+    @Test
     func testCodegenSetMaxOrNullReturnsMaximumElement() throws {
         let source = """
         fun main() {
@@ -94,6 +164,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetMaxOrNull", expected: "4\n")
     }
 
+    @Test
     func testCodegenSetMaxOrNullEmptySetReturnsNull() throws {
         let source = """
         fun main() {
@@ -103,6 +174,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetMaxOrNullEmpty", expected: "null\n")
     }
 
+    @Test
     func testCodegenSetMinOrNullReturnsMinimumElement() throws {
         let source = """
         fun main() {
@@ -112,6 +184,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetMinOrNull", expected: "1\n")
     }
 
+    @Test
     func testCodegenSetMinOrNullEmptySetReturnsNull() throws {
         let source = """
         fun main() {
@@ -121,6 +194,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetMinOrNullEmpty", expected: "null\n")
     }
 
+    @Test
     func testCodegenSetSortedReturnsElementsInAscendingOrder() throws {
         let source = """
         fun main() {
@@ -130,6 +204,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetSorted", expected: "[1, 2, 3, 4]\n")
     }
 
+    @Test
     func testCodegenSetSortedDescendingReturnsElementsInDescendingOrder() throws {
         let source = """
         fun main() {
@@ -139,6 +214,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetSortedDescending", expected: "[4, 3, 2, 1]\n")
     }
 
+    @Test
     func testCodegenSetCountPredicateCountsMatchingElements() throws {
         let source = """
         fun main() {
@@ -148,6 +224,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetCountPredicate", expected: "2\n")
     }
 
+    @Test
     func testCodegenSetFirstReturnsFirstInsertionOrderElement() throws {
         let source = """
         fun main() {
@@ -157,6 +234,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetFirst", expected: "10\n")
     }
 
+    @Test
     func testCodegenSetFirstOnEmptySetThrowsNoSuchElementException() throws {
         let source = """
         fun main() {
@@ -170,6 +248,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetFirstEmpty", expected: "empty\n")
     }
 
+    @Test
     func testCodegenSetLastReturnsLastInsertionOrderElement() throws {
         let source = """
         fun main() {
@@ -179,6 +258,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetLast", expected: "30\n")
     }
 
+    @Test
     func testCodegenSetLastOnEmptySetThrowsNoSuchElementException() throws {
         let source = """
         fun main() {
@@ -192,6 +272,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetLastEmpty", expected: "empty\n")
     }
 
+    @Test
     func testCodegenSetLastOrNullEmptySetReturnsNull() throws {
         let source = """
         fun main() {
@@ -201,6 +282,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetLastOrNullEmpty", expected: "null\n")
     }
 
+    @Test
     func testCodegenSetLastOrNullNonEmptyReturnsLastElement() throws {
         let source = """
         fun main() {
@@ -210,6 +292,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetLastOrNullNonEmpty", expected: "30\n")
     }
 
+    @Test
     func testCodegenSetSingleOrNullSingleElementReturnsThatElement() throws {
         let source = """
         fun main() {
@@ -219,6 +302,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetSingleOrNull", expected: "42\n")
     }
 
+    @Test
     func testCodegenSetSingleOrNullMultipleElementsReturnsNull() throws {
         let source = """
         fun main() {
@@ -228,6 +312,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SetSingleOrNullMultiple", expected: "null\n")
     }
 
+    @Test
     func testCodegenSetEmptySetEdgeCasesCoverCollectionHelpers() throws {
         let source = """
         fun main() {
@@ -267,8 +352,8 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SetEmptyEdgeCases", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
                 """
                 []
                 []
@@ -291,6 +376,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    @Test
     func testCodegenSetSingleElementEdgeCasesPreserveOrderAndSingletonSemantics() throws {
         let source = """
         fun main() {
@@ -318,8 +404,8 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SetSingleEdgeCases", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
                 """
                 7
                 7
@@ -340,6 +426,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    @Test
     func testCodegenSetMatchExtremesCoverAllMatchAndAllMismatchCases() throws {
         let source = """
         fun main() {
@@ -361,8 +448,8 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SetMatchExtremes", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
                 """
                 [2, 4, 6]
                 []
@@ -377,4 +464,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
-
+#endif

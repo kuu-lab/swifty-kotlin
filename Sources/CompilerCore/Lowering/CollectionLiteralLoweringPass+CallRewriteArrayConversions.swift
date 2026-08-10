@@ -33,27 +33,13 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // toTypedArray() on list → kk_list_toTypedArray (STDLIB-087)
+    // KSP-628: the List receivers of toTypedArray / to{Char,Boolean,Short,Double,
+    // Float,Int,Long,Byte}Array are source-backed (ArrayConversions.kt) and lower
+    // through normal function resolution.
+
+    // toTypedArray() on array → kk_array_copyOf (STDLIB-087)
     if callee == lookup.toTypedArrayName, arguments.count == 1 {
         let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToTypedArrayName,
-                arguments: [receiverID],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             let toArrayResult = module.arena.appendTemporary(type: nil
             )
@@ -74,81 +60,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // toIntArray() on list → kk_list_toIntArray (STDLIB-LIST-PRIM-ARRAY)
-    if callee == lookup.toIntArrayName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToIntArrayName,
-                arguments: [receiverID],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-    }
-
-    // toLongArray() on list → kk_list_toLongArray (STDLIB-LIST-PRIM-ARRAY)
-    if callee == lookup.toLongArrayName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToLongArrayName,
-                arguments: [receiverID],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-    }
-
-    // toByteArray() on list → kk_list_toByteArray (STDLIB-LIST-PRIM-ARRAY)
-    if callee == lookup.toByteArrayName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListToByteArrayName,
-                arguments: [receiverID],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-    }
-
     let unsignedArrayCallee: InternedString? = switch callee {
-    case lookup.toCharArrayName: lookup.kkListToCharArrayName
-    case lookup.toBooleanArrayName: lookup.kkListToBooleanArrayName
-    case lookup.toShortArrayName: lookup.kkListToShortArrayName
-    case lookup.toDoubleArrayName: lookup.kkListToDoubleArrayName
-    case lookup.toFloatArrayName: lookup.kkListToFloatArrayName
     case lookup.toUByteArrayName: lookup.kkListToUByteArrayName
     case lookup.toUShortArrayName: lookup.kkListToUShortArrayName
     case lookup.toUIntArrayName: lookup.kkListToUIntArrayName

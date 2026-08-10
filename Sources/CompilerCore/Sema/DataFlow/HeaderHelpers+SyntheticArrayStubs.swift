@@ -1047,68 +1047,13 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            let byteJoinToStringName = interner.intern("joinToString")
-            let byteJoinToStringFQName = byteArrayFQName + [byteJoinToStringName]
-            if symbols.lookup(fqName: byteJoinToStringFQName) == nil {
-                if BundledSyntheticStubRegistration.shouldSkipRegistration(
-                    declaredOwnerFQName: byteArrayFQName,
-                    receiverType: byteArrayType,
-                    name: byteJoinToStringName,
-                    arity: 3,
-                    symbols: symbols,
-                    types: types,
-                    interner: interner
-                ) {
-                    skipStats?.recordSkip(ownerFQName: byteArrayFQName, name: byteJoinToStringName, arity: 3, interner: interner)
-                    // fall through to transform overloads; they are registered outside this block.
-                } else {
-                    let joinToStringSym = symbols.define(
-                        kind: .function,
-                        name: byteJoinToStringName,
-                    fqName: byteJoinToStringFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(byteArraySymbol, for: joinToStringSym)
-                symbols.setExternalLinkName("kk_byteArray_joinToString", for: joinToStringSym)
-
-                let joinParams: [(name: String, type: TypeID)] = [
-                    ("separator", types.stringType),
-                    ("prefix", types.stringType),
-                    ("postfix", types.stringType),
-                ]
-                var joinParamTypes: [TypeID] = []
-                var joinParamSymbols: [SymbolID] = []
-                for param in joinParams {
-                    let paramName = interner.intern(param.name)
-                    let paramSym = symbols.define(
-                        kind: .valueParameter,
-                        name: paramName,
-                        fqName: byteJoinToStringFQName + [paramName],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(joinToStringSym, for: paramSym)
-                    joinParamTypes.append(param.type)
-                    joinParamSymbols.append(paramSym)
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: byteArrayType,
-                        parameterTypes: joinParamTypes,
-                        returnType: types.stringType,
-                        isSuspend: false,
-                        valueParameterSymbols: joinParamSymbols,
-                        valueParameterHasDefaultValues: [true, true, true],
-                        valueParameterIsVararg: [false, false, false],
-                        typeParameterSymbols: []
-                    ),
-                    for: joinToStringSym
-                )
-                }
-            }
+            // `ByteArray.joinToString` (both the plain and transform overloads) is
+            // registered uniformly for all primitive array types by the
+            // `primitiveArrayNames` loop below — including `ByteArray` — so it is
+            // deliberately not duplicated here. (It used to be duplicated, which
+            // made this block's `symbols.define` win the race and left the later
+            // loop's `if symbols.lookup(...) == nil` guard permanently false for
+            // `ByteArray`, silently skipping its transform overloads.)
         }
 
         // Register reversedArray() and copyInto(destination, destinationOffset, startIndex, endIndex) for primitive arrays.

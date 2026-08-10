@@ -171,7 +171,7 @@ extension ExprLowerer {
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
                         emitNonThrowingCall(
-                            callee: interner.intern("__string_struct_get_length"),
+                            callee: interner.intern("__kk_string_struct_get_length"),
                             arg: receiverExprID,
                             result: result,
                             into: &instructions
@@ -180,19 +180,35 @@ extension ExprLowerer {
                     }
                 }
 
+                // A user-declared member with a custom getter shadows the built-in
+                // collection shortcuts below: `size` / `isEmpty` inside a class that
+                // declares them must run its own getter, not kk_collection_size.
+                let implicitMemberUsesAccessor: Bool = {
+                    guard let symbol = sema.bindings.identifierSymbols[exprID],
+                          let sym = sema.symbols.symbol(symbol),
+                          sym.kind == .property,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
+                          ownerKind == .class || ownerKind == .interface
+                    else {
+                        return false
+                    }
+                    return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
+                }()
+
                 // Collection properties: size, isEmpty
-                if memberStr == "size" {
+                if memberStr == "size", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
-                        callee: interner.intern("kk_collection_size"),
+                        callee: interner.intern("__kk_collection_size"),
                         arg: receiverExprID,
                         result: result,
                         into: &instructions
                     )
                     return result
                 }
-                if memberStr == "isEmpty" {
+                if memberStr == "isEmpty", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
-                        callee: interner.intern("kk_collection_isEmpty"),
+                        callee: interner.intern("__kk_collection_isEmpty"),
                         arg: receiverExprID,
                         result: result,
                         into: &instructions
@@ -374,12 +390,21 @@ extension ExprLowerer {
                 // Member property references inside class/object bodies must read
                 // from the current implicit receiver instance rather than treating
                 // the property symbol as a standalone value.
+                //
+                // Getter-only properties (`val size: Int get() = ...`) still occupy a
+                // layout slot keyed by the property symbol, but that slot is never
+                // written, so reading it here would yield garbage. Those dispatch to
+                // the getter accessor in the branch below, matching the explicit
+                // `this.size` path in CallLowerer+MemberPropertyReads.swift.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property || sym.kind == .field || sym.kind == .backingField,
                    let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class || ownerKind == .interface,
+                   sym.kind != .property
+                       || sema.symbols.backingFieldSymbol(for: symbol) != nil
+                       || !driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
                    let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                        sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
                    ]
@@ -453,6 +478,35 @@ extension ExprLowerer {
                             instructions: &instructions
                         )
                     }
+                }
+                // Imported top-level properties with a custom getter have no
+                // global slot in the producing artifact; their reads dispatch
+                // to the precompiled getter accessor instead.
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   sym.flags.contains(.importedLibrary),
+                   sema.symbols.propertyHasCustomGetter(for: symbol),
+                   sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+                   {
+                       let parentKind = sema.symbols.parentSymbol(for: symbol)
+                           .flatMap { sema.symbols.symbol($0) }?.kind
+                       return parentKind == nil || parentKind == .package
+                   }()
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
                 }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
@@ -2361,6 +2415,21 @@ extension ExprLowerer {
                     sema: sema,
                     interner: interner
                 )
+                // Sema's chosen callee wins: `componentN` is an overloaded name across
+                // Pair/Triple, user extensions and bundled stdlib extensions, so the
+                // symbol has to travel to codegen instead of being re-resolved by name.
+                let chosenCallee = sema.bindings.destructuringComponentCallee(
+                    for: exprID,
+                    index: index
+                ) ?? resolved.symbol
+                let calleeName: InternedString = if let chosenCallee,
+                                                    let linkName = sema.symbols.externalLinkName(for: chosenCallee),
+                                                    !linkName.isEmpty
+                {
+                    interner.intern(linkName)
+                } else {
+                    componentName
+                }
 
                 // Look up the symbol defined by Sema for this variable first,
                 // so we can use its per-component type (not the expression-level Unit type)
@@ -2370,11 +2439,14 @@ extension ExprLowerer {
                 ])
                 let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
                 let componentResult = arena.appendTemporary(type: componentType)
+                let calleeSymbol: SymbolID? = chosenCallee.flatMap { callee in
+                    sema.symbols.isSourceBackedSymbol(callee) ? callee : nil
+                }
                 emitNonThrowingCall(
-                    callee: resolved.callee,
+                    callee: calleeName,
                     arg: rhsID,
                     result: componentResult,
-                    symbol: resolved.symbol,
+                    symbol: calleeSymbol,
                     into: &instructions
                 )
 
