@@ -4,227 +4,236 @@ import Testing
 
 @Suite
 struct PropertyDelegateSyntheticStubTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
+
+    @Test
+    func testPropertyDelegateSyntheticStubTestsSurfaceInventory() throws {
+        let source = """
+        fun noop() {}
+        """
+        try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
 
-    @Test func testObservablePropertySurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
-        let observableFQName = propertiesFQName + [interner.intern("ObservableProperty")]
-        let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
-        let readOnlyFQName = propertiesFQName + [interner.intern("ReadOnlyProperty")]
-        let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
 
-        let observableSymbol = try #require(sema.symbols.lookup(fqName: observableFQName))
-        let readWriteSymbol = try #require(sema.symbols.lookup(fqName: readWriteFQName))
-        let readOnlySymbol = try #require(sema.symbols.lookup(fqName: readOnlyFQName))
-        let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
-        let observableInfo = try #require(sema.symbols.symbol(observableSymbol))
-        #expect(observableInfo.kind == .class)
-        #expect(observableInfo.flags.contains(.abstractType))
-        #expect(sema.symbols.directSupertypes(for: observableSymbol) == [readWriteSymbol])
-        try assertNominalTypeParameters(
-            for: readWriteSymbol,
-            names: ["T", "V"],
-            variances: [.in, .invariant],
-            sema: sema,
-            interner: interner
-        )
-        try assertNominalTypeParameters(
-            for: readOnlySymbol,
-            names: ["T", "V"],
-            variances: [.in, .out],
-            sema: sema,
-            interner: interner
-        )
+            // === testObservablePropertySurfaceIsRegistered ===
+            do {
 
-        let typeParams = sema.types.nominalTypeParameterSymbols(for: observableSymbol)
-        #expect(typeParams.count == 1)
-        let valueType = sema.types.make(.typeParam(TypeParamType(
-            symbol: typeParams[0],
-            nullability: .nonNull
-        )))
-        #expect(
-            sema.symbols.supertypeTypeArgs(for: observableSymbol, supertype: readWriteSymbol) == [.in(sema.types.nullableAnyType), .invariant(valueType)]
-        )
+                let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
+                let observableFQName = propertiesFQName + [interner.intern("ObservableProperty")]
+                let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
+                let readOnlyFQName = propertiesFQName + [interner.intern("ReadOnlyProperty")]
+                let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }
 
-        let observableType = sema.types.make(.classType(ClassType(
-            classSymbol: observableSymbol,
-            args: [.invariant(valueType)],
-            nullability: .nonNull
-        )))
-        let kPropertyType = sema.types.make(.classType(ClassType(
-            classSymbol: kPropertySymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
+                let observableSymbol = try #require(sema.symbols.lookup(fqName: observableFQName))
+                let readWriteSymbol = try #require(sema.symbols.lookup(fqName: readWriteFQName))
+                let readOnlySymbol = try #require(sema.symbols.lookup(fqName: readOnlyFQName))
+                let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
+                let observableInfo = try #require(sema.symbols.symbol(observableSymbol))
+                #expect(observableInfo.kind == .class)
+                #expect(observableInfo.flags.contains(.abstractType))
+                #expect(sema.symbols.directSupertypes(for: observableSymbol) == [readWriteSymbol])
+                try assertNominalTypeParameters(
+                    for: readWriteSymbol,
+                    names: ["T", "V"],
+                    variances: [.in, .invariant],
+                    sema: sema,
+                    interner: interner
+                )
+                try assertNominalTypeParameters(
+                    for: readOnlySymbol,
+                    names: ["T", "V"],
+                    variances: [.in, .out],
+                    sema: sema,
+                    interner: interner
+                )
 
-        let initSymbol = try #require(sema.symbols.lookup(fqName: observableFQName + [interner.intern("<init>")]))
-        let initSignature = try #require(sema.symbols.functionSignature(for: initSymbol))
-        #expect(initSignature.parameterTypes == [valueType])
-        #expect(initSignature.returnType == observableType)
-        #expect(initSignature.typeParameterSymbols == typeParams)
-        #expect(initSignature.classTypeParameterCount == 1)
+                let typeParams = sema.types.nominalTypeParameterSymbols(for: observableSymbol)
+                #expect(typeParams.count == 1)
+                let valueType = sema.types.make(.typeParam(TypeParamType(
+                    symbol: typeParams[0],
+                    nullability: .nonNull
+                )))
+                #expect(
+                    sema.symbols.supertypeTypeArgs(for: observableSymbol, supertype: readWriteSymbol) == [.in(sema.types.nullableAnyType), .invariant(valueType)]
+                )
 
-        try assertMember(
-            named: "beforeChange",
-            visibility: .protected,
-            requiredFlags: [.openType],
-            parameterTypes: [kPropertyType, valueType, valueType],
-            returnType: sema.types.booleanType,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            typeParams: typeParams,
-            sema: sema,
-            interner: interner
-        )
-        try assertMember(
-            named: "afterChange",
-            visibility: .protected,
-            requiredFlags: [.openType],
-            parameterTypes: [kPropertyType, valueType, valueType],
-            returnType: sema.types.unitType,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            typeParams: typeParams,
-            sema: sema,
-            interner: interner
-        )
-        try assertMember(
-            named: "getValue",
-            requiredFlags: [.operatorFunction, .overrideMember, .openType],
-            parameterTypes: [sema.types.nullableAnyType, kPropertyType],
-            returnType: valueType,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            typeParams: typeParams,
-            sema: sema,
-            interner: interner
-        )
-        try assertMember(
-            named: "setValue",
-            requiredFlags: [.operatorFunction, .overrideMember, .openType],
-            parameterTypes: [sema.types.nullableAnyType, kPropertyType, valueType],
-            returnType: sema.types.unitType,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            typeParams: typeParams,
-            sema: sema,
-            interner: interner
-        )
-    }
+                let observableType = sema.types.make(.classType(ClassType(
+                    classSymbol: observableSymbol,
+                    args: [.invariant(valueType)],
+                    nullability: .nonNull
+                )))
+                let kPropertyType = sema.types.make(.classType(ClassType(
+                    classSymbol: kPropertySymbol,
+                    args: [.star],
+                    nullability: .nonNull
+                )))
 
-    @Test func testDelegatesObservableAndVetoableStayBackedByReadWriteProperty() throws {
-        let (sema, interner) = try makeSema()
-        let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
-        let delegatesFQName = propertiesFQName + [interner.intern("Delegates")]
-        let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
-        let delegatesSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName))
-        let readWriteSymbol = try #require(sema.symbols.lookup(fqName: readWriteFQName))
-        let delegatesType = sema.types.make(.classType(ClassType(
-            classSymbol: delegatesSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        // BUG-147: the factories are generic in the delegated property's value
-        // type and take (initialValue, onChange) so that both
-        // `by Delegates.observable(v) { ... }` (property position, trailing
-        // lambda not counted as an argument — hence the defaulted callback) and
-        // a call inside a function body resolve, and so that the property type
-        // can be read back off `ReadWriteProperty<Any?, T>`.
-        for memberName in ["observable", "vetoable"] {
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName + [interner.intern(memberName)]))
-            let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
-            #expect(signature.receiverType == delegatesType)
+                let initSymbol = try #require(sema.symbols.lookup(fqName: observableFQName + [interner.intern("<init>")]))
+                let initSignature = try #require(sema.symbols.functionSignature(for: initSymbol))
+                #expect(initSignature.parameterTypes == [valueType])
+                #expect(initSignature.returnType == observableType)
+                #expect(initSignature.typeParameterSymbols == typeParams)
+                #expect(initSignature.classTypeParameterCount == 1)
 
-            let valueTypeParam = try #require(signature.typeParameterSymbols.first)
-            let valueType = sema.types.make(.typeParam(TypeParamType(
-                symbol: valueTypeParam,
-                nullability: .nonNull
-            )))
-            #expect(signature.parameterTypes.count == 2)
-            #expect(signature.parameterTypes.first == valueType)
-            #expect(signature.valueParameterHasDefaultValues == [false, true])
-            guard case let .functionType(onChange) = sema.types.kind(of: signature.parameterTypes[1]) else {
-                Issue.record("onChange parameter should be a function type")
-                return
+                try assertMember(
+                    named: "beforeChange",
+                    visibility: .protected,
+                    requiredFlags: [.openType],
+                    parameterTypes: [kPropertyType, valueType, valueType],
+                    returnType: sema.types.booleanType,
+                    ownerFQName: observableFQName,
+                    ownerType: observableType,
+                    typeParams: typeParams,
+                    sema: sema,
+                    interner: interner
+                )
+                try assertMember(
+                    named: "afterChange",
+                    visibility: .protected,
+                    requiredFlags: [.openType],
+                    parameterTypes: [kPropertyType, valueType, valueType],
+                    returnType: sema.types.unitType,
+                    ownerFQName: observableFQName,
+                    ownerType: observableType,
+                    typeParams: typeParams,
+                    sema: sema,
+                    interner: interner
+                )
+                try assertMember(
+                    named: "getValue",
+                    requiredFlags: [.operatorFunction, .overrideMember, .openType],
+                    parameterTypes: [sema.types.nullableAnyType, kPropertyType],
+                    returnType: valueType,
+                    ownerFQName: observableFQName,
+                    ownerType: observableType,
+                    typeParams: typeParams,
+                    sema: sema,
+                    interner: interner
+                )
+                try assertMember(
+                    named: "setValue",
+                    requiredFlags: [.operatorFunction, .overrideMember, .openType],
+                    parameterTypes: [sema.types.nullableAnyType, kPropertyType, valueType],
+                    returnType: sema.types.unitType,
+                    ownerFQName: observableFQName,
+                    ownerType: observableType,
+                    typeParams: typeParams,
+                    sema: sema,
+                    interner: interner
+                )
             }
-            #expect(onChange.params.count == 3)
-            #expect(
-                onChange.returnType == (memberName == "vetoable" ? sema.types.booleanType : sema.types.unitType)
-            )
 
-            let expectedReturnType = sema.types.make(.classType(ClassType(
-                classSymbol: readWriteSymbol,
-                args: [.in(sema.types.makeNullable(sema.types.anyType)), .invariant(valueType)],
-                nullability: .nonNull
-            )))
-            #expect(signature.returnType == expectedReturnType)
+            // === testDelegatesObservableAndVetoableStayBackedByReadWriteProperty ===
+            do {
+
+                let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
+                let delegatesFQName = propertiesFQName + [interner.intern("Delegates")]
+                let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
+                let delegatesSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName))
+                let readWriteSymbol = try #require(sema.symbols.lookup(fqName: readWriteFQName))
+                let delegatesType = sema.types.make(.classType(ClassType(
+                    classSymbol: delegatesSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                // BUG-147: the factories are generic in the delegated property's value
+                // type and take (initialValue, onChange) so that both
+                // `by Delegates.observable(v) { ... }` (property position, trailing
+                // lambda not counted as an argument — hence the defaulted callback) and
+                // a call inside a function body resolve, and so that the property type
+                // can be read back off `ReadWriteProperty<Any?, T>`.
+                for memberName in ["observable", "vetoable"] {
+                    let memberSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName + [interner.intern(memberName)]))
+                    let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
+                    #expect(signature.receiverType == delegatesType)
+
+                    let valueTypeParam = try #require(signature.typeParameterSymbols.first)
+                    let valueType = sema.types.make(.typeParam(TypeParamType(
+                        symbol: valueTypeParam,
+                        nullability: .nonNull
+                    )))
+                    #expect(signature.parameterTypes.count == 2)
+                    #expect(signature.parameterTypes.first == valueType)
+                    #expect(signature.valueParameterHasDefaultValues == [false, true])
+                    guard case let .functionType(onChange) = sema.types.kind(of: signature.parameterTypes[1]) else {
+                        Issue.record("onChange parameter should be a function type")
+                        return
+                    }
+                    #expect(onChange.params.count == 3)
+                    #expect(
+                        onChange.returnType == (memberName == "vetoable" ? sema.types.booleanType : sema.types.unitType)
+                    )
+
+                    let expectedReturnType = sema.types.make(.classType(ClassType(
+                        classSymbol: readWriteSymbol,
+                        args: [.in(sema.types.makeNullable(sema.types.anyType)), .invariant(valueType)],
+                        nullability: .nonNull
+                    )))
+                    #expect(signature.returnType == expectedReturnType)
+                }
+            }
+
+            // === testRootLazyAndLazyOfSurfaceAreRegistered ===
+            do {
+
+                let kotlinFQName = ["kotlin"].map { interner.intern($0) }
+                let lazyFQName = kotlinFQName + [interner.intern("Lazy")]
+                let lazySymbol = try #require(sema.symbols.lookup(fqName: lazyFQName))
+                try assertNominalTypeParameters(
+                    for: lazySymbol,
+                    names: ["T"],
+                    variances: [.out],
+                    sema: sema,
+                    interner: interner
+                )
+
+                let lazyTypeParams = sema.types.nominalTypeParameterSymbols(for: lazySymbol)
+                let lazyTypeParamType = sema.types.make(.typeParam(TypeParamType(
+                    symbol: lazyTypeParams[0],
+                    nullability: .nonNull
+                )))
+                let lazyType = sema.types.make(.classType(ClassType(
+                    classSymbol: lazySymbol,
+                    args: [.invariant(lazyTypeParamType)],
+                    nullability: .nonNull
+                )))
+
+                let valueSymbol = try #require(sema.symbols.lookup(fqName: lazyFQName + [interner.intern("value")]))
+                #expect(sema.symbols.propertyType(for: valueSymbol) == lazyTypeParamType)
+                #expect(sema.symbols.externalLinkName(for: valueSymbol) == "kk_lazy_get_value")
+
+                let isInitializedSymbol = try #require(
+                    sema.symbols.lookup(fqName: lazyFQName + [interner.intern("isInitialized")])
+                )
+                #expect(sema.symbols.externalLinkName(for: isInitializedSymbol) == "kk_lazy_is_initialized")
+                let isInitializedSignature = try #require(sema.symbols.functionSignature(for: isInitializedSymbol))
+                #expect(isInitializedSignature.receiverType == lazyType)
+                #expect(isInitializedSignature.parameterTypes == [])
+                #expect(isInitializedSignature.returnType == sema.types.booleanType)
+                #expect(isInitializedSignature.typeParameterSymbols == lazyTypeParams)
+                #expect(isInitializedSignature.classTypeParameterCount == 1)
+
+                let lazyOfSymbol = try #require(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("lazyOf")]))
+                #expect(sema.symbols.externalLinkName(for: lazyOfSymbol) == "kk_lazy_of")
+                let lazyOfSignature = try #require(sema.symbols.functionSignature(for: lazyOfSymbol))
+                #expect(lazyOfSignature.parameterTypes.count == 1)
+                #expect(lazyOfSignature.valueParameterHasDefaultValues == [false])
+                #expect(lazyOfSignature.valueParameterIsVararg == [false])
+                #expect(lazyOfSignature.typeParameterSymbols.count == 1)
+
+                guard case let .classType(returnType) = sema.types.kind(of: lazyOfSignature.returnType),
+                      returnType.args.count == 1,
+                      case let .invariant(returnArgument) = returnType.args[0]
+                else {
+                    Issue.record("Expected lazyOf to return Lazy<T>"); return
+                }
+                #expect(returnType.classSymbol == lazySymbol)
+                #expect(returnArgument == lazyOfSignature.parameterTypes[0])
+            }
         }
-    }
-
-    @Test func testRootLazyAndLazyOfSurfaceAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let kotlinFQName = ["kotlin"].map { interner.intern($0) }
-        let lazyFQName = kotlinFQName + [interner.intern("Lazy")]
-        let lazySymbol = try #require(sema.symbols.lookup(fqName: lazyFQName))
-        try assertNominalTypeParameters(
-            for: lazySymbol,
-            names: ["T"],
-            variances: [.out],
-            sema: sema,
-            interner: interner
-        )
-
-        let lazyTypeParams = sema.types.nominalTypeParameterSymbols(for: lazySymbol)
-        let lazyTypeParamType = sema.types.make(.typeParam(TypeParamType(
-            symbol: lazyTypeParams[0],
-            nullability: .nonNull
-        )))
-        let lazyType = sema.types.make(.classType(ClassType(
-            classSymbol: lazySymbol,
-            args: [.invariant(lazyTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let valueSymbol = try #require(sema.symbols.lookup(fqName: lazyFQName + [interner.intern("value")]))
-        #expect(sema.symbols.propertyType(for: valueSymbol) == lazyTypeParamType)
-        #expect(sema.symbols.externalLinkName(for: valueSymbol) == "kk_lazy_get_value")
-
-        let isInitializedSymbol = try #require(
-            sema.symbols.lookup(fqName: lazyFQName + [interner.intern("isInitialized")])
-        )
-        #expect(sema.symbols.externalLinkName(for: isInitializedSymbol) == "kk_lazy_is_initialized")
-        let isInitializedSignature = try #require(sema.symbols.functionSignature(for: isInitializedSymbol))
-        #expect(isInitializedSignature.receiverType == lazyType)
-        #expect(isInitializedSignature.parameterTypes == [])
-        #expect(isInitializedSignature.returnType == sema.types.booleanType)
-        #expect(isInitializedSignature.typeParameterSymbols == lazyTypeParams)
-        #expect(isInitializedSignature.classTypeParameterCount == 1)
-
-        let lazyOfSymbol = try #require(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("lazyOf")]))
-        #expect(sema.symbols.externalLinkName(for: lazyOfSymbol) == "kk_lazy_of")
-        let lazyOfSignature = try #require(sema.symbols.functionSignature(for: lazyOfSymbol))
-        #expect(lazyOfSignature.parameterTypes.count == 1)
-        #expect(lazyOfSignature.valueParameterHasDefaultValues == [false])
-        #expect(lazyOfSignature.valueParameterIsVararg == [false])
-        #expect(lazyOfSignature.typeParameterSymbols.count == 1)
-
-        guard case let .classType(returnType) = sema.types.kind(of: lazyOfSignature.returnType),
-              returnType.args.count == 1,
-              case let .invariant(returnArgument) = returnType.args[0]
-        else {
-            Issue.record("Expected lazyOf to return Lazy<T>"); return
-        }
-        #expect(returnType.classSymbol == lazySymbol)
-        #expect(returnArgument == lazyOfSignature.parameterTypes[0])
     }
 
     private func assertMember(

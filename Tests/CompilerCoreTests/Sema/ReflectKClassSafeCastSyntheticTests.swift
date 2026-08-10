@@ -4,51 +4,59 @@ import Testing
 
 @Suite
 struct ReflectKClassSafeCastSyntheticTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "Expected KClass.safeCast source to type-check, got: \(ctx.diagnostics.diagnostics)")
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
     @Test func testKClassSafeCastInfersNullableReceiverArgumentReturnTypes() throws {
-        let source = """
-        import kotlin.reflect.KClass
+        let sources: [String] = [
+            """
+            package sample0
+            import kotlin.reflect.KClass
 
-        fun safeCastString(value: Any?): String? = String::class.safeCast(value)
+            fun safeCastString(value: Any?): String? = String::class.safeCast(value)
 
-        fun safeCastViaLocal(value: Any?): String? {
-            val klass = String::class
-            return klass.safeCast(value)
-        }
+            fun safeCastViaLocal(value: Any?): String? {
+                val klass = String::class
+                return klass.safeCast(value)
+            }
 
-        fun <T : Any> safeCastWithClass(klass: KClass<T>, value: Any?): T? = klass.safeCast(value)
-        """
-        let (sema, interner) = try makeSema(source: source)
-        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+            fun <T : Any> safeCastWithClass(klass: KClass<T>, value: Any?): T? = klass.safeCast(value)
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        for functionName in ["safeCastString", "safeCastViaLocal"] {
-            let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let path0 = paths[0]
+            let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
             #expect(
-                signature.returnType == nullableStringType,
-                Comment(rawValue: "\(functionName) should infer String? from KClass<String>.safeCast")
+                !path0Diagnostics.contains(where: { $0.severity == .error }),
+                "Expected KClass.safeCast source to type-check, got: \(path0Diagnostics)"
             )
-        }
 
-        let genericSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("safeCastWithClass")]))
-        let genericSignature = try #require(sema.symbols.functionSignature(for: genericSymbol))
-        if case let .typeParam(typeParam) = sema.types.kind(of: genericSignature.returnType) {
-            #expect(typeParam.nullability == .nullable)
-        } else {
-            Issue.record("Expected generic KClass.safeCast wrapper to return nullable T")
+            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+            for functionName in ["safeCastString", "safeCastViaLocal"] {
+                let symbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern(functionName),
+                ]))
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                #expect(
+                    signature.returnType == nullableStringType,
+                    "\(functionName) should infer String? from KClass<String>.safeCast"
+                )
+            }
+
+            let genericSymbol = try #require(sema.symbols.lookup(fqName: [
+                interner.intern("sample0"),
+                interner.intern("safeCastWithClass"),
+            ]))
+            let genericSignature = try #require(sema.symbols.functionSignature(for: genericSymbol))
+            if case let .typeParam(typeParam) = sema.types.kind(of: genericSignature.returnType) {
+                #expect(typeParam.nullability == .nullable)
+            } else {
+                Issue.record("Expected generic KClass.safeCast wrapper to return nullable T")
+            }
         }
     }
 }

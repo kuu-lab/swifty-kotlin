@@ -29,19 +29,6 @@ import Testing
 @Suite
 struct ComparisonsAPISurfaceInventoryTests {
 
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try #require(result)
-    }
-
     // MARK: - Lookup helpers
 
     private func externalLink(
@@ -124,229 +111,6 @@ struct ComparisonsAPISurfaceInventoryTests {
         }
     }
 
-    // MARK: - 1. kotlin.Comparator interface
-
-    @Test func testComparatorInterfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(symbolExists(fqPath: ["kotlin", "Comparator"], sema: sema, interner: interner), "kotlin.Comparator interface must be registered in symbol table")
-    }
-
-    @Test func testComparatorCompareMemberIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(symbolExists(fqPath: ["kotlin", "Comparator", "compare"], sema: sema, interner: interner), "kotlin.Comparator.compare must be registered")
-    }
-
-    // MARK: - 2. Comparator member: thenBy
-
-    @Test func testComparatorThenByIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedComparatorExtension(
-            "thenBy",
-            sema: sema,
-            interner: interner
-        ), "Comparator.thenBy must be registered from bundled stdlib source")
-    }
-
-    // MARK: - 3. Comparator member: thenByDescending
-
-    @Test func testComparatorThenByDescendingIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedComparatorExtension(
-            "thenByDescending",
-            sema: sema,
-            interner: interner
-        ), "Comparator.thenByDescending must be registered from bundled stdlib source")
-    }
-
-    // MARK: - 4. Comparator member: thenComparator
-
-    @Test func testComparatorThenComparatorIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedComparatorExtension(
-            "thenComparator",
-            sema: sema,
-            interner: interner
-        ), "Comparator.thenComparator must be source-backed")
-    }
-
-    // MARK: - 5. Comparator member: thenDescending
-
-    @Test func testComparatorThenDescendingIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedComparatorExtension(
-            "thenDescending",
-            sema: sema,
-            interner: interner
-        ), "Comparator.thenDescending must be source-backed")
-    }
-
-    // MARK: - 6. Comparator member: reversed
-
-    @Test func testComparatorReversedIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedComparatorExtension(
-            "reversed",
-            parameterCount: 0,
-            sema: sema,
-            interner: interner
-        ), "Comparator.reversed must be source-backed")
-    }
-
-    // MARK: - 7. Comparator member: nullsFirst
-
-    @Test func testComparatorNullsFirstIsRegisteredWithCorrectLink() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "nullsFirst"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_comparator_nulls_first", "Comparator.nullsFirst must link to kk_comparator_nulls_first")
-    }
-
-    // MARK: - 8. Comparator member: nullsLast
-
-    @Test func testComparatorNullsLastIsRegisteredWithCorrectLink() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "nullsLast"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(link == "kk_comparator_nulls_last", "Comparator.nullsLast must link to kk_comparator_nulls_last")
-    }
-
-    // MARK: - 9. Factory: compareBy (single-selector)
-
-    @Test func testCompareByTopLevelIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedFunction(
-            fqPath: ["kotlin", "comparisons", "compareBy"],
-            parameterCount: 1,
-            sema: sema,
-            interner: interner
-        ), "kotlin.comparisons.compareBy (single-selector) must be registered from bundled stdlib source")
-    }
-
-    // MARK: - 10. Factory: compareBy primitive variant removed
-
-    @Test func testCompareByPrimitiveVariantIsNotRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(!symbolExists(
-            fqPath: ["kotlin", "comparisons", "compareByPrimitive"],
-            sema: sema,
-            interner: interner
-        ), "kotlin.comparisons.compareByPrimitive should not be registered after KSP-309 source migration")
-    }
-
-    // MARK: - 11. Factory: compareByDescending (single-selector)
-
-    @Test func testCompareByDescendingTopLevelIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedFunction(
-            fqPath: ["kotlin", "comparisons", "compareByDescending"],
-            parameterCount: 1,
-            sema: sema,
-            interner: interner
-        ), "kotlin.comparisons.compareByDescending must be registered from bundled stdlib source")
-    }
-
-    // MARK: - 12. Factory: compareBy with multi-selector (2 selectors)
-
-    @Test func testCompareByTwoSelectorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "comparisons", "compareBy"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_multi_selectors"), "compareBy with 2 selectors must link to kk_comparator_from_multi_selectors; found: \(links)")
-    }
-
-    // MARK: - 13. Factory: compareBy with multi-selector (3 selectors)
-
-    @Test func testCompareByThreeSelectorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "comparisons", "compareBy"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_multi_selectors3"), "compareBy with 3 selectors must link to kk_comparator_from_multi_selectors3; found: \(links)")
-    }
-
-    // MARK: - 14. Factory: naturalOrder
-
-    @Test func testNaturalOrderIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedFunction(
-            fqPath: ["kotlin", "comparisons", "naturalOrder"],
-            parameterCount: 0,
-            sema: sema,
-            interner: interner
-        ), "kotlin.comparisons.naturalOrder must be registered from bundled stdlib source")
-    }
-
-    // MARK: - 15. Factory: reverseOrder
-
-    @Test func testReverseOrderIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasSourceBackedFunction(
-            fqPath: ["kotlin", "comparisons", "reverseOrder"],
-            parameterCount: 0,
-            sema: sema,
-            interner: interner
-        ), "kotlin.comparisons.reverseOrder must be registered from bundled stdlib source")
-    }
-
-    // MARK: - 16. compareValues (2 nullable args -> Int)
-
-    @Test func testCompareValuesIsRegisteredWithCorrectLink() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "comparisons", "compareValues"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_compareValues"), "kotlin.comparisons.compareValues must link to kk_compareValues; found: \(links)")
-    }
-
-    // MARK: - 17. compareValuesBy (1 selector)
-
-    @Test func testCompareValuesByArity1IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "comparisons", "compareValuesBy"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_compareValuesBy1"), "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)")
-    }
-
-    // MARK: - 18. compareValuesBy (2 selectors)
-
-    @Test func testCompareValuesByArity2IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "comparisons", "compareValuesBy"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_compareValuesBy"), "compareValuesBy (2-selector) must link to kk_compareValuesBy; found: \(links)")
-    }
-
-    // MARK: - 19. compareValuesBy (3 selectors)
-
-    @Test func testCompareValuesByArity3IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "comparisons", "compareValuesBy"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_compareValuesBy3"), "compareValuesBy (3-selector) must link to kk_compareValuesBy3; found: \(links)")
-    }
-
     // MARK: - 20. minOf / maxOf with Comparator (2-arg comparator overload)
 
     /// True when a 3-parameter overload exists whose last parameter is `kotlin.Comparator`
@@ -374,131 +138,378 @@ struct ComparisonsAPISurfaceInventoryTests {
         }
     }
 
-    @Test func testMaxOfWithComparatorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasThreeParamComparatorOverload(comparisonsName: "maxOf", sema: sema, interner: interner), "kotlin.comparisons.maxOf must have a 3-param (a, b, Comparator<T>) overload")
-    }
+    // MARK: - Surface inventory
 
-    @Test func testMinOfWithComparatorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        #expect(hasThreeParamComparatorOverload(comparisonsName: "minOf", sema: sema, interner: interner), "kotlin.comparisons.minOf must have a 3-param (a, b, Comparator<T>) overload")
-    }
+    @Test
+    func testComparisonsAPISurfaceInventory() throws {
 
-    // MARK: - 21. coerceIn range overloads (kotlin.ranges cross-inventory)
+        let source = """
+        fun noop() {}
+        """
 
-    @Test func testCoerceInIntOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "ranges", "coerceIn"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_int_coerceIn"), "kotlin.ranges.coerceIn (Int) must link to kk_int_coerceIn; found: \(links)")
-    }
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
 
-    @Test func testCoerceInLongOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "ranges", "coerceIn"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(links.contains("kk_long_coerceIn"), "kotlin.ranges.coerceIn (Long) must link to kk_long_coerceIn; found: \(links)")
-    }
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            // MARK: - 1. kotlin.Comparator interface
 
-    @Test func testCoerceInDoubleOverloadIsRegistered() throws {
-        // MIGRATION-RANGE-003: Double.coerceIn(min,max) migrated to bundled Kotlin source
-        // (RangeCoercion.kt). The synthetic stub with kk_double_coerceIn no longer exists;
-        // verify no stale stub was left behind.
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "ranges", "coerceIn"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(!links.contains("kk_double_coerceIn"), "Double.coerceIn(min,max) should not have a synthetic stub; migrated to Kotlin source")
-    }
+            // === testComparatorInterfaceIsRegistered ===
+            do {
 
-    @Test func testCoerceInFloatOverloadIsRegistered() throws {
-        // MIGRATION-RANGE-003: Float.coerceIn(min,max) migrated to bundled Kotlin source
-        // (RangeCoercion.kt). The synthetic stub with kk_float_coerceIn no longer exists;
-        // verify no stale stub was left behind.
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "ranges", "coerceIn"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(!links.contains("kk_float_coerceIn"), "Float.coerceIn(min,max) should not have a synthetic stub; migrated to Kotlin source")
-    }
+                #expect(symbolExists(fqPath: ["kotlin", "Comparator"], sema: sema, interner: interner), "kotlin.Comparator interface must be registered in symbol table")
+            }
 
-    // MARK: - 22. Mandatory API completeness assertion
+            // === testComparatorCompareMemberIsRegistered ===
+            do {
 
-    @Test func testAllMandatoryComparatorAPISymbolsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+                #expect(symbolExists(fqPath: ["kotlin", "Comparator", "compare"], sema: sema, interner: interner), "kotlin.Comparator.compare must be registered")
+            }
+            // MARK: - 2. Comparator member: thenBy
 
-        let sourceBackedComparatorMembers = [
-            "thenBy",
-            "thenByDescending",
-            "thenComparator",
-            "thenDescending",
-            "reversed",
-        ]
-        for name in sourceBackedComparatorMembers {
-            #expect(
+            // === testComparatorThenByIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedComparatorExtension(
+                "thenBy",
+                sema: sema,
+                interner: interner
+                ), "Comparator.thenBy must be registered from bundled stdlib source")
+            }
+            // MARK: - 3. Comparator member: thenByDescending
+
+            // === testComparatorThenByDescendingIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedComparatorExtension(
+                "thenByDescending",
+                sema: sema,
+                interner: interner
+                ), "Comparator.thenByDescending must be registered from bundled stdlib source")
+            }
+            // MARK: - 4. Comparator member: thenComparator
+
+            // === testComparatorThenComparatorIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedComparatorExtension(
+                "thenComparator",
+                sema: sema,
+                interner: interner
+                ), "Comparator.thenComparator must be source-backed")
+            }
+            // MARK: - 5. Comparator member: thenDescending
+
+            // === testComparatorThenDescendingIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedComparatorExtension(
+                "thenDescending",
+                sema: sema,
+                interner: interner
+                ), "Comparator.thenDescending must be source-backed")
+            }
+            // MARK: - 6. Comparator member: reversed
+
+            // === testComparatorReversedIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedComparatorExtension(
+                "reversed",
+                parameterCount: 0,
+                sema: sema,
+                interner: interner
+                ), "Comparator.reversed must be source-backed")
+            }
+            // MARK: - 7. Comparator member: nullsFirst
+
+            // === testComparatorNullsFirstIsRegisteredWithCorrectLink ===
+            do {
+
+                let link = externalLink(
+                fqPath: ["kotlin", "Comparator", "nullsFirst"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(link == "kk_comparator_nulls_first", "Comparator.nullsFirst must link to kk_comparator_nulls_first")
+            }
+            // MARK: - 8. Comparator member: nullsLast
+
+            // === testComparatorNullsLastIsRegisteredWithCorrectLink ===
+            do {
+
+                let link = externalLink(
+                fqPath: ["kotlin", "Comparator", "nullsLast"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(link == "kk_comparator_nulls_last", "Comparator.nullsLast must link to kk_comparator_nulls_last")
+            }
+            // MARK: - 9. Factory: compareBy (single-selector)
+
+            // === testCompareByTopLevelIsRegistered ===
+            do {
+
+                #expect(hasSourceBackedFunction(
+                fqPath: ["kotlin", "comparisons", "compareBy"],
+                parameterCount: 1,
+                sema: sema,
+                interner: interner
+                ), "kotlin.comparisons.compareBy (single-selector) must be registered from bundled stdlib source")
+            }
+            // MARK: - 10. Factory: compareBy primitive variant removed
+
+            // === testCompareByPrimitiveVariantIsNotRegistered ===
+            do {
+
+                #expect(!symbolExists(
+                fqPath: ["kotlin", "comparisons", "compareByPrimitive"],
+                sema: sema,
+                interner: interner
+                ), "kotlin.comparisons.compareByPrimitive should not be registered after KSP-309 source migration")
+            }
+            // MARK: - 11. Factory: compareByDescending (single-selector)
+
+            // === testCompareByDescendingTopLevelIsRegistered ===
+            do {
+
+                #expect(hasSourceBackedFunction(
+                fqPath: ["kotlin", "comparisons", "compareByDescending"],
+                parameterCount: 1,
+                sema: sema,
+                interner: interner
+                ), "kotlin.comparisons.compareByDescending must be registered from bundled stdlib source")
+            }
+            // MARK: - 12. Factory: compareBy with multi-selector (2 selectors)
+
+            // === testCompareByTwoSelectorOverloadIsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "comparisons", "compareBy"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_comparator_from_multi_selectors"), "compareBy with 2 selectors must link to kk_comparator_from_multi_selectors; found: \(links)")
+            }
+            // MARK: - 13. Factory: compareBy with multi-selector (3 selectors)
+
+            // === testCompareByThreeSelectorOverloadIsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "comparisons", "compareBy"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_comparator_from_multi_selectors3"), "compareBy with 3 selectors must link to kk_comparator_from_multi_selectors3; found: \(links)")
+            }
+            // MARK: - 14. Factory: naturalOrder
+
+            // === testNaturalOrderIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedFunction(
+                fqPath: ["kotlin", "comparisons", "naturalOrder"],
+                parameterCount: 0,
+                sema: sema,
+                interner: interner
+                ), "kotlin.comparisons.naturalOrder must be registered from bundled stdlib source")
+            }
+            // MARK: - 15. Factory: reverseOrder
+
+            // === testReverseOrderIsRegisteredFromBundledStdlib ===
+            do {
+
+                #expect(hasSourceBackedFunction(
+                fqPath: ["kotlin", "comparisons", "reverseOrder"],
+                parameterCount: 0,
+                sema: sema,
+                interner: interner
+                ), "kotlin.comparisons.reverseOrder must be registered from bundled stdlib source")
+            }
+            // MARK: - 16. compareValues (2 nullable args -> Int)
+
+            // === testCompareValuesIsRegisteredWithCorrectLink ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "comparisons", "compareValues"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_compareValues"), "kotlin.comparisons.compareValues must link to kk_compareValues; found: \(links)")
+            }
+            // MARK: - 17. compareValuesBy (1 selector)
+
+            // === testCompareValuesByArity1IsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "comparisons", "compareValuesBy"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_compareValuesBy1"), "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)")
+            }
+            // MARK: - 18. compareValuesBy (2 selectors)
+
+            // === testCompareValuesByArity2IsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "comparisons", "compareValuesBy"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_compareValuesBy"), "compareValuesBy (2-selector) must link to kk_compareValuesBy; found: \(links)")
+            }
+            // MARK: - 19. compareValuesBy (3 selectors)
+
+            // === testCompareValuesByArity3IsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "comparisons", "compareValuesBy"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_compareValuesBy3"), "compareValuesBy (3-selector) must link to kk_compareValuesBy3; found: \(links)")
+            }
+
+            // === testMaxOfWithComparatorOverloadIsRegistered ===
+            do {
+
+                #expect(hasThreeParamComparatorOverload(comparisonsName: "maxOf", sema: sema, interner: interner), "kotlin.comparisons.maxOf must have a 3-param (a, b, Comparator<T>) overload")
+            }
+
+            // === testMinOfWithComparatorOverloadIsRegistered ===
+            do {
+
+                #expect(hasThreeParamComparatorOverload(comparisonsName: "minOf", sema: sema, interner: interner), "kotlin.comparisons.minOf must have a 3-param (a, b, Comparator<T>) overload")
+            }
+            // MARK: - 21. coerceIn range overloads (kotlin.ranges cross-inventory)
+
+            // === testCoerceInIntOverloadIsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "ranges", "coerceIn"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_int_coerceIn"), "kotlin.ranges.coerceIn (Int) must link to kk_int_coerceIn; found: \(links)")
+            }
+
+            // === testCoerceInLongOverloadIsRegistered ===
+            do {
+
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "ranges", "coerceIn"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(links.contains("kk_long_coerceIn"), "kotlin.ranges.coerceIn (Long) must link to kk_long_coerceIn; found: \(links)")
+            }
+
+            // === testCoerceInDoubleOverloadIsRegistered ===
+            do {
+
+                // MIGRATION-RANGE-003: Double.coerceIn(min,max) migrated to bundled Kotlin source
+                // (RangeCoercion.kt). The synthetic stub with kk_double_coerceIn no longer exists;
+                // verify no stale stub was left behind.
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "ranges", "coerceIn"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(!links.contains("kk_double_coerceIn"), "Double.coerceIn(min,max) should not have a synthetic stub; migrated to Kotlin source")
+            }
+
+            // === testCoerceInFloatOverloadIsRegistered ===
+            do {
+
+                // MIGRATION-RANGE-003: Float.coerceIn(min,max) migrated to bundled Kotlin source
+                // (RangeCoercion.kt). The synthetic stub with kk_float_coerceIn no longer exists;
+                // verify no stale stub was left behind.
+                let links = allExternalLinks(
+                fqPath: ["kotlin", "ranges", "coerceIn"],
+                sema: sema,
+                interner: interner
+                )
+                #expect(!links.contains("kk_float_coerceIn"), "Float.coerceIn(min,max) should not have a synthetic stub; migrated to Kotlin source")
+            }
+            // MARK: - 22. Mandatory API completeness assertion
+
+            // === testAllMandatoryComparatorAPISymbolsAreRegistered ===
+            do {
+
+                let sourceBackedComparatorMembers = [
+                "thenBy",
+                "thenByDescending",
+                "thenComparator",
+                "thenDescending",
+                "reversed",
+                ]
+                for name in sourceBackedComparatorMembers {
+                #expect(
                 hasSourceBackedComparatorExtension(name, sema: sema, interner: interner),
                 "Missing source-backed comparator extension: kotlin.comparisons.\(name)"
-            )
-        }
+                )
+                }
 
-        let runtimeBackedComparatorMembers: [(path: [String], link: String)] = [
-            (["kotlin", "Comparator", "nullsFirst"], "kk_comparator_nulls_first"),
-            (["kotlin", "Comparator", "nullsLast"], "kk_comparator_nulls_last"),
-        ]
-        for entry in runtimeBackedComparatorMembers {
-            let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
-            #expect(links.contains(entry.link), "Missing or mislinked: \(entry.path.joined(separator: ".")) -> \(entry.link)")
-        }
+                let runtimeBackedComparatorMembers: [(path: [String], link: String)] = [
+                (["kotlin", "Comparator", "nullsFirst"], "kk_comparator_nulls_first"),
+                (["kotlin", "Comparator", "nullsLast"], "kk_comparator_nulls_last"),
+                ]
+                for entry in runtimeBackedComparatorMembers {
+                let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
+                #expect(links.contains(entry.link), "Missing or mislinked: \(entry.path.joined(separator: ".")) -> \(entry.link)")
+                }
 
-        let sourceBackedFactories: [[String]] = [
-            ["kotlin", "comparisons", "compareBy"],
-            ["kotlin", "comparisons", "compareByDescending"],
-            ["kotlin", "comparisons", "naturalOrder"],
-            ["kotlin", "comparisons", "reverseOrder"],
-        ]
-        for path in sourceBackedFactories {
-            #expect(hasSourceBackedFunction(fqPath: path, sema: sema, interner: interner), "Missing source-backed factory: \(path.joined(separator: "."))")
-        }
+                let sourceBackedFactories: [[String]] = [
+                ["kotlin", "comparisons", "compareBy"],
+                ["kotlin", "comparisons", "compareByDescending"],
+                ["kotlin", "comparisons", "naturalOrder"],
+                ["kotlin", "comparisons", "reverseOrder"],
+                ]
+                for path in sourceBackedFactories {
+                #expect(hasSourceBackedFunction(fqPath: path, sema: sema, interner: interner), "Missing source-backed factory: \(path.joined(separator: "."))")
+                }
 
-        // Runtime-backed factory functions.
-        let factoryLinks: [(path: [String], expectedLinks: [String])] = [
-            (
+                // Runtime-backed factory functions.
+                let factoryLinks: [(path: [String], expectedLinks: [String])] = [
+                (
                 ["kotlin", "comparisons", "compareBy"],
                 [
-                    "kk_comparator_from_multi_selectors",
-                    "kk_comparator_from_multi_selectors3",
-                    "kk_comparator_from_multi_selectors_vararg",
+                "kk_comparator_from_multi_selectors",
+                "kk_comparator_from_multi_selectors3",
+                "kk_comparator_from_multi_selectors_vararg",
                 ]
-            ),
-            (["kotlin", "comparisons", "compareValues"], ["kk_compareValues"]),
-            (
+                ),
+                (["kotlin", "comparisons", "compareValues"], ["kk_compareValues"]),
+                (
                 ["kotlin", "comparisons", "compareValuesBy"],
                 [
-                    "kk_compareValuesBy1",
-                    "kk_compareValuesBy",
-                    "kk_compareValuesBy3",
-                    "kk_compareValuesByVararg",
-                    "kk_compareValuesByComparator"
+                "kk_compareValuesBy1",
+                "kk_compareValuesBy",
+                "kk_compareValuesBy3",
+                "kk_compareValuesByVararg",
+                "kk_compareValuesByComparator"
                 ]
-            ),
-        ]
+                ),
+                ]
 
-        for entry in factoryLinks {
-            let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
-            for expectedLink in entry.expectedLinks {
+                for entry in factoryLinks {
+                let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
+                for expectedLink in entry.expectedLinks {
                 #expect(links.contains(expectedLink), "Missing: \(entry.path.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
+                }
+                }
             }
         }
     }
+
 }
 #endif

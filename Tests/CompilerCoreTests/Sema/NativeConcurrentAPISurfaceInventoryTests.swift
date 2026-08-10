@@ -34,84 +34,92 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     private static let packagePath = ["kotlin", "native", "concurrent"]
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
+    @Test
+    func testNativeConcurrentAPISurfaceInventoryTestsSurfaceInventory() throws {
+        let source = """
+        fun noop() {}
+        """
+        try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
 
-    @Test
-    func testTargetInventoryHasExpectedShape() {
-        // Structural invariants only — no magic totals. A previous version asserted exact
-        // sizes (`== 31`, `== 28`, `== 3`) which forced every PR adding/promoting a stub
-        // to update three integers and was a major merge-conflict source.
-        let targetEntries = Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries)
-        let targetNames = Set(targetEntries.map(\.name))
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
 
-        // Each TopLevelEntry must have a unique name (no two entries share a `name`).
-        #expect(targetEntries.count == targetNames.count)
-        #expect(targetEntries.count == 15)
-        #expect(Self.implementedTopLevelEntries.count == 15)
-        #expect(Self.knownGapTopLevelEntries.count == 0)
-    }
+            // === testTargetInventoryHasExpectedShape ===
+            do {
 
-    @Test
-    func testImplementedTopLevelEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let package = Self.packagePath.map { interner.intern($0) }
+                // Structural invariants only — no magic totals. A previous version asserted exact
+                // sizes (`== 31`, `== 28`, `== 3`) which forced every PR adding/promoting a stub
+                // to update three integers and was a major merge-conflict source.
+                let targetEntries = Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries)
+                let targetNames = Set(targetEntries.map(\.name))
 
-        for entry in Self.implementedTopLevelEntries {
-            let symbol = try #require(
-                sema.symbols.lookup(fqName: package + [interner.intern(entry.name)]),
-                "\(entry.name) should be registered in kotlin.native.concurrent"
-            )
-            #expect(
-                sema.symbols.symbol(symbol)?.kind == entry.kind,
-                "\(entry.name) should be registered as \(entry.kind)"
-            )
-        }
-    }
-
-    @Test
-    func testCurrentPublishedTopLevelNamesStayWithinInventory() throws {
-        let (sema, interner) = try makeSema()
-        let package = Self.packagePath.map { interner.intern($0) }
-        let targetNames = Set(Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries).map(\.name))
-        let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
-            guard symbol.fqName.count == package.count + 1,
-                  Array(symbol.fqName.prefix(package.count)) == package,
-                  symbol.kind != .package
-            else {
-                return nil
+                // Each TopLevelEntry must have a unique name (no two entries share a `name`).
+                #expect(targetEntries.count == targetNames.count)
+                #expect(targetEntries.count == 15)
+                #expect(Self.implementedTopLevelEntries.count == 15)
+                #expect(Self.knownGapTopLevelEntries.count == 0)
             }
-            return interner.resolve(symbol.name)
-        })
 
-        #expect(currentNames.subtracting(targetNames) == [])
-    }
+            // === testImplementedTopLevelEntriesAreRegistered ===
+            do {
 
-    @Test
-    func testKnownGapEntriesRemainAbsentUntilTheirTodoIsImplemented() throws {
-        let (sema, interner) = try makeSema()
-        let package = Self.packagePath.map { interner.intern($0) }
+                let package = Self.packagePath.map { interner.intern($0) }
 
-        for entry in Self.knownGapTopLevelEntries {
-            let symbols = sema.symbols.lookupAll(fqName: package + [interner.intern(entry.name)])
-            #expect(
-                symbols.isEmpty,
-                "\(entry.name) is tracked by \(entry.todo ?? "unknown TODO") and should update this inventory when implemented"
-            )
+                for entry in Self.implementedTopLevelEntries {
+                    let symbol = try #require(
+                        sema.symbols.lookup(fqName: package + [interner.intern(entry.name)]),
+                        "\(entry.name) should be registered in kotlin.native.concurrent"
+                    )
+                    #expect(
+                        sema.symbols.symbol(symbol)?.kind == entry.kind,
+                        "\(entry.name) should be registered as \(entry.kind)"
+                    )
+                }
+            }
+
+            // === testCurrentPublishedTopLevelNamesStayWithinInventory ===
+            do {
+
+                let package = Self.packagePath.map { interner.intern($0) }
+                let targetNames = Set(Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries).map(\.name))
+                let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
+                    guard symbol.fqName.count == package.count + 1,
+                          Array(symbol.fqName.prefix(package.count)) == package,
+                          symbol.kind != .package
+                    else {
+                        return nil
+                    }
+                    return interner.resolve(symbol.name)
+                })
+
+                #expect(currentNames.subtracting(targetNames) == [])
+            }
+
+            // === testKnownGapEntriesRemainAbsentUntilTheirTodoIsImplemented ===
+            do {
+
+                let package = Self.packagePath.map { interner.intern($0) }
+
+                for entry in Self.knownGapTopLevelEntries {
+                    let symbols = sema.symbols.lookupAll(fqName: package + [interner.intern(entry.name)])
+                    #expect(
+                        symbols.isEmpty,
+                        "\(entry.name) is tracked by \(entry.todo ?? "unknown TODO") and should update this inventory when implemented"
+                    )
+                }
+            }
+
+            // === testKnownGapTodosAreNativeConcurrentItems ===
+            do {
+
+                let todos = Set(Self.knownGapTopLevelEntries.compactMap(\.todo))
+                #expect(todos == [])
+            }
         }
     }
 
-    @Test
-    func testKnownGapTodosAreNativeConcurrentItems() {
-        let todos = Set(Self.knownGapTopLevelEntries.compactMap(\.todo))
-        #expect(todos == [])
-    }
 }
 #endif

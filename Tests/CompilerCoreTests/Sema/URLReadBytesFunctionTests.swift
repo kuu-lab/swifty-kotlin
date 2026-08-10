@@ -9,66 +9,70 @@ import Testing
 /// and is backed by the runtime entry point `kk_url_readBytes`.
 @Suite
 struct URLReadBytesFunctionTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "URL.readBytes surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
 
     @Test
-    func testURLReadBytesFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let urlSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("java"),
-            interner.intern("net"),
-            interner.intern("URL"),
-        ]))
-        let urlType = sema.types.make(.classType(ClassType(
-            classSymbol: urlSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let byteArraySymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("ByteArray"),
-        ]))
-        let byteArrayType = sema.types.make(.classType(ClassType(
-            classSymbol: byteArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let functionFQName = [
-            interner.intern("kotlin"),
-            interner.intern("io"),
-            interner.intern("readBytes"),
+    func testURLReadBytesFunctionTestsInventory() throws {
+        let sources: [String] = [
+            """
+            package sample0
+            import java.net.URL
+            import kotlin.io.readBytes
+
+            fun read(url: URL): ByteArray = url.readBytes()
+            """,
         ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        let functionSymbol = try #require(sema.symbols.lookupAll(fqName: functionFQName).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-            return signature.receiverType == urlType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == byteArrayType
-        })
-        #expect(sema.symbols.externalLinkName(for: functionSymbol) == "kk_url_readBytes")
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+
+            // === testURLReadBytesFunctionIsRegistered ===
+            do {
+
+                let urlSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("java"),
+                    interner.intern("net"),
+                    interner.intern("URL"),
+                ]))
+                let urlType = sema.types.make(.classType(ClassType(
+                    classSymbol: urlSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let byteArraySymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("ByteArray"),
+                ]))
+                let byteArrayType = sema.types.make(.classType(ClassType(
+                    classSymbol: byteArraySymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let functionFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("io"),
+                    interner.intern("readBytes"),
+                ]
+
+                let functionSymbol = try #require(sema.symbols.lookupAll(fqName: functionFQName).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                    return signature.receiverType == urlType
+                        && signature.parameterTypes.isEmpty
+                        && signature.returnType == byteArrayType
+                })
+                #expect(sema.symbols.externalLinkName(for: functionSymbol) == "kk_url_readBytes")
+            }
+
+            // === testURLReadBytesFunctionResolvesInSource ===
+            do {
+                let path0 = paths[0]
+                let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+                #expect(!path0Diagnostics.contains(where: { $0.severity == .error }), "Expected testURLReadBytesFunctionResolvesInSource to resolve cleanly, got: \(path0Diagnostics)")
+            }
+        }
     }
 
-    @Test
-    func testURLReadBytesFunctionResolvesInSource() throws {
-        let source = """
-        import java.net.URL
-        import kotlin.io.readBytes
-
-        fun read(url: URL): ByteArray = url.readBytes()
-        """
-
-        _ = try makeSema(source: source)
-    }
 }

@@ -4,24 +4,30 @@ import Testing
 
 @Suite
 struct ReflectCreateInstanceSyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
-    ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+
+    @Test
+    func testReflectCreateInstanceSyntheticTestsInventory() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected createInstance surface to resolve cleanly, got: \(diagnostics)"))
-            result = (try #require(ctx.sema), ctx.interner)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+
+            // === testCreateInstanceSurfaceIsNotRegistered ===
+            do {
+
+                let functionFQName = ["kotlin", "reflect", "full", "createInstance"].map { interner.intern($0) }
+                #expect(sema.symbols.lookupAll(fqName: functionFQName).isEmpty)
+            }
         }
-        return try #require(result)
     }
 
-    @Test func testCreateInstanceSurfaceIsNotRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let functionFQName = ["kotlin", "reflect", "full", "createInstance"].map { interner.intern($0) }
-        #expect(sema.symbols.lookupAll(fqName: functionFQName).isEmpty)
-    }
 }
 #endif
