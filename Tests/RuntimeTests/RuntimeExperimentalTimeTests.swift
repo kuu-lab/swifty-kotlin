@@ -6,19 +6,19 @@ import Testing
 struct RuntimeExperimentalTimeTests {
     @Test func monotonicMarkElapsedNowIsNonNegative() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let elapsed = kk_time_mark_elapsed_now(mark)
+        let elapsed = timeMarkElapsedNow(mark)
         #expect(kk_duration_inWholeNanoseconds(elapsed) >= 0)
     }
 
     @Test func shiftedMarkReportsFutureAndPast() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let future = kk_time_mark_plus_duration(mark, durationFromMilliseconds(50))
-        let past = kk_time_mark_minus_duration(mark, durationFromMilliseconds(50))
+        let future = timeMarkPlusDuration(mark, durationFromMilliseconds(50))
+        let past = timeMarkMinusDuration(mark, durationFromMilliseconds(50))
 
-        #expect(kk_time_mark_has_not_passed_now(future) == 1)
-        #expect(kk_time_mark_has_passed_now(future) == 0)
-        #expect(kk_time_mark_has_passed_now(past) == 1)
-        #expect(kk_time_mark_has_not_passed_now(past) == 0)
+        #expect(timeMarkHasNotPassedNow(future) == 1)
+        #expect(timeMarkHasPassedNow(future) == 0)
+        #expect(timeMarkHasPassedNow(past) == 1)
+        #expect(timeMarkHasNotPassedNow(past) == 0)
     }
 
     @Test func comparableTimeMarkDifferenceAndOrdering() async throws {
@@ -26,10 +26,10 @@ struct RuntimeExperimentalTimeTests {
         try await Task.sleep(for: .microseconds(1))
         let second = kk_time_source_monotonic_mark_now(0)
 
-        let diff = kk_time_mark_minus_mark(second, first)
+        let diff = timeMarkMinusMark(second, first)
         #expect(kk_duration_inWholeNanoseconds(diff) >= 0)
-        #expect(kk_time_mark_compare(second, first) > 0)
-        #expect(kk_time_mark_compare(first, second) < 0)
+        #expect(timeMarkCompare(second, first) > 0)
+        #expect(timeMarkCompare(first, second) < 0)
     }
 
     @Test func timeSourceAsClockReturnsOriginBasedInstants() {

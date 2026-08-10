@@ -129,15 +129,41 @@ extension CallLowerer {
             lambdaID = adaptedExpr
             resolvedCallableInfo = adaptedInfo
         }
-        if let callableInfo = resolvedCallableInfo {
-            let fnPtrExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
-            instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-            finalArgs.append(fnPtrExpr)
-        } else {
-            finalArgs.append(lambdaID)
+        guard let callableInfo = resolvedCallableInfo else {
+            // No compile-time callable info: the argument is a callable *value*
+            // (e.g. a function-typed parameter of a bundled Kotlin-source
+            // wrapper such as kotlin.synchronized, whose lambda was boxed by
+            // kk_function_create_0 at the user call site). Passing it as a raw
+            // fnPtr would make the runtime call into an object pointer, so
+            // recover the (fnPtr, closureRaw) pair at runtime instead.
+            let intType = sema.types.intType
+            let fnPtrResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [lambdaID],
+                result: fnPtrResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let closureRawResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [lambdaID],
+                result: closureRawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArgs.append(fnPtrResult)
+            finalArgs.append(closureRawResult)
+            return finalArgs
         }
+        let fnPtrExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
+        instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
+        finalArgs.append(fnPtrExpr)
         finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: resolvedCallableInfo,
+            callableInfo: callableInfo,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -347,7 +373,8 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 namePrefix: "kk_function_value_adapter",
-                symbolIDOffsetBase: -720_000
+                symbolIDOffsetBase: -720_000,
+                erasedFunctionType: functionType
            )
         {
             let adaptedExpr = arena.appendExpr(
@@ -420,18 +447,28 @@ extension CallLowerer {
         arguments: inout [KIRExprID]
     ) {
         guard let chosenCallee,
-              sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
         else {
             return
         }
 
-        // Inline calls consume lambda arguments directly during inline
-        // expansion. Wrapping those arguments in a runtime function object
-        // disconnects their thrown-result slot from the caller's try/catch.
-        // Materialization is only needed for non-inline source-backed bodies
-        // that invoke a function-valued parameter at runtime.
-        if sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) == true {
+        let symbol = sema.symbols.symbol(chosenCallee)
+        let isImported = symbol?.flags.contains(.importedLibrary) == true
+        let isInline = symbol?.flags.contains(.inlineFunction) == true
+
+        // Source-backed inline functions are fully expanded in the same
+        // module, so lambda arguments can be consumed directly there.
+        if isInline, !isImported {
+            return
+        }
+
+        // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
+        // raw function-pointer expansion; they must not receive a wrapped
+        // function-value object. Imported Kotlin functions compiled to .kklib
+        // carry a `kk_fn_` C symbol and still need materialization.
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
+           !externalLinkName.isEmpty,
+           !externalLinkName.hasPrefix("kk_fn_") {
             return
         }
 
@@ -596,10 +633,16 @@ extension CallLowerer {
         }
 
         let boxedResult = arena.appendTemporary(type: returnType)
-        emitNonThrowingCall(
-            callee: boxCallee,
-            arg: callResult,
+        emitBoxCallWithValueClassTag(
+            boxCallee: boxCallee,
+            value: callResult,
+            rawSourceKind: sema.types.kind(of: returnType),
             result: boxedResult,
+            resultType: returnType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
             into: &body
         )
         body.append(.returnValue(boxedResult))
@@ -654,8 +697,11 @@ extension CallLowerer {
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
            case let .functionType(nextFT) = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType)),
            let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-               for: sema.types.makeNonNullable(nextFT.returnType),
-               types: sema.types,
+               for: resolveValueClassKind(
+                   sema.types.kind(of: sema.types.makeNonNullable(nextFT.returnType)),
+                   types: sema.types,
+                   symbols: sema.symbols
+               ),
                requireNonNull: true
            )
         {
@@ -887,9 +933,10 @@ extension CallLowerer {
             )
         }
 
-        // STDLIB-325: synchronized(lock) { block } — expand block lambda to
-        // (lock, fnPtr, closureRaw) while preserving the runtime outThrown slot.
-        if externalLinkName == "kk_synchronized", loweredArguments.count == 2 {
+        // STDLIB-325 / KSP-618: __kkSynchronized(lock, block) — expand the block
+        // argument to (lock, fnPtr, closureRaw) while preserving the runtime
+        // outThrown slot.
+        if externalLinkName == "__kk_synchronized", loweredArguments.count == 2 {
             return makeClosureThunkExpandedArguments(
                 prefixArguments: [loweredArguments[0]],
                 loweredArgID: loweredArguments[1],
@@ -923,6 +970,8 @@ extension CallLowerer {
         let fixedComparatorSelectorCount: Int? = switch externalLinkName {
         case "kk_comparator_from_multi_selectors": 2
         case "kk_comparator_from_multi_selectors3": 3
+        case "kk_comparator_from_selector",
+             "kk_comparator_from_selector_descending": 1
         case "kk_compareValuesBy1": 1
         case "kk_compareValuesBy": 2
         case "kk_compareValuesBy3": 3

@@ -166,17 +166,24 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 方針: **都度コンパイル + 計測から始め、閾値超過で初めてキャッシュを設計する**（早すぎる最適化をしない）。
 
+`diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
+各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`
+（デフォルト `.artifacts/diff_kotlinc`）配下に生成され、リポジトリにはコミットしない。これにより
+case あたりの stdlib 再コンパイルを回避する。
+
 1. 現状 (~2,300 行) は毎回フロントエンドに乗せる。`PhaseTimer` で
    「bundled stdlib 由来の Lex/Parse/Sema 時間」を分離計測できるようにする（RF-STDLIB-006）
 2. 計測ゲート: stdlib 注入によるコンパイル時間の増分が **hello.kt 相当の小入力で +100ms** を超えたら
    キャッシュ着手のトリガーとする（[`docs/refactoring-metrics.md`](refactoring-metrics.md) で正式化済み:
    ベースライン中央値 37.29ms、トリガー = 中央値 ≥ 137.29ms）
-3. キャッシュの段階案（トリガー後に選択）:
+3. `diff_kotlinc.sh` では `.kklib` 共有を使い、PoC ケースの candidate compile 合計/中央値を baseline 比 50% 以上、
+   full shard wall time を baseline 比 20% 以上削減できない場合は CI 切り替えを完了扱いにしない。
+4. キャッシュの段階案（トリガー後に選択）:
    - **案 A: pre-parse キャッシュ** — コンパイラビルド時に bundled .kt をトークン列/AST へ
      シリアライズし同梱（`IncrementalCompilationCache` の仕組みを流用）。実装コスト小
    - **案 B: Sema 済みシンボルテーブルの同梱**（klib 的方向）。効果最大だが
      シリアライズ形式の設計・golden への影響が大きい。stdlib が数万行規模になるまで保留
-4. ユーザー側の `IncrementalCompilationCache` に対しては、bundled ソースは
+5. ユーザー側の `IncrementalCompilationCache` に対しては、bundled ソースは
    「コンパイラバージョンにのみ依存する固定入力」として扱い、ユーザー入力の変更で再検証しない
 
 > 補足: 並行メモが提案していた別基準（Smoke 相当の入力で wall-clock 15%未満 or 200ms未満）との
@@ -236,7 +243,6 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
 | `HeaderHelpers+SyntheticComparisonStubs.swift` | 1083 | (b) | M5 `maxOf`/`minOf` and comparison helpers. |
-| `HeaderHelpers+SyntheticConcurrencyStubs.swift` | 186 | (a) | `java.lang.Thread` / JVM-style `kotlin.concurrent.thread`; cleanup candidate. |
 | `HeaderHelpers+SyntheticCoroutineRegistry.swift` | 3552 | (c) | RF-STUB-005 consolidated coroutine package, ABI, and helper registry. |
 | `HeaderHelpers+SyntheticDeepRecursiveStubs.swift` | 324 | (b) | Public stdlib surface; source migration before removal. |
 | `HeaderHelpers+SyntheticDurationStubs.swift` | 1390 | (b) | M8 duration source migration; bridge-only `__kk_*` declarations may remain private. |
@@ -259,7 +265,6 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift` | 80 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayStubs.swift` | 71 | (a) | Kotlin/JS surface; cleanup candidate. |
-| `HeaderHelpers+SyntheticJsFunctionStubs.swift` | 77 | (a) | Kotlin/JS `js(...)`; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | Kotlin/JS number bridge; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsStringInteropStubs.swift` | 183 | (a) | Kotlin/JS string interop; cleanup candidate. |
 | `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` | 790 | (c) | Core annotation and opt-in metadata surface. |
@@ -304,16 +309,16 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticReadWriteLockStubs.swift` | 216 | (a) | JVM-style lock compatibility; cleanup or move behind explicit platform bridge. |
 | `HeaderHelpers+SyntheticRegexStubs.swift` | 974 | (b) | Regex public stdlib source migration candidate. |
 | `HeaderHelpers+SyntheticResultStubs.swift` | 584 | (b) | ~~M13 `Result` source migration~~ **完了・ファイル削除済み**（KSP-304, PR #4566, 2026-07-08）。 |
-| `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | 874 | (b) | Scope functions and `takeIf`/`takeUnless` source migration. |
+| `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | 592 | (b) | Scope functions and `takeIf`/`takeUnless` source migration。`context`/`contextOf` は KSP-603 で `Stdlib/kotlin/ContextParameters.kt` へ移行済み。 |
 | `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | 1463 | (b) | M4 sequence registration helper surface. |
 | `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | 3452 | (b) | M4 sequence terminal/HOF source migration. |
-| `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | `kotlinx.serialization` compatibility; target-out cleanup unless retained as explicit library support. |
+| `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | ~~`kotlinx.serialization` compatibility~~ **完了・ファイル削除済み**（CLEANUP-STUB-121, 2026-08-06）。target-out として Runtime/ABI ともに除去。 |
 | `HeaderHelpers+SyntheticSetStubs.swift` | 1068 | (b) | M3 set shell and HOF source migration. |
 | `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | `repeat` source migration. |
 | `HeaderHelpers+SyntheticStringBuilderStubs.swift` | 629 | (b) | M2 StringBuilder source migration; source exists. |
 | `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 475 | (b) | M1 string helper registration. |
 | `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
-| `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | String type scaffolding and helper utilities. |
+| `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。型シェル生成は `+SyntheticIterableRegistry.swift` に一本化。 |
 | `HeaderHelpers+SyntheticTODOAndIOStubs.swift` | 1347 | (b) | Mixed TODO, IO, system, duration, collection factories; split JVM/system pockets before broad M migration. |
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
@@ -352,7 +357,7 @@ should follow the same shape:
 ### Follow-up order
 
 1. Finish small (a) deletions that still have direct central calls:
-   `SyntheticJsAnyStubs`, `SyntheticJsFunctionStubs`, `SyntheticJsNumberStubs`.
+   `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs`.
 2. Split mixed files before touching their residual parts:
    `SyntheticExperimentalMarkerStubs`, `SyntheticMetaprogAnnotationHelpers`,
    `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`, `SyntheticAtomicStubs`.
@@ -423,8 +428,9 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
     `__kk_lock_withLock` bridge（fnPtr + closure env + `outThrown`）へ委譲する。
 - **c-soft コア残留（6）**: `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`,
   `kk_read_write_lock_read`, `kk_read_write_lock_write`。suspend 継続・待機解放・pthread rwlock コアと不可分のため (c) 残置。
-- **(a) cleanup 候補（scope 外）**: `kk_read_write_lock_create` は CLEANUP-STUB-100（未使用重複）として別途整理。
-  `kk_reentrant_read_write_lock_new` と `HeaderHelpers+SyntheticReadWriteLockStubs.swift` の compatibility stub も本 PR 対象外。
+- **(a) cleanup 済み**: 未使用重複だった `kk_reentrant_read_write_lock_new`（`HeaderHelpers+SyntheticReadWriteLockStubs.swift` の
+  コンストラクタ登録・Runtime 実体・ABI 登録）は CLEANUP-STUB-100 で削除済み。`ReentrantReadWriteLock` のコンストラクタ
+  ブリッジは `kk_read_write_lock_create` に一本化した。
 
 移行に伴い generic 高階関数 `fun <T> f(action: () -> T): T` が Unit 本体ラムダから `T` を推論できないコンパイラバグ
 （`KSWIFTK-TYPE-0001`/`KSWIFTK-SEMA-0002`）を同 PR で修正した。ただし `launch { }` 本体からキャプチャ付き suspend 呼び出しを
