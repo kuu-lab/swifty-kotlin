@@ -151,15 +151,6 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        // removeFirst/removeLast are scoped to ArrayDeque receivers only;
-        // they must NOT go through the general unresolvedCollectionMemberNames
-        // path because MutableList also has these methods and would get
-        // incorrect callee mapping.
-        if calleeText == "removeFirst" || calleeText == "removeLast",
-           isArrayDequeLikeType(receiverType, sema: sema, interner: interner)
-        {
-            arguments.insert(loweredReceiverID, at: 0)
-        }
     }
 
     func emitMemberCallInstruction(
@@ -205,12 +196,12 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_iterable_joinTo"
+           externalLinkName == "__kk_iterable_joinTo"
             || externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
-                firstDefaultParameterIndex: externalLinkName == "kk_iterable_joinTo" ? 1 : 0,
+                firstDefaultParameterIndex: externalLinkName == "__kk_iterable_joinTo" ? 1 : 0,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -446,7 +437,7 @@ extension CallLowerer {
             )
         }
         if loweredCallee == interner.intern("kk_list_joinToString_transform")
-            || loweredCallee == interner.intern("kk_iterable_joinToString_transform")
+            || loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
             || loweredCallee == interner.intern("kk_array_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
@@ -568,12 +559,7 @@ extension CallLowerer {
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
         case "kk_string_indexOfFirst",
-             "kk_string_indexOfLast",
-             "kk_string_map",
-             "kk_string_mapIndexed",
-             "kk_string_mapNotNull",
-             "kk_string_firstNotNullOf",
-             "kk_string_firstNotNullOfOrNull":
+             "kk_string_indexOfLast":
             true
         default:
             false
@@ -671,10 +657,10 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")
-            || loweredCallee == interner.intern("kk_iterable_any")
-            || loweredCallee == interner.intern("kk_iterable_all"),
+        if loweredCallee == interner.intern("__kk_iterable_firstNotNullOf")
+            || loweredCallee == interner.intern("__kk_iterable_firstNotNullOfOrNull")
+            || loweredCallee == interner.intern("__kk_iterable_any")
+            || loweredCallee == interner.intern("__kk_iterable_all"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -840,16 +826,14 @@ extension CallLowerer {
             interner.intern("kk_list_sortedWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
-           finalArguments.count == 2,
-           let comparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: nil,
-               loweredComparatorID: finalArguments[1],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
+           finalArguments.count == 2
         {
+            let comparatorArgs = makeComparatorObjectArgumentPair(
+                loweredComparatorID: finalArguments[1],
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
             finalArguments = [finalArguments[0]] + comparatorArgs
         }
         if loweredCallee == interner.intern("kk_channel_send")
@@ -863,16 +847,6 @@ extension CallLowerer {
             )
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
-        }
-        if (loweredCallee == interner.intern("kk_comparator_nulls_first")
-            || loweredCallee == interner.intern("kk_comparator_nulls_last")
-            || loweredCallee == interner.intern("kk_comparator_nulls_first_of")
-            || loweredCallee == interner.intern("kk_comparator_nulls_last_of")),
-           finalArguments.count == 1
-        {
-            let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
-            finalArguments.append(zeroClosureExpr)
         }
         // KSP-677: Mutex.withLock / Semaphore.withPermit / Lock.withLock are Kotlin
         // source (Stdlib/kotlinx/coroutines/sync/Sync.kt, Stdlib/kotlin/concurrent/Lock.kt).
@@ -1094,11 +1068,11 @@ extension CallLowerer {
             interner.intern("kk_list_distinctBy"),
             interner.intern("kk_list_takeWhile"),
             interner.intern("kk_list_dropLastWhile"),
-            interner.intern("kk_iterable_firstNotNullOf"),
-            interner.intern("kk_iterable_firstNotNullOfOrNull"),
-            interner.intern("kk_iterable_any"),
-            interner.intern("kk_iterable_all"),
-            interner.intern("kk_iterable_requireNoNulls"),
+            interner.intern("__kk_iterable_firstNotNullOf"),
+            interner.intern("__kk_iterable_firstNotNullOfOrNull"),
+            interner.intern("__kk_iterable_any"),
+            interner.intern("__kk_iterable_all"),
+            interner.intern("__kk_iterable_requireNoNulls"),
             interner.intern("__kk_string_codePointCount_from"),
             interner.intern("__kk_string_codePointCount_range"),
             interner.intern("__kk_kclass_cast"),
@@ -1147,7 +1121,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_associateBy"),
             interner.intern("kk_sequence_associateTo"),
             interner.intern("kk_sequence_associateByTo"),
-            interner.intern("kk_map_getValue"),
             interner.intern("kk_map_mapKeysTo"),
             interner.intern("kk_map_mapValuesTo"),
             interner.intern("kk_sequence_mapNotNull"),
@@ -1187,8 +1160,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_firstNotNullOf_flat"),
-            interner.intern("kk_string_firstNotNullOfOrNull_flat"),
             interner.intern("kk_string_zipTransform"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunked_sequence_transform"),
@@ -1206,10 +1177,6 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_reentrant_read_write_lock_read"),
-            interner.intern("kk_biginteger_divide"),
-            interner.intern("kk_biginteger_pow"),
-            interner.intern("kk_biginteger_modInverse"),
-            interner.intern("kk_biginteger_modPow"),
         ])
     }
 

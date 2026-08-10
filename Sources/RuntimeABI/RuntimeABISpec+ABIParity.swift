@@ -2,13 +2,6 @@
 // Runtime-backed entries below are generated from Sources/Runtime exported C symbols.
 
 public extension RuntimeABISpec {
-    private static let matchResultDestructuredComponentFunctions = numberedUnaryRuntimeABIFunctionSpecs(
-        prefix: "kk_match_result_destructured_component",
-        range: 1...9,
-        parameterName: "destructuredRaw",
-        section: "ABIParity"
-    )
-
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
         // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
         abiParitySpec("kk_kclass_register_annotation", parameters: [
@@ -84,45 +77,6 @@ public extension RuntimeABISpec {
             p("index", .intptr),
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_biginteger_modInverse", parameters: [
-            p("selfRaw", .intptr),
-            p("modulusRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_modPow", parameters: [
-            p("selfRaw", .intptr),
-            p("exponentRaw", .intptr),
-            p("modulusRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_not", parameters: [
-            p("selfRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_or", parameters: [
-            p("selfRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_shiftLeft", parameters: [
-            p("selfRaw", .intptr),
-            p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_shiftRight", parameters: [
-            p("selfRaw", .intptr),
-            p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_toByteArray", parameters: [
-            p("selfRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_xor", parameters: [
-            p("selfRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_callable_ref_arity", parameters: [
             p("tagged", .intptr),
         ],
@@ -664,10 +618,6 @@ public extension RuntimeABISpec {
             p("closureRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_list_toByteArray", parameters: [
-            p("listRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -690,32 +640,18 @@ public extension RuntimeABISpec {
             p("entryRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_match_result_component1", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_component2", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_next", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_range", parameters: [
+        // KSP-486: MatchResult iteration / destructuring bridges
+        abiParitySpec("__kk_match_result_next", parameters: [
             p("matchRaw", .intptr),
         ],
             isThrowing: false),
         // STDLIB-TEXT-TYPE-010: MatchResult.Destructured
-        abiParitySpec("kk_match_result_destructured", parameters: [
+        abiParitySpec("__kk_match_result_destructured", parameters: [
             p("matchRaw", .intptr),
         ]),
-        abiParitySpec("kk_match_result_destructured_match", parameters: [
+        abiParitySpec("__kk_match_result_destructured_match", parameters: [
             p("destructuredRaw", .intptr),
         ]),
-    ]
-    + matchResultDestructuredComponentFunctions
-    + [
         abiParitySpec("kk_math_e"),
         abiParitySpec("kk_math_pi"),
         abiParitySpec("kk_mem_scope_alloc", parameters: [
@@ -843,27 +779,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_state_flow_value", parameters: [
             p("handle", .intptr),
         ]),
-        abiParitySpec("kk_string_contentEquals_flat", parameters: [
-            p("receiverData", .nullableConstUInt8Pointer),
-            p("receiverLength", .intptr),
-            p("receiverByteCount", .intptr),
-            p("receiverHash", .intptr),
-            p("otherData", .nullableConstUInt8Pointer),
-            p("otherLength", .intptr),
-            p("otherByteCount", .intptr),
-            p("otherHash", .intptr),
-        ]),
-        abiParitySpec("kk_string_contentEquals_ignoreCase_flat", parameters: [
-            p("receiverData", .nullableConstUInt8Pointer),
-            p("receiverLength", .intptr),
-            p("receiverByteCount", .intptr),
-            p("receiverHash", .intptr),
-            p("otherData", .nullableConstUInt8Pointer),
-            p("otherLength", .intptr),
-            p("otherByteCount", .intptr),
-            p("otherHash", .intptr),
-            p("ignoreCaseRaw", .intptr),
-        ]),
+        // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
+        // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
         abiParitySpec("__kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),

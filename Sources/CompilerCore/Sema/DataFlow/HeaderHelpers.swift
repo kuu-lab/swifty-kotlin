@@ -1200,19 +1200,11 @@ extension DataFlowSemaPhase {
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStdlibLoopStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTestFrameworkStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinPkg: kotlinPkg
-        )
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
@@ -1225,7 +1217,6 @@ extension DataFlowSemaPhase {
             registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         }
         registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(
             symbols: symbols,
@@ -1239,7 +1230,6 @@ extension DataFlowSemaPhase {
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)

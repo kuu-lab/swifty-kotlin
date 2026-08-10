@@ -105,6 +105,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
 
+        // `kk_array_get` reads an element out of both generic `Array<T>` (boxed
+        // elements) and the primitive arrays (raw elements), so it needs the
+        // same unboxing as the accessors above only for the generic receiver;
+        // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
+        let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
+
         // kk_op_rangeUntil backs the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
@@ -310,9 +316,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }()
                 let effectiveCallee = rewrittenCallee ?? callee
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
-                // Stubs explicitly marked .throwingFunction (e.g. BigInteger.divide,
-                // BigInteger(String)) must always emit the outThrown channel regardless
-                // of whether their callee name appears in nonThrowingCallees.
+                // Stubs explicitly marked .throwingFunction must always emit the
+                // outThrown channel regardless of whether their callee name appears
+                // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
@@ -347,6 +353,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
+                        boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
                         newBody: &newBody
                     )
                 } else {
@@ -437,8 +444,18 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // resolveUnboxForCall cannot handle these because they have no
                 // FunctionSignature entry. Unbox using the KIR result type as the target.
                 var effectiveUnbox: (InternedString, TypeID)? = resolvedUnbox
+                let needsErasedResultUnbox =
+                    collectionElementAccessorCallees.contains(effectiveCallee)
+                    || (effectiveCallee == genericArrayGetCallee
+                        && isGenericArrayReceiver(
+                            boxedArguments.first,
+                            module: module,
+                            types: types,
+                            symbols: symbols,
+                            interner: ctx.interner
+                        ))
                 if effectiveUnbox == nil,
-                   collectionElementAccessorCallees.contains(effectiveCallee),
+                   needsErasedResultUnbox,
                    let result, let types,
                    let resultType = module.arena.exprType(result)
                 {
@@ -560,7 +577,25 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let fromKind = resolveValueClassKind(rawFromKind, types: types, symbols: symbols)
         let rawToKind = types.kind(of: toType)
         let toKind = resolveValueClassKind(rawToKind, types: types, symbols: symbols)
-        if isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
+        // A non-null enum local is stored as its raw ordinal. Keep copies between
+        // values of the same enum class verbatim; otherwise resolving both sides
+        // to Int below would add an unnecessary kk_unbox_int and corrupt the
+        // ordinal before a later .name/.ordinal read.
+        let isDirectNonNullEnumCopy: Bool = {
+            guard case let .classType(sourceClass) = rawFromKind,
+                  case let .classType(targetClass) = rawToKind,
+                  sourceClass.nullability == .nonNull,
+                  targetClass.nullability == .nonNull,
+                  sourceClass.classSymbol == targetClass.classSymbol,
+                  let symbols,
+                  let sym = symbols.symbol(targetClass.classSymbol)
+            else {
+                return false
+            }
+            return sym.kind == .enumClass
+        }()
+        if !isDirectNonNullEnumCopy,
+           isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
             || isNonValueClassReference(rawToKind, symbols: symbols),
             let boxCallee = boxCalleeForPrimitive(
                 fromKind,
@@ -582,7 +617,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             )
             return instructions
         }
-        if needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
+        if !isDirectNonNullEnumCopy,
+           needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
            let unboxCallee = unboxingCallee(
                sourceKind: fromKind, targetKind: toKind,
                boxingCalleeTable: boxingCalleeTable,
