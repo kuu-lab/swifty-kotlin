@@ -119,8 +119,16 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkThrowablePrintStackTraceSignature() throws {
-        let spec = try requireSpec("kk_throwable_printStackTrace")
+    func throwableRawStackFramesSignature() throws {
+        let spec = try requireSpec("__kk_throwable_rawStackFrames")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
+    }
+
+    @Test
+    func printStderrSignature() throws {
+        let spec = try requireSpec("__kk_printStderr")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
