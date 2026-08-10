@@ -385,10 +385,9 @@ extension DataFlowSemaPhase {
             skipStats: skipStats
         )
 
-        registerSyntheticArrayDequeStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
+        // KSP-625: ArrayDeque is provided by bundled Kotlin source
+        // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
+        // registered for it here.
 
         // Keep collection aliases visible while bundled collection factories
         // are loaded; their declarations reference MutableList/MutableMap

@@ -399,6 +399,61 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testImportedGenericClassResolvesExplicitTypeArgumentsAndMembers() throws {
+        let source = """
+        package genericlib
+        class Holder<T> {
+            fun wrap(value: T): T = value
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let libBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let libCtx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "GenericLib",
+                emit: .library,
+                outputPath: libBase
+            )
+            try runToKIR(libCtx)
+            try LoweringPhase().run(libCtx)
+            try CodegenPhase().run(libCtx)
+
+            let metadataPath = libBase + ".kklib/metadata.bin"
+            let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
+            #expect(metadata.contains("typeParams="))
+
+            let appSource = """
+            import genericlib.Holder
+            fun main() {
+                val holder = Holder<Int>()
+                println(holder.wrap(1))
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "GenericApp",
+                    emit: .kirDump,
+                    searchPaths: [libBase + ".kklib"]
+                )
+                try runToKIR(appCtx)
+
+                let messages = appCtx.diagnostics.diagnostics
+                    .filter { $0.severity == .error }
+                    .map(\.message)
+                    .joined(separator: "\n")
+                #expect(!appCtx.diagnostics.hasError, "Unexpected errors: \(messages)")
+
+                let sema = try #require(appCtx.sema)
+                let holder = try #require(sema.symbols.allSymbols().first(where: { symbol in
+                    appCtx.interner.resolve(symbol.name) == "Holder" && symbol.kind == .class
+                }))
+                #expect(sema.types.nominalTypeParameterSymbols(for: holder.id).count == 1)
+            }
+        }
+    }
+
+    @Test
     func testLibraryMetadataRoundTripsContextFunctionTypeSignatures() throws {
         let source = """
         package metaexport
