@@ -427,32 +427,6 @@ final class CallLowerer {
             return loweredMeasureNano
         }
 
-        if let loweredMeasureTimeDuration = lowerMeasureTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimeDuration
-        }
-
-        if let loweredMeasureTimedValue = lowerMeasureTimedValueCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimedValue
-        }
-
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
             exprID,
             args: args,
@@ -975,25 +949,18 @@ final class CallLowerer {
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
-            if let chosen,
-               sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
-                sema.symbols.externalLinkName(for: chosen) == "kk_compareValuesByVararg"
-            {
-                NormalizedCallResult(arguments: loweredArgIDs, defaultMask: 0)
-            } else {
-                driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredArgIDs,
-                    callBinding: callBinding,
-                    chosenCallee: chosen,
-                    spreadFlags: args.map(\.isSpread),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
-            }
+            driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgIDs,
+                callBinding: callBinding,
+                chosenCallee: chosen,
+                spreadFlags: args.map(\.isSpread),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
         } else {
             NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(

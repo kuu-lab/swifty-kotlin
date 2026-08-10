@@ -45,8 +45,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
             || callee == lookup.mapIndexedNotNullToName
-            // KSP-441: Sequence source flatMap/flatMapIndexed is routed through the
-            // runtime pipeline; non-Sequence source flatMap is preserved.
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
             || callee == lookup.flatMapToName
@@ -105,12 +103,6 @@ extension CollectionLiteralConstructionLoweringPass {
         // Sequence object via iterator(), but RuntimeSequenceBox (from
         // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
         // must go through kk_sequence_map/filter.
-        //
-        // flatMap/flatMapIndexed are *not* preserved here: the bundled source
-        // implementations use overloaded extension object-expressions whose
-        // nested Iterator itable registration is broken (KSP-441). The lowering
-        // pipeline rewrites them to kk_sequence_flatMap/kk_sequence_flatMapIndexed
-        // in rewriteSequencePipelineCall instead.
         if let receiverID = arguments.first,
            state.sequenceExprIDs.contains(receiverID.rawValue),
            callee == lookup.takeName
@@ -120,8 +112,12 @@ extension CollectionLiteralConstructionLoweringPass {
         {
             return false
         }
-        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName
-            || callee == lookup.mapName || callee == lookup.filterName),
+        // A Sequence-typed receiver may still be a RuntimeSequenceBox at run
+        // time (e.g. a parameter fed by asSequence()), which the source
+        // iterator cannot walk. flatMap/flatMapIndexed are excluded: their
+        // bundled source implementations traverse the receiver through the
+        // shared iterator bridge and are the KSP-441 source pipeline.
+        if (callee == lookup.mapName || callee == lookup.filterName),
            isSequenceReceiverType(symbol: symbol, ctx: ctx) {
             return false
         }
