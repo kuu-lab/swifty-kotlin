@@ -54,7 +54,8 @@ final class CodegenPhase: CompilerPhase {
                 // LLVM target state is not thread-safe; cross-process locking is
                 // unnecessary because each `kswiftc` process has its own LLVM
                 // context and output path. The link step uses a per-`LinkPhase`
-                // unique autolink stub path, so no cross-process lock is needed.
+                // unique autolink stub path and a separate cross-process toolchain
+                // lock to protect concurrent Linux `swiftc` invocations.
                 try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
                     try backend.emitObject(
                         module: kir,
@@ -183,8 +184,10 @@ final class CodegenPhase: CompilerPhase {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledKotlinStdlib.manifestHash()
         }
-        let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys])
-        try manifestData.write(to: URL(fileURLWithPath: manifestPath), options: .atomic)
+        let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
+        var manifestString = String(data: manifestData, encoding: .utf8) ?? ""
+        manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
+        try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
         let metadata = makeMetadata(ctx: ctx, module: module)
         try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)

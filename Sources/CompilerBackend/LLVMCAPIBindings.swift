@@ -43,6 +43,8 @@ final class LLVMCAPIBindings {
     typealias LLVMCreateBuilderInContextFn = @convention(c) (LLVMContextRef?) -> LLVMBuilderRef?
     typealias LLVMDisposeBuilderFn = @convention(c) (LLVMBuilderRef?) -> Void
     typealias LLVMPositionBuilderAtEndFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> Void
+    typealias LLVMPositionBuilderBeforeFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> Void
+    typealias LLVMGetFirstInstructionFn = @convention(c) (LLVMBasicBlockRef?) -> LLVMValueRef?
     typealias LLVMGetBasicBlockTerminatorFn = @convention(c) (LLVMBasicBlockRef?) -> LLVMValueRef?
     typealias LLVMBuildRetFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> LLVMValueRef?
     typealias LLVMBuildBrFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
@@ -322,6 +324,8 @@ final class LLVMCAPIBindings {
     let initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?
     let addGlobalFn: LLVMAddGlobalFn?
     let setInitializerFn: LLVMSetInitializerFn?
+    let positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn?
+    let getFirstInstructionFn: LLVMGetFirstInstructionFn?
     let createDIBuilderFn: LLVMCreateDIBuilderFn?
     let disposeDIBuilderFn: LLVMDisposeDIBuilderFn?
     let diBuilderFinalizeFn: LLVMDIBuilderFinalizeFn?
@@ -426,6 +430,8 @@ final class LLVMCAPIBindings {
         initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?,
         addGlobalFn: LLVMAddGlobalFn? = nil,
         setInitializerFn: LLVMSetInitializerFn? = nil,
+        positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn? = nil,
+        getFirstInstructionFn: LLVMGetFirstInstructionFn? = nil,
         createDIBuilderFn: LLVMCreateDIBuilderFn?,
         disposeDIBuilderFn: LLVMDisposeDIBuilderFn?,
         diBuilderFinalizeFn: LLVMDIBuilderFinalizeFn?,
@@ -530,6 +536,8 @@ final class LLVMCAPIBindings {
         self.initializeAArch64AsmPrinterFn = initializeAArch64AsmPrinterFn
         self.addGlobalFn = addGlobalFn
         self.setInitializerFn = setInitializerFn
+        self.positionBuilderBeforeFn = positionBuilderBeforeFn
+        self.getFirstInstructionFn = getFirstInstructionFn
         self.createDIBuilderFn = createDIBuilderFn
         self.disposeDIBuilderFn = disposeDIBuilderFn
         self.diBuilderFinalizeFn = diBuilderFinalizeFn

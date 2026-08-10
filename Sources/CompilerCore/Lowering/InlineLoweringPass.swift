@@ -44,8 +44,6 @@ final class InlineLoweringPass: LoweringPass {
                 inlineFunctionsBySymbol[symbol] = function
             }
         }
-        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
-
         // Build a lookup of all KIR functions by symbol so that lambda bodies
         // can be resolved during inline expansion.
         var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
@@ -54,6 +52,31 @@ final class InlineLoweringPass: LoweringPass {
                 allFunctionsBySymbol[function.symbol] = function
             }
         }
+
+        // Callees whose body never reaches an object file: auto-inline
+        // (`isInlineOnly`) overloads of this module, and every inline function
+        // imported from a library (the metadata does not carry `isInlineOnly`,
+        // and an artifact omits auto-inline bodies).
+        var bodylessInlineSymbols = Set(inlineFunctionsBySymbol.filter { $0.value.isInlineOnly }.keys)
+        if let imported = ctx.sema?.importedInlineFunctions {
+            bodylessInlineSymbols.formUnion(imported.keys)
+        }
+
+        // An inline body — or a lambda body that gets spliced into its caller —
+        // can itself call one of those functions. Both snapshots above predate
+        // any expansion, so splicing such a body into a caller would leave a
+        // call to a symbol that no object file defines. Expand those nested
+        // calls inside the snapshots first.
+        expandNestedBodylessInlineCalls(
+            bodylessInlineSymbols: bodylessInlineSymbols,
+            inlineFunctionsBySymbol: &inlineFunctionsBySymbol,
+            allFunctionsBySymbol: &allFunctionsBySymbol,
+            module: module,
+            ctx: ctx,
+            unitType: unitType
+        )
+
+        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
 
         module.arena.transformFunctions { [self] function in
             inlineTransform(
@@ -67,6 +90,61 @@ final class InlineLoweringPass: LoweringPass {
             )
         }
         module.recordLowering(Self.name)
+    }
+
+    /// Rewrite the bodies that later get spliced into callers so they no longer
+    /// call functions whose body never reaches codegen. Every round re-expands
+    /// the *original* body against the improved callee snapshots, so a body is
+    /// never spliced twice. Bounded to keep delegation chains from expanding
+    /// without limit.
+    private func expandNestedBodylessInlineCalls(
+        bodylessInlineSymbols: Set<SymbolID>,
+        inlineFunctionsBySymbol: inout [SymbolID: KIRFunction],
+        allFunctionsBySymbol: inout [SymbolID: KIRFunction],
+        module: KIRModule,
+        ctx: KIRContext,
+        unitType: TypeID?
+    ) {
+        guard !bodylessInlineSymbols.isEmpty else { return }
+        var originals = allFunctionsBySymbol
+        for (symbol, function) in inlineFunctionsBySymbol where originals[symbol] == nil {
+            originals[symbol] = function
+        }
+        var expandedBySymbol: [SymbolID: KIRFunction] = [:]
+
+        for _ in 0 ..< 4 {
+            let pending = originals.values.filter { function in
+                let current = expandedBySymbol[function.symbol] ?? function
+                return current.body.contains { instruction in
+                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                          let symbol, symbol != function.symbol
+                    else {
+                        return false
+                    }
+                    return bodylessInlineSymbols.contains(symbol)
+                }
+            }
+            guard !pending.isEmpty else { return }
+            let byName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+            for function in pending {
+                let expanded = inlineTransform(
+                    function: function,
+                    inlineFunctionsBySymbol: inlineFunctionsBySymbol,
+                    inlineFunctionsByName: byName,
+                    allFunctionsBySymbol: allFunctionsBySymbol,
+                    module: module,
+                    ctx: ctx,
+                    unitType: unitType
+                )
+                expandedBySymbol[function.symbol] = expanded
+                if inlineFunctionsBySymbol[function.symbol] != nil {
+                    inlineFunctionsBySymbol[function.symbol] = expanded
+                }
+                if allFunctionsBySymbol[function.symbol] != nil {
+                    allFunctionsBySymbol[function.symbol] = expanded
+                }
+            }
+        }
     }
 
     /// Compute the next available label ID by scanning all label references in the body.
@@ -301,7 +379,16 @@ final class InlineLoweringPass: LoweringPass {
             {
                 let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
                     .map { resolveAlias(of: $0, aliases: aliases) }
-                let fullArgs = captureArgs + Array(resolvedArguments.dropFirst())
+                // A lambda spliced into an already-inlined generic body reads
+                // its arguments from erased (type-parameter) slots, so unbox
+                // them for the lambda's own concrete parameter types.
+                let fullArgs = unboxErasedLambdaArguments(
+                    arguments: captureArgs + Array(resolvedArguments.dropFirst()),
+                    lambdaFunction: lambdaFunction,
+                    module: module,
+                    ctx: ctx,
+                    into: &loweredBody
+                )
                 if let lambdaExpansion = expandLambdaBody(
                     lambdaFunction: lambdaFunction,
                     arguments: fullArgs,
@@ -320,7 +407,13 @@ final class InlineLoweringPass: LoweringPass {
                     }
                     if let result {
                         if let lambdaReturn = lambdaExpansion.returnedExpr {
-                            aliases[result] = resolveAlias(of: lambdaReturn, aliases: aliases)
+                            aliases[result] = boxErasedLambdaResultIfNeeded(
+                                returnedExpr: resolveAlias(of: lambdaReturn, aliases: aliases),
+                                result: result,
+                                module: module,
+                                ctx: ctx,
+                                into: &loweredBody
+                            )
                         } else if let unitType = unitType {
                             let unitExpr = module.arena.appendExpr(.unit, type: unitType)
                             aliases[result] = unitExpr
@@ -351,9 +444,23 @@ final class InlineLoweringPass: LoweringPass {
                 loweredBody.append(instruction)
                 continue
             }
+            // An imported inline body was ABI-lowered when its library was
+            // built, so its erased (type-parameter / Any) parameters keep the
+            // boxed representation chosen there; this expansion cannot
+            // re-specialize them. Box primitive arguments that flow into an
+            // erased parameter so the splice honours that representation.
+            let expansionArguments = usesErasedLambdaABI(inlineTarget, ctx: ctx)
+                ? boxPrimitiveArgumentsForErasedParameters(
+                    arguments: arguments,
+                    inlineTarget: inlineTarget,
+                    module: module,
+                    ctx: ctx,
+                    into: &loweredBody
+                )
+                : arguments
             let expansion = expandInlineCall(
                 inlineTarget: inlineTarget,
-                arguments: arguments,
+                arguments: expansionArguments,
                 allFunctionsBySymbol: allFunctionsBySymbol,
                 module: module,
                 ctx: ctx,
@@ -479,7 +586,14 @@ final class InlineLoweringPass: LoweringPass {
             // for both non-local-return and normal paths).
             if let result {
                 if let returnedExpr = expansion.returnedExpr {
-                    aliases[result] = resolveAlias(of: returnedExpr, aliases: aliases)
+                    aliases[result] = unboxErasedInlineResultIfNeeded(
+                        returnedExpr: resolveAlias(of: returnedExpr, aliases: aliases),
+                        result: result,
+                        inlineTarget: inlineTarget,
+                        module: module,
+                        ctx: ctx,
+                        into: &loweredBody
+                    )
                 } else {
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
                     aliases[result] = unitExpr
@@ -492,6 +606,231 @@ final class InlineLoweringPass: LoweringPass {
             updated.replaceBody([.returnUnit])
         }
         return updated
+    }
+
+    /// Runtime entry points that call a function value: the value is an adapter
+    /// with the erased convention, so every argument arrives boxed and the
+    /// result comes back boxed.
+    static let erasedFunctionInvokeCallees: Set<String> = [
+        "kk_function_invoke", "kk_function_invoke_0",
+        "kk_function_invoke_2", "kk_function_invoke_3",
+        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0",
+    ]
+
+    /// Box the arguments an inline expansion passes to an erased function-value
+    /// invoke: type substitution replaced the callee body's erased slots with
+    /// concrete primitives, which the adapter would misread as boxed pointers.
+    private func boxSubstitutedErasedArguments(
+        originalArguments: [KIRExprID],
+        loweredArguments: [KIRExprID],
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard originalArguments.count == loweredArguments.count, let types = ctx.sema?.types else {
+            return loweredArguments
+        }
+        var boxed = loweredArguments
+        for index in loweredArguments.indices.dropFirst() {
+            guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
+                  let primitive = nonNullPrimitiveKind(
+                      of: module.arena.exprType(loweredArguments[index]), ctx: ctx
+                  )
+            else {
+                continue
+            }
+            let boxedArg = module.arena.appendTemporary(type: types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
+                arguments: [loweredArguments[index]],
+                result: boxedArg,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            boxed[index] = boxedArg
+        }
+        return boxed
+    }
+
+    /// Counterpart of `boxSubstitutedErasedArguments` for the invoke's result.
+    private func substitutedErasedResultUnboxingCallee(
+        originalResult: KIRExprID,
+        loweredResult: KIRExprID,
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> InternedString? {
+        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx),
+              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(loweredResult), ctx: ctx)
+        else {
+            return nil
+        }
+        return ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner)
+    }
+
+    /// An imported generic higher-order function: its body was ABI-lowered when
+    /// the library was built and invokes its lambda through the erased
+    /// `kk_function_create_N` convention, so every value that meets an erased
+    /// slot in the expansion must be boxed. Imported non-HOF declarations keep
+    /// the raw representation their callers already pass.
+    private func usesErasedLambdaABI(_ inlineTarget: KIRFunction, ctx: KIRContext) -> Bool {
+        guard ctx.sema?.symbols.symbol(inlineTarget.symbol)?.flags.contains(.importedLibrary) == true,
+              let types = ctx.sema?.types
+        else {
+            return false
+        }
+        return inlineTarget.params.contains { param in
+            if case .functionType = types.kind(of: param.type) { return true }
+            return false
+        }
+    }
+
+    /// A type whose values are carried as boxed references once erased: an
+    /// unsubstituted type parameter or `Any`.
+    private func isErasedType(_ type: TypeID?, ctx: KIRContext) -> Bool {
+        guard let type, let types = ctx.sema?.types else { return false }
+        switch types.kind(of: type) {
+        case .typeParam, .any:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func nonNullPrimitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
+        guard let type, let types = ctx.sema?.types,
+              case let .primitive(primitive, .nonNull) = types.kind(of: type)
+        else {
+            return nil
+        }
+        return primitive
+    }
+
+    private func unboxErasedLambdaArguments(
+        arguments: [KIRExprID],
+        lambdaFunction: KIRFunction,
+        module: KIRModule,
+        ctx: KIRContext,
+        erasedCallConvention: Bool = false,
+        into body: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard arguments.count == lambdaFunction.params.count else {
+            return arguments
+        }
+        var normalized = arguments
+        for index in arguments.indices {
+            // Instructions restored from a library's inline KIR carry no expr
+            // types, so inside such an expansion every value is erased.
+            let argumentIsErased = module.arena.exprType(arguments[index])
+                .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
+            guard argumentIsErased,
+                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
+            else {
+                continue
+            }
+            let unboxed = module.arena.appendTemporary(type: lambdaFunction.params[index].type)
+            body.append(.call(
+                symbol: nil,
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
+                arguments: [arguments[index]],
+                result: unboxed,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            normalized[index] = unboxed
+        }
+        return normalized
+    }
+
+    /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
+    /// feeds an erased slot, the primitive the lambda body produced must be
+    /// boxed again.
+    private func boxErasedLambdaResultIfNeeded(
+        returnedExpr: KIRExprID,
+        result: KIRExprID,
+        module: KIRModule,
+        ctx: KIRContext,
+        erasedCallConvention: Bool = false,
+        into body: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let resultType = module.arena.exprType(result)
+        let resultIsErased = resultType.map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
+        guard resultIsErased, let types = ctx.sema?.types,
+              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx)
+        else {
+            return returnedExpr
+        }
+        let boxed = module.arena.appendTemporary(type: resultType ?? types.anyType)
+        body.append(.call(
+            symbol: nil,
+            callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
+            arguments: [returnedExpr],
+            result: boxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return boxed
+    }
+
+    private func boxPrimitiveArgumentsForErasedParameters(
+        arguments: [KIRExprID],
+        inlineTarget: KIRFunction,
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard arguments.count == inlineTarget.params.count, let types = ctx.sema?.types else {
+            return arguments
+        }
+        var boxed = arguments
+        for index in arguments.indices {
+            guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
+                  let primitive = nonNullPrimitiveKind(
+                      of: module.arena.exprType(arguments[index]), ctx: ctx
+                  )
+            else {
+                continue
+            }
+            let boxedResult = module.arena.appendTemporary(type: types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
+                arguments: [arguments[index]],
+                result: boxedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            boxed[index] = boxedResult
+        }
+        return boxed
+    }
+
+    private func unboxErasedInlineResultIfNeeded(
+        returnedExpr: KIRExprID,
+        result: KIRExprID,
+        inlineTarget: KIRFunction,
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard usesErasedLambdaABI(inlineTarget, ctx: ctx),
+              isErasedType(inlineTarget.returnType, ctx: ctx),
+              let resultType = module.arena.exprType(result),
+              let primitive = nonNullPrimitiveKind(of: resultType, ctx: ctx),
+              nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx) == nil
+        else {
+            return returnedExpr
+        }
+        let unboxed = module.arena.appendTemporary(type: resultType)
+        body.append(.call(
+            symbol: nil,
+            callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
+            arguments: [returnedExpr],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return unboxed
     }
 
     private func expandInlineCall(
@@ -549,6 +888,11 @@ final class InlineLoweringPass: LoweringPass {
             }
             return result
         }()
+
+        // A body restored from a library's inline KIR was ABI-lowered when that
+        // library was built: it passes and receives every erased value boxed,
+        // and its instructions carry no expr types to detect that from.
+        let erasedExpansionABI = usesErasedLambdaABI(inlineTarget, ctx: ctx)
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var unitResultAliasExprs: Set<KIRExprID> = []
@@ -711,7 +1055,14 @@ final class InlineLoweringPass: LoweringPass {
                     } else {
                         valueArgs = resolvedArgs
                     }
-                    let fullArgs = captureArgs + valueArgs
+                    let fullArgs = unboxErasedLambdaArguments(
+                        arguments: captureArgs + valueArgs,
+                        lambdaFunction: lambdaFunction,
+                        module: module,
+                        ctx: ctx,
+                        erasedCallConvention: erasedExpansionABI,
+                        into: &lowered
+                    )
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
@@ -722,7 +1073,14 @@ final class InlineLoweringPass: LoweringPass {
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
-                                localExprMap[result] = lambdaReturn
+                                localExprMap[result] = boxErasedLambdaResultIfNeeded(
+                                    returnedExpr: lambdaReturn,
+                                    result: result,
+                                    module: module,
+                                    ctx: ctx,
+                                    erasedCallConvention: erasedExpansionABI,
+                                    into: &lowered
+                                )
                             } else {
                                 let unitExpr = module.arena.appendExpr(.unit, type: nil)
                                 lowered.append(.constValue(result: unitExpr, value: .unit))
@@ -750,7 +1108,14 @@ final class InlineLoweringPass: LoweringPass {
                 {
                     let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
                         .map { resolveAlias(of: $0, aliases: localExprMap) }
-                    let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
+                    let fullArgs = unboxErasedLambdaArguments(
+                        arguments: captureArgs + Array(resolvedArgs.dropFirst()),
+                        lambdaFunction: lambdaFunction,
+                        module: module,
+                        ctx: ctx,
+                        erasedCallConvention: erasedExpansionABI,
+                        into: &lowered
+                    )
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
@@ -761,7 +1126,14 @@ final class InlineLoweringPass: LoweringPass {
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
-                                localExprMap[result] = lambdaReturn
+                                localExprMap[result] = boxErasedLambdaResultIfNeeded(
+                                    returnedExpr: lambdaReturn,
+                                    result: result,
+                                    module: module,
+                                    ctx: ctx,
+                                    erasedCallConvention: erasedExpansionABI,
+                                    into: &lowered
+                                )
                             } else {
                                 let unitExpr = module.arena.appendExpr(.unit, type: nil)
                                 lowered.append(.constValue(result: unitExpr, value: .unit))
@@ -779,11 +1151,54 @@ final class InlineLoweringPass: LoweringPass {
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 }
+                var loweredArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                // The lambda could not be spliced, so it is reached through a
+                // function value whose adapter speaks the erased convention.
+                // Substituting concrete type arguments turned the values that
+                // meet the invoke into plain primitives; re-erase them.
+                let erasedInvoke = Self.erasedFunctionInvokeCallees
+                    .contains(ctx.interner.resolve(callee))
+                if erasedInvoke {
+                    loweredArgs = boxSubstitutedErasedArguments(
+                        originalArguments: args,
+                        loweredArguments: loweredArgs,
+                        module: module,
+                        ctx: ctx,
+                        into: &lowered
+                    )
+                }
+                if erasedInvoke, let result, let loweredResult,
+                   let unboxCallee = substitutedErasedResultUnboxingCallee(
+                       originalResult: result, loweredResult: loweredResult, module: module, ctx: ctx
+                   )
+                {
+                    let boxedResult = module.arena.appendTemporary(
+                        type: ctx.sema?.types.nullableAnyType ?? module.arena.exprType(result)
+                    )
+                    lowered.append(.call(
+                        symbol: symbol,
+                        callee: callee,
+                        arguments: loweredArgs,
+                        result: boxedResult,
+                        canThrow: canThrow,
+                        thrownResult: loweredThrownResult,
+                        isSuperCall: isSuperCall
+                    ))
+                    lowered.append(.call(
+                        symbol: nil,
+                        callee: unboxCallee,
+                        arguments: [boxedResult],
+                        result: loweredResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    break
+                }
                 lowered.append(
                     .call(
                         symbol: symbol,
                         callee: callee,
-                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        arguments: loweredArgs,
                         result: loweredResult,
                         canThrow: canThrow,
                         thrownResult: loweredThrownResult,

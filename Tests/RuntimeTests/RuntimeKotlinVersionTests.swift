@@ -4,16 +4,22 @@ import Testing
 
 @Suite
 struct RuntimeKotlinVersionTests {
-    /// `kotlin.KotlinVersion` lives in bundled Kotlin source; the runtime only
-    /// injects the targeted Kotlin version as the packed constant consumed by
-    /// `KotlinVersion.CURRENT`.
     @Test
-    func testCurrentReturnsPackedTargetedKotlinVersion() {
+    func testCurrentBridgeReturnsPackedTargetVersion() {
         let packed = __kk_kotlin_version_current()
 
-        #expect(packed / 65536 == 2)
-        #expect((packed / 256) % 256 == 3)
-        #expect(packed % 256 == 10)
+        #expect((packed >> 16) & 0xFF == 2)
+        #expect((packed >> 8) & 0xFF == 3)
+        #expect(packed & 0xFF == 10)
+    }
+
+    @Test
+    func testCurrentBridgeMatchesTargetVersionConstant() {
+        let expected = (kotlinTargetVersion.major << 16)
+            | (kotlinTargetVersion.minor << 8)
+            | kotlinTargetVersion.patch
+
+        #expect(__kk_kotlin_version_current() == expected)
     }
 }
 #endif

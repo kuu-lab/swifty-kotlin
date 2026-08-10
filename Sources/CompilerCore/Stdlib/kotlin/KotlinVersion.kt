@@ -1,90 +1,80 @@
-/*
- * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
- * Licensed under the Apache License, Version 2.0.
- *
- * Derived from kotlin-stdlib libraries/stdlib/src/kotlin/util/KotlinVersion.kt.
- */
-
 package kotlin
 
 import kotlin.internal.KsSymbolName
 
-/**
- * Returns the Kotlin version this compiler build targets, packed as
- * `major shl 16 + minor shl 8 + patch`. The value is a build-time constant of
- * the Swift runtime; nothing else about `KotlinVersion` needs runtime support.
- */
+// KSP-610: KotlinVersion migrated to bundled Kotlin source. Migration source:
+// Sources/Runtime/RuntimeKotlinVersion.swift (kk_kotlin_version_new/_patch/_current/
+// _major/_minor/_patch/_compareTo/_isAtLeast/_isAtLeast_patch — all removed).
+// The only remaining native residual is `__kk_kotlin_version_current`, which injects
+// the build-time target Kotlin version (see RuntimeKotlinVersion.swift) as a packed
+// `major shl 16 or minor shl 8 or patch` integer.
+
 @KsSymbolName("__kk_kotlin_version_current")
-private external fun __kkKotlinVersionCurrent(): Int
+private external fun currentKotlinVersionNumber(): Int
 
 /**
  * Represents a version of the Kotlin standard library.
+ *
+ * [major], [minor] and [patch] are integer components of a version.
  */
 public class KotlinVersion(
     public val major: Int,
     public val minor: Int,
     public val patch: Int,
 ) : Comparable<KotlinVersion> {
-    internal val versionNumber: Int = versionOf(major, minor, patch)
-
+    /** Creates a version from [major] and [minor] components, leaving [patch] component zero. */
     public constructor(major: Int, minor: Int) : this(major, minor, 0)
 
-    private fun versionOf(major: Int, minor: Int, patch: Int): Int {
-        require(
-            major in 0..MAX_COMPONENT_VALUE &&
-                minor in 0..MAX_COMPONENT_VALUE &&
-                patch in 0..MAX_COMPONENT_VALUE
-        ) {
-            "Version components are out of range: $major.$minor.$patch"
-        }
-        return major.shl(16) + minor.shl(8) + patch
-    }
+    internal val versionNumber: Int
+        get() = versionOf(major, minor, patch)
 
-    public override fun toString(): String = "$major.$minor.$patch"
+    override fun toString(): String = "$major.$minor.$patch"
 
-    public override fun equals(other: Any?): Boolean {
-        if (this === other) return true
+    override fun equals(other: Any?): Boolean {
         if (other !is KotlinVersion) return false
-        // Explicit cast: smart cast after `!is` + early return is a known gap
-        // (TODO.md DEBT-DIFF-007).
-        val otherVersion = other as KotlinVersion
-        return versionNumber == otherVersion.versionNumber
+        // Explicit re-cast: `is`-checks do not smart-cast in bundled source yet.
+        val that = other as KotlinVersion
+        return versionOf(major, minor, patch) == versionOf(that.major, that.minor, that.patch)
     }
 
-    public override fun hashCode(): Int = versionNumber
+    override fun hashCode(): Int = versionOf(major, minor, patch)
 
-    public override fun compareTo(other: KotlinVersion): Int = versionNumber - other.versionNumber
+    override fun compareTo(other: KotlinVersion): Int {
+        val left = versionOf(major, minor, patch)
+        val right = versionOf(other.major, other.minor, other.patch)
+        if (left < right) return -1
+        if (left > right) return 1
+        return 0
+    }
 
-    /**
-     * Returns `true` if this version is not less than the version specified
-     * with the provided [major] and [minor] components.
-     */
+    /** Returns `true` if this version is not less than the version specified with [major] and [minor] components. */
     public fun isAtLeast(major: Int, minor: Int): Boolean =
-        this.major > major || (this.major == major && this.minor >= minor)
+        versionOf(this.major, this.minor, this.patch) >= versionOf(major, minor, 0)
 
-    /**
-     * Returns `true` if this version is not less than the version specified
-     * with the provided [major], [minor] and [patch] components.
-     */
+    /** Returns `true` if this version is not less than the version specified with [major], [minor] and [patch] components. */
     public fun isAtLeast(major: Int, minor: Int, patch: Int): Boolean =
-        this.major > major ||
-            (
-                this.major == major &&
-                    (this.minor > minor || (this.minor == minor && this.patch >= patch))
-            )
+        versionOf(this.major, this.minor, this.patch) >= versionOf(major, minor, patch)
 
     public companion object {
         /** Maximum value a version component can have, a constant value 255. */
         public const val MAX_COMPONENT_VALUE: Int = 255
 
         /** Returns the current version of the Kotlin standard library. */
-        public val CURRENT: KotlinVersion = fromVersionNumber(__kkKotlinVersionCurrent())
-
-        private fun fromVersionNumber(versionNumber: Int): KotlinVersion =
-            KotlinVersion(
-                versionNumber.shr(16) and 0xFF,
-                versionNumber.shr(8) and 0xFF,
-                versionNumber and 0xFF
-            )
+        public val CURRENT: KotlinVersion = currentKotlinVersion()
     }
+}
+
+private fun versionOf(major: Int, minor: Int, patch: Int): Int =
+    major.shl(16) + minor.shl(8) + patch
+
+// Routed through a top-level function: a companion property initializer that
+// constructs a class instance directly is not currently supported for bundled
+// source (same constraint as Stdlib/kotlin/io/encoding/HexFormat.kt).
+private fun currentKotlinVersion(): KotlinVersion {
+    val packed = currentKotlinVersionNumber()
+    return KotlinVersion(
+        packed.shr(16) and 0xFF,
+        packed.shr(8) and 0xFF,
+        packed and 0xFF,
+    )
 }

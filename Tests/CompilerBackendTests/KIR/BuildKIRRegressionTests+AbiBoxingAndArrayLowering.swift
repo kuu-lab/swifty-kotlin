@@ -269,21 +269,20 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
-    // KSP-410: sumBy/sumByDouble/partition/reduceOrNull/reduceRightIndexed/
-    // reduceRightIndexedOrNull/reduceRightOrNull are bundled Kotlin source
-    // (StringHOF.kt). Neither lowers to a `kk_string_*_flat` call site anymore;
-    // dropped from this table. See StringSyntheticMemberLinkTests for their
-    // "carries no C external link" coverage. mapIndexed stays here
-    // (BUG-176: Swift-backed).
+    // KSP-410: the whole String HOF family is bundled Kotlin source
+    // (StringHOF.kt), so none of it may lower to a `kk_string_*` call anymore.
     @Test
-    func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
+    func testBuildKIRLowersStringHOFToBundledKotlinCallsInsteadOfRuntimeCalls() throws {
         let source = """
         fun main(value: String) {
-            value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
-            value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
-            value.toCollection(mutableListOf<Char>())
+            value.map { c -> c }
             value.mapIndexed { index, _ -> index }
-            value.mapNotNull { ch -> if (ch == 'a') 1 else null }
+            value.mapNotNull { c -> if (c == 'a') 1 else null }
+            value.firstNotNullOf { c -> if (c == 'a') 1 else null }
+            value.firstNotNullOfOrNull { c -> if (c == 'b') 2 else null }
+            value.sumBy { c -> c.code }
+            value.partition { c -> c == 'a' }
+            value.reduce { acc, c -> if (c > acc) c else acc }
         }
         """
 
@@ -295,20 +294,15 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            let flatNames = [
-                "kk_string_firstNotNullOf_flat",
-                "kk_string_firstNotNullOfOrNull_flat",
-                "kk_string_toCollection_flat",
-                "kk_string_mapIndexed_flat",
-                "kk_string_mapNotNull_flat",
+            let migrated = [
+                "map", "mapIndexed", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull",
+                "sumBy", "partition", "reduce",
             ]
-            for flatName in flatNames {
-                #expect(callNames.contains(flatName), "Missing \(flatName)")
-            }
-
-            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
-            for rawName in rawNames {
-                #expect(!(callNames.contains(rawName)), "Unexpected raw String HOF call \(rawName)")
+            for name in migrated {
+                #expect(
+                    !callNames.contains("kk_string_\(name)") && !callNames.contains("kk_string_\(name)_flat"),
+                    "String.\(name) must not lower to a runtime call"
+                )
             }
         }
     }

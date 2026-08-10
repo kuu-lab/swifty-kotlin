@@ -1,11 +1,70 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
-    func testCodegenMapGetOrDefaultReturnsExistingKey() throws {
+@Suite
+struct CodegenBackendMapHOFEdgeCasesTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test func testCodegenMapGetOrDefaultReturnsExistingKey() throws {
         let source = """
         fun main() {
             val map = mapOf("a" to 1, "b" to 2)
@@ -16,7 +75,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapGetOrDefaultKeyPresent", expected: "1\n2\n")
     }
 
-    func testCodegenMapGetOrDefaultReturnsDefaultWhenKeyAbsent() throws {
+    @Test func testCodegenMapGetOrDefaultReturnsDefaultWhenKeyAbsent() throws {
         let source = """
         fun main() {
             val map = mapOf("a" to 1, "b" to 2)
@@ -26,7 +85,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapGetOrDefaultKeyAbsent", expected: "99\n")
     }
 
-    func testCodegenMapGetOrDefaultWithEmptyMap() throws {
+    @Test func testCodegenMapGetOrDefaultWithEmptyMap() throws {
         let source = """
         fun main() {
             val empty = emptyMap<String, Int>()
@@ -36,7 +95,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapGetOrDefaultEmptyMap", expected: "42\n")
     }
 
-    func testCodegenMapFlatMapTransformsAllEntries() throws {
+    @Test func testCodegenMapFlatMapTransformsAllEntries() throws {
         let source = """
         fun main() {
             val map = mapOf("a" to 1, "b" to 2)
@@ -47,7 +106,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapFlatMapTransformsAllEntries", expected: "[a:1, b:2]\n")
     }
 
-    func testCodegenMapFlatMapWithEmptyMap() throws {
+    @Test func testCodegenMapFlatMapWithEmptyMap() throws {
         let source = """
         fun main() {
             val empty = emptyMap<String, Int>()
@@ -59,7 +118,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapFlatMapEmptyMap", expected: "[]\n0\n")
     }
 
-    func testCodegenMapMapNotNullFiltersNullResults() throws {
+    @Test func testCodegenMapMapNotNullFiltersNullResults() throws {
         let source = """
         fun main() {
             val map = mapOf("a" to 1, "b" to 2, "c" to 3)
@@ -70,7 +129,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapMapNotNullFiltersNulls", expected: "[b:2, c:3]\n")
     }
 
-    func testCodegenMapMapNotNullWithEmptyMap() throws {
+    @Test func testCodegenMapMapNotNullWithEmptyMap() throws {
         let source = """
         fun main() {
             val empty = emptyMap<String, Int>()
@@ -81,7 +140,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapMapNotNullEmptyMap", expected: "[]\n")
     }
 
-    func testCodegenMapMaxByOrNullReturnsNullForEmptyMap() throws {
+    @Test func testCodegenMapMaxByOrNullReturnsNullForEmptyMap() throws {
         let source = """
         fun main() {
             val empty = emptyMap<String, Int>()
@@ -92,7 +151,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapMaxByOrNullEmptyMap", expected: "null\n")
     }
 
-    func testCodegenMapMaxByOrNullReturnsEntryWithMaxSelector() throws {
+    @Test func testCodegenMapMaxByOrNullReturnsEntryWithMaxSelector() throws {
         let source = """
         fun main() {
             val map = mapOf("a" to 1, "b" to 3, "c" to 2)
@@ -104,7 +163,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapMaxByOrNullNonEmpty", expected: "b\n3\n")
     }
 
-    func testCodegenMapMinByOrNullReturnsNullForEmptyMap() throws {
+    @Test func testCodegenMapMinByOrNullReturnsNullForEmptyMap() throws {
         let source = """
         fun main() {
             val empty = emptyMap<String, Int>()
@@ -115,7 +174,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapMinByOrNullEmptyMap", expected: "null\n")
     }
 
-    func testCodegenMapMinByOrNullReturnsEntryWithMinSelector() throws {
+    @Test func testCodegenMapMinByOrNullReturnsEntryWithMinSelector() throws {
         let source = """
         fun main() {
             val map = mapOf("a" to 3, "b" to 1, "c" to 2)
@@ -127,4 +186,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapMinByOrNullNonEmpty", expected: "b\n1\n")
     }
 }
-
+#endif
