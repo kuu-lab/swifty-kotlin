@@ -1286,12 +1286,15 @@ public extension RuntimeABISpec {
         ),
         // BUG-172: boxes a values()/entries element as a genuine ordinal Int
         // (tagged with its declared name for generic Any-printing) instead of
-        // a pre-baked name string.
+        // a pre-baked name string. BUG-182: also carries the enum class's
+        // stable nominal type ID so `is`/`as`/`KClass.isInstance` work after
+        // widening to `Any`.
         RuntimeABIFunctionSpec(
             name: "kk_enum_box_ordinal",
             parameters: [
                 RuntimeABIParameter(name: "ordinal", type: .intptr),
                 RuntimeABIParameter(name: "namePtr", type: .intptr),
+                RuntimeABIParameter(name: "classID", type: .intptr),
             ],
             returnType: .intptr,
             section: "Enum",
