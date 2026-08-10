@@ -1,4 +1,3 @@
-
 import RuntimeABI
 
 final class CallLowerer {
@@ -14,6 +13,22 @@ final class CallLowerer {
     private func isSourceBacked(_ symbol: SymbolID?, sema: SemaModule) -> Bool {
         guard let symbol else { return false }
         return sema.symbols.isSourceBackedSymbol(symbol)
+    }
+
+    /// True when the call resolved to the stdlib `kotlin.contextOf` intrinsic.
+    /// A user-declared `contextOf()` resolves to its own symbol and must keep
+    /// normal call lowering instead of being replaced by a context receiver.
+    private func isStdlibContextOfCall(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .symbol(symbol)? = sema.bindings.callableTarget(for: exprID),
+              let resolved = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
     }
 
     /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
@@ -300,83 +315,6 @@ final class CallLowerer {
         ))
     }
 
-    func dataClassPropertyNames(
-        ownerSymbol: SymbolID,
-        sema: SemaModule
-    ) -> [InternedString] {
-        guard let owner = sema.symbols.symbol(ownerSymbol),
-              owner.flags.contains(.dataType)
-        else {
-            return []
-        }
-
-        let primaryParameterNames: [InternedString] = sema.symbols.children(ofFQName: owner.fqName)
-            .compactMap { sema.symbols.symbol($0) }
-            .filter { $0.kind == .constructor }
-            .min { lhs, rhs in
-                let lhsOffset = lhs.declSite?.start.offset ?? Int.max
-                let rhsOffset = rhs.declSite?.start.offset ?? Int.max
-                if lhsOffset != rhsOffset {
-                    return lhsOffset < rhsOffset
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
-            }
-            .flatMap { constructor in
-                sema.symbols.functionSignature(for: constructor.id)?.valueParameterSymbols.compactMap { paramID in
-                    sema.symbols.symbol(paramID)?.name
-                }
-            } ?? []
-
-        guard !primaryParameterNames.isEmpty else {
-            return []
-        }
-
-        let propertiesByName = Dictionary(
-            sema.symbols.children(ofFQName: owner.fqName)
-                .compactMap { sema.symbols.symbol($0) }
-                .filter { $0.kind == .property && !$0.flags.contains(.synthetic) }
-                .map { ($0.name, $0.name) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return primaryParameterNames.compactMap { propertiesByName[$0] }
-    }
-
-    func emitDataClassFieldRegistration(
-        objectSymbol: SymbolID,
-        classID: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) {
-        let propertyNames = dataClassPropertyNames(ownerSymbol: objectSymbol, sema: sema)
-        guard !propertyNames.isEmpty else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
-        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-
-        for (index, propertyName) in propertyNames.enumerated() {
-            let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-            instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-
-            let nameExpr = arena.appendExpr(.stringLiteral(propertyName), type: intType)
-            instructions.append(.constValue(result: nameExpr, value: .stringLiteral(propertyName)))
-
-            let registerResult = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_json_register_data_class_field_name"),
-                arguments: [classIDExpr, indexExpr, nameExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
-    }
-
     // swiftlint:disable:next cyclomatic_complexity
     func lowerCallExpr(
         _ exprID: ExprID,
@@ -448,32 +386,6 @@ final class CallLowerer {
             instructions: &instructions
         ) {
             return loweredRepeat
-        }
-
-        if let loweredMeasureTimeDuration = lowerMeasureTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimeDuration
-        }
-
-        if let loweredMeasureTimedValue = lowerMeasureTimedValueCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimedValue
         }
 
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
@@ -579,7 +491,8 @@ final class CallLowerer {
         if args.isEmpty,
            let callee = ast.arena.expr(calleeExpr),
            case let .nameRef(calleeName, _) = callee,
-           calleeName == interner.intern("contextOf")
+           calleeName == interner.intern("contextOf"),
+           isStdlibContextOfCall(exprID, sema: sema, interner: interner)
         {
             let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             if let contextValue = driver.ctx.contextReceiverValue(matching: boundType, sema: sema) {
@@ -997,25 +910,18 @@ final class CallLowerer {
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
-            if let chosen,
-               sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
-                sema.symbols.externalLinkName(for: chosen) == "kk_compareValuesByVararg"
-            {
-                NormalizedCallResult(arguments: loweredArgIDs, defaultMask: 0)
-            } else {
-                driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredArgIDs,
-                    callBinding: callBinding,
-                    chosenCallee: chosen,
-                    spreadFlags: args.map(\.isSpread),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
-            }
+            driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgIDs,
+                callBinding: callBinding,
+                chosenCallee: chosen,
+                spreadFlags: args.map(\.isSpread),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
         } else {
             NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(
@@ -1519,7 +1425,7 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
-            "kk_synchronized",
+            "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
         ].contains(name)
     }
@@ -1533,7 +1439,7 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
-            "kk_synchronized",
+            "__kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }
 
@@ -1755,6 +1661,14 @@ final class CallLowerer {
             }
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
+        if receiverType != nonNullReceiverType {
+            candidates.append(contentsOf: extensionCandidates(
+                named: calleeName,
+                nonNullReceiverType: nonNullReceiverType,
+                argumentCount: argumentExprs.count,
+                sema: sema
+            ))
+        }
         candidates.sort(by: { $0.rawValue < $1.rawValue })
         guard !candidates.isEmpty else {
             return nil
@@ -1788,6 +1702,51 @@ final class CallLowerer {
             substitutedTypeArguments: [],
             parameterMapping: parameterMapping
         )
+    }
+
+    /// Source-level extension functions and extension-property getters declared
+    /// for `nonNullReceiverType`. Sema resolves those against the narrowed
+    /// receiver, but a receiver whose static type stays nullable (a mutable
+    /// local keeps its declared type across a null check) leaves no call
+    /// binding behind, and only the bare source name would reach codegen.
+    private func extensionCandidates(
+        named calleeName: InternedString,
+        nonNullReceiverType: TypeID,
+        argumentCount: Int,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        func receiverMatches(_ candidate: SymbolID) -> Bool {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  signature.parameterTypes.count == argumentCount
+            else {
+                return false
+            }
+            return sema.types.isSubtype(
+                nonNullReceiverType,
+                sema.types.makeNonNullable(declaredReceiver)
+            )
+        }
+
+        return sema.symbols.lookupByShortName(calleeName).compactMap { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return nil
+            }
+            switch symbol.kind {
+            case .function:
+                return receiverMatches(candidate) ? candidate : nil
+            case .property:
+                guard argumentCount == 0,
+                      let getter = sema.symbols.extensionPropertyGetterAccessor(for: candidate),
+                      receiverMatches(getter)
+                else {
+                    return nil
+                }
+                return getter
+            default:
+                return nil
+            }
+        }
     }
 
     private func normalizedParameterMapping(

@@ -146,8 +146,8 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     /// True when the resolved callee's receiver type is `kotlin.sequences.Sequence<T>`.
-    /// Used to keep source Sequence `flatMap`/`flatMapIndexed` routed through the
-    /// runtime pipeline while allowing List/Map/Set source `flatMap` to lower normally.
+    /// Used to keep source Sequence `map`/`filter` routed through the runtime
+    /// pipeline while allowing List/Map/Set source `map`/`filter` to lower normally.
     func isSequenceReceiverType(
         symbol: SymbolID,
         ctx: KIRContext

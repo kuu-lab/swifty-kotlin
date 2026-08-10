@@ -30,7 +30,7 @@ extension BuildASTPhase {
         }
 
         // Check for destructuring declaration: val (a, b) = expr
-        if let destructuringResult = parseDestructuringDeclarationExpr(
+        if let destructuringResult = Self.parseDestructuringDeclarationExpr(
             from: statementTokens,
             startIndex: startIndex,
             isMutable: isMutable,
@@ -84,9 +84,45 @@ extension BuildASTPhase {
         )
     }
 
+    /// Parse destructuring declaration: `val (a, b, _) = expr` from a whole
+    /// statement token group, skipping any leading declaration modifiers.
+    /// Returns nil if the tokens don't match the destructuring pattern.
+    static func parseDestructuringDeclarationStatement(
+        from statementTokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> ExprID? {
+        var startIndex = 0
+        while startIndex < statementTokens.count,
+              case let .keyword(keyword) = statementTokens[startIndex].kind,
+              KotlinParser.isDeclarationModifierKeyword(keyword)
+        {
+            startIndex += 1
+        }
+        guard startIndex < statementTokens.count else {
+            return nil
+        }
+        let isMutable: Bool
+        switch statementTokens[startIndex].kind {
+        case .keyword(.val):
+            isMutable = false
+        case .keyword(.var):
+            isMutable = true
+        default:
+            return nil
+        }
+        return parseDestructuringDeclarationExpr(
+            from: statementTokens,
+            startIndex: startIndex,
+            isMutable: isMutable,
+            interner: interner,
+            astArena: astArena
+        )
+    }
+
     /// Parse destructuring declaration: `val (a, b, _) = expr`
     /// Returns nil if the tokens don't match the destructuring pattern.
-    func parseDestructuringDeclarationExpr(
+    static func parseDestructuringDeclarationExpr(
         from statementTokens: [Token],
         startIndex: Int,
         isMutable: Bool,

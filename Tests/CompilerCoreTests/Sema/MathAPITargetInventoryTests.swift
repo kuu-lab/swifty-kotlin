@@ -67,38 +67,44 @@ struct MathAPITargetInventoryTests {
 
     private static let targetSignatures = Set(targetSignatureList)
 
+    // KSP-635: migrated to Sources/CompilerCore/Stdlib/kotlin/math/Math.kt.
+    private static let sourceBackedSignatures: Set<String> = [
+        "val E: Double",
+        "val PI: Double",
+        "val Double.absoluteValue: Double",
+        "val Float.absoluteValue: Float",
+        "val Int.absoluteValue: Int",
+        "val Long.absoluteValue: Long",
+        "val Double.sign: Double",
+        "val Float.sign: Float",
+        "val Int.sign: Int",
+        "val Long.sign: Int",
+        "fun abs(Double): Double",
+        "fun abs(Float): Float",
+        "fun abs(Int): Int",
+        "fun abs(Long): Long",
+        "fun max(Double, Double): Double",
+        "fun max(Float, Float): Float",
+        "fun max(Int, Int): Int",
+        "fun max(Long, Long): Long",
+        "fun max(UInt, UInt): UInt",
+        "fun max(ULong, ULong): ULong",
+        "fun min(Double, Double): Double",
+        "fun min(Float, Float): Float",
+        "fun min(Int, Int): Int",
+        "fun min(Long, Long): Long",
+        "fun min(UInt, UInt): UInt",
+        "fun min(ULong, ULong): ULong",
+        "fun sign(Double): Double",
+        "fun sign(Float): Float",
+    ]
+
     private static let implementedLinksBySignature: [String: String] = {
         var result: [String: String] = [
-            "val E: Double": "kk_math_E",
-            "val PI: Double": "kk_math_PI",
-            "val Double.absoluteValue: Double": "kk_math_abs",
-            "val Float.absoluteValue: Float": "kk_math_abs_float",
-            "val Int.absoluteValue: Int": "kk_math_abs_int",
-            "val Long.absoluteValue: Long": "kk_math_abs_long",
-            "val Double.sign: Double": "kk_math_sign",
-            "val Float.sign: Float": "kk_math_sign_float",
-            "val Int.sign: Int": "kk_math_sign_int",
-            "val Long.sign: Int": "kk_math_sign_long",
             "val Double.ulp: Double": "kk_double_ulp",
             "val Float.ulp: Float": "kk_float_ulp",
-            "fun abs(Double): Double": "kk_math_abs",
-            "fun abs(Float): Float": "kk_math_abs_float",
-            "fun abs(Int): Int": "kk_math_abs_int",
-            "fun abs(Long): Long": "kk_math_abs_long",
             "fun Double.IEEErem(Double): Double": "kk_math_IEEErem",
             "fun Float.IEEErem(Float): Float": "kk_math_IEEErem_float",
-            "fun max(Double, Double): Double": "kk_math_max",
-            "fun max(Float, Float): Float": "kk_math_max_float",
-            "fun max(Int, Int): Int": "kk_math_max_int",
-            "fun max(Long, Long): Long": "kk_math_max_long",
-            "fun max(UInt, UInt): UInt": "kk_math_max_uint",
-            "fun max(ULong, ULong): ULong": "kk_math_max_ulong",
-            "fun min(Double, Double): Double": "kk_math_min",
-            "fun min(Float, Float): Float": "kk_math_min_float",
-            "fun min(Int, Int): Int": "kk_math_min_int",
-            "fun min(Long, Long): Long": "kk_math_min_long",
-            "fun min(UInt, UInt): UInt": "kk_math_min_uint",
-            "fun min(ULong, ULong): ULong": "kk_math_min_ulong",
             "fun Double.nextDown(): Double": "kk_double_nextDown",
             "fun Float.nextDown(): Float": "kk_float_nextDown",
             "fun Double.nextTowards(Double): Double": "kk_math_nextTowards",
@@ -117,8 +123,6 @@ struct MathAPITargetInventoryTests {
             "fun Float.roundToInt(): Int": "kk_float_roundToInt",
             "fun Double.roundToLong(): Long": "kk_double_roundToLong",
             "fun Float.roundToLong(): Long": "kk_float_roundToLong",
-            "fun sign(Double): Double": "kk_math_sign",
-            "fun sign(Float): Float": "kk_math_sign_float",
             "fun Double.withSign(Double): Double": "kk_math_withSign",
             "fun Double.withSign(Int): Double": "kk_math_withSign_int",
             "fun Float.withSign(Float): Float": "kk_math_withSign_float",
@@ -217,8 +221,25 @@ struct MathAPITargetInventoryTests {
         }
     }
 
+    @Test func testSourceBackedInventoryEntriesHaveNoRuntimeMathLink() throws {
+        let (sema, interner) = try makeSema()
+        let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
+        for signature in Self.sourceBackedSignatures.sorted() {
+            let name = Self.declarationName(signature)
+            let symbols = sema.symbols.lookupAll(fqName: mathPrefix + [interner.intern(name)])
+            #expect(!symbols.isEmpty, "Expected \(signature) to be declared by kotlin/math/Math.kt")
+            let mathRuntimeLinks = symbols
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+                .filter { $0.hasPrefix("kk_math_") }
+            #expect(
+                mathRuntimeLinks.isEmpty,
+                "Expected \(signature) to stay Kotlin-source backed, got \(mathRuntimeLinks.sorted())"
+            )
+        }
+    }
+
     @Test func testKnownGapsCoverEveryUnimplementedTargetSignature() {
-        let implemented = Set(Self.implementedLinksBySignature.keys)
+        let implemented = Set(Self.implementedLinksBySignature.keys).union(Self.sourceBackedSignatures)
         let gaps = Self.knownGapSignaturesByTodo.values.reduce(into: Set<String>()) { result, signatures in
             result.formUnion(signatures)
         }
