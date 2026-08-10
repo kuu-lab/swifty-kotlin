@@ -126,30 +126,22 @@ public fun round(x: Float): Float = __kkMathRoundFloat(x)
 
 public fun truncate(x: Float): Float = __kkMathTruncateFloat(x)
 
-public fun withSign(x: Double, sign: Double): Double {
-    val xBits = x.toRawBits()
+public fun Double.withSign(sign: Double): Double {
+    val xBits = this.toRawBits()
     val signBit = sign.toRawBits() and Long.MIN_VALUE
     val mag = xBits and Long.MAX_VALUE
     return Double.fromBits(mag or signBit)
 }
 
-public fun withSign(x: Double, sign: Int): Double =
-    if (sign < 0) -abs(x) else abs(x)
+public fun Double.withSign(sign: Int): Double =
+    if (sign < 0) -abs(this) else abs(this)
 
-public fun withSign(x: Float, sign: Float): Float {
-    val xBits = x.toRawBits()
+public fun Float.withSign(sign: Float): Float {
+    val xBits = this.toRawBits()
     val signBit = sign.toRawBits() and Int.MIN_VALUE
     val mag = xBits and Int.MAX_VALUE
     return Float.fromBits(mag or signBit)
 }
 
-public fun withSign(x: Float, sign: Int): Float =
-    if (sign < 0) -abs(x) else abs(x)
-
-public fun Double.withSign(sign: Double): Double = withSign(this, sign)
-
-public fun Double.withSign(sign: Int): Double = withSign(this, sign)
-
-public fun Float.withSign(sign: Float): Float = withSign(this, sign)
-
-public fun Float.withSign(sign: Int): Float = withSign(this, sign)
+public fun Float.withSign(sign: Int): Float =
+    if (sign < 0) -abs(this) else abs(this)
