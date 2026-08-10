@@ -469,39 +469,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_binarySearch_comparator")
             }
             return interner.intern("kk_list_binarySearch")
-        case "groupingBy" where isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            || isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            || sema.bindings.isCollectionExpr(receiverExpr):
-            return interner.intern("kk_list_groupingBy")
         default:
             break
-        }
-
-        if isGroupingLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            case "eachCount":
-                return interner.intern("kk_grouping_eachCount")
-            case "eachCountTo":
-                return interner.intern("kk_grouping_eachCountTo")
-            case "aggregate":
-                return interner.intern("kk_grouping_aggregate")
-            case "aggregateTo":
-                return interner.intern("kk_grouping_aggregateTo")
-            case "fold":
-                return interner.intern(argumentCount >= 4
-                    ? "kk_grouping_fold_initialValueSelector"
-                    : "kk_grouping_fold")
-            case "foldTo":
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_grouping_foldTo_selector"
-                    : "kk_grouping_foldTo")
-            case "reduce":
-                return interner.intern("kk_grouping_reduce")
-            case "reduceTo":
-                return interner.intern("kk_grouping_reduceTo")
-            default:
-                break
-            }
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)

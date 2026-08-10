@@ -2049,47 +2049,6 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testGroupingEachCountToUsesProjectedMutableMapParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let symbol = try #require(sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Grouping"),
-                interner.intern("eachCountTo"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_grouping_eachCountTo")
-            #expect(signature.parameterTypes.count == 1)
-            #expect(signature.returnType == signature.parameterTypes[0])
-
-            let receiverType = try #require(signature.receiverType)
-            guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
-                Issue.record("Expected Grouping.eachCountTo receiver to be a class type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(receiverClassType.classSymbol)?.name)) == "Grouping")
-
-            let parameterType = try #require(signature.parameterTypes.first)
-            guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
-                Issue.record("Expected eachCountTo to take a MutableMap type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(parameterClassType.classSymbol)?.name)) == "MutableMap")
-            #expect(parameterClassType.args.count == 2)
-            guard case let .in(keyProjection) = parameterClassType.args[0],
-                  case .typeParam = sema.types.kind(of: keyProjection),
-                  case let .invariant(valueType) = parameterClassType.args[1]
-            else {
-                Issue.record("Expected eachCountTo parameter to use MutableMap<in K, Int>"); return
-            }
-            #expect(valueType == sema.types.intType)
-        }
-    }
-
-    @Test
     func testBuildListCapacityOverloadResolves() throws {
         let source = """
         fun render(): List<Int> = buildList(4) {
