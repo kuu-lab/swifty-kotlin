@@ -974,7 +974,7 @@ struct BundledDeclarationIndex: Sendable {
                 "StringBuilder", "Appendable", "CharSequence",
             ],
             [kotlin, io]: [
-                "FileTreeWalk", "File", "InputStream", "OutputStream",
+                "File", "InputStream", "OutputStream",
             ],
             [kotlin]: [
                 "Array",

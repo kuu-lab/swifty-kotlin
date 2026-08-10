@@ -148,8 +148,7 @@ final class CallLowerer {
     }
 
     /// True for synthetic runtime-backed factory constructors that allocate
-    /// their own object (atomic scalar boxes, java.math.BigInteger, and
-    /// built-in exception classes).
+    /// their own object (atomic scalar boxes and built-in exception classes).
     private func isAtomicScalarConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -163,7 +162,6 @@ final class CallLowerer {
             return false
         }
         return knownNames.isAtomicScalarFactorySymbol(ownerInfo)
-            || knownNames.isBoxedRuntimeFactorySymbol(ownerInfo)
             || isRuntimeFactoryConstructor(symbolID, sema: sema)
     }
 
@@ -252,7 +250,7 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let result = arena.appendTemporary(type: resultType)
-        // The runtime factory (e.g. `kk_atomic_int_create` or `kk_biginteger_fromString`)
+        // The runtime factory (e.g. `kk_atomic_int_create`)
         // allocates the box itself; we must not precede it with `kk_object_new`
         // and an implicit `this` argument.
         let callee = sema.symbols.externalLinkName(for: constructorSymbol)
@@ -1449,6 +1447,8 @@ final class CallLowerer {
             return interner.intern("kk_function_invoke_2")
         case 3:
             return interner.intern("kk_function_invoke_3")
+        case 4:
+            return interner.intern("kk_function_invoke_4")
         default:
             return nil
         }

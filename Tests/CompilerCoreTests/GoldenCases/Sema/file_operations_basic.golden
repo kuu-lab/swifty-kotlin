@@ -3,7 +3,7 @@ symbol fq=__local_1.mkdirsResult kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_2.existsResult kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_3.isDirResult kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_4.files kind=local vis=private flags=_ type=kotlin.collections.List<out java.io.File>?
-symbol fq=__local_5.walkResult kind=local vis=private flags=_ type=kotlin.io.FileTreeWalk
+symbol fq=__local_5.walkResult kind=local vis=private flags=_ type=kotlin.collections.List<out java.io.File>
 symbol fq=__local_6.deleteResult kind=local vis=private flags=_ type=Boolean
 symbol fq=java.io.File kind=class vis=public flags=synthetic type=java.io.File
 symbol fq=java.io.File.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=java.io.File
@@ -13,9 +13,8 @@ symbol fq=java.io.File.exists kind=function vis=public flags=synthetic sig=recv=
 symbol fq=java.io.File.isDirectory kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=Boolean
 symbol fq=java.io.File.listFiles kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=kotlin.collections.List<out java.io.File>?
 symbol fq=java.io.File.mkdirs kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=Boolean
-symbol fq=java.io.File.walk#0 kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=kotlin.io.FileTreeWalk
+symbol fq=java.io.File.walk kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=kotlin.collections.List<out java.io.File>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.io.FileTreeWalk kind=class vis=public flags=synthetic type=kotlin.io.FileTreeWalk
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -45,9 +44,9 @@ expr e@14:5 localDecl files mutable=0 type=_ init=e@14:17#1 type=Unit ref=__loca
 expr e@15:13 name(files) type=kotlin.collections.List<out java.io.File>? ref=__local_4.files
 expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println#1
 expr e@17:22 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e@17:22#1 memberCall recv=e@17:22 callee=walk args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walk#0
+expr e@17:22#1 memberCall recv=e@17:22 callee=walk args=[] type=kotlin.collections.List<out java.io.File> call=java.io.File.walk
 expr e@17:5 localDecl walkResult mutable=0 type=_ init=e@17:22#1 type=Unit ref=__local_5.walkResult
-expr e@18:13 name(walkResult) type=kotlin.io.FileTreeWalk ref=__local_5.walkResult
+expr e@18:13 name(walkResult) type=kotlin.collections.List<out java.io.File> ref=__local_5.walkResult
 expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13] type=Unit call=kotlin.io.println#1
 expr e@20:24 name(testDir) type=java.io.File ref=__local_0.testDir
 expr e@20:24#1 memberCall recv=e@20:24 callee=delete args=[] type=Boolean call=java.io.File.delete
