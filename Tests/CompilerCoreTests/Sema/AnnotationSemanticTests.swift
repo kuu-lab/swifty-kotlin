@@ -390,12 +390,69 @@ struct AnnotationSemanticTests {
                     @Suppress("DATA_CLASS_COPY_VISIBILITY")
                     data class Secret private constructor(val value: Int)
 
+            """,
+            // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
+            """
+            package sample39
+            fun noop() {}
+            """,
+            // testSubclassOptInRequiredMarkerClassPropertyIsRegistered
+            """
+            package sample40
+            fun noop() {}
+            """,
+            // testContextFunctionTypeParamsSurfaceIsRegistered
+            """
+            package sample41
+            fun noop() {}
+            """,
+            // testConsistentCopyVisibilityResolvesAndTargetsClasses
+            """
+            package sample42
+            fun noop() {}
+            """,
+            // testMustUseReturnValuesResolvesAndTargetsFileAndClass
+            """
+            package sample43
+            fun marker(x: MustUseReturnValues?): Int = 0
+            """,
+            // testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted
+            """
+            package sample44
+            fun noop() {}
+            """,
+            // testIgnorableReturnValueResolvesAndTargetsFunctions
+            """
+            package sample45
+            fun marker(x: IgnorableReturnValue?): Int = 0
+            """,
+            // testExposedCopyVisibilityResolvesAndTargetsClasses
+            """
+            package sample46
+            fun noop() {}
+            """,
+            // testDslMarkerResolvesAndTargetsAnnotationClasses
+            """
+            package sample47
+            fun noop() {}
+            """,
+            // testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget
+            """
+            package sample48
+            fun noop() {}
+            """,
+            // testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention
+            """
+            package sample49
+            fun noop() {}
             """
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
 
             // testDeprecatedLevelErrorEmitsErrorAtCallSite
             do {
@@ -786,75 +843,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected DATA_CLASS_COPY_VISIBILITY suppression alias to suppress diagnostic, got: \(sampleDiags)")
             }
-
-        }
-    }
-
-
-    @Test func testAnnotationSemanticSurfaceRegistrations() throws {
-        let sources: [String] = [
-            // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
-            """
-            package sample0
-            fun noop() {}
-            """,
-            // testSubclassOptInRequiredMarkerClassPropertyIsRegistered
-            """
-            package sample1
-            fun noop() {}
-            """,
-            // testContextFunctionTypeParamsSurfaceIsRegistered
-            """
-            package sample2
-            fun noop() {}
-            """,
-            // testConsistentCopyVisibilityResolvesAndTargetsClasses
-            """
-            package sample3
-            fun noop() {}
-            """,
-            // testMustUseReturnValuesResolvesAndTargetsFileAndClass
-            """
-            package sample4
-            fun marker(x: MustUseReturnValues?): Int = 0
-            """,
-            // testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted
-            """
-            package sample5
-            fun noop() {}
-            """,
-            // testIgnorableReturnValueResolvesAndTargetsFunctions
-            """
-            package sample6
-            fun marker(x: IgnorableReturnValue?): Int = 0
-            """,
-            // testExposedCopyVisibilityResolvesAndTargetsClasses
-            """
-            package sample7
-            fun noop() {}
-            """,
-            // testDslMarkerResolvesAndTargetsAnnotationClasses
-            """
-            package sample8
-            fun noop() {}
-            """,
-            // testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget
-            """
-            package sample9
-            fun noop() {}
-            """,
-            // testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention
-            """
-            package sample10
-            fun noop() {}
-            """
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
 
             // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
             do {
