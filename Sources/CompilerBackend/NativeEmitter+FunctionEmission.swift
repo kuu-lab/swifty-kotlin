@@ -1289,43 +1289,9 @@ extension NativeEmitter {
                 ),
                 // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
                 // (StringIndexOf.kt); no flat emission spec.
-                // KSP-410: count/any/all/none/find/findLast/partition are bundled
+                // KSP-410: count/any/all/none/find/findLast/partition and
+                // map/mapIndexed/mapNotNull/firstNotNullOf(OrNull) are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
-                "kk_string_map_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_map_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_mapIndexed_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_mapIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_mapNotNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_mapNotNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_firstNotNullOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstNotNullOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_firstNotNullOfOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstNotNullOfOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
                 // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
                 // reduceRightIndexedOrNull/reduceRightOrNull are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
