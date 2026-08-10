@@ -160,26 +160,4 @@ extension CallTypeChecker {
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }
-
-    func recoveredMemberCallReceiverType(
-        receiverID: ExprID,
-        receiverType: TypeID,
-        ctx: TypeInferenceContext,
-        locals: LocalBindings
-    ) -> TypeID? {
-        let ast = ctx.ast
-        let sema = ctx.sema
-        if case .any = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) {
-            if let symbol = sema.bindings.identifierSymbol(for: receiverID),
-               let propertyType = sema.symbols.propertyType(for: symbol)
-            {
-                return propertyType
-            } else if case let .nameRef(receiverName, _) = ast.arena.expr(receiverID),
-                      let local = locals[receiverName]
-            {
-                return sema.symbols.propertyType(for: local.symbol) ?? local.type
-            }
-        }
-        return nil
-    }
 }

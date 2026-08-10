@@ -489,33 +489,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 }
                 return true
             }
-            if mapExprIDs.contains(receiver.rawValue) {
-                if let result {
-                    let toListResult = module.arena.appendTemporary(type: nil
-                    )
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapToListName,
-                        arguments: [receiver],
-                        result: toListResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    listExprIDs.insert(result.rawValue)
-                    listExprIDs.insert(toListResult.rawValue)
-                    loweredBody.append(.copy(from: toListResult, to: result))
-                } else {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapToListName,
-                        arguments: [receiver],
-                        result: nil,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
-                return true
-            }
         }
 
         // constrainOnce() on sequence -> kk_sequence_constrainOnce

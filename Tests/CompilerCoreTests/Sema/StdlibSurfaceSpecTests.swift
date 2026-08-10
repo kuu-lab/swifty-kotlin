@@ -77,17 +77,8 @@ struct StdlibSurfaceSpecTests {
             list("associateWithTo", 2),
             list("groupByTo", 2),
 
-            set("map", 1),
-            set("filter", 1),
-            set("forEach", 1),
-            set("filterNot", 1),
-            set("mapNotNull", 1),
-            set("flatMap", 1),
-            set("any", 1),
-            set("none", 1),
-            set("all", 1),
-            set("count", 1),
-
+            // Map and Set HOFs are source-backed and intentionally have no
+            // runtime surface-spec entries.
             sequence("map", 1),
             sequence("filter", 1),
             sequence("filterNot", 1),
@@ -199,7 +190,8 @@ struct StdlibSurfaceSpecTests {
                 // synthetically registered with their runtime links.
                 (.list, ["kotlin", "collections", "List"], "associateTo", 2),
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
-                (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),
+                // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
+                // source, so it no longer registers a synthetic bridge member.
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),

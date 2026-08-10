@@ -3,29 +3,16 @@ package kotlin.reflect
 import kotlin.internal.KsSymbolName
 
 // KSP-496
-// KClass basic API: simpleName, qualifiedName, isInstance, and the 12
-// class-kind/modifier boolean flags.
+// KClass basic API: simpleName, qualifiedName, isInstance, cast, safeCast and
+// the 12 class-kind/modifier boolean flags.
 // Runtime bridges live in Sources/Runtime/RuntimeStringArray.swift.
 //
 // NOTE: extension *properties* use a star-projected `KClass<*>` receiver
 // rather than `<T : Any> KClass<T>` — this compiler's parser does not accept
 // a type-parameter list on an extension property declaration
 // (`val <T> Receiver<T>.name: Type` fails with KSWIFTK-PARSE-0002). The
-// extension *function* isInstance below is unaffected and keeps the precise
+// extension *functions* below are unaffected and keep the precise
 // `<T : Any> KClass<T>` receiver.
-//
-// NOTE: `cast`/`safeCast` are intentionally NOT covered here. Their return
-// type is the receiver's type parameter T, and this compiler's generic type
-// inference does not correctly unify T (inferred from a concrete receiver
-// like `KClass<String>`) against an explicit expected type at the call site
-// — e.g. `val s: String = String::class.cast(v)` fails with
-// KSWIFTK-TYPE-0001 ("Conflicting bounds for type variable"), even though
-// the same call without an explicit target type infers fine. They remain
-// compiler special cases in CallTypeChecker+KClassMemberCallInference.swift /
-// CallLowerer+KClassReflectMemberCalls.swift (using the dedicated
-// `kClassCastReturnType`/`kClassSafeCastReturnType` substitution helpers,
-// which sidestep generic unification entirely) until this compiler's
-// generic inference is fixed for this shape.
 
 // ─── ABI bridges ─────────────────────────────────────────────────────────────
 
@@ -37,6 +24,16 @@ private external fun __kk_kclass_qualified_name(kclass: KClass<*>): String?
 
 @KsSymbolName("__kk_kclass_isInstance")
 private external fun __kk_kclass_isInstance(kclass: KClass<*>, value: Any?): Boolean
+
+// `__kk_kclass_cast` is a throwing runtime entry (`isThrowing: true` in
+// RuntimeABISpec+Operator.swift); ABILoweringPass appends the `outThrown`
+// argument automatically, so the Kotlin declaration lists only the two value
+// parameters.
+@KsSymbolName("__kk_kclass_cast")
+private external fun __kk_kclass_cast(kclass: KClass<*>, value: Any?): Any?
+
+@KsSymbolName("__kk_kclass_safeCast")
+private external fun __kk_kclass_safeCast(kclass: KClass<*>, value: Any?): Any?
 
 @KsSymbolName("__kk_kclass_is_final")
 private external fun __kk_kclass_is_final(kclass: KClass<*>): Boolean
@@ -97,6 +94,22 @@ public val KClass<*>.qualifiedName: String?
  */
 public fun <T : Any> KClass<T>.isInstance(value: Any?): Boolean =
     __kk_kclass_isInstance(this, value)
+
+// ─── cast / safeCast ─────────────────────────────────────────────────────────
+
+/**
+ * Casts [value] to the class represented by this KClass,
+ * or throws a `ClassCastException` if it is not an instance of it.
+ */
+public fun <T : Any> KClass<T>.cast(value: Any?): T =
+    __kk_kclass_cast(this, value) as T
+
+/**
+ * Casts [value] to the class represented by this KClass,
+ * or returns `null` if it is not an instance of it.
+ */
+public fun <T : Any> KClass<T>.safeCast(value: Any?): T? =
+    __kk_kclass_safeCast(this, value) as T?
 
 // ─── boolean class-kind / modifier flags ─────────────────────────────────────
 

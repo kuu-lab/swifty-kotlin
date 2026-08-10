@@ -129,53 +129,67 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    /// KSP-435: the generic Iterable/Collection conversions are bundled Kotlin
+    /// source (Iterables.kt / Collections.kt), so they must resolve to a
+    /// source-backed declaration without any `kk_*` external link.
     @Test
-    func testCollectionAndIterableConversionMembersUseRuntimeExternalLinks() throws {
-        let cases: [SyntheticMemberCallCase] = [
-            .init(
-                source: """
-                fun copy(values: Collection<String>) {
-                    values.toMutableList()
-                }
-                """,
-                memberName: "toMutableList",
-                expectedExternalLink: "kk_collection_toMutableList",
-                expectedTypeShape: .classNamed("MutableList")
-            ),
-            .init(
-                source: """
-                fun copy(values: Collection<String>) {
-                    values.toTypedArray()
-                }
-                """,
-                memberName: "toTypedArray",
-                expectedExternalLink: "kk_collection_toTypedArray",
-                expectedTypeShape: .classNamed("Array")
-            ),
-            .init(
-                source: """
-                fun copy(values: Iterable<String>) {
-                    values.toMutableList()
-                }
-                """,
-                memberName: "toMutableList",
-                expectedExternalLink: "kk_iterable_toMutableList",
-                expectedTypeShape: .classNamed("MutableList")
-            ),
-            .init(
-                source: """
-                fun copy(values: Iterable<String>) {
-                    values.toMutableSet()
-                }
-                """,
-                memberName: "toMutableSet",
-                expectedExternalLink: "kk_iterable_toMutableSet",
-                expectedTypeShape: .classNamed("MutableSet")
-            ),
+    func testCollectionAndIterableConversionMembersResolveToBundledSource() throws {
+        let cases: [(source: String, memberName: String, resultClassName: String)] = [
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toList()
+            }
+            """, "toList", "List"),
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toMutableList()
+            }
+            """, "toMutableList", "MutableList"),
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toTypedArray()
+            }
+            """, "toTypedArray", "Array"),
+            ("""
+            fun copy(values: Iterable<String>) {
+                values.toMutableList()
+            }
+            """, "toMutableList", "MutableList"),
+            ("""
+            fun copy(values: Iterable<String>) {
+                values.toMutableSet()
+            }
+            """, "toMutableSet", "MutableSet"),
         ]
 
         for testCase in cases {
-            try assertSyntheticMemberCall(testCase)
+            try withTemporaryFile(contents: testCase.source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+
+                let ast = try #require(ctx.ast)
+                let sema = try #require(ctx.sema)
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == testCase.memberName
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "\(testCase.memberName) must bind to the bundled Kotlin declaration"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "\(testCase.memberName) must not keep a kk_* external link"
+                )
+                try assertSyntheticMemberType(
+                    try #require(sema.bindings.exprType(for: callExpr)),
+                    matches: .classNamed(testCase.resultClassName),
+                    sema: sema,
+                    interner: ctx.interner,
+                    memberName: testCase.memberName
+                )
+            }
         }
     }
 
@@ -682,7 +696,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListPrimitiveArrayConversionsUseRuntimeExternalLinks() throws {
+    func testListPrimitiveArrayConversionsResolveToSourceBackedDeclarations() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
                 source: """
@@ -691,7 +705,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toBooleanArray",
-                expectedExternalLink: "kk_list_toBooleanArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("BooleanArray")
             ),
             .init(
@@ -701,7 +715,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toByteArray",
-                expectedExternalLink: "kk_list_toByteArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("ByteArray")
             ),
             .init(
@@ -711,7 +725,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toShortArray",
-                expectedExternalLink: "kk_list_toShortArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("ShortArray")
             ),
             .init(
@@ -721,7 +735,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toIntArray",
-                expectedExternalLink: "kk_list_toIntArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("IntArray")
             ),
             .init(
@@ -731,7 +745,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toDoubleArray",
-                expectedExternalLink: "kk_list_toDoubleArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("DoubleArray")
             ),
             .init(
@@ -741,7 +755,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toFloatArray",
-                expectedExternalLink: "kk_list_toFloatArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("FloatArray")
             ),
         ]
@@ -1536,18 +1550,10 @@ extension ListSyntheticMemberLinkTests {
             let mapFQ = kotlinCollections + [interner.intern("Map")]
             let mutableMapFQ = kotlinCollections + [interner.intern("MutableMap")]
 
-            // KSP-430: Map higher-order functions are source-backed in
-            // MapHOF.kt, so only non-migrated Map members appear here.
+            // KSP-430 / KSP-431: Map higher-order functions (MapHOF.kt) and Map
+            // lookup/conversion members (MapLookupAndTransform.kt) are
+            // source-backed, so only non-migrated Map members appear here.
             let expectedLinks: [(fqName: [InternedString], memberName: String, externalLink: String)] = [
-                (mapFQ, "containsKey", "kk_map_contains_key"),
-                (mapFQ, "containsValue", "kk_map_contains_value"),
-                (mapFQ, "keys", "kk_map_keys"),
-                (mapFQ, "values", "kk_map_values"),
-                (mapFQ, "entries", "kk_map_entries"),
-                (mapFQ, "getValue", "kk_map_getValue"),
-                (mapFQ, "withDefault", "kk_map_withDefault"),
-                (mapFQ, "toList", "kk_map_toList"),
-                (mapFQ, "toMutableMap", "kk_map_to_mutable_map"),
                 (mutableMapFQ, "put", "kk_mutable_map_put"),
                 (mutableMapFQ, "remove", "kk_mutable_map_remove"),
                 (mutableMapFQ, "putAll", "kk_mutable_map_putAll"),
@@ -1735,7 +1741,19 @@ extension ListSyntheticMemberLinkTests {
                 #expect(symbol.fqName == packageFQName + [interner.intern(memberName)])
             }
 
-            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [interner.intern("toList")]))
+            // KSP-431: Map.toList is a bundled source extension, not a Map member stub.
+            let toListSymbol = try #require(
+                sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("toList")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return nominalOwnerFQName(for: receiverType) == mapFQName
+                },
+                "Expected bundled source for Map.toList"
+            )
+            #expect(sema.symbols.externalLinkName(for: toListSymbol) == nil)
             let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
             guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
                 Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
@@ -1743,9 +1761,14 @@ extension ListSyntheticMemberLinkTests {
             let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
             #expect(interner.resolve(listName) == "List")
             let firstListArg = try #require(listType.args.first)
-            guard case let .out(pairTypeID) = firstListArg,
-                  case let .classType(pairType) = sema.types.kind(of: pairTypeID)
-            else {
+            let pairTypeID: TypeID
+            switch firstListArg {
+            case let .invariant(id), let .out(id), let .in(id):
+                pairTypeID = id
+            case .star:
+                Issue.record("Expected Map.toList element type to be Pair"); return
+            }
+            guard case let .classType(pairType) = sema.types.kind(of: pairTypeID) else {
                 Issue.record("Expected Map.toList element type to be Pair"); return
             }
             let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
@@ -2304,7 +2327,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToBooleanArrayUsesRuntimeExternalLink() throws {
+    func testListToBooleanArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Boolean>) {
             values.toBooleanArray()
@@ -2321,7 +2344,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toBooleanArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toBooleanArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2333,7 +2357,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToShortArrayUsesRuntimeExternalLink() throws {
+    func testListToShortArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Short>) {
             values.toShortArray()
@@ -2350,7 +2374,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toShortArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toShortArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2362,7 +2387,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToDoubleArrayUsesRuntimeExternalLink() throws {
+    func testListToDoubleArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Double>) {
             values.toDoubleArray()
@@ -2379,7 +2404,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toDoubleArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toDoubleArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2391,7 +2417,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToFloatArrayUsesRuntimeExternalLink() throws {
+    func testListToFloatArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Float>) {
             values.toFloatArray()
@@ -2408,7 +2434,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toFloatArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toFloatArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)

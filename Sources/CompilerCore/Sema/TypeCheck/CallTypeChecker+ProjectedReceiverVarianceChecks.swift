@@ -30,12 +30,11 @@ extension CallTypeChecker {
                 "kk_sequence_windowed_transform",
                 "kk_sequence_plus_element", "kk_sequence_minus",
                  "kk_list_windowed_transform",
-                 "kk_list_joinToString_transform", "kk_iterable_joinToString_transform",
+                 "kk_list_joinToString_transform", "__kk_iterable_joinToString_transform",
                  "kk_array_joinToString_transform",
                  "kk_list_intersect", "kk_list_union", "kk_list_subtract",
                  "__kk_set_contains",
-                 "__kk_map_get", "kk_map_contains_key", "kk_map_contains_value",
-                 "kk_map_getValue", "kk_map_getOrDefault", "kk_map_getOrElse":
+                 "__kk_map_get":
                 return true
             default:
                 break

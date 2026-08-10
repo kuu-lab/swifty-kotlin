@@ -59,7 +59,7 @@ extension CallLowerer {
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("__string_struct_get_length")
+            return interner.intern("__kk_string_struct_get_length")
         }
         if memberName == "length",
            let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
@@ -89,7 +89,7 @@ extension CallLowerer {
         // bundled stdlib).  String is excluded above; Char and primitives are excluded by
         // tryLowerPrimitiveCompareTo which runs before this path.
         if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("kk_comparable_compareTo")
+            return interner.intern("__kk_comparable_compareTo")
         }
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
@@ -157,8 +157,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_partition")
             case "subList":
                 return interner.intern("kk_list_subList")
-            case "toTypedArray":
-                return interner.intern("kk_list_toTypedArray")
             case "binarySearch":
                 if hasHOFLambdaArg && argumentCount == 2 {
                     return interner.intern("kk_list_binarySearch_compare")
@@ -271,31 +269,6 @@ extension CallLowerer {
             }
         }
 
-        if isArrayDequeLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            case "addFirst":
-                return interner.intern("kk_arraydeque_addFirst")
-            case "addLast":
-                return interner.intern("kk_arraydeque_addLast")
-            case "removeFirst":
-                return interner.intern("kk_arraydeque_removeFirst")
-            case "removeLast":
-                return interner.intern("kk_arraydeque_removeLast")
-            case "first":
-                return interner.intern("kk_arraydeque_first")
-            case "last":
-                return interner.intern("kk_arraydeque_last")
-            case "size":
-                return interner.intern("kk_arraydeque_size")
-            case "isEmpty":
-                return interner.intern("kk_arraydeque_isEmpty")
-            case "toString":
-                return interner.intern("kk_arraydeque_toString")
-            default:
-                break
-            }
-        }
-
         if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "get":
@@ -401,7 +374,7 @@ extension CallLowerer {
         if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "toTypedArray":
-                return interner.intern("kk_collection_toTypedArray")
+                return interner.intern("__kk_collection_toTypedArray")
             case "contains":
                 return interner.intern("__kk_set_contains")
             default:
@@ -514,21 +487,10 @@ extension CallLowerer {
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
         // Bare Iterable/Collection/Set interfaces are also matched by
         // isConcreteCollectionLikeType, so the gate above excludes them. That is
-        // intentional for general HOF routing: Set members resolve to the bundled
-        // Kotlin declarations in SetHOF.kt, not to kk_sequence_* (mapNotNull/flatMap/
-        // count on a set handle would return empty or 0). Only joinTo/joinToString
-        // lack a set-specific path and would otherwise stay unresolved — handle
-        // those alone.
-        if memberName == "joinTo" || memberName == "joinToString" {
-            let isBareIterableCollectionOrSetInterfaceType =
-                isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-            if isBareIterableCollectionOrSetInterfaceType {
-                return interner.intern(
-                    memberName == "joinTo" ? "kk_iterable_joinTo" : "kk_iterable_joinToString"
-                )
-            }
-        }
+        // intentional for general HOF routing: Set members resolve through the
+        // bundled Kotlin declarations instead of kk_sequence_* (mapNotNull/flatMap/
+        // count on a set handle would return empty or 0). joinTo/joinToString also
+        // resolve to bundled Kotlin source (KSP-435).
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
@@ -619,9 +581,9 @@ extension CallLowerer {
                     return nil
                 }
             case joinToName:
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinTo" : "kk_sequence_joinTo")
+                return interner.intern("kk_sequence_joinTo")
             case joinToStringName:
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinToString" : "kk_sequence_joinToString")
+                return interner.intern("kk_sequence_joinToString")
             case sumOfName:
                 return interner.intern("kk_sequence_sumOf")
             case sumByName:
@@ -675,9 +637,9 @@ extension CallLowerer {
             case interner.intern("singleOrNull"):
                 return interner.intern("kk_sequence_singleOrNull")
             case interner.intern("any"):
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_any" : "kk_sequence_any")
+                return interner.intern("kk_sequence_any")
             case interner.intern("all"):
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_all" : "kk_sequence_all")
+                return interner.intern("kk_sequence_all")
             case interner.intern("none"):
                 return interner.intern("kk_sequence_none")
             case interner.intern("mapNotNull"):
@@ -737,7 +699,7 @@ extension CallLowerer {
             case interner.intern("randomOrNull"):
                 return interner.intern("kk_sequence_randomOrNull")
             case lastName:
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_last" : "kk_sequence_last")
+                return interner.intern("kk_sequence_last")
             case interner.intern("lastOrNull"):
                 return interner.intern("kk_sequence_lastOrNull")
             case countName:
@@ -752,15 +714,11 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toCollection")
             case interner.intern("toMutableList"):
                 return toMutableListRuntimeCalleeForSequenceOrIterableFallback(
-                    chosenCallee: nil,
                     useIterableFallback: useIterableRuntimeForCollectionFallback,
-                    sema: sema,
                     interner: interner
                 )
             case interner.intern("toMutableSet"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_iterable_toMutableSet"
-                    : "kk_sequence_toMutableSet")
+                return interner.intern("kk_sequence_toMutableSet")
             case interner.intern("toSortedSet"):
                 return interner.intern("kk_sequence_toSortedSet")
             case interner.intern("toHashSet"):
@@ -876,8 +834,12 @@ extension CallLowerer {
                 return interner.intern("__kk_set_size")
             case .array?:
                 return interner.intern("kk_array_size")
-            case .list?, .collection?:
+            case .list?:
                 return interner.intern("__kk_list_size")
+            case .collection?:
+                // A bare `Collection<T>` receiver can be backed by either a list
+                // or a set box, so it needs the type-tag dispatching bridge.
+                return interner.intern("__kk_collection_size")
             default:
                 break
             }
@@ -911,14 +873,14 @@ extension CallLowerer {
         case "firstNotNullOf":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?, .array?:
-                return interner.intern("kk_iterable_firstNotNullOf")
+                return interner.intern("__kk_iterable_firstNotNullOf")
             default:
                 break
             }
         case "firstNotNullOfOrNull":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?, .array?:
-                return interner.intern("kk_iterable_firstNotNullOfOrNull")
+                return interner.intern("__kk_iterable_firstNotNullOfOrNull")
             default:
                 break
             }
@@ -940,7 +902,7 @@ extension CallLowerer {
         case "requireNoNulls":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_iterable_requireNoNulls")
+                return interner.intern("__kk_iterable_requireNoNulls")
             default:
                 break
             }
@@ -1042,17 +1004,6 @@ extension CallLowerer {
         switch memberName {
         case "count":
             return argumentCount == 0 ? interner.intern("kk_map_size") : nil
-        case "getValue":
-            return interner.intern("kk_map_getValue")
-        case "getOrDefault":
-            return interner.intern("kk_map_getOrDefault")
-        case "getOrElse":
-            return interner.intern("kk_map_getOrElse")
-        case "getOrPut":
-            guard knownNames.isMutableMapSymbol(symbol) else {
-                return nil
-            }
-            return interner.intern("kk_mutable_map_getOrPut")
         case "putAll":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil

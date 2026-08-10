@@ -61,11 +61,6 @@ fun <T> Set<T>.count(predicate: (T) -> Boolean): Int {
 }
 
 /**
- * Returns `true` if the set has at least one element.
- */
-public fun <T> Set<T>.any(): Boolean = size > 0
-
-/**
  * Returns `true` if the set has no elements.
  */
 public fun <T> Set<T>.none(): Boolean = size == 0
@@ -132,6 +127,8 @@ public inline fun <T, R> Set<T>.foldIndexed(initial: R, operation: (Int, R, T) -
 // Only element-storage primitives (`__kk_set_size`, `__kk_set_contains`,
 // `__kk_set_is_empty`, `__kk_set_to_string`, `__kk_set_of`, `__kk_set_of_not_null`)
 // stay in the runtime.
+// Generic Iterable/Collection source from KSP-435 supplies `any()`, `last()`,
+// `toList()`, `toMutableList()`, and `toMutableSet()` for Set receivers too.
 
 /**
  * Returns a list containing all elements not matching the given [predicate].
@@ -176,21 +173,6 @@ public fun <T> Set<T>.firstOrNull(): T? {
         return element
     }
     return null
-}
-
-/**
- * Returns the last element, or throws if the set is empty.
- */
-public fun <T> Set<T>.last(): T {
-    var found = false
-    var result: T? = null
-    for (element in this) {
-        result = element
-        found = true
-    }
-    if (!found) throw NoSuchElementException("Collection is empty.")
-    @Suppress("UNCHECKED_CAST")
-    return result as T
 }
 
 /**
@@ -326,42 +308,9 @@ public fun <T : Comparable<T>> Set<T>.minOrNull(): T? {
 // --- Conversions -------------------------------------------------------------
 
 /**
- * Returns a list containing all elements of this set.
- */
-public fun <T> Set<T>.toList(): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) {
-        result.add(element)
-    }
-    return result
-}
-
-/**
- * Returns a mutable list containing all elements of this set.
- */
-public fun <T> Set<T>.toMutableList(): MutableList<T> {
-    val result = mutableListOf<T>()
-    for (element in this) {
-        result.add(element)
-    }
-    return result
-}
-
-/**
  * Returns a new read-only set containing all elements of this set.
  */
 public fun <T> Set<T>.toSet(): Set<T> {
-    val result = mutableSetOf<T>()
-    for (element in this) {
-        result.add(element)
-    }
-    return result
-}
-
-/**
- * Returns a new mutable set containing all elements of this set.
- */
-public fun <T> Set<T>.toMutableSet(): MutableSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) {
         result.add(element)

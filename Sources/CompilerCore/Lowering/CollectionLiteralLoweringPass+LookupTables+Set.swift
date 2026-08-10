@@ -39,7 +39,7 @@ struct SetLookupNames {
         kkSetContainsName = interner.intern("__kk_set_contains")
         kkSetIsEmptyName = interner.intern("__kk_set_is_empty")
         kkSetToStringName = interner.intern("__kk_set_to_string")
-        kkIterableToMutableSetName = interner.intern("kk_iterable_toMutableSet")
+        kkIterableToMutableSetName = interner.intern("__kk_iterable_toMutableSet")
         setFactoryNames = [setOfName, setOfNotNullName, mutableSetOfName, hashSetOfName, linkedSetOfName, emptySetName]
         mutableSetConstructorNames = [hashSetName, linkedHashSetName]
     }
