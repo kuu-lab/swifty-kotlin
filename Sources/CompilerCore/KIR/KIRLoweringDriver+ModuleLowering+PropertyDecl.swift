@@ -115,19 +115,14 @@ extension KIRLoweringDriver {
         guard let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) else { return }
         let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
 
-        // Top-level property initializers are concatenated into a single init
-        // sequence and then injected into `main`; preserve the loop-label
-        // counter so each initializer gets unique labels.
-        let savedNextLoopLabel = ctx.nextLoopLabel
         ctx.resetScopeForFunction()
-        ctx.nextLoopLabel = savedNextLoopLabel
         ctx.beginCallableLoweringScope()
         var initInstructions: KIRLoweringEmitContext = []
         let initValue = lowerExpr(explicitField.initializer, shared: shared, emit: &initInstructions)
         let globalRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
         initInstructions.append(.constValue(result: globalRef, value: .symbolRef(backingFieldSymbol)))
         initInstructions.append(.copy(from: initValue, to: globalRef))
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -198,11 +193,7 @@ extension KIRLoweringDriver {
         let needsInit = propertyConstantInitializers[symbol] == nil
             || (sema.symbols.symbol(symbol)?.flags.contains(.mutable) == true)
         guard needsInit else { return }
-        // Top-level property initializers share a single init sequence; keep
-        // loop labels monotonic across properties.
-        let savedNextLoopLabel = ctx.nextLoopLabel
         ctx.resetScopeForFunction()
-        ctx.nextLoopLabel = savedNextLoopLabel
         ctx.beginCallableLoweringScope()
         var initInstructions: KIRLoweringEmitContext = []
         let initValue = lowerExpr(initializer, shared: shared, emit: &initInstructions)
@@ -227,7 +218,7 @@ extension KIRLoweringDriver {
             initInstructions.append(.constValue(result: backingFieldRef, value: .symbolRef(backingFieldSymbol)))
             initInstructions.append(.copy(from: initValue, to: backingFieldRef))
         }
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -260,10 +251,7 @@ extension KIRLoweringDriver {
             delegateStorageSymbol: delegateStorageSymbol,
             shared: shared, declIDs: &declIDs
         )
-        // Top-level delegate initializers are part of the same init sequence.
-        let savedNextLoopLabel = ctx.nextLoopLabel
         ctx.resetScopeForFunction()
-        ctx.nextLoopLabel = savedNextLoopLabel
         ctx.beginCallableLoweringScope()
         var initInstructions: KIRLoweringEmitContext = []
         emitDelegateInitInstructions(
@@ -272,7 +260,7 @@ extension KIRLoweringDriver {
             delegateType: delegateType, shared: shared,
             compilationCtx: compilationCtx, initInstructions: &initInstructions
         )
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 

@@ -69,51 +69,22 @@ extension KIRLoweringDriver {
         body: [KIRInstruction],
         inits: KIRLoweringEmitContext
     ) -> [KIRInstruction] {
-        let offset = topLevelInitLabelOffset(body: body, inits: inits.instructions)
-        var shiftedInits = inits
-        if offset > 0 {
-            shiftedInits.instructions = inits.instructions.map { shiftLabels(in: $0, by: offset) }
-        }
-
+        // The initializers were lowered under their own function scopes, so
+        // their labels restart from the same base as `main`'s own body.
+        let relocatedInits = KIRLabelRelocation.relocatingLabels(
+            of: inits.instructions,
+            toAvoidCollisionsWith: body
+        )
         var newBody: KIRLoweringEmitContext = []
         if let first = body.first, case .beginBlock = first {
             newBody.append(first)
-            newBody.append(contentsOf: shiftedInits)
+            newBody.append(contentsOf: relocatedInits)
             newBody.append(contentsOf: body.dropFirst())
         } else {
-            newBody.append(contentsOf: shiftedInits)
+            newBody.append(contentsOf: relocatedInits)
             newBody.append(contentsOf: body)
         }
         return newBody.instructions
-    }
-
-    private func topLevelInitLabelOffset(body: [KIRInstruction], inits: [KIRInstruction]) -> Int32 {
-        let bodyLabels = body.compactMap(labelID)
-        let initLabels = inits.compactMap(labelID)
-        guard let minInit = initLabels.min(), let maxBody = bodyLabels.max() else { return 0 }
-        return max(maxBody + 1 - minInit, 0)
-    }
-
-    private func labelID(in instruction: KIRInstruction) -> Int32? {
-        switch instruction {
-        case let .label(id): return id
-        case let .jump(target): return target
-        case let .jumpIfEqual(_, _, target): return target
-        case let .jumpIfNotNull(_, target): return target
-        default: return nil
-        }
-    }
-
-    private func shiftLabels(in instruction: KIRInstruction, by offset: Int32) -> KIRInstruction {
-        switch instruction {
-        case let .label(id): return .label(id + offset)
-        case let .jump(target): return .jump(target + offset)
-        case let .jumpIfEqual(lhs, rhs, target):
-            return .jumpIfEqual(lhs: lhs, rhs: rhs, target: target + offset)
-        case let .jumpIfNotNull(value, target):
-            return .jumpIfNotNull(value: value, target: target + offset)
-        default: return instruction
-        }
     }
 
     // MARK: - Delegate Kind Map
