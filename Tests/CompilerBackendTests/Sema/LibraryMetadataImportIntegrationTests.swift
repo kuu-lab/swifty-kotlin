@@ -115,6 +115,69 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
+    // KSP-472: インライン展開された本体がライブラリ側のプロパティ getter を呼ぶ場合、
+    // getter は consumer の symbol table に外部リンク名付きで復元されないため、
+    // 宣言名のままだとリンク時に undefined reference になる。mangle 済みリンク名へ
+    // フォールバックすることを固定する。
+    @Test
+    func testImportedInlineBodyCallsLibraryPropertyGetterByLinkName() throws {
+        let librarySource = """
+        package extdemo
+        val Int.doubled: Int
+            get() = this * 2
+        inline fun callDoubled(v: Int) = v.doubled
+        """
+        try withTemporaryFile(contents: librarySource) { libraryPath in
+            let libraryBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let libraryCtx = makeCompilationContext(
+                inputs: [libraryPath],
+                moduleName: "ExtDemo",
+                emit: .library,
+                outputPath: libraryBase
+            )
+            try runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            let appSource = """
+            import extdemo.callDoubled
+            fun main() = callDoubled(21)
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "App",
+                    emit: .kirDump,
+                    searchPaths: [libraryBase + ".kklib"]
+                )
+                try runToKIR(appCtx)
+                try LoweringPhase().run(appCtx)
+
+                let kir = try #require(appCtx.kir)
+                let mainFunction = try #require(
+                    findAllKIRFunctions(in: kir).first { function in
+                        appCtx.interner.resolve(function.name) == "main"
+                    },
+                    "Expected lowered main function"
+                )
+                let calls = mainFunction.body.compactMap { instruction -> String? in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                        return nil
+                    }
+                    return appCtx.interner.resolve(callee)
+                }
+                #expect(
+                    !calls.contains("doubled"),
+                    "Inlined body must not call the getter by its declared name: \(calls)"
+                )
+                #expect(
+                    calls.contains { $0.hasPrefix("kk_fn_get_") },
+                    "Inlined body must call the library's mangled getter link name: \(calls)"
+                )
+            }
+        }
+    }
+
     @Test
     func testSemaSynthesizesNominalLayoutsAndLibraryMetadataContainsLayoutFields() throws {
         let source = """
@@ -332,6 +395,61 @@ struct LibraryMetadataImportIntegrationTests {
             #expect(metadata.contains("property "))
             #expect(metadata.contains("sig=F1<I,I>"))
             #expect(metadata.contains("sig=I"))
+        }
+    }
+
+    @Test
+    func testImportedGenericClassResolvesExplicitTypeArgumentsAndMembers() throws {
+        let source = """
+        package genericlib
+        class Holder<T> {
+            fun wrap(value: T): T = value
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let libBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let libCtx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "GenericLib",
+                emit: .library,
+                outputPath: libBase
+            )
+            try runToKIR(libCtx)
+            try LoweringPhase().run(libCtx)
+            try CodegenPhase().run(libCtx)
+
+            let metadataPath = libBase + ".kklib/metadata.bin"
+            let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
+            #expect(metadata.contains("typeParams="))
+
+            let appSource = """
+            import genericlib.Holder
+            fun main() {
+                val holder = Holder<Int>()
+                println(holder.wrap(1))
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "GenericApp",
+                    emit: .kirDump,
+                    searchPaths: [libBase + ".kklib"]
+                )
+                try runToKIR(appCtx)
+
+                let messages = appCtx.diagnostics.diagnostics
+                    .filter { $0.severity == .error }
+                    .map(\.message)
+                    .joined(separator: "\n")
+                #expect(!appCtx.diagnostics.hasError, "Unexpected errors: \(messages)")
+
+                let sema = try #require(appCtx.sema)
+                let holder = try #require(sema.symbols.allSymbols().first(where: { symbol in
+                    appCtx.interner.resolve(symbol.name) == "Holder" && symbol.kind == .class
+                }))
+                #expect(sema.types.nominalTypeParameterSymbols(for: holder.id).count == 1)
+            }
         }
     }
 

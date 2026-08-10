@@ -340,8 +340,9 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
+        // See kk_array_map: keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
-            maybeUnbox(mapped),
+            mapped,
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -634,8 +635,9 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
+        // See kk_array_map: keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
-            maybeUnbox(mapped),
+            mapped,
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,

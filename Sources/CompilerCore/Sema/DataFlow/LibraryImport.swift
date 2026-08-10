@@ -85,6 +85,11 @@ extension DataFlowSemaPhase {
                 if record.isOperator, record.kind == .function {
                     flags.insert(.operatorFunction)
                 }
+                // Overrides must stay marked so member lookup can shadow the
+                // supertype declaration instead of reporting an ambiguity.
+                if record.isOverride, record.kind == .function {
+                    flags.insert(.overrideMember)
+                }
                 if record.isDataClass {
                     flags.insert(.dataType)
                 }
@@ -371,6 +376,7 @@ extension DataFlowSemaPhase {
         let isSuspend: Bool
         let isInline: Bool
         let isOperator: Bool
+        let isOverride: Bool
         let valueParameterIsVararg: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         let canThrow: Bool
@@ -406,6 +412,9 @@ extension DataFlowSemaPhase {
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
+        /// Declaration-order type parameters of a nominal type, encoded as
+        /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
+        let nominalTypeParameters: String?
 
         init(
             kind: SymbolKind,
@@ -415,6 +424,7 @@ extension DataFlowSemaPhase {
             isSuspend: Bool = false,
             isInline: Bool = false,
             isOperator: Bool = false,
+            isOverride: Bool = false,
             valueParameterIsVararg: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             canThrow: Bool = false,
@@ -449,7 +459,8 @@ extension DataFlowSemaPhase {
             propertyGetterExternalLinkName: String? = nil,
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
-            isMutable: Bool = false
+            isMutable: Bool = false,
+            nominalTypeParameters: String? = nil
         ) {
             self.kind = kind
             self.mangledName = mangledName
@@ -458,6 +469,7 @@ extension DataFlowSemaPhase {
             self.isSuspend = isSuspend
             self.isInline = isInline
             self.isOperator = isOperator
+            self.isOverride = isOverride
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.canThrow = canThrow
@@ -493,6 +505,7 @@ extension DataFlowSemaPhase {
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
+            self.nominalTypeParameters = nominalTypeParameters
         }
     }
 
@@ -624,7 +637,16 @@ extension DataFlowSemaPhase {
             cache: cache,
             isStdlibArtifact: isStdlibArtifact
         )
-        applyImportedNominalMetadata(binding, symbols: symbols, interner: interner, pendingSupertypeEdges: &pendingSupertypeEdges)
+        applyImportedNominalMetadata(
+            binding,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact,
+            pendingSupertypeEdges: &pendingSupertypeEdges
+        )
     }
 
     private func applyImportedBindingMetadata(
@@ -837,16 +859,26 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Member properties with custom getters also carry a precompiled getter
-        // link name. Restore a synthetic accessor so reads route through it.
+        // Member and top-level properties with custom getters also carry a
+        // precompiled getter link name. Restore a synthetic accessor so reads
+        // route through it instead of through a global slot the artifact never
+        // allocates.
+        // A nominal owner is restored by restoreImportedParentSymbol before this
+        // runs, so an owner that is absent or a package means the property is
+        // top-level and its getter takes no receiver.
+        let getterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
         if record.propertyGetterExternalLinkName != nil,
            record.propertyReceiverTypeSignature == nil,
-           let ownerSymbol = symbols.parentSymbol(for: symbol),
-           let ownerInfo = symbols.symbol(ownerSymbol),
-           (ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object)
+           getterOwnerInfo == nil || getterOwnerInfo?.kind == .package
+               || getterOwnerInfo?.kind == .class || getterOwnerInfo?.kind == .interface
+               || getterOwnerInfo?.kind == .object
         {
             symbols.setPropertyHasCustomGetter(true, for: symbol)
-            let ownerType = types.make(.classType(ClassType(classSymbol: ownerSymbol, args: [], nullability: .nonNull)))
+            let ownerType: TypeID? = getterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
             let getName = interner.intern("get")
             let getterFQName = record.fqName + [getName]
             let getterSymbol = symbols.define(
@@ -1010,13 +1042,27 @@ extension DataFlowSemaPhase {
     private func applyImportedNominalMetadata(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
         interner: StringInterner,
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])]
     ) {
         let record = binding.record
         guard isNominalLayoutTargetSymbol(record.kind) else {
             return
         }
+
+        applyImportedNominalTypeParameters(
+            binding,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact
+        )
 
         // Restore the parent link for imported nominal types (e.g. nested enum
         // classes like Base64.PaddingOption). Without this, member lookup on
@@ -1073,5 +1119,57 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(binding.symbol, for: initSymbol)
             symbols.setEnumStaticInitSymbol(initSymbol, for: binding.symbol)
         }
+    }
+
+    /// Restores the declaration-order type parameters of an imported generic
+    /// nominal type. Without them the consumer treats the type as non-generic,
+    /// so explicit type arguments (`ArrayDeque<Int>()`) and member type
+    /// substitution fail to resolve.
+    private func applyImportedNominalTypeParameters(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool
+    ) {
+        guard let encoded = binding.record.nominalTypeParameters, !encoded.isEmpty else {
+            return
+        }
+
+        var typeParameterSymbols: [SymbolID] = []
+        var variances: [TypeVariance] = []
+        for entry in encoded.split(separator: ",") {
+            let parts = entry.split(separator: ":", maxSplits: 1)
+            guard let token = parts.first,
+                  let decoded = decodeImportedTypeSignature(
+                      token: String(token),
+                      symbols: symbols,
+                      types: types,
+                      interner: interner,
+                      diagnostics: diagnostics,
+                      metadataPath: binding.metadataPath,
+                      ownerFQName: binding.record.fqName,
+                      cache: cache,
+                      allowPlaceholders: isStdlibArtifact
+                  ),
+                  case let .typeParam(typeParam) = types.kind(of: decoded)
+            else {
+                return
+            }
+            typeParameterSymbols.append(typeParam.symbol)
+            switch parts.count > 1 ? String(parts[1]) : "i" {
+            case "o": variances.append(.out)
+            case "n": variances.append(.in)
+            default: variances.append(.invariant)
+            }
+        }
+
+        guard !typeParameterSymbols.isEmpty else {
+            return
+        }
+        types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
+        types.setNominalTypeParameterVariances(variances, for: binding.symbol)
     }
 }

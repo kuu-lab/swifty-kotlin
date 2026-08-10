@@ -59,9 +59,47 @@ extension ABILoweringPass {
         "__kk_mutable_set_add",
         "__kk_mutable_map_put",
         "__kk_mutable_map_putAll",
-        "__kk_mutable_map_getOrPut",
         "__kk_mutable_map_plusAssign_pair",
     ]
+
+    /// True when the call target is a declaration compiled from Kotlin source —
+    /// bundled stdlib source in this compilation (no external link name) or the
+    /// same declaration imported from a library artifact (`kk_fn_*`). Such a
+    /// callee follows the compiler's own generic ABI, where type-parameter
+    /// slots carry boxed values; every other `kk_*` symbol is a hand-written
+    /// runtime bridge whose raw parameter convention must be left alone.
+    func isKotlinSourceCallee(_ callSymbol: SymbolID?, symbols: SymbolTable?) -> Bool {
+        guard let callSymbol, let symbols, let symbol = symbols.symbol(callSymbol),
+              symbol.kind == .function,
+              symbols.isSourceBackedSymbol(callSymbol)
+        else {
+            return false
+        }
+        guard let linkName = symbols.externalLinkName(for: callSymbol), !linkName.isEmpty else {
+            return true
+        }
+        return linkName.hasPrefix("kk_fn_")
+    }
+
+    /// True when a `kk_array_get` receiver is the generic `kotlin.Array` class
+    /// (whose elements are stored boxed) rather than one of the primitive array
+    /// classes (`DoubleArray`, `IntArray`, ...) which store raw values.
+    func isGenericArrayReceiver(
+        _ receiver: KIRExprID?,
+        module: KIRModule,
+        types: TypeSystem?,
+        symbols: SymbolTable?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let receiver, let types, let symbols,
+              let receiverType = module.arena.exprType(receiver),
+              case let .classType(classType) = types.kind(of: types.makeNonNullable(receiverType)),
+              let symbol = symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "Array"
+    }
 
     func boxingCallee(
         argType: TypeID,
@@ -70,7 +108,8 @@ extension ABILoweringPass {
         types: TypeSystem,
         interner: StringInterner,
         boxingCalleeTable: BoxingCalleeTable,
-        symbols: SymbolTable? = nil
+        symbols: SymbolTable? = nil,
+        boxTypeParamBoundary: Bool = false
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
@@ -102,11 +141,31 @@ extension ABILoweringPass {
                 // constructors and the mutable-collection element-insertion helpers),
                 // keeping `add`/`set` consistent with how `listOf(...)` / `setOf(...)`
                 // / `toMutableList()` already box every element.
+                // A call to a Kotlin-source declaration (bundled stdlib source
+                // or the same declaration imported from a library artifact)
+                // always uses the erased boxed representation for its generic
+                // parameters, so e.g. `Array<T>.fold(initial: R, ...)` must
+                // receive `0.0` as a `kk_box_double` handle rather than the raw
+                // bit pattern the callee would then reinterpret as a pointer.
+                if boxTypeParamBoundary {
+                    return true
+                }
                 if let callee {
                     let calleeName = interner.resolve(callee)
                     if ABILoweringPass.typeParamBoxingBoundaryCallees.contains(calleeName) {
                         return true
                     }
+                }
+                // Floating-point arguments must be boxed at every erased `T`
+                // parameter, not just the containers above: a raw Double word
+                // is indistinguishable from an Int of the same bits, and -0.0
+                // is bit-identical to the null sentinel, so an unboxed value
+                // reaching a generic callee compares unequal to the boxed
+                // elements it is matched against (e.g. Array<Double>.contains).
+                if case let .primitive(argPrimitive, .nonNull) = argKind,
+                   argPrimitive == .double || argPrimitive == .float
+                {
+                    return true
                 }
                 return false
             }

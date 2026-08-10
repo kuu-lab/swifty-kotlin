@@ -111,6 +111,27 @@ struct ASTContextFunctionTypeTests {
         #expect(renderTypeRef(returnType, in: ast, interner: ctx.interner) == "E")
     }
 
+    /// KSP-603: a `context(...)` function type in the parameter list is not a
+    /// declaration-level context receiver, so the function must not be turned
+    /// into an extension function on the first context type.
+    @Test
+    func testContextFunctionTypeParameterIsNotADeclarationContextReceiver() throws {
+        let source = """
+        package demo
+        fun applyInt(block: context(Int) () -> String): String = "applyInt"
+        """
+        let (ast, ctx) = try buildAST(from: source)
+        let funDecl = try #require(ast.arena.declarations().compactMap { decl -> FunDecl? in
+            guard case let .funDecl(funDecl) = decl else { return nil }
+            return funDecl
+        }.first)
+
+        #expect(funDecl.receiverType == nil)
+        #expect(funDecl.valueParams.count == 1)
+        let blockType = try #require(funDecl.valueParams.first?.type)
+        #expect(renderTypeRef(blockType, in: ast, interner: ctx.interner) == "context(Int) () -> String")
+    }
+
     private func renderTypeRef(_ typeRefID: TypeRefID, in ast: ASTModule, interner: StringInterner) -> String {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return "<invalid>"

@@ -157,7 +157,7 @@ public func kk_set_singleOrNull(_ setRaw: Int) -> Int {
     return set.elements[0]
 }
 
-@_cdecl("kk_collection_toList")
+@_cdecl("__kk_collection_toList")
 public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(elements: list.elements))
@@ -180,7 +180,7 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
-@_cdecl("kk_collection_size")
+@_cdecl("__kk_collection_size")
 public func kk_collection_size(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
         return list.elements.count
@@ -191,7 +191,7 @@ public func kk_collection_size(_ collRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_collection_isEmpty")
+@_cdecl("__kk_collection_isEmpty")
 public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
         return list.elements.isEmpty ? 1 : 0
@@ -456,7 +456,7 @@ private func runtimeMapDefaultValue(_ map: RuntimeMapBox, key: Int, outThrown: U
         return nil
     }
     var thrown = 0
-    let result = runtimeInvokeCollectionLambda1(
+    let result = runtimeInvokeCollectionLambda1MaybeWrapped(
         fnPtr: map.defaultValueFnPtr,
         closureRaw: map.defaultValueClosureRaw,
         value: key,
@@ -468,43 +468,21 @@ private func runtimeMapDefaultValue(_ map: RuntimeMapBox, key: Int, outThrown: U
     return result
 }
 
-@inline(__always)
-private func runtimeMapMissingKey(outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Key is not in the map.")
-    return 0
-}
-
-@_cdecl("kk_map_getValue")
-public func kk_map_getValue(_ mapRaw: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+/// Returns the `withDefault` value for `key`, or the null sentinel when the map
+/// carries no default. Kotlin's `Map.getValue` consults this after a plain
+/// lookup miss (KSP-431).
+@_cdecl("__kk_map_implicit_default")
+public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeMapMissingKey(outThrown: outThrown)
-    }
-    for (idx, mapKey) in map.keys.enumerated() where runtimeValuesEqual(mapKey, key) {
-        guard idx < map.values.count else {
-            break
-        }
-        return map.values[idx]
-    }
-    if let defaultValue = runtimeMapDefaultValue(map, key: key, outThrown: outThrown) {
-        return defaultValue
-    }
-    return runtimeMapMissingKey(outThrown: outThrown)
-}
-
-@_cdecl("kk_map_getOrDefault")
-public func kk_map_getOrDefault(_ mapRaw: Int, _ key: Int, _ defaultValue: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return defaultValue
-    }
-    for (idx, mapKey) in map.keys.enumerated() where runtimeValuesEqual(mapKey, key) {
-        guard idx < map.values.count else { return defaultValue }
-        return map.values[idx]
+    guard let map = runtimeMapBox(from: mapRaw),
+          let defaultValue = runtimeMapDefaultValue(map, key: key, outThrown: outThrown)
+    else {
+        return runtimeNullSentinelInt
     }
     return defaultValue
 }
 
-@_cdecl("kk_map_withDefault")
+@_cdecl("__kk_map_withDefault")
 public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return registerRuntimeObject(RuntimeMapBox(
@@ -522,22 +500,6 @@ public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
     ))
 }
 
-@_cdecl("kk_map_contains_key")
-public func kk_map_contains_key(_ mapRaw: Int, _ key: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(map.keys.contains(where: { runtimeValuesEqual($0, key) }) ? 1 : 0)
-}
-
-@_cdecl("kk_map_contains_value")
-public func kk_map_contains_value(_ mapRaw: Int, _ value: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(map.values.contains(where: { runtimeValuesEqual($0, value) }) ? 1 : 0)
-}
-
 @_cdecl("kk_map_is_empty")
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
@@ -546,23 +508,7 @@ public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     return kk_box_bool(map.keys.isEmpty ? 1 : 0)
 }
 
-@_cdecl("kk_map_keys")
-public func kk_map_keys(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(map.keys)))
-}
-
-@_cdecl("kk_map_values")
-public func kk_map_values(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: map.values))
-}
-
-@_cdecl("kk_map_entries")
+@_cdecl("__kk_map_entries")
 public func kk_map_entries(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return registerRuntimeObject(RuntimeSetBox(elements: []))
@@ -624,12 +570,4 @@ public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
     return utf8.withUnsafeBufferPointer { buf in
         kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
     }
-}
-
-@_cdecl("kk_map_to_mutable_map")
-public func kk_map_to_mutable_map(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-    }
-    return registerRuntimeObject(RuntimeMapBox(keys: map.keys, values: map.values))
 }

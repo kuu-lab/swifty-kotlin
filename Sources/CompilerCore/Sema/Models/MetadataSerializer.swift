@@ -12,6 +12,8 @@ package struct MetadataRecord {
     package let isSuspend: Bool
     package let isInline: Bool
     package let isOperator: Bool
+    /// Whether the member overrides a supertype member (`override` keyword).
+    package let isOverride: Bool
     let typeSignature: String?
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
@@ -82,6 +84,10 @@ package struct MetadataRecord {
     let propertyGetterAbiReturnTypeSignature: String?
     /// True for `var` properties/fields.
     package let isMutable: Bool
+    /// Declaration-order type parameters of a nominal type, encoded as
+    /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`), so consumers can
+    /// restore the generic arity used by constructor/member resolution.
+    let nominalTypeParameters: String?
 
     init(
         kind: SymbolKind,
@@ -91,6 +97,7 @@ package struct MetadataRecord {
         isSuspend: Bool = false,
         isInline: Bool = false,
         isOperator: Bool = false,
+        isOverride: Bool = false,
         typeSignature: String? = nil,
         valueParameterIsVararg: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -124,7 +131,8 @@ package struct MetadataRecord {
         propertyGetterExternalLinkName: String? = nil,
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
-        isMutable: Bool = false
+        isMutable: Bool = false,
+        nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -133,6 +141,7 @@ package struct MetadataRecord {
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isOperator = isOperator
+        self.isOverride = isOverride
         self.typeSignature = typeSignature
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -167,6 +176,7 @@ package struct MetadataRecord {
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
+        self.nominalTypeParameters = nominalTypeParameters
     }
 }
 
@@ -263,7 +273,12 @@ package final class MetadataEncoder {
                 }
                 // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
                 // These are compiler internals and are always re-injected on every compilation.
+                // Source-backed nominal types that reuse a synthetic shell carry a sourceFileID
+                // but leave declSite nil, so also filter by the tracked source file ID.
                 if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
+                    return false
+                }
+                if let sourceFileID = symbols.sourceFileID(for: symbol.id), excludeSourceFileIDs.contains(sourceFileID.rawValue) {
                     return false
                 }
                 return true
@@ -542,6 +557,7 @@ package final class MetadataEncoder {
         var isSuspend = false
         var isInline = false
         var isOperator = false
+        var isOverride = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -560,6 +576,7 @@ package final class MetadataEncoder {
             // no KIR body, and those must not try to load a missing inline-kir file.
             isInline = inlineFunctionSymbols.contains(symbol.id)
             isOperator = symbol.flags.contains(.operatorFunction)
+            isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
             valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
             canThrow = signature.canThrow
@@ -675,9 +692,17 @@ package final class MetadataEncoder {
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
         var enumStaticInitLinkName: String?
+        var nominalTypeParameters: String?
 
         if Self.nominalKinds.contains(symbol.kind) {
             superFQName = computedSuperFQName
+            nominalTypeParameters = serializeNominalTypeParameters(
+                for: symbol.id,
+                symbols: symbols,
+                types: types,
+                mangler: mangler,
+                interner: interner
+            )
             if let layout = symbols.nominalLayout(for: symbol.id) {
                 declaredInstanceSizeWords = layout.instanceSizeWords
                 declaredFieldCount = layout.instanceFieldCount
@@ -758,6 +783,7 @@ package final class MetadataEncoder {
             isSuspend: isSuspend,
             isInline: isInline,
             isOperator: isOperator,
+            isOverride: isOverride,
             typeSignature: typeSignature,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -791,8 +817,41 @@ package final class MetadataEncoder {
             propertyGetterExternalLinkName: propertyGetterExternalLinkName,
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
-            isMutable: isMutable
+            isMutable: isMutable,
+            nominalTypeParameters: nominalTypeParameters
         )
+    }
+
+    /// Encodes a nominal type's declaration-order type parameters as
+    /// `<typeSignature>:<variance>` pairs so importers can restore the generic
+    /// arity (constructor/member type-argument resolution needs it).
+    private func serializeNominalTypeParameters(
+        for symbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        mangler: NameMangler,
+        interner: StringInterner
+    ) -> String? {
+        let typeParameterSymbols = types.nominalTypeParameterSymbols(for: symbol)
+        guard !typeParameterSymbols.isEmpty else {
+            return nil
+        }
+        let variances = types.nominalTypeParameterVariances(for: symbol)
+        let entries: [String] = typeParameterSymbols.enumerated().map { index, typeParameterSymbol in
+            let encoded = mangler.encodeType(
+                types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol, nullability: .nonNull))),
+                symbols: symbols,
+                types: types,
+                nameResolver: { interner.resolve($0) }
+            )
+            let variance: String = switch index < variances.count ? variances[index] : .invariant {
+            case .invariant: "i"
+            case .out: "o"
+            case .in: "n"
+            }
+            return "\(encoded):\(variance)"
+        }
+        return entries.joined(separator: ",")
     }
 
     /// Nominal kinds that carry layout information in metadata.
@@ -820,6 +879,9 @@ package final class MetadataEncoder {
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
                 fields.append("inline=\(record.isInline ? 1 : 0)")
                 fields.append("operator=\(record.isOperator ? 1 : 0)")
+                if record.isOverride {
+                    fields.append("override=1")
+                }
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
@@ -909,6 +971,9 @@ package final class MetadataEncoder {
                 }
                 if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
                     fields.append("enumStaticInitLink=\(enumStaticInitLink)")
+                }
+                if let typeParams = record.nominalTypeParameters, !typeParams.isEmpty {
+                    fields.append("typeParams=\(typeParams)")
                 }
             }
             if record.isDataClass {
@@ -1153,6 +1218,7 @@ final class MetadataDecoder {
                 isSuspend: rec.isSuspend,
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
+                isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1186,7 +1252,8 @@ final class MetadataDecoder {
                 propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
-                isMutable: rec.isMutable
+                isMutable: rec.isMutable,
+                nominalTypeParameters: rec.nominalTypeParameters
             ))
         }
         return records
@@ -1201,6 +1268,7 @@ final class MetadataDecoder {
         var isSuspend: Bool = false
         var isInline: Bool = false
         var isOperator: Bool = false
+        var isOverride: Bool = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -1235,6 +1303,7 @@ final class MetadataDecoder {
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
+        var nominalTypeParameters: String?
         var schemaVersion: String?
     }
 
@@ -1250,6 +1319,8 @@ final class MetadataDecoder {
             record.isInline = value == "1" || value == "true"
         case "operator":
             record.isOperator = value == "1" || value == "true"
+        case "override":
+            record.isOverride = value == "1" || value == "true"
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "default":
@@ -1286,6 +1357,8 @@ final class MetadataDecoder {
             record.vtableSlots = value.isEmpty ? nil : value
         case "itableSlots":
             record.itableSlots = value.isEmpty ? nil : value
+        case "typeParams":
+            record.nominalTypeParameters = value.isEmpty ? nil : value
         case "objectInitLink":
             record.objectInitializerLinkName = value.isEmpty ? nil : value
         case "companionInitLink":

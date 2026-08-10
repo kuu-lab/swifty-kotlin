@@ -1,9 +1,12 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+#if canImport(Testing)
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendCollectionMutationAndAdvancedTests {
+    @Test
     func testCodegenCollectionConstructorsCopySourceElements() throws {
         let source = """
         fun main() {
@@ -33,6 +36,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CollectionConstructorCopyRuntime", expected: "2\n3\ntrue\nfalse\n3\ntrue\n3\ntrue\nfalse\n")
     }
 
+    @Test
     func testCodegenCollectionCopiesProduceIndependentMutableAndSetViews() throws {
         let source = """
         fun main() {
@@ -57,6 +61,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CollectionCopiesRuntime", expected: "[1, 2, 2]\n[1, 2, 2, 3]\n[1, 2]\ntrue\n{a=1}\n{a=1, b=2}\n")
     }
 
+    @Test
     func testCodegenListToMapKeepsLastValueForDuplicateKeys() throws {
         let source = """
         fun main() {
@@ -71,6 +76,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToMapRuntime", expected: "2\nuno\ntwo\nfalse\n")
     }
 
+    @Test
     func testCodegenListUnionUsesRuntimeSetOperation() throws {
         let source = """
         fun main() {
@@ -87,6 +93,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListUnionRuntime", expected: "5\ntrue\ntrue\nfalse\n")
     }
 
+    @Test
     func testCodegenCollectionAndIterableToMutableListReturnIndependentCopies() throws {
         let source = """
         fun main() {
@@ -107,6 +114,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CollectionIterableToMutableListRuntime", expected: "[1, 2, 3]\n[1, 2, 3, 4]\n[3, 1, 2]\n[3, 1, 2, 9]\n")
     }
 
+    @Test
     func testCodegenCollectionToListCopiesListAndSetReceivers() throws {
         let source = """
         fun main() {
@@ -124,6 +132,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CollectionToListRuntime", expected: "[1, 2, 3]\n[3, 1, 2]\ntrue\n")
     }
 
+    @Test
     func testCodegenCollectionToTypedArrayCopiesListAndSetReceivers() throws {
         let source = """
         fun main() {
@@ -144,6 +153,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CollectionToTypedArrayRuntime", expected: "[1, 2, 3]\n[1, 2, 3]\n[9, 2, 3]\n[3, 1, 2]\n3\n")
     }
 
+    @Test
     func testCodegenIterableToMutableSetDeduplicatesAndReturnsIndependentCopy() throws {
         let source = """
         fun main() {
@@ -159,6 +169,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "IterableToMutableSetRuntime", expected: "[3, 1, 2, 1]\n[3, 1, 2, 9]\ntrue\n")
     }
 
+    @Test
     func testCodegenListJoinToStringUsesRuntimeDefaultsAndNamedArguments() throws {
         let source = """
         fun main() {
@@ -173,6 +184,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListJoinToStringRuntime", expected: "1, 2, 3\n1 | 2 | 3\n<1, 2, 3>\n[1:2:3]\n")
     }
 
+    @Test
     func testCodegenSequenceJoinToStringUsesRuntimeDefaultsAndNamedArguments() throws {
         let source = """
         fun main() {
@@ -186,6 +198,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceJoinToStringRuntime", expected: "1, 2, 3\na-b-c\n<>\n[1:2:3]\n")
     }
 
+    @Test
     func testCodegenListMapNotNullAndFilterNotNullUseRuntimeHOFs() throws {
         let source = """
         fun main() {
@@ -201,6 +214,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMapNotNullAndFilterNotNullRuntime", expected: "[1, 0, 2]\n[a, b]\n")
     }
 
+    @Test
     func testCodegenListMaxByReturnsSelectedElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -218,6 +232,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMaxByRuntime", expected: "1\nempty\n")
     }
 
+    @Test
     func testCodegenListFilterNotUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -229,6 +244,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListFilterNotRuntime", expected: "[1, 3]\n")
     }
 
+    @Test
     func testCodegenListMaxByOrNullReturnsSelectedElementOrNull() throws {
         let source = """
         fun main() {
@@ -241,6 +257,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMaxByOrNullRuntime", expected: "1\nnull\n")
     }
 
+    @Test
     func testCodegenIterableFirstNotNullOfOrNullReturnsFirstValueOrNull() throws {
         let source = """
         fun main() {
@@ -254,6 +271,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "IterableFirstNotNullOfOrNullRuntime", expected: "hit\nnull\n")
     }
 
+    @Test
     func testCodegenListZipAndUnzipUseRuntimeHOFs() throws {
         let source = """
         fun main() {
@@ -268,6 +286,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListZipAndUnzipRuntime", expected: "[(1, a), (2, b)]\n([1, 2], [a, b])\n")
     }
 
+    @Test
     func testCodegenListTransformsUseRuntimeHelpers() throws {
         let source = """
         fun main() {
@@ -339,6 +358,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListTransformsRuntime", expected: "[3, 1, 2]\n[2, 1]\n[1, 2, 1, 3]\n[1, 1, 2, 3]\n[3, 1, 2]\n[3]\n[3, 1, 2]\n[3]\nnegative-prefix\n[3, 1, 2]\nthrown-suffix\nnegative-take\nnegative-drop\nnegative-param-take\n")
     }
 
+    @Test
     func testCodegenListElementAtUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -350,6 +370,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListElementAtRuntime", expected: "20\n")
     }
 
+    @Test
     func testCodegenMutableListFillUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -361,6 +382,7 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "MutableListFillRuntime", expected: "[9, 9, 9]\n")
     }
+    @Test
     func testCodegenListElementAtOrNullUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -373,6 +395,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListElementAtOrNullRuntime", expected: "20\n-1\n")
     }
 
+    @Test
     func testCodegenListAggregateHelpersUseRuntimeHelpers() throws {
         let source = """
         fun main() {
@@ -399,7 +422,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ListAggregateRuntime", emit: .llvmIR)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             // flatMap and the fold/*Indexed family are now bundled Kotlin source
@@ -407,26 +430,27 @@ extension CodegenBackendIntegrationTests {
             // helpers (__kk_list_get / __kk_list_size) and mutable add.  The
             // aggregate helpers that still lack source implementations continue
             // to call their runtime counterparts.
-            XCTAssertTrue(callees.contains("__kk_list_get"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("__kk_list_size") || callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("__kk_mutable_list_add"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
-            XCTAssertTrue(callees.contains("kk_list_minBy"))
-            XCTAssertTrue(callees.contains("kk_list_maxOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_minOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_minOfOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_minByOrNull"))
+            #expect(callees.contains("__kk_list_get"), "callees: \(callees.sorted())")
+            #expect(callees.contains("__kk_list_size") || callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
+            #expect(callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
+            #expect(callees.contains("__kk_mutable_list_add"), "callees: \(callees.sorted())")
+            #expect(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
+            #expect(callees.contains("kk_list_minBy"))
+            #expect(callees.contains("kk_list_maxOrNull"))
+            #expect(callees.contains("kk_list_minOrNull"))
+            #expect(callees.contains("kk_list_minOfOrNull"))
+            #expect(callees.contains("kk_list_minByOrNull"))
             // The old runtime entry points for source-backed HOFs must not appear
             // after lowering; their bodies have been expanded inline.
-            XCTAssertFalse(callees.contains("kk_list_flatMap"), "callees: \(callees.sorted())")
-            XCTAssertFalse(callees.contains("kk_list_find"), "callees: \(callees.sorted())")
-            XCTAssertFalse(callees.contains("kk_list_fold"), "callees: \(callees.sorted())")
-            XCTAssertFalse(callees.contains("kk_list_foldIndexed"), "callees: \(callees.sorted())")
-            XCTAssertFalse(callees.contains("kk_list_foldRightIndexed"), "callees: \(callees.sorted())")
+            #expect(!(callees.contains("kk_list_flatMap")), "callees: \(callees.sorted())")
+            #expect(!(callees.contains("kk_list_find")), "callees: \(callees.sorted())")
+            #expect(!(callees.contains("kk_list_fold")), "callees: \(callees.sorted())")
+            #expect(!(callees.contains("kk_list_foldIndexed")), "callees: \(callees.sorted())")
+            #expect(!(callees.contains("kk_list_foldRightIndexed")), "callees: \(callees.sorted())")
         }
     }
 
+    @Test
     func testCodegenListAverageUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -438,6 +462,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListAverageRuntime", expected: "4.0\n")
     }
 
+    @Test
     func testCodegenListMinOrNullReturnsSmallestElementAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -449,6 +474,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMinOrNullRuntime", expected: "2\ntrue\n")
     }
 
+    @Test
     func testCodegenListMinByOrNullReturnsSmallestSelectedElementAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -462,6 +488,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMinByOrNullRuntime", expected: "3\ntrue\n")
     }
 
+    @Test
     func testCodegenListMinByReturnsSmallestSelectedElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -479,6 +506,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMinByRuntime", expected: "3\nempty\n")
     }
 
+    @Test
     func testCodegenListMinReturnsSmallestElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -496,6 +524,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMinRuntime", expected: "1\nempty\n")
     }
 
+    @Test
     func testCodegenListMinOfWithOrNullReturnsComparatorSelectedValueAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -507,6 +536,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMinOfOrNullRuntime", expected: "20\ntrue\n")
     }
 
+    @Test
     func testCodegenMapFilterValuesReturnsFilteredEntries() throws {
         let source = """
         fun main() {
@@ -518,6 +548,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapFilterValuesRuntime", expected: "{b=2}\n")
     }
 
+    @Test
     func testCodegenMapHigherOrderHelpersUseRuntimeHelpers() throws {
         let source = """
         fun main() {
@@ -538,6 +569,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapHigherOrderRuntime", expected: "a=1\nb=2\n[a:10, b:20]\n{b=2}\n{a=10, b=20}\n{a!=1, b!=2}\n{b=2}\n[(a, 1), (b, 2)]\n[a:2, b:3]\n")
     }
 
+    @Test
     func testCodegenMapPropertyAccessesUseRuntimeHelpers() throws {
         let source = """
         fun main() {
@@ -551,6 +583,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MapPropertyRuntime", expected: "[a, b]\n[1, 2]\n[a=1, b=2]\n")
     }
 
+    @Test
     func testCodegenListAssociateHelpersUseRuntimeMapBuilders() throws {
         let source = """
         fun main() {
@@ -562,6 +595,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListAssociateRuntime", expected: "{1=30, 0=20}\n")
     }
 
+    @Test
     func testCodegenListAssociateWithUsesRuntimeMapBuilder() throws {
         let source = """
         fun main() {
@@ -573,6 +607,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListAssociateWithRuntime", expected: "{1=10, 2=20, 3=30}\n")
     }
 
+    @Test
     func testCodegenListAssociateByUsesRuntimeMapBuilder() throws {
         let source = """
         fun main() {
@@ -585,6 +620,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListAssociateByRuntime", expected: "{1=3, 0=2}\n{1=30, 0=20}\n")
     }
 
+    @Test
     func testCodegenListIndexedHelpersUseRuntimeHOFs() throws {
         let source = """
         fun main() {
@@ -600,6 +636,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListIndexedHelpersRuntime", expected: "1\n12\n[1, 3]\n[30, 40]\n")
     }
 
+    @Test
     func testCodegenListFilterIsInstanceUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -611,6 +648,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListFilterIsInstanceRuntime", expected: "[1, 3]\n")
     }
 
+    @Test
     func testCodegenStringContainsEmptyNeedleReturnsTrue() throws {
         let source = """
         fun main() {
@@ -621,6 +659,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "StringContainsEmptyNeedle", expected: "true\n")
     }
 
+    @Test
     func testCodegenRepeatDelayCancellationReachesLocalCatch() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -650,6 +689,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "RepeatDelayCancellation", expected: "cancelled\ndone\n")
     }
 
+    @Test
     func testCodegenCoroutineCancellationExtensionImportWorks() throws {
         let source = """
         import kotlin.coroutines.cancellation.cancel
@@ -678,6 +718,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CoroutineCancellationExtensionImportWorks", expected: "cancelled\ndone\n")
     }
 
+    @Test
     func testCodegenSuspendCoroutineReturnsResumedValue() throws {
         let source = """
         import kotlin.coroutines.*
@@ -696,6 +737,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SuspendCoroutineRuntime", expected: "42\n")
     }
 
+    @Test
     func testCodegenSuspendCoroutinePropagatesResumedException() throws {
         let source = """
         import kotlin.coroutines.*
@@ -718,6 +760,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SuspendCoroutineRuntimeException", expected: "boom\n")
     }
 
+    @Test
     func testCodegenEmitsObjectWhenLlvmBindingsAreRequired() throws {
         let source = "fun main() = 0"
         try withTemporaryFile(contents: source) { path in
@@ -740,12 +783,13 @@ extension CodegenBackendIntegrationTests {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            let objectPath = try XCTUnwrap(ctx.generatedObjectPath)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
-            XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+            let objectPath = try #require(ctx.generatedObjectPath)
+            #expect(FileManager.default.fileExists(atPath: objectPath))
+            #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
         }
     }
 
+    @Test
     func testLLVMBackendNativeFailureReportsEmissionError() throws {
         let diagnostics = DiagnosticEngine()
         let interner = StringInterner()
@@ -779,17 +823,18 @@ extension CodegenBackendIntegrationTests {
             .appendingPathComponent("out.o")
             .path
 
-        XCTAssertThrowsError(
+        #expect(throws: (any Error).self) {
             try backend.emitObject(
                 module: module,
                 outputObjectPath: missingObjectPath,
                 interner: interner
             )
-        )
-        XCTAssertTrue(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-BACKEND-1006" })
-        XCTAssertFalse(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-BACKEND-1005" })
+        }
+        #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-BACKEND-1006" })
+        #expect(!(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-BACKEND-1005" }))
     }
 
+    @Test
     func testCodegenListMaxWithReturnsLargestElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -807,6 +852,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListMaxWithRuntime", expected: "4\nempty\n")
     }
 
+    @Test
     func testCodegenListToTypeArrayUsesTypedArrayRuntime() throws {
         let source = """
         fun main() {
@@ -821,3 +867,62 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToTypeArrayRuntime", expected: "3\n3\n2\n[3, 1, 2]\n")
     }
 }
+
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+private func assertKotlinOutput(
+    _ source: String,
+    moduleName: String,
+    expected: String
+) throws {
+    try withTemporaryFile(contents: source) { path in
+        let outputBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        let ctx = try runCodegenPipeline(
+            inputPath: path,
+            moduleName: moduleName,
+            emit: .executable,
+            outputPath: outputBase
+        )
+        try LinkPhase().run(ctx)
+        let result = try CommandRunner.run(executable: outputBase, arguments: [])
+        let normalizedStdout = result.stdout
+            .replacingOccurrences(of: "\r\n", with: "\n")
+        #expect(normalizedStdout == expected)
+    }
+}
+#endif
