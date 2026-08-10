@@ -32,16 +32,6 @@ struct SystemNamespaceSemaOverloadTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func systemPkgStdlibSpecialCallKind(
-        for name: String,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> StdlibSpecialCallKind? {
-        let fq = ["kotlin", "system", name].map { interner.intern($0) }
-        guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
-        return sema.symbols.stdlibSpecialCallKind(forSymbol: sym)
-    }
-
     private func systemPkgIsDeclared(
         _ name: String,
         sema: SemaModule,
@@ -51,6 +41,8 @@ struct SystemNamespaceSemaOverloadTests {
         return !sema.symbols.lookupAll(fqName: fq).isEmpty
     }
 
+    /// All runtime link names registered anywhere in the module, used to assert
+    /// that the bundled __kk_system_* bridges exist (KSP-617).
     private func allExternalLinks(sema: SemaModule) -> Set<String> {
         Set(sema.symbols.allSymbols().compactMap { sema.symbols.externalLinkName(for: $0.id) })
     }
@@ -61,8 +53,8 @@ struct SystemNamespaceSemaOverloadTests {
     func testKotlinSystemSymbolsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        // KSP-617: the public surface lives in bundled Kotlin source; only the
-        // OS entry points remain as private `__kk_system_*` bridges.
+        // KSP-617: the public surface lives in bundled Kotlin source; the OS
+        // entry points are private __kk_system_* bridges.
         let publicTopLevelFunctions = [
             "exitProcess",
             "getTimeMicros",
@@ -81,9 +73,11 @@ struct SystemNamespaceSemaOverloadTests {
                 systemPkgExternalLink(for: name, sema: sema, interner: interner) == nil,
                 "kotlin.system.\(name) must not be an external runtime declaration"
             )
+            let fq = ["kotlin", "system", name].map { interner.intern($0) }
+            let symbol = try #require(sema.symbols.lookup(fqName: fq))
             #expect(
-                systemPkgStdlibSpecialCallKind(for: name, sema: sema, interner: interner) == nil,
-                "kotlin.system.\(name) must resolve without a StdlibSpecialCallKind"
+                sema.symbols.isSourceBackedSymbol(symbol),
+                "kotlin.system.\(name) should resolve to bundled Kotlin source"
             )
         }
 
@@ -121,9 +115,9 @@ struct SystemNamespaceSemaOverloadTests {
 
     // MARK: - STDLIB-SYSTEM-002: Sema overload resolution
 
-    /// Verifies that calls to kotlin.system top-level functions and System object members
-    /// resolve to the expected types, special call kinds, and runtime links in a single
-    /// Sema pass.
+    /// Verifies that calls to kotlin.system top-level functions resolve through
+    /// ordinary source-backed declarations, while System object members retain
+    /// their existing synthetic shims.
     @Test
     func testKotlinSystemCallExpressionsResolve() throws {
         let source = """
@@ -132,6 +126,9 @@ struct SystemNamespaceSemaOverloadTests {
         fun measureMillisSample(): Long = measureTimeMillis { }
         fun measureMicrosSample(): Long = measureTimeMicros { }
         fun measureNanosSample(): Long = measureNanoTime { }
+        fun getMillisSample(): Long = getTimeMillis()
+        fun getMicrosSample(): Long = getTimeMicros()
+        fun getNanosSample(): Long = getTimeNanos()
         fun exitProcessSample() { exitProcess(0) }
         fun currentTimeMillisSample(): Long = System.currentTimeMillis()
         fun nanoTimeSample(): Long = System.nanoTime()
@@ -152,11 +149,14 @@ struct SystemNamespaceSemaOverloadTests {
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        // Table of top-level calls: (name, expectedReturnType)
+        // Table of ordinary source-backed top-level calls: (name, return type).
         let topLevelCalls: [(String, TypeID)] = [
             ("measureTimeMillis", sema.types.longType),
             ("measureTimeMicros", sema.types.longType),
             ("measureNanoTime", sema.types.longType),
+            ("getTimeMillis", sema.types.longType),
+            ("getTimeMicros", sema.types.longType),
+            ("getTimeNanos", sema.types.longType),
             ("exitProcess", sema.types.nothingType),
         ]
 
@@ -180,23 +180,23 @@ struct SystemNamespaceSemaOverloadTests {
 
             #expect(
                 sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil,
-                "\(name) must resolve as an ordinary bundled call"
+                "\(name) must not use a stdlib special-call path"
             )
 
-            // KSP-617: every kotlin.system call now binds to the bundled Kotlin
-            // declaration instead of a runtime link.
             let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected a chosen callee for \(name)"
             )
+            let fqName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
+                .map { interner.resolve($0) }
+            #expect(fqName == ["kotlin", "system", name], "Unexpected callee: \(fqName)")
             #expect(
-                sema.symbols.symbol(chosenCallee)?.fqName.map { interner.resolve($0) }
-                    == ["kotlin", "system", name],
-                "\(name) must bind to kotlin.system.\(name)"
+                sema.symbols.isSourceBackedSymbol(chosenCallee),
+                "\(name) must resolve to bundled Kotlin source"
             )
             #expect(
                 sema.symbols.externalLinkName(for: chosenCallee) == nil,
-                "\(name) must not bind to an external runtime declaration"
+                "\(name) must not expose a runtime link"
             )
         }
 
