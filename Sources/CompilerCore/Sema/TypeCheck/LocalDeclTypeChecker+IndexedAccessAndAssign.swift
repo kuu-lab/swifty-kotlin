@@ -312,7 +312,22 @@ extension LocalDeclTypeChecker {
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
 
-        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: setValueExpectedType)
+        // Only pass concrete wideable numeric types as the expected type;
+        // generic element types (e.g. MutableMap.set value type T) should
+        // not influence inference of non-literal values.
+        let valueExpectedType: TypeID? = {
+            guard let setValueExpectedType else { return nil }
+            let nonNull = sema.types.makeNonNullable(setValueExpectedType)
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNull),
+                  primitive == .long || primitive == .uint || primitive == .ulong ||
+                  primitive == .byte || primitive == .short
+            else {
+                return nil
+            }
+            return nonNull
+        }()
+
+        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
 
         if !setCandidates.isEmpty {
             // Resolve via operator fun set

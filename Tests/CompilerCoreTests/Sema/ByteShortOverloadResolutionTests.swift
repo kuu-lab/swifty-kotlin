@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-/// BUG-184: Byte/Short overloads must be distinct and resolve to the correct overload.
+/// BUG-187: Byte/Short overloads must be distinct and resolve to the correct overload.
 @Suite
 struct ByteShortOverloadResolutionTests {
     @Test func testByteAndShortOverloadsAccepted() throws {
@@ -34,6 +34,23 @@ struct ByteShortOverloadResolutionTests {
             return ctx.interner.resolve(callee) == "toShort"
         }, "Expected 1.toShort() call")
         #expect(sema.bindings.exprType(for: toShortCall) == sema.types.shortType, "1.toShort() should have type Short")
+    }
+
+    @Test func testByteAndShortArrayLiteralNarrowing() throws {
+        let source = """
+        fun main() {
+            val bytes = byteArrayOf(1, 2, 3)
+            bytes[0] = 9
+            val shorts = shortArrayOf(1, 2, 3)
+            shorts[0] = 9
+            bytes.binarySearch(3)
+            shorts.binarySearch(2)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Expected Byte/Short array indexing and binarySearch with int literals to resolve without errors: \(ctx.diagnostics.diagnostics.map { $0.message })")
     }
 }
 #endif

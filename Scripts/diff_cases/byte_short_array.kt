@@ -6,4 +6,11 @@ fun main() {
     println(bytes[3])
     println(shorts.size)
     println(shorts[2])
+
+    bytes[0] = 9
+    shorts[0] = 9
+    println(bytes[0])
+    println(shorts[0])
+    println(bytes.binarySearch(0x80.toByte()))
+    println(shorts.binarySearch(9))
 }

@@ -51,12 +51,10 @@ extension CallTypeChecker {
             case .callableRef:
                 break
             case .intLiteral:
-                if inferredNonLambdaArgTypes[index] != nil {
-                    continue
-                }
-                // An unsuffixed int literal must see the candidates' parameter
-                // type (e.g. Long) before inference, or it defaults to Int and
-                // every candidate rejects it (`Millis(1500)` with `value: Long`).
+                // Always re-infer an unsuffixed int literal against the surviving
+                // candidates' parameter type, even if a previous pass already gave
+                // it a default Int. This lets member calls like
+                // `shortArray.binarySearch(20)` narrow to Short/Byte.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
                     candidates: candidates,
@@ -66,13 +64,12 @@ extension CallTypeChecker {
                     argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
                 )
             case .unaryExpr(let op, let operandID, _):
-                if inferredNonLambdaArgTypes[index] != nil {
-                    continue
-                }
                 guard (op == .unaryPlus || op == .unaryMinus),
                       case .intLiteral = ast.arena.expr(operandID)
                 else {
-                    inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                    if inferredNonLambdaArgTypes[index] == nil {
+                        inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                    }
                     continue
                 }
                 // Constant-folded unary +/- over an int literal should see the
