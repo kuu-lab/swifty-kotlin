@@ -635,26 +635,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_contains_key",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_contains_value",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_map_is_empty",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
@@ -719,40 +699,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_getValue",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_getOrDefault",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-                RuntimeABIParameter(name: "defaultValue", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_getOrElse",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_withDefault",
+            name: "__kk_map_withDefault",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -761,6 +708,16 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_map_implicit_default",
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "key", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: stdlibMapHOFName("filterKeys", arity: 1, fallback: "kk_map_filterKeys"),
@@ -831,25 +788,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_keys",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_values",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_entries",
+            name: "__kk_map_entries",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
@@ -911,15 +850,6 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_toList",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_map_plus",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
@@ -934,15 +864,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "key", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_map_to_mutable_map",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",
@@ -2392,18 +2313,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_mutable_map_getOrPut",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_mutable_map_putAll",
