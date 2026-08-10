@@ -804,10 +804,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BUG-185: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
+        // BUG-173: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
         // Regex): Boolean`. This stub previously omitted the operator flag (defaulting to plain
         // `[.synthetic]`); corrected here to match. Note `regex in "text"` still does not resolve
-        // correctly via the `in` operator even with this flag set — see BUG-185 in TODO.md for the
+        // correctly via the `in` operator even with this flag set — see BUG-173 in TODO.md for the
         // deeper (still open) candidate-discovery gap in `inferContainsCallBinding`. Direct calls
         // (`"text".contains(regex)`) are unaffected and work correctly either way.
         registerSyntheticStringExtensionFunction(

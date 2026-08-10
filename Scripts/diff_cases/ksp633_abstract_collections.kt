@@ -8,7 +8,7 @@
 // (`--stdlib-library`, which is how this harness compiles cases) imported classes
 // lose their declared modality, so inheriting from them is rejected. That gap is
 // pre-existing (it reproduces on the pre-KSP-633 synthetic declarations too) and is
-// tracked as BUG-183.
+// tracked as BUG-198.
 
 class BagIterator(private val items: ArrayList<Int>) : MutableIterator<Int> {
     private var index = 0

@@ -266,7 +266,7 @@ extension DeclTypeChecker {
         // the ordinary call-argument inference above never visits it, so without
         // this, none of its identifiers -- not even a reference to an unrelated
         // outer instance field like `initCount` in `lazy { initCount += 1; ... }`
-        // -- get bound by Sema at all (BUG-170). Bind the lambda's own synthetic
+        // -- get bound by Sema at all (BUG-200). Bind the lambda's own synthetic
         // parameters (empty for `lazy`) using the same symbol scheme KIR lowering
         // allocates them with, then type-check the body in the same `ctx` used
         // for this property's getter/initializer above so implicit-`this` member

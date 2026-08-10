@@ -189,7 +189,7 @@ final class DeclTypeChecker {
 
         if let delegateExpr = property.delegateExpression {
             var delegateLocals: LocalBindings = [:]
-            // DEBT-KIR-008/BUG-170: a stdlib delegate factory's trailing lambda
+            // DEBT-KIR-008/BUG-200: a stdlib delegate factory's trailing lambda
             // (delegateBody) is parsed as a separate FunctionBody from
             // delegateExpression specifically so KIR lowering can repackage it
             // into a standalone synthetic function, so ordinary call-argument
