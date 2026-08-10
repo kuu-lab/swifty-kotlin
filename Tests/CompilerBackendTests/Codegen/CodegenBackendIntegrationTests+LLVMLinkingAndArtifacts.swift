@@ -984,7 +984,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         appendParsingCall("kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
         appendParsingCall("__kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("__kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToInt_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToShort_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToUByte_flat", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
@@ -1047,7 +1046,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             "kk_string_toByte_radix",
             "kk_string_toByteOrNull",
             "__kk_string_toBigDecimal",
-            "__kk_string_toBigInteger",
         ]
         for rawName in rawNames {
             #expect(!ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")

@@ -1425,12 +1425,6 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigInteger_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
                 "__kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toByteArray_flat",
                     stringArgumentCount: 1,
