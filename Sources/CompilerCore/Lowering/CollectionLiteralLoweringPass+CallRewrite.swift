@@ -45,8 +45,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
             || callee == lookup.mapIndexedNotNullToName
-            // KSP-441: Sequence source flatMap/flatMapIndexed is routed through the
-            // runtime pipeline; non-Sequence source flatMap is preserved.
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
             || callee == lookup.flatMapToName
@@ -101,17 +99,25 @@ extension CollectionLiteralConstructionLoweringPass {
         // rewrite to kk_sequence_take/kk_sequence_drop when the receiver is known
         // to be a runtime Sequence box.
         //
-        // flatMap/flatMapIndexed are *not* preserved here: the bundled source
-        // implementations use overloaded extension object-expressions whose
-        // nested Iterator itable registration is broken (KSP-441). The lowering
-        // pipeline rewrites them to kk_sequence_flatMap/kk_sequence_flatMapIndexed
-        // in rewriteSequencePipelineCall instead.
-        if (callee == lookup.takeName || callee == lookup.dropName),
-           let receiverID = arguments.first,
-           state.sequenceExprIDs.contains(receiverID.rawValue) {
+        // The same applies to map/filter: source Sequence.map walks a source
+        // Sequence object via iterator(), but RuntimeSequenceBox (from
+        // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
+        // must go through kk_sequence_map/filter.
+        if let receiverID = arguments.first,
+           state.sequenceExprIDs.contains(receiverID.rawValue),
+           callee == lookup.takeName
+            || callee == lookup.dropName
+            || callee == lookup.mapName
+            || callee == lookup.filterName
+        {
             return false
         }
-        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName),
+        // A Sequence-typed receiver may still be a RuntimeSequenceBox at run
+        // time (e.g. a parameter fed by asSequence()), which the source
+        // iterator cannot walk. flatMap/flatMapIndexed are excluded: their
+        // bundled source implementations traverse the receiver through the
+        // shared iterator bridge and are the KSP-441 source pipeline.
+        if (callee == lookup.mapName || callee == lookup.filterName),
            isSequenceReceiverType(symbol: symbol, ctx: ctx) {
             return false
         }

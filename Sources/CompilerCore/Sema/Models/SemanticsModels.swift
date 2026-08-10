@@ -1272,6 +1272,12 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Tracks expressions whose expected type comes from a type annotation
+    /// written in source (a property or local declaration's `: Type`), as
+    /// opposed to an expected type the compiler synthesized while inferring a
+    /// call. Only source-declared expected types are authoritative enough to
+    /// contradict an explicit lambda parameter annotation with `Any`.
+    public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -1297,6 +1303,12 @@ public final class BindingTable {
     /// lowering needs this durable side-channel to know what type to load a
     /// captured field back as.
     public private(set) var capturedLocalTypesBySymbol: [SymbolID: TypeID] = [:]
+    /// Maps a destructuring declaration (or `for (a, b) in ...`) expression to the
+    /// `componentN` function chosen per position. Names like `component1` are
+    /// shared by several declarations (Pair, user extensions, bundled stdlib
+    /// extensions), so KIR lowering must dispatch on the resolved symbol rather
+    /// than re-resolving by name.
+    public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
 
     public init() {}
 
@@ -1345,6 +1357,14 @@ public final class BindingTable {
 
     public func bindCatchClause(_ catchBodyExpr: ExprID, binding: CatchClauseBinding) {
         catchClauseBindings[catchBodyExpr] = binding
+    }
+
+    public func bindDestructuringComponentCallee(_ expr: ExprID, index: Int, symbol: SymbolID) {
+        destructuringComponentCallees[expr, default: [:]][index] = symbol
+    }
+
+    public func destructuringComponentCallee(for expr: ExprID, index: Int) -> SymbolID? {
+        destructuringComponentCallees[expr]?[index]
     }
 
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {
@@ -1711,6 +1731,17 @@ public final class BindingTable {
     /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
         coroutineLauncherLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark an expression as checked against a source-written type annotation
+    /// (see `sourceDeclaredExpectedTypeExprIDs`).
+    public func markSourceDeclaredExpectedType(_ expr: ExprID) {
+        sourceDeclaredExpectedTypeExprIDs.insert(expr)
+    }
+
+    /// Whether the expression's expected type was written in source.
+    public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
+        sourceDeclaredExpectedTypeExprIDs.contains(expr)
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.

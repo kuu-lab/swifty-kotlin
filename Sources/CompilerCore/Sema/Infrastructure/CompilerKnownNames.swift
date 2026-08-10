@@ -208,7 +208,6 @@ package struct KnownCompilerNames {
     let linkedHashSet: InternedString
     let collection: InternedString
     let mutableCollection: InternedString
-    let arrayDeque: InternedString
     let array: InternedString
     let intArray: InternedString
     let longArray: InternedString
@@ -266,8 +265,6 @@ package struct KnownCompilerNames {
     let simpleName: InternedString
     let qualifiedName: InternedString
     let isInstanceName: InternedString
-    let kClassCastName: InternedString
-    let kClassSafeCastName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
     let primaryConstructorName: InternedString
@@ -353,7 +350,6 @@ package struct KnownCompilerNames {
     let kotlinCollectionsLinkedHashSetFQName: [InternedString]
     let kotlinCollectionsMapFQName: [InternedString]
     let kotlinCollectionsMutableMapFQName: [InternedString]
-    let kotlinCollectionsArrayDequeFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
@@ -400,7 +396,6 @@ package struct KnownCompilerNames {
         linkedHashSet = interner.intern("LinkedHashSet")
         collection = interner.intern("Collection")
         mutableCollection = interner.intern("MutableCollection")
-        arrayDeque = interner.intern("ArrayDeque")
         array = interner.intern("Array")
         intArray = interner.intern("IntArray")
         longArray = interner.intern("LongArray")
@@ -458,8 +453,6 @@ package struct KnownCompilerNames {
         simpleName = interner.intern("simpleName")
         qualifiedName = interner.intern("qualifiedName")
         isInstanceName = interner.intern("isInstance")
-        kClassCastName = interner.intern("cast")
-        kClassSafeCastName = interner.intern("safeCast")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
         primaryConstructorName = interner.intern("primaryConstructor")
@@ -555,7 +548,6 @@ package struct KnownCompilerNames {
         kotlinCollectionsLinkedHashSetFQName = [kotlin, kotlinCollections, linkedHashSet]
         kotlinCollectionsMapFQName = [kotlin, kotlinCollections, map]
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
-        kotlinCollectionsArrayDequeFQName = [kotlin, kotlinCollections, arrayDeque]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
@@ -784,10 +776,6 @@ package struct KnownCompilerNames {
         symbol.name == mutableSet || symbol.name == linkedHashSet
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
-    }
-
-    func isArrayDequeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == arrayDeque || symbolMatches(symbol, fqName: kotlinCollectionsArrayDequeFQName)
     }
 
     func isSetLikeSymbol(_ symbol: SemanticSymbol) -> Bool {

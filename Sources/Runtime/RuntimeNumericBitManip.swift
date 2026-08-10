@@ -5,21 +5,9 @@
 
 // MARK: - STDLIB-BIT-007: Additional bit manipulation functions
 
-@_cdecl("kk_int_rotateLeft")
-public func kk_int_rotateLeft(_ value: Int, _ distance: Int) -> Int {
-    let u = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
-    let d = UInt32(truncatingIfNeeded: distance) & 31
-    guard d != 0 else { return Int(Int32(bitPattern: u)) }
-    return Int(Int32(bitPattern: (u << d) | (u >> (32 - d))))
-}
-
-@_cdecl("kk_int_rotateRight")
-public func kk_int_rotateRight(_ value: Int, _ distance: Int) -> Int {
-    let u = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
-    let d = UInt32(truncatingIfNeeded: distance) & 31
-    guard d != 0 else { return Int(Int32(bitPattern: u)) }
-    return Int(Int32(bitPattern: (u >> d) | (u << (32 - d))))
-}
+// KSP-642: rotateLeft / rotateRight are implemented in bundled Kotlin source
+// (`Stdlib/kotlin/Numbers.kt`) using shl / ushr / or, so no runtime entrypoint
+// is needed for them.
 
 @_cdecl("kk_int_highestOneBit")
 public func kk_int_highestOneBit(_ value: Int) -> Int {
@@ -64,22 +52,6 @@ public func kk_long_countLeadingZeroBits(_ value: Int) -> Int {
 @_cdecl("kk_long_countTrailingZeroBits")
 public func kk_long_countTrailingZeroBits(_ value: Int) -> Int {
     value.trailingZeroBitCount
-}
-
-@_cdecl("kk_long_rotateLeft")
-public func kk_long_rotateLeft(_ value: Int, _ distance: Int) -> Int {
-    let u = UInt(bitPattern: value)
-    let d = UInt(truncatingIfNeeded: distance) & 63
-    guard d != 0 else { return value }
-    return Int(bitPattern: (u << d) | (u >> (64 - d)))
-}
-
-@_cdecl("kk_long_rotateRight")
-public func kk_long_rotateRight(_ value: Int, _ distance: Int) -> Int {
-    let u = UInt(bitPattern: value)
-    let d = UInt(truncatingIfNeeded: distance) & 63
-    guard d != 0 else { return value }
-    return Int(bitPattern: (u >> d) | (u << (64 - d)))
 }
 
 @_cdecl("kk_long_highestOneBit")

@@ -22,9 +22,7 @@ fun main() {
     println(v1 < v2)
     println(v1 > v2)
     println(v1.compareTo(v2))
-    // BUG-170: maxOfTwo(v1, v2) on this erased `T : Comparable<T>` bound with a
-    // user-defined class receiver falls back to raw heap-pointer comparison
-    // instead of calling Version.compareTo; excluded here pending that fix.
+    println(maxOfTwo(v1, v2).minor)
 
     println(maxOfTwo(3, 7))
     println(maxOfTwo("apple", "banana"))

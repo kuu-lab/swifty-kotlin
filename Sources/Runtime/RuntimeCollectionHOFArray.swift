@@ -17,7 +17,14 @@ public func kk_array_map(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        mapped.append(maybeUnbox(result))
+        // The transform's return type is boxing-boundary Any (KIR's ABILoweringPass
+        // already boxes primitives on the way out of the closure, e.g. kk_box_bool
+        // for a Boolean-returning transform), and this result is stored verbatim
+        // into the output list for later generic (boxed) consumption. Unboxing it
+        // here would strip that type tag, so e.g. a Boolean/Char transform result
+        // would render as a raw 0/1 or code point instead of true/false or the
+        // character once the list is later stringified.
+        mapped.append(result)
     }
     return registerRuntimeObject(RuntimeListBox(elements: mapped))
 }

@@ -1270,7 +1270,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // Pinned<T>.get(): T — STDLIB-CINTEROP-FN-009
-        registerSyntheticNativeBitSetMemberFunction(
+        registerSyntheticNativeMemberFunction(
             named: "get",
             ownerSymbol: pinnedSymbol,
             receiverType: pinnedType,
@@ -1284,7 +1284,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // Pinned<T>.unpin(): Unit — STDLIB-CINTEROP-FN-009
-        registerSyntheticNativeBitSetMemberFunction(
+        registerSyntheticNativeMemberFunction(
             named: "unpin",
             ownerSymbol: pinnedSymbol,
             receiverType: pinnedType,

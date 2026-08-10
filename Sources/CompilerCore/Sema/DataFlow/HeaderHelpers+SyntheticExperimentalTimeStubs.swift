@@ -3,8 +3,8 @@
 /// Registers:
 /// - `@ExperimentalTime`
 /// - `TimeSource` with nested `WithComparableMarks`, `Monotonic`, `markNow()`, and `asClock()`
-/// - `TimeMark` with elapsed/boolean checks and +/- Duration
-/// - `ComparableTimeMark` with TimeMark operations plus mark-to-mark diff/comparison
+/// - `TimeMark` / `ComparableTimeMark` nominal types (their operations are Kotlin source,
+///   see `Stdlib/kotlin/time/TimeMark.kt`)
 /// - `AbstractDoubleTimeSource` / `AbstractLongTimeSource` / `TestTimeSource` surfaces
 extension DataFlowSemaPhase {
     func registerSyntheticExperimentalTimeStubs(
@@ -73,9 +73,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let boolType = types.make(.primitive(.boolean, .nonNull))
-        let intType = types.intType
-
         let timeMarkSymbol = ensureClassSymbol(
             named: "TimeMark",
             in: kotlinTimePkg,
@@ -100,133 +97,10 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        registerExperimentalTimeMemberFunction(
-            named: "elapsedNow",
-            externalLinkName: "kk_time_mark_elapsed_now",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasPassedNow",
-            externalLinkName: "kk_time_mark_has_passed_now",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasNotPassedNow",
-            externalLinkName: "kk_time_mark_has_not_passed_now",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "plus",
-            externalLinkName: "kk_time_mark_plus_duration",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: timeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_time_mark_minus_duration",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: timeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-
-        registerExperimentalTimeMemberFunction(
-            named: "elapsedNow",
-            externalLinkName: "kk_time_mark_elapsed_now",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasPassedNow",
-            externalLinkName: "kk_time_mark_has_passed_now",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasNotPassedNow",
-            externalLinkName: "kk_time_mark_has_not_passed_now",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "plus",
-            externalLinkName: "kk_time_mark_plus_duration",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_time_mark_minus_duration",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_time_mark_minus_mark",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "other", type: comparableTimeMarkType)],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "compareTo",
-            externalLinkName: "kk_time_mark_compare",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "other", type: comparableTimeMarkType)],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
+        // KSP-648: TimeMark / ComparableTimeMark members (elapsedNow, hasPassedNow,
+        // hasNotPassedNow, plus/minus Duration, mark-to-mark minus, compareTo) are Kotlin
+        // extensions in Stdlib/kotlin/time/TimeMark.kt. Only the nominal types stay
+        // synthetic so that markNow() and friends can refer to them.
 
         let timeSourceSymbol = ensureInterfaceSymbol(
             named: "TimeSource",
