@@ -41,9 +41,9 @@ private func extractSuperCallFlagsAcrossOverrides(
 
 @Suite
 struct SuperCallAndQualifiedThisTests {
-    // MARK: - super.method() / qualified super isSuperCall flags in KIR
+    // MARK: - super.method(), qualified super, and regular member-call isSuperCall flags in KIR
 
-    @Test func testSuperCallAndQualifiedSuperKIR() throws {
+    @Test func testSuperCallAndRegularCallKIR() throws {
         let sources: [String] = [
             """
             open class Base {
@@ -65,6 +65,12 @@ struct SuperCallAndQualifiedThisTests {
                 fun callLeft(): String = default1()
             }
             """,
+            """
+            class Greeter {
+                fun greet(): String = "hello"
+                fun callGreet(): String = this.greet()
+            }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -73,7 +79,7 @@ struct SuperCallAndQualifiedThisTests {
 
             #expect(
                 !(ctx.diagnostics.hasError),
-                "Expected super call programs to compile without sema errors, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+                "Expected super/regular call programs to compile without sema errors, got: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let module = try #require(ctx.kir)
@@ -88,6 +94,18 @@ struct SuperCallAndQualifiedThisTests {
             }
 
             do {
+                let body = try findKIRFunctionBody(named: "callGreet", in: module, interner: ctx.interner)
+                let flags = extractSuperCallFlags(from: body, interner: ctx.interner)
+
+                let greetCall = flags.first { $0.callee == "greet" }
+                #expect(greetCall != nil, "Expected a call to 'greet' in callGreet() body.")
+                #expect(
+                    !(greetCall?.isSuperCall ?? true),
+                    "Expected this.greet() to have isSuperCall=false, got: \(flags)"
+                )
+            }
+
+            do {
                 let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
                 #expect(
                     dumpOutput.contains("super=1"),
@@ -98,42 +116,6 @@ struct SuperCallAndQualifiedThisTests {
                     "Expected KIR dump to contain 'qualifiedSuper=' for qualified super call, got:\n\(dumpOutput)"
                 )
             }
-        }
-    }
-
-    @Test func testRegularMemberCallHasIsSuperCallFalse() throws {
-        let source = """
-        class Greeter {
-            fun greet(): String = "hello"
-            fun callGreet(): String = this.greet()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected regular call program to compile without errors."
-            )
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "callGreet", in: module, interner: ctx.interner)
-            let flags = extractSuperCallFlags(from: body, interner: ctx.interner)
-
-            let greetCall = flags.first { $0.callee == "greet" }
-            #expect(greetCall != nil, "Expected a call to 'greet' in callGreet() body.")
-            #expect(
-                !(greetCall?.isSuperCall ?? true),
-                "Expected this.greet() to have isSuperCall=false, got: \(flags)"
-            )
-
-            let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-            #expect(
-                !(dumpOutput.contains("super=1")),
-                "Regular call dump should not contain 'super=1', got:\n\(dumpOutput)"
-            )
         }
     }
 
