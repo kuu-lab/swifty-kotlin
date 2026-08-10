@@ -75,11 +75,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
-        registerCompareBySingleSelectorPostBundled(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
             types: types,

@@ -1,24 +1,12 @@
 // String higher-order functions (iterator, chunked, windowed, zip,
 // commonPrefix/Suffix, and advanced HOFs).
 // Split out from `RuntimeStringStdlib.swift`.
-// KSP-410: filter/filterNot/any/all/none/count/find/findLast/onEach/
-// partition/sumBy/sumByDouble/filterIndexed/onEachIndexed and the whole
-// reduce/fold family (reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull/
-// reduceRight/reduceRightOrNull/reduceRightIndexed/reduceRightIndexedOrNull/
-// fold/foldIndexed/foldRight/foldRightIndexed) moved to bundled Kotlin
-// source (Stdlib/kotlin/text/StringHOF.kt) — all avoid named labels in
-// their function-type parameters (workaround for BUG-169, see TODO.md).
-// BUG-170: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay here because
-// inferring a lone generic `R` from a nullable-returning (`R?`) lambda body
-// without an explicit type argument/expected type fails with "Type
-// constraint could not be satisfied". See TODO.md BUG-170.
-// BUG-171: map/mapIndexed stay here because a bundled `fun <R> X.f(transform:
-// (Char) -> R): List<R>` silently returns raw unboxed scalars instead of
-// boxed elements whenever `R` resolves to `Char`/`Boolean` (e.g.
-// `"abc".map { it }` prints `[97, 98, 99]` instead of `[a, b, c]`). Not
-// String-specific (reproduces with any receiver) and not avoidable from
-// Kotlin source — the bad unbox is inside the lambda's own compiled body.
-// See TODO.md BUG-171.
+// KSP-410: filter/filterNot/map/mapIndexed/mapNotNull/any/all/none/count/
+// find/findLast/firstNotNullOf/firstNotNullOfOrNull/onEach/onEachIndexed/
+// partition/sumBy/sumByDouble/filterIndexed and the whole reduce/fold family
+// moved to bundled Kotlin source (Stdlib/kotlin/text/StringHOF.kt) — all
+// avoid named labels in their function-type parameters (workaround for
+// BUG-169, see TODO.md).
 
 import Foundation
 
@@ -415,16 +403,9 @@ public func kk_string_zipTransform_flat(
     )
 }
 
-// MARK: - STDLIB-192: equals(other, ignoreCase)
-
-@_cdecl("kk_string_equalsIgnoreCase")
-public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    if otherRaw == runtimeNullSentinelInt {
-        return kk_box_bool(0)
-    }
-    let cmp = kk_string_compareToIgnoreCase(strRaw, otherRaw, ignoreCaseRaw)
-    return kk_box_bool(cmp == 0 ? 1 : 0)
-}
+// MARK: - STDLIB-192: equals(other)
+// KSP-413: equals(other, ignoreCase) is bundled Kotlin source
+// (Stdlib/kotlin/text/StringComparison.kt).
 
 @_cdecl("kk_string_equals")
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
@@ -523,197 +504,4 @@ public func __kk_string_joinToString(
     _ strListRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int
 ) -> Int {
     kk_string_joinToString(strListRaw, separatorRaw, prefixRaw, postfixRaw)
-}
-
-// MARK: - BUG-171: map / mapIndexed (blocked, see file header)
-
-@_cdecl("kk_string_map")
-public func kk_string_map(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return strRaw }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var mappedElements: [RuntimeValue] = []
-    for scalar in scalars {
-        var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        mappedElements.append(runtimeStringHOFElementValue(result))
-    }
-    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
-}
-
-@_cdecl("kk_string_map_flat")
-public func kk_string_map_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_map(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-}
-
-@_cdecl("kk_string_mapIndexed")
-public func kk_string_mapIndexed(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return strRaw }
-    var mappedElements: [RuntimeValue] = []
-    for (index, scalar) in scalars.enumerated() {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: index,
-            rhs: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        mappedElements.append(runtimeStringHOFElementValue(result))
-    }
-    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
-}
-
-@_cdecl("kk_string_mapIndexed_flat")
-public func kk_string_mapIndexed_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_mapIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-}
-
-// MARK: - BUG-170: mapNotNull / firstNotNullOf(OrNull) (blocked, see file header)
-
-@_cdecl("kk_string_mapNotNull")
-public func kk_string_mapNotNull(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return strRaw }
-    var mappedElements: [RuntimeValue] = []
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        if result != runtimeNullSentinelInt {
-            mappedElements.append(runtimeStringHOFElementValue(result))
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
-}
-
-@_cdecl("kk_string_mapNotNull_flat")
-public func kk_string_mapNotNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_mapNotNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-}
-
-@_cdecl("kk_string_firstNotNullOf")
-public func kk_string_firstNotNullOf(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        if result != 0, let normalized = runtimeMapNotNullResultValue(result) {
-            return normalized
-        }
-    }
-    outThrown?.pointee = runtimeAllocateNoSuchElementException(
-        message: "No element of the char sequence was transformed to a non-null value."
-    )
-    return 0
-}
-
-@_cdecl("kk_string_firstNotNullOf_flat")
-public func kk_string_firstNotNullOf_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_firstNotNullOf(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-}
-
-@_cdecl("kk_string_firstNotNullOfOrNull")
-public func kk_string_firstNotNullOfOrNull(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return runtimeNullSentinelInt
-        }
-        if result != 0, let normalized = runtimeMapNotNullResultValue(result) {
-            return normalized
-        }
-    }
-    return runtimeNullSentinelInt
-}
-
-@_cdecl("kk_string_firstNotNullOfOrNull_flat")
-public func kk_string_firstNotNullOfOrNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_firstNotNullOfOrNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }

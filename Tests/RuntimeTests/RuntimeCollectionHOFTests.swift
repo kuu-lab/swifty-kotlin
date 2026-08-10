@@ -326,14 +326,9 @@ private let adjacentDifference: @convention(c) (Int, Int, Int, UnsafeMutablePoin
     right - left
 }
 
-private let returnSeven: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in
+private let throwForMapDefault: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
     gHOFState.addCall()
-    return 7
-}
-
-private let throwForGetOrPut: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-    gHOFState.addCall()
-    outThrown?.pointee = runtimeAllocateThrowable(message: "test getOrPut throw")
+    outThrown?.pointee = runtimeAllocateThrowable(message: "test map default throw")
     return 123
 }
 
@@ -1538,12 +1533,12 @@ struct RuntimeCollectionHOFTests {
         #expect(gHOFState.sumSnapshot() == 123)
 
         var thrown = 0
-        #expect(kk_map_getValue(map, 2, &thrown) == 21)
+        #expect(kk_map_get(map, 2) == 21)
+        let defaulted = kk_map_withDefault(map, unsafeBitCast(mapTimesTwo, to: Int.self), 0)
+        #expect(kk_map_implicit_default(defaulted, 9, &thrown) == 18)
         #expect(thrown == 0)
-        #expect(kk_map_getValue(kk_map_withDefault(map, unsafeBitCast(mapTimesTwo, to: Int.self), 0), 9, &thrown) == 18)
+        #expect(kk_map_implicit_default(map, 9, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
-        #expect(kk_map_getValue(map, 9, &thrown) == 0)
-        #expect(thrown != 0)
 
         let mapped = kk_map_map(map, unsafeBitCast(mapEntrySum, to: Int.self), 0, nil)
         #expect(listElements(mapped) == [11, 23, 35])
@@ -1573,7 +1568,7 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testMapValuesMapKeysAndToListUsePairEntries() {
+    func testMapValuesAndMapKeysUsePairEntries() {
         let keys = makeArray([1, 2, 1])
         let values = makeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
@@ -1587,10 +1582,6 @@ struct RuntimeCollectionHOFTests {
         #expect(mapKeys(mappedKeys) == [101, 102])
         #expect(kk_map_get(mappedKeys, 101) == 32)
         #expect(kk_map_get(mappedKeys, 102) == 21)
-
-        let list = kk_map_toList(map)
-        #expect(listElements(list).map { kk_pair_first($0) } == [1, 2])
-        #expect(listElements(list).map { kk_pair_second($0) } == [32, 21])
     }
 
     @Test
@@ -1667,18 +1658,15 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testMapKeysValuesEntriesProperties() {
+    func testMapEntriesMaterializesKeyValuePairs() {
         let keys = makeArray([1, 2, 1])
         let values = makeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
 
-        #expect(setElements(kk_map_keys(map)) == [1, 2])
-        #expect(listElements(kk_map_values(map)) == [32, 21])
-
         let entries = setElements(kk_map_entries(map))
         #expect(entries.count == 2)
         #expect(entries.map { kk_pair_first($0) } == mapKeys(map))
-        #expect(entries.map { kk_pair_second($0) } == listElements(kk_map_values(map)))
+        #expect(entries.map { kk_pair_second($0) } == mapValues(map))
     }
 
     @Test
@@ -1687,7 +1675,7 @@ struct RuntimeCollectionHOFTests {
         let updated = kk_map_plus(corruptedMap, kk_pair_new(3, 99))
 
         #expect(mapKeys(updated) == [1, 2, 3])
-        #expect(listElements(kk_map_values(updated)) == [10, 20, 99])
+        #expect(mapValues(updated) == [10, 20, 99])
     }
 
     @Test
@@ -1696,7 +1684,7 @@ struct RuntimeCollectionHOFTests {
         let updated = kk_map_minus(corruptedMap, 2)
 
         #expect(mapKeys(updated) == [1])
-        #expect(listElements(kk_map_values(updated)) == [10])
+        #expect(mapValues(updated) == [10])
     }
 
     @Test
@@ -1710,42 +1698,17 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testMutableMapGetOrPutPreservesStoredRuntimeLongBoxAtNullSentinelValue() {
-        let boxedLongMin = registerRuntimeObject(RuntimeLongBox(runtimeNullSentinelInt))
-        let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [boxedLongMin]))
-
-        gHOFState.reset()
-        let result = kk_mutable_map_getOrPut(map, 1, unsafeBitCast(returnSeven, to: Int.self), 0, nil)
-
-        #expect(gHOFState.callsSnapshot() == 0)
-        #expect(result == boxedLongMin)
-        #expect(kk_map_get(map, 1) == boxedLongMin)
-    }
-
-    @Test
-    func testMutableMapGetOrPutInsertsValueForMissingKey() {
+    func testMapImplicitDefaultPropagatesThrowingDefaultLambda() {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-
-        gHOFState.reset()
-        let result = kk_mutable_map_getOrPut(map, 1, unsafeBitCast(returnSeven, to: Int.self), 0, nil)
-
-        #expect(gHOFState.callsSnapshot() == 1)
-        #expect(result == 7)
-        #expect(kk_map_get(map, 1) == 7)
-    }
-
-    @Test
-    func testMutableMapGetOrPutReturnsZeroWhenLambdaThrowsForExistingNullEntry() {
-        let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [runtimeNullSentinelInt]))
+        let defaulted = kk_map_withDefault(map, unsafeBitCast(throwForMapDefault, to: Int.self), 0)
 
         gHOFState.reset()
         var thrown = 0
-        let result = kk_mutable_map_getOrPut(map, 1, unsafeBitCast(throwForGetOrPut, to: Int.self), 0, &thrown)
+        let result = kk_map_implicit_default(defaulted, 1, &thrown)
 
         #expect(gHOFState.callsSnapshot() == 1)
         #expect(result == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
-        #expect(kk_map_get(map, 1) == runtimeNullSentinelInt)
     }
 
     @Test
@@ -1756,7 +1719,7 @@ struct RuntimeCollectionHOFTests {
         _ = kk_mutable_map_putAll(target, source)
 
         #expect(mapKeys(target) == [1, 2, 3])
-        #expect(listElements(kk_map_values(target)) == [10, 20, 30])
+        #expect(mapValues(target) == [10, 20, 30])
     }
 
     @Test
@@ -1795,7 +1758,7 @@ struct RuntimeCollectionHOFTests {
         #expect(listElements(collectionCopy) == [1, 2, 3, 4])
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
-        let iterableCopy = kk_iterable_toMutableList(setSource)
+        let iterableCopy = kk_collection_toMutableList(setSource)
 
         #expect(listElements(iterableCopy) == [3, 1, 2])
         #expect(kk_unbox_bool(kk_mutable_list_add(iterableCopy, 9)) == 1)
@@ -1899,8 +1862,6 @@ struct RuntimeCollectionHOFTests {
         let keys = makeArray([1, 2])
         let values = makeArray([10, 20])
         let map = kk_map_of(keys, values, 2)
-        #expect(kk_unbox_bool(kk_map_contains_key(map, 2)) == 1)
-        #expect(kk_unbox_bool(kk_map_contains_key(map, 9)) == 0)
         #expect(kk_unbox_bool(kk_map_is_empty(map)) == 0)
         #expect(kk_unbox_bool(kk_map_is_empty(kk_map_of(0, 0, 0))) == 1)
     }
@@ -1937,43 +1898,6 @@ struct RuntimeCollectionHOFTests {
         #expect(arrayElements(kk_list_toUShortArray(makeList([1, 65_535]))) == [1, 65_535])
         #expect(arrayElements(kk_list_toUIntArray(makeList([1, 4_000_000_000]))) == [1, 4_000_000_000])
         #expect(arrayElements(kk_list_toULongArray(makeList([1, -1]))) == [1, -1])
-    }
-
-    @Test
-    func testBooleanListToPrimitiveArrayConversionCopiesElements() {
-        let list = makeList([kk_box_bool(1), kk_box_bool(0), kk_box_bool(1)])
-        #expect(arrayElements(kk_list_toBooleanArray(list)) == [1, 0, 1])
-    }
-
-    @Test
-    func testByteListToPrimitiveArrayConversionCopiesElements() {
-        #expect(arrayElements(kk_list_toByteArray(makeList([1, -2, 127]))) == [1, -2, 127])
-    }
-
-    @Test
-    func testShortListToPrimitiveArrayConversionCopiesElements() {
-        #expect(arrayElements(kk_list_toShortArray(makeList([1, -2, 32767]))) == [1, -2, 32767])
-    }
-
-    @Test
-    func testIntListToPrimitiveArrayConversionCopiesElements() {
-        #expect(arrayElements(kk_list_toIntArray(makeList([1, -2, 1_000_000]))) == [1, -2, 1_000_000])
-    }
-
-    @Test
-    func testDoubleListToPrimitiveArrayConversionCopiesElements() {
-        let first = kk_double_to_bits(1.5)
-        let second = kk_double_to_bits(-2.25)
-        let list = makeList([kk_box_double(first), kk_box_double(second)])
-        #expect(arrayElements(kk_list_toDoubleArray(list)) == [first, second])
-    }
-
-    @Test
-    func testFloatListToPrimitiveArrayConversionCopiesElements() {
-        let first = kk_float_to_bits(1.5)
-        let second = kk_float_to_bits(-2.25)
-        let list = makeList([kk_box_float(first), kk_box_float(second)])
-        #expect(arrayElements(kk_list_toFloatArray(list)) == [first, second])
     }
 
     @Test
@@ -2044,6 +1968,10 @@ struct RuntimeCollectionHOFTests {
         return set.elements
     }
 
+    private func mapValues(_ mapRaw: Int) -> [Int] {
+        runtimeMapBox(from: mapRaw)?.values ?? []
+    }
+
     private func mapKeys(_ mapRaw: Int) -> [Int] {
         let iterator = kk_map_iterator(mapRaw)
         var keys: [Int] = []
@@ -2073,12 +2001,8 @@ struct RuntimeCollectionHOFTests {
         )
 
         #expect(mapKeys(result) == [1, 0])
-
-        var thrown = 0
-        #expect(kk_map_getValue(result, 1, &thrown) == 30)
-        #expect(thrown == 0)
-        #expect(kk_map_getValue(result, 0, &thrown) == 20)
-        #expect(thrown == 0)
+        #expect(kk_map_get(result, 1) == 30)
+        #expect(kk_map_get(result, 0) == 20)
     }
 
     @Test

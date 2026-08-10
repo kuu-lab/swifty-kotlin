@@ -1,12 +1,25 @@
+/// `Collection` -> `Iterable` supertype edge, registered once so that boxes
+/// tagged as `List`/`Set` answer `is Collection<*>` / `is Iterable<*>` (and the
+/// erased `as Iterable<T>` cast) through the ordinary assignability walk.
+private let collectionRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection")
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+    )
+    return id
+}()
+
 let listRuntimeTypeID: Int64 = {
-    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-    for byte in "kotlin.collections.List".utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 0x100_0000_01B3
-    }
-    let payloadMask: Int64 = (1 << 55) - 1
-    let payload = Int64(bitPattern: hash) & payloadMask
-    return payload == 0 ? 1 : payload
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.List")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    return id
+}()
+
+let setRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    return id
 }()
 
 private let mapEntryRuntimeTypeID: Int64 = {
@@ -330,6 +343,7 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
     } else if box is RuntimeSetBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: setRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
     } else if type(of: box) == RuntimeArrayBox.self {
@@ -471,7 +485,36 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
     if raw == runtimeNullSentinelInt {
         return nil
     }
-    return maybeUnbox(raw)
+    // `raw` is a transform's return value, already boxed by KIR's ABILoweringPass
+    // for its Any-typed return (see kk_array_map's comment). Callers store or
+    // forward this verbatim into a generically-typed collection/result, so it
+    // must stay boxed here too — unboxing would strip the type tag a later
+    // Boolean/Char render depends on.
+    return raw
+}
+
+/// IEEE754 bit pattern of a boxed `Double`/`Float`, or nil when `raw` is not
+/// one of those boxes. Unlike `maybeUnbox`, which leaves floating-point boxes
+/// as pointers, this exposes the payload so a box can be compared against a
+/// raw (never-boxed) floating-point word — the representation a `Double`
+/// argument still has when it reaches a generic `T` parameter.
+func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
+        return Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern))
+    }
+    if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
+        return Int(floatBox.value.bitPattern)
+    }
+    return nil
 }
 
 func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
@@ -490,6 +533,15 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         rhsPtr.map { state.objectPointers.contains(UInt(bitPattern: $0)) } ?? false
     }
     if lhsIsObjectPointer != rhsIsObjectPointer {
+        // Boxed Double/Float vs a raw floating-point word: compare bit
+        // patterns, matching Kotlin's boxed `equals` (NaN equals NaN,
+        // -0.0 does not equal 0.0). maybeUnbox leaves those boxes as
+        // pointers, so it would report every such pair unequal.
+        let boxedSide = lhsIsObjectPointer ? lhs : rhs
+        let rawSide = lhsIsObjectPointer ? rhs : lhs
+        if let bitPattern = runtimeFloatingBoxBitPattern(boxedSide) {
+            return bitPattern == rawSide
+        }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
@@ -523,15 +575,18 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         return lhsULong.value == rhsULong.value
     }
+    // Boxed floating-point equality follows Kotlin's `Double.equals`/
+    // `Float.equals` (bit pattern), not IEEE `==`: NaN equals NaN and
+    // -0.0 does not equal 0.0.
     if let lhsFloat = tryCast(lhsPtr, to: RuntimeFloatBox.self),
        let rhsFloat = tryCast(rhsPtr, to: RuntimeFloatBox.self)
     {
-        return lhsFloat.value == rhsFloat.value
+        return lhsFloat.value.bitPattern == rhsFloat.value.bitPattern
     }
     if let lhsDouble = tryCast(lhsPtr, to: RuntimeDoubleBox.self),
        let rhsDouble = tryCast(rhsPtr, to: RuntimeDoubleBox.self)
     {
-        return lhsDouble.value == rhsDouble.value
+        return lhsDouble.value.bitPattern == rhsDouble.value.bitPattern
     }
     if let lhsChar = tryCast(lhsPtr, to: RuntimeCharBox.self),
        let rhsChar = tryCast(rhsPtr, to: RuntimeCharBox.self)
@@ -970,10 +1025,7 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     if let lhsString = runtimeStringFromRawValue(lhs),
        let rhsString = runtimeStringFromRawValue(rhs)
     {
-        if lhsString == rhsString {
-            return 0
-        }
-        return lhsString < rhsString ? -1 : 1
+        return runtimeCompareStrings(lhsString, rhsString)
     }
     if let lhsScalar = runtimeComparableScalarValue(from: lhs),
        let rhsScalar = runtimeComparableScalarValue(from: rhs)
