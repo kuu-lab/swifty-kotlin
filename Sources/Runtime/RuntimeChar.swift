@@ -102,11 +102,10 @@ public func kk_char_toCodePoint(_ high: Int, _ low: Int) -> Int {
     return ((highValue - 0xD800) << 10) + (lowValue - 0xDC00) + 0x10000
 }
 
-// KSP-662: Char 変換系 (uppercase/lowercase/titlecase(Char)/digitToInt(OrNull)/
-// digitToChar) は kotlin.text の純 Kotlin 実装へ移行済み。ここには Unicode
-// ケースマッピング表とロケール依存変換だけを行うブリッジ (__kk_char_*) を残す。
+// KSP-662: Char conversions now live in bundled Kotlin. Retain only the __kk_char_*
+// bridges that provide Unicode case-mapping data and locale-aware conversions.
 
-/// Unicode 完全大文字マッピング ('ß' → "SS" のような多文字マッピングを含む)。
+/// Full Unicode uppercase mapping, including multi-scalar mappings such as ß -> "SS".
 @_cdecl("__kk_char_uppercase_string")
 public func __kk_char_uppercase_string(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -115,7 +114,7 @@ public func __kk_char_uppercase_string(_ code: Int) -> Int {
     return charRuntimeMakeStringRaw(String(scalar).uppercased())
 }
 
-/// Unicode 完全小文字マッピング。
+/// Full Unicode lowercase mapping.
 @_cdecl("__kk_char_lowercase_string")
 public func __kk_char_lowercase_string(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -124,7 +123,7 @@ public func __kk_char_lowercase_string(_ code: Int) -> Int {
     return charRuntimeMakeStringRaw(String(scalar).lowercased())
 }
 
-/// Unicode タイトルケースマッピング。
+/// Full Unicode titlecase mapping.
 @_cdecl("__kk_char_titlecase_string")
 public func __kk_char_titlecase_string(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -133,7 +132,7 @@ public func __kk_char_titlecase_string(_ code: Int) -> Int {
     return charRuntimeMakeStringRaw(scalar.properties.titlecaseMapping)
 }
 
-/// 単一符号位置に収まる大文字マッピング。多文字マッピングや未定義は -1。
+/// One-to-one uppercase mapping; returns -1 for multi-scalar or undefined mappings.
 @_cdecl("__kk_char_uppercase_code")
 public func __kk_char_uppercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -142,7 +141,7 @@ public func __kk_char_uppercase_code(_ code: Int) -> Int {
     return runtimeSingleUnicodeScalarValue(scalar.properties.uppercaseMapping) ?? -1
 }
 
-/// 単一符号位置に収まる小文字マッピング。未定義は -1。
+/// One-to-one lowercase mapping; returns -1 for undefined mappings.
 @_cdecl("__kk_char_lowercase_code")
 public func __kk_char_lowercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -151,7 +150,7 @@ public func __kk_char_lowercase_code(_ code: Int) -> Int {
     return runtimeFirstUnicodeScalarValue(String(scalar).lowercased(), fallback: -1)
 }
 
-/// 単一符号位置に収まるタイトルケースマッピング。多文字・未定義は -1。
+/// One-to-one titlecase mapping; returns -1 for multi-scalar or undefined mappings.
 @_cdecl("__kk_char_titlecase_code")
 public func __kk_char_titlecase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -182,7 +181,7 @@ public func __kk_char_lowercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
     return charRuntimeMakeStringRaw(String(scalar).lowercased(with: box.locale))
 }
 
-/// `kotlin.text.digitOf` 相当: radix 上限を適用する前の生の桁値。桁でなければ -1。
+/// Equivalent to `kotlin.text.digitOf` before applying the radix bound; returns -1 for non-digits.
 @_cdecl("__kk_char_digit_value")
 public func __kk_char_digit_value(_ code: Int) -> Int {
     charDigitValueForRadix(code)

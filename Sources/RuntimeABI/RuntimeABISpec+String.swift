@@ -1541,8 +1541,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // KSP-662: Char 変換系の Kotlin 化に伴い残す Unicode ケースマッピング・
-        // ロケール依存変換・digitOf テーブル参照ブリッジ。
+        // KSP-662: Bridges retained for Unicode case mapping, locale-aware
+        // conversion, and digitOf table lookup after moving Char conversions to Kotlin.
         RuntimeABIFunctionSpec(
             name: "__kk_char_uppercase_string",
             parameters: [

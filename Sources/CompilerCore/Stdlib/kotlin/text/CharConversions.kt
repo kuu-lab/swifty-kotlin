@@ -2,34 +2,34 @@ package kotlin.text
 
 import kotlin.internal.KsSymbolName
 
-// KSP-662: Char 変換系は純 Kotlin で実装し、Unicode ケースマッピング表と
-// ロケール依存変換だけを Swift ランタイムの 1 行ブリッジ (__kk_char_*) に残す。
+// KSP-662: Implement Char conversions in Kotlin and retain only one-line Swift
+// bridges (__kk_char_*) for Unicode case-mapping data and locale-aware conversions.
 
-/// Unicode 完全大文字マッピング（'ß' → "SS" のような多文字マッピングを含む）。
+/// Full Unicode uppercase mapping, including multi-scalar mappings such as ß -> "SS".
 @KsSymbolName("__kk_char_uppercase_string")
 internal external fun __charUppercaseString(code: Int): String
 
-/// Unicode 完全小文字マッピング。
+/// Full Unicode lowercase mapping.
 @KsSymbolName("__kk_char_lowercase_string")
 internal external fun __charLowercaseString(code: Int): String
 
-/// Unicode タイトルケースマッピング。
+/// Full Unicode titlecase mapping.
 @KsSymbolName("__kk_char_titlecase_string")
 internal external fun __charTitlecaseString(code: Int): String
 
-/// 単一符号位置に収まる大文字マッピング。多文字マッピングや未定義は -1。
+/// One-to-one uppercase mapping; returns -1 for multi-scalar or undefined mappings.
 @KsSymbolName("__kk_char_uppercase_code")
 internal external fun __charUppercaseCode(code: Int): Int
 
-/// 単一符号位置に収まる小文字マッピング。未定義は -1。
+/// One-to-one lowercase mapping; returns -1 for undefined mappings.
 @KsSymbolName("__kk_char_lowercase_code")
 internal external fun __charLowercaseCode(code: Int): Int
 
-/// 単一符号位置に収まるタイトルケースマッピング。多文字・未定義は -1。
+/// One-to-one titlecase mapping; returns -1 for multi-scalar or undefined mappings.
 @KsSymbolName("__kk_char_titlecase_code")
 internal external fun __charTitlecaseCode(code: Int): Int
 
-/// kotlin.text.digitOf 相当: radix 上限を適用する前の生の桁値。桁でなければ -1。
+/// Equivalent to kotlin.text.digitOf before applying the radix bound; returns -1 for non-digits.
 @KsSymbolName("__kk_char_digit_value")
 internal external fun __charDigitValue(code: Int): Int
 
@@ -39,7 +39,7 @@ internal external fun __charUppercaseLocale(code: Int, locale: java.util.Locale)
 @KsSymbolName("__kk_char_lowercase_locale")
 internal external fun __charLowercaseLocale(code: Int, locale: java.util.Locale): String
 
-/// 符号位置から Char を作る (既存の Int.toChar() 変換を再利用)。
+/// Builds a Char from a code point by reusing the existing Int.toChar() conversion.
 @KsSymbolName("kk_int_to_char")
 internal external fun __charFromCode(code: Int): Char
 
@@ -108,7 +108,7 @@ private fun charCheckRadix(radix: Int) {
     }
 }
 
-/// radix 上限まで含めた桁値を返す。桁でなければ -1。
+/// Returns the digit value after applying the radix bound, or -1 when invalid.
 private fun charDigitOf(char: Char, radix: Int): Int {
     charCheckRadix(radix)
     val digit = __charDigitValue(char.code)

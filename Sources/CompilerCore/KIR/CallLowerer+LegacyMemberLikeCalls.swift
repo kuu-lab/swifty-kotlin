@@ -1156,8 +1156,8 @@ extension CallLowerer {
         }
 
         // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
-        // KSP-662: digitToInt / digitToIntOrNull は bundled Kotlin
-        // (kotlin.text.CharConversions) が解決するため特例を持たない。
+        // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
+        // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, interner.resolve(calleeName) == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {

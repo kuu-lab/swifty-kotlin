@@ -310,9 +310,8 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-662: Char 変換系は bundled Kotlin (kotlin.text.CharConversions) で実装され、
-    // Unicode ケースマッピングと digitOf テーブル参照だけを __kk_char_* ブリッジ経由で
-    // 行う。移行後の変換が実際にコンパイル・実行され正しい結果を返すことを検証する。
+    // KSP-662: Char conversions are bundled in kotlin.text.CharConversions.
+    // Only Unicode case mapping and digit-table lookup cross the __kk_char_* bridges.
     @Test
     func testCharConversionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(

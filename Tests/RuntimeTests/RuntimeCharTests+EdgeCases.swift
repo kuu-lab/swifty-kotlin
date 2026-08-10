@@ -358,7 +358,7 @@ struct RuntimeCharEdgeCaseTests {
         #expect(!boolValue(kk_char_isTitleCase(Int(("A" as UnicodeScalar).value))))
     }
 
-    // MARK: - KSP-662: __kk_char_digit_value (radix 判定は Kotlin 側で行う)
+    // MARK: - KSP-662: __kk_char_digit_value (Kotlin applies the radix bound)
 
     @Test
     func testDigitValueBoundariesAscii() {
@@ -368,7 +368,7 @@ struct RuntimeCharEdgeCaseTests {
 
     @Test
     func testDigitValueOfLetterIsAboveBase10Range() {
-        // 'a' は radix 10 では桁ではないが、生の桁値としては 10。
+        // 'a' is invalid in radix 10 but its raw digit value is 10.
         #expect(__kk_char_digit_value(Int(("a" as UnicodeScalar).value)) == 10)
     }
 
