@@ -1,5 +1,5 @@
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.ranges.ClosedRange kind=interface vis=public flags=synthetic
+symbol fq=kotlin.ranges.ClosedRange kind=interface vis=public flags=_
 symbol fq=kotlin.ranges.ClosedRange.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.ranges.ClosedRange.contains kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.ranges.ClosedRange<kotlin.ranges.ClosedRange.T> params=[kotlin.ranges.ClosedRange.T] ret=Boolean type=(kotlin.ranges.ClosedRange.T) -> Boolean
 symbol fq=kotlin.ranges.ClosedRange.contains.value kind=valueParameter vis=private flags=synthetic

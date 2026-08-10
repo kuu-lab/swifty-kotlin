@@ -42,7 +42,7 @@ import Testing
         """)
     }
 
-    @Test func testDeepRecursiveFunctionExtensionCallRecursiveResolves() throws {
+    @Test func testDeepRecursiveFunctionCallRecursiveResolves() throws {
         let source = """
         fun wrapper(other: DeepRecursiveFunction<Int, Int>): DeepRecursiveFunction<Int, Int> =
             DeepRecursiveFunction<Int, Int>({ n ->
@@ -71,11 +71,11 @@ import Testing
                 return false
             }
             let fqName = symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
-            return sema.symbols.functionSignature(for: symbol.id)?.isSuspend == true
-                && fqName == "kotlin.DeepRecursiveScope.callRecursive"
+            return sema.symbols.externalLinkName(for: symbol.id) == "__kk_deep_recursive_function_callRecursive"
+                && fqName == "kotlin.DeepRecursiveFunction.callRecursive"
         })
 
-        #expect(resolved, "Expected DeepRecursiveScope.callRecursive extension overload to resolve")
+        #expect(resolved, "Expected DeepRecursiveFunction.callRecursive member to resolve")
     }
 
     @Test func testDeepRecursiveSymbolsExposeExpectedSignatures() throws {
@@ -98,11 +98,14 @@ import Testing
         let invokeSignature = try #require(sema.symbols.functionSignature(for: invokeSymbol))
         #expect(!(invokeSignature.isSuspend))
 
+        // The recursion trampoline lives in the runtime, so the bundled Kotlin
+        // source declares a single non-suspend `callRecursive` per type.
         let callRecursiveSymbols = sema.symbols.lookupAll(fqName: scopeCallFQName)
-        #expect(callRecursiveSymbols.count == 2, "Expected plain and extension callRecursive overloads")
-        #expect(callRecursiveSymbols.allSatisfy { symbolID in
-            sema.symbols.functionSignature(for: symbolID)?.isSuspend == true
-        })
+        #expect(callRecursiveSymbols.count == 1)
+        let callRecursiveSymbol = try #require(callRecursiveSymbols.first)
+        let callRecursiveSignature = try #require(sema.symbols.functionSignature(for: callRecursiveSymbol))
+        #expect(callRecursiveSignature.parameterTypes.count == 1)
+        #expect(!(callRecursiveSignature.isSuspend))
     }
 }
 #endif

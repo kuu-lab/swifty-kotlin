@@ -276,6 +276,8 @@ extension CallLowerer {
         "maxBy", "minBy", "max", "min", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull", "maxOrNull", "minOrNull",
         "plus", "plusElement", "minus", "minusElement",
         "asSequence", "asIterable", "toList", "toSet", "toMap", "toCollection", "toMutableList", "toMutableSet", "toSortedSet", "toTypedArray",
+        // Kept for non-List receivers (Set / Iterable): List receivers are
+        // source-backed since KSP-628 and no longer reach this path.
         "toBooleanArray", "toCharArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray",
         "take", "takeWhile", "takeLast", "drop", "reversed", "asReversed", "sorted", "distinct", "flatten", "chunked", "windowed", "collect", "subList",
         "sortedDescending", "sortedByDescending", "sortedWith", "partition",

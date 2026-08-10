@@ -36,3 +36,140 @@ public fun <T> Array<T>.lastIndexOf(element: T): Int {
     }
     return -1
 }
+
+// KSP-433: predicate-based search / quantifier HOFs, replacing the
+// `kk_array_find` / `kk_array_findLast` / `kk_array_first(_predicate)` /
+// `kk_array_firstOrNull` / `kk_array_last(_predicate)` / `kk_array_lastOrNull`
+// / `kk_array_any` / `kk_array_all` / `kk_array_none` / `kk_array_count`
+// runtime bridges. Exception messages match kotlinc's Array wording
+// ("Array is empty." / "Array contains no element matching the predicate.").
+
+public fun <T> Array<T>.find(predicate: (T) -> Boolean): T? {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i++
+    }
+    return null
+}
+
+public fun <T> Array<T>.findLast(predicate: (T) -> Boolean): T? {
+    var i = this.size - 1
+    while (i >= 0) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i--
+    }
+    return null
+}
+
+public fun <T> Array<T>.first(): T {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    return this[0]
+}
+
+public fun <T> Array<T>.first(predicate: (T) -> Boolean): T {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i++
+    }
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public fun <T> Array<T>.firstOrNull(): T? {
+    if (this.size == 0) return null
+    return this[0]
+}
+
+public fun <T> Array<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i++
+    }
+    return null
+}
+
+public fun <T> Array<T>.last(): T {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    return this[this.size - 1]
+}
+
+public fun <T> Array<T>.last(predicate: (T) -> Boolean): T {
+    var i = this.size - 1
+    while (i >= 0) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i--
+    }
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public fun <T> Array<T>.lastOrNull(): T? {
+    if (this.size == 0) return null
+    return this[this.size - 1]
+}
+
+public fun <T> Array<T>.lastOrNull(predicate: (T) -> Boolean): T? {
+    var i = this.size - 1
+    while (i >= 0) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i--
+    }
+    return null
+}
+
+public fun <T> Array<T>.any(): Boolean = this.size != 0
+
+public fun <T> Array<T>.any(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (predicate(this[i])) return true
+        i++
+    }
+    return false
+}
+
+public fun <T> Array<T>.all(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (!predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun <T> Array<T>.none(): Boolean = this.size == 0
+
+public fun <T> Array<T>.none(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun <T> Array<T>.count(): Int = this.size
+
+public fun <T> Array<T>.count(predicate: (T) -> Boolean): Int {
+    var count = 0
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (predicate(this[i])) count++
+        i++
+    }
+    return count
+}

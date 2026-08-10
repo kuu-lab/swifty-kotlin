@@ -1,3 +1,4 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
 import Testing
@@ -23,15 +24,26 @@ struct StringLineSequenceFunctionTests {
         return results
     }
 
-    /// Sema should resolve `String.lineSequence()` cleanly without errors.
-    @Test func testLineSequenceOnStringResolves() throws {
+    @Test func testLineSequenceResolvesInSource() throws {
         let source = """
         fun splitText(s: String) {
             for (line in s.lineSequence()) {
                 println(line)
             }
         }
+
+        fun dump() {
+            val items = "a\\nb\\nc".lineSequence()
+            for (line in items) {
+                println(line)
+            }
+        }
+
+        fun gather(s: String): List<String> {
+            return s.lineSequence().toList()
+        }
         """
+
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -49,52 +61,7 @@ struct StringLineSequenceFunctionTests {
                 in: ast,
                 interner: ctx.interner
             )
-            #expect(callIDs.count == 1, "Expected exactly one lineSequence call")
-        }
-    }
-
-    /// String literal receivers should also resolve through Sema.
-    @Test func testLineSequenceOnLiteralResolves() throws {
-        let source = """
-        fun dump() {
-            val items = "a\\nb\\nc".lineSequence()
-            for (line in items) {
-                println(line)
-            }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected literal lineSequence to resolve cleanly, got: \(diagnosticSummary)"
-            )
-        }
-    }
-
-    /// Chaining `lineSequence().toList()` should be type-checked without errors,
-    /// ensuring the synthetic Sequence<String> return type bridges to standard
-    /// sequence operations.
-    @Test func testLineSequenceChainsWithToList() throws {
-        let source = """
-        fun gather(s: String): List<String> {
-            return s.lineSequence().toList()
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected lineSequence().toList() chain to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(callIDs.count == 3, "Expected three lineSequence calls")
         }
     }
 
@@ -128,3 +95,4 @@ struct StringLineSequenceFunctionTests {
         }
     }
 }
+#endif

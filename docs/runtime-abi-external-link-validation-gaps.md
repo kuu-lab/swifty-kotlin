@@ -110,27 +110,6 @@ RF-KIR-005 では、少なくとも次の分類に分けるとよい。
 - dynamic prefix marker, not a complete ABI symbol
 - temporary legacy exception with removal task
 
-### 7. DEBT-ABI-CTOR-001: `@KsSymbolName` 付きコンストラクタが ABI 形状比較の対象外
-
-`RuntimeABIExternalLinkValidationTests` の bundled 宣言スキャナは `fun` 宣言だけを宣言ヘッダとして認識する。
-そのため `@KsSymbolName("__kk_throwable_new") public constructor(message: String?)` のような
-**注釈付きコンストラクタは宣言として確定せず**、pending link name がファイル内の後続 `fun` に
-誤って引き継がれる（`kotlin/Throwable.kt` は `fun` を持たないため、3件が黙って捨てられていた）。
-
-KSP-608 で `kotlin/Tuples.kt` が `constructor` + `external fun` を同居させたことでこの取りこぼしが
-顕在化したため、スキャナはコンストラクタヘッダを認識して **pending link name を消費する**ように修正した。
-ただし ABI 形状（arity / パラメータ型）の比較対象からは引き続き除外している。理由:
-
-- 戻り値のみを持つ allocation entry のため receiver パラメータを持たない。現行の
-  `hasReceiver = (scope == .classLike)` 規則をそのまま適用すると 1 個多く数えてしまう。
-- `Throwable` は `constructor()` と `constructor(message: String?)` の 2 オーバーロードが
-  単一の ABI entry `__kk_throwable_new(void * _Nullable)` を共有する。arity 一致規則では表現できない。
-- `Throwable` の ABI は参照型に `void * _Nullable` / `void *` を使うが、検証側の型写像は
-  参照型を一律 `intptr_t` とみなす。`kotlin/Tuples.kt` 側（`intptr_t`）とは規約が食い違っている。
-
-enforcing 化では、コンストラクタを「receiver なし・戻り値がハンドル」の宣言種別として分類し、
-`Throwable` 系の `void *` 系表現を型写像に取り込む必要がある。
-
 ## RF-KIR-005 への引き継ぎ
 
 enforcing 化で必要な検証単位:

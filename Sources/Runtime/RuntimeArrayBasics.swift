@@ -188,123 +188,7 @@ public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
 }
 
-@_cdecl("kk_list_toTypedArray")
-public func kk_list_toTypedArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toTypedArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.values.enumerated() {
-        box.values[i] = elem
-    }
-    return registerRuntimeObject(box)
-}
-
-// MARK: - List to primitive array conversions (STDLIB-LIST-PRIM-ARRAY)
-
-/// Collection<Char>.toCharArray(): CharArray
-@_cdecl("kk_list_toCharArray")
-public func kk_list_toCharArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toCharArray")
-    }
-    let box = RuntimeArrayBox(length: list.values.count)
-    box.values = list.values.map { RuntimeValue(charScalar: kk_unbox_char($0.legacyRawValue)) }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Boolean>.toBooleanArray(): BooleanArray
-@_cdecl("kk_list_toBooleanArray")
-public func kk_list_toBooleanArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toBooleanArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_bool(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Short>.toShortArray(): ShortArray
-@_cdecl("kk_list_toShortArray")
-public func kk_list_toShortArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toShortArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_int(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Double>.toDoubleArray(): DoubleArray
-@_cdecl("kk_list_toDoubleArray")
-public func kk_list_toDoubleArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toDoubleArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_double(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Float>.toFloatArray(): FloatArray
-@_cdecl("kk_list_toFloatArray")
-public func kk_list_toFloatArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toFloatArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_float(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Int>.toIntArray(): IntArray
-@_cdecl("kk_list_toIntArray")
-public func kk_list_toIntArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toIntArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_int(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Long>.toLongArray(): LongArray
-@_cdecl("kk_list_toLongArray")
-public func kk_list_toLongArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toLongArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_long(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<Byte>.toByteArray(): ByteArray
-@_cdecl("kk_list_toByteArray")
-public func kk_list_toByteArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toByteArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        // Byte values are stored as Int8-range integers (unboxed or raw);
-        // preserve the sign-extended bit pattern as Kotlin Byte semantics require.
-        box.elements[i] = kk_unbox_int(elem)
-    }
-    return registerRuntimeObject(box)
-}
+// MARK: - List to unsigned primitive array conversions (KSP-629)
 
 /// Collection<UByte>.toUByteArray(): UByteArray
 @_cdecl("kk_list_toUByteArray")
@@ -430,12 +314,19 @@ public func kk_uLongArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// DoubleArray.toList(): List<Double>
+///
+/// Boxes elements eagerly for the same reason as kk_longArray_toList above:
+/// a raw Double word holding -0.0 is bit-identical to runtimeNullSentinelInt,
+/// so generic Any-dispatch (toString/equals/`is`) would otherwise misreport it
+/// as null. kk_box_double_nonnull is safe because DoubleArray elements are
+/// never null.
 @_cdecl("kk_doubleArray_toList")
 public func kk_doubleArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_doubleArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_double_nonnull($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// FloatArray.toList(): List<Float>

@@ -85,25 +85,31 @@ func emitNonThrowingCall(
 /// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
 /// dispatch to the compiled function instead of a same-named runtime export,
 /// and so that ABI lowering can unbox generic component results.
+/// `preferredSymbol` is the callee Sema already picked for this destructuring
+/// position; it wins over re-resolution by name because `componentN` is
+/// overloaded across Pair/Triple, user extensions and bundled stdlib
+/// extensions.
 func resolveDestructuringComponentCallee(
     componentName: InternedString,
     receiverType: TypeID,
+    preferredSymbol: SymbolID? = nil,
     sema: SemaModule,
     interner: StringInterner
 ) -> (symbol: SymbolID?, callee: InternedString) {
-    let candidates = TypeCheckHelpers().collectMemberFunctionCandidates(
+    let chosen = preferredSymbol ?? TypeCheckHelpers().collectMemberFunctionCandidates(
         named: componentName,
         receiverType: receiverType,
         sema: sema,
         interner: interner
-    )
-    guard let chosen = candidates.first else {
+    ).first
+    guard let chosen else {
         return (nil, componentName)
     }
+    let symbol = sema.symbols.isSourceBackedSymbol(chosen) ? chosen : nil
     if let linkName = sema.symbols.externalLinkName(for: chosen), !linkName.isEmpty {
-        return (chosen, interner.intern(linkName))
+        return (symbol, interner.intern(linkName))
     }
-    return (chosen, componentName)
+    return (symbol, componentName)
 }
 
 /// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete
