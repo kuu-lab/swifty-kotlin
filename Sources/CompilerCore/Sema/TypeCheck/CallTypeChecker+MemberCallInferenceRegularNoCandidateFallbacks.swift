@@ -1539,28 +1539,6 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
-        if let fallbackType = tryBindMapGetOrElseFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryBindMapWithDefaultFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
         if let fallbackType = tryBindReadWriteLockReadFallback(
             id,
             calleeName: calleeName,

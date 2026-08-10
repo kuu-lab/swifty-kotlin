@@ -59,6 +59,26 @@ extension NativeEmitter {
             throw LLVMBackendError.nativeEmissionFailed("failed to create entry block")
         }
 
+        // Dedicated builder for stack slots. Slots requested while a loop body is
+        // being emitted must be allocated in the entry block, otherwise every
+        // iteration allocates a fresh slot and long loops overflow the stack.
+        let allocaBuilder = bindings.createBuilder(context: context)
+        defer {
+            if let allocaBuilder {
+                bindings.disposeBuilder(allocaBuilder)
+            }
+        }
+
+        func buildEntrySlot(name: String, type: LLVMCAPIBindings.LLVMTypeRef? = nil) -> LLVMCAPIBindings.LLVMValueRef? {
+            bindings.buildEntryAlloca(
+                type: type ?? int64Type,
+                name: name,
+                entryBlock: entryBlock,
+                allocaBuilder: allocaBuilder,
+                fallbackBuilder: builder
+            )
+        }
+
         var labelBlocks: [Int32: LLVMCAPIBindings.LLVMBasicBlockRef] = [:]
         for instruction in function.body {
             guard case let .label(id) = instruction else {
@@ -174,7 +194,9 @@ extension NativeEmitter {
             zeroValue: zeroValue,
             context: context,
             module: llvmModule,
-            typeLowering: typeLowering
+            typeLowering: typeLowering,
+            entryBlock: entryBlock,
+            allocaBuilder: allocaBuilder
         )
 
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
@@ -590,7 +612,7 @@ extension NativeEmitter {
         }
 
         func allocateI64Slot(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let slot = bindings.buildAlloca(builder, type: int64Type, name: name) else {
+            guard let slot = buildEntrySlot(name: name) else {
                 return nil
             }
             _ = bindings.buildStore(builder, value: zeroValue, pointer: slot)
@@ -1267,43 +1289,9 @@ extension NativeEmitter {
                 ),
                 // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
                 // (StringIndexOf.kt); no flat emission spec.
-                // KSP-410: count/any/all/none/find/findLast/partition are bundled
+                // KSP-410: count/any/all/none/find/findLast/partition and
+                // map/mapIndexed/mapNotNull/firstNotNullOf(OrNull) are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
-                "kk_string_map_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_map_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_mapIndexed_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_mapIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_mapNotNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_mapNotNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_firstNotNullOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstNotNullOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_firstNotNullOfOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstNotNullOfOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
                 // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
                 // reduceRightIndexedOrNull/reduceRightOrNull are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
@@ -1884,7 +1872,19 @@ extension NativeEmitter {
                case let .symbolRef(targetSymbol) = resultExpr,
                let globalPointer = globalVariables[targetSymbol]
             {
-                _ = bindings.buildStore(builder, value: storedValue, pointer: globalPointer)
+                // Global slots hold the runtime's raw i64 handle.  A flat
+                // string aggregate has to be bridged back first, otherwise the
+                // 32-byte struct is written over the slot and its neighbours.
+                var globalValue = storedValue
+                if isStringAggregateType(module.arena.exprType(result)),
+                   bindings.isAggregateStructValue(storedValue)
+                {
+                    globalValue = bridgeStringAggregateToRuntimeRaw(
+                        storedValue,
+                        suffix: "store_result_global_\(result.rawValue)"
+                    ) ?? storedValue
+                }
+                _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
             }
             if let alloca = copyTargetAllocas[result.rawValue] {
                 _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)
@@ -2176,7 +2176,7 @@ extension NativeEmitter {
                             defaultType: int64Type
                         )
                         let localAlloca = copyTargetAllocas[result.rawValue]
-                            ?? bindings.buildAlloca(builder, type: debugStorageType, name: "dbg_\(varName)")
+                            ?? buildEntrySlot(name: "dbg_\(varName)", type: debugStorageType)
                         if let localAlloca {
                             if copyTargetAllocas[result.rawValue] == nil {
                                 _ = bindings.buildStore(builder, value: constLLVMValue, pointer: localAlloca)
@@ -2245,11 +2245,7 @@ extension NativeEmitter {
                     argumentCount: 1,
                     appendThrownChannel: true
                 ) {
-                    let thrownSlot = bindings.buildAlloca(
-                        builder,
-                        type: int64Type,
-                        name: "notnull_thrown_\(instructionIndex)"
-                    )
+                    let thrownSlot = buildEntrySlot(name: "notnull_thrown_\(instructionIndex)")
                     if let thrownSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                         let callValue = bindings.buildCall(
@@ -2522,11 +2518,7 @@ extension NativeEmitter {
 
                 // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
                 if calleeName == "kk_channel_receive" {
-                    let outValueSlot = bindings.buildAlloca(
-                        builder,
-                        type: int64Type,
-                        name: "channel_out_value_\(instructionIndex)"
-                    )
+                    let outValueSlot = buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
                     if let outValueSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
                     }
@@ -2690,11 +2682,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = bindings.buildAlloca(
-                            builder,
-                            type: int64Type,
-                            name: "thrown_slot_\(instructionIndex)"
-                        )
+                        let thrownSlot = buildEntrySlot(name: "thrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
@@ -3050,11 +3038,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = bindings.buildAlloca(
-                            builder,
-                            type: int64Type,
-                            name: "vthrown_slot_\(instructionIndex)"
-                        )
+                        let thrownSlot = buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)

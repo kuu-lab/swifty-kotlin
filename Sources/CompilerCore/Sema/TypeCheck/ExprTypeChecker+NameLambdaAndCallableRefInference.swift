@@ -817,17 +817,24 @@ extension ExprTypeChecker {
     /// Otherwise only widening is allowed (function types are contravariant in
     /// their parameters): `(String) -> Int = { s: Any -> ... }` is fine, while
     /// `(Any) -> Int = { s: String -> ... }` is a mismatch.
-    func lambdaAnnotationIsCompatible(annotated: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
+    ///
+    /// `expectedTypeIsSourceDeclared` tells the two kinds of `Any` apart: an
+    /// `Any` written in source constrains the annotation, while an `Any` the
+    /// compiler synthesized for a call whose type variable stayed unsolved
+    /// (`Grouping<K, E>`'s accumulator) carries no information.
+    func lambdaAnnotationIsCompatible(
+        annotated: TypeID,
+        declared: TypeID,
+        expectedTypeIsSourceDeclared: Bool,
+        sema: SemaModule
+    ) -> Bool {
         if annotated == declared || declared == sema.types.errorType || annotated == sema.types.errorType {
             return true
         }
         if typeMentionsTypeParameter(declared, sema: sema) {
             return true
         }
-        // A declared `Any` is also what inference falls back to when a type
-        // variable stays unsolved (`Grouping<K, E>.fold`'s accumulator), so it
-        // carries no information either.
-        if case .any = sema.types.kind(of: declared) {
+        if !expectedTypeIsSourceDeclared, case .any = sema.types.kind(of: declared) {
             return true
         }
         return sema.types.isSubtype(declared, annotated)
@@ -974,6 +981,7 @@ extension ExprTypeChecker {
         // expected type is a raw functional interface (BUG-046). An annotation
         // that contradicts a concrete expected parameter type is an error.
         let annotatedParameterTypes = resolveLambdaParamAnnotations(id, ctx: ctx, paramCount: effectiveParams.count)
+        let expectedTypeIsSourceDeclared = sema.bindings.hasSourceDeclaredExpectedType(id)
         let parameterTypes: [TypeID] = effectiveParams.indices.map { offset in
             let fallback = offset < expectedParameterTypes.count ? expectedParameterTypes[offset] : sema.types.anyType
             guard let annotated = annotatedParameterTypes?[offset] else {
@@ -982,7 +990,12 @@ extension ExprTypeChecker {
             guard let declared = declaredParameterTypes?[offset] else {
                 return annotated
             }
-            if lambdaAnnotationIsCompatible(annotated: annotated, declared: declared, sema: sema) {
+            if lambdaAnnotationIsCompatible(
+                annotated: annotated,
+                declared: declared,
+                expectedTypeIsSourceDeclared: expectedTypeIsSourceDeclared,
+                sema: sema
+            ) {
                 return annotated
             }
             ctx.semaCtx.diagnostics.error(
@@ -1613,8 +1626,8 @@ extension ExprTypeChecker {
     }
 
     private enum ParentLambdaCallContext {
-        case topLevel(calleeName: InternedString, argIndex: Int)
-        case member(receiverType: TypeID?, calleeName: InternedString, argIndex: Int)
+        case topLevel(calleeName: InternedString, argIndex: Int, typeArgs: [TypeRefID])
+        case member(receiverType: TypeID?, calleeName: InternedString, argIndex: Int, typeArgs: [TypeRefID])
     }
 
     /// Finds the parent call context for a lambda expression by scanning the arena.
@@ -1622,28 +1635,28 @@ extension ExprTypeChecker {
         let ast = ctx.ast
         for expr in ast.arena.exprs {
             switch expr {
-            case let .call(callee, _, args, _):
+            case let .call(callee, typeArgs, args, _):
                 guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }),
                       let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(calleeName, _) = calleeExpr
                 else {
                     continue
                 }
-                return .topLevel(calleeName: calleeName, argIndex: argIndex)
+                return .topLevel(calleeName: calleeName, argIndex: argIndex, typeArgs: typeArgs)
 
-            case let .memberCall(receiver, calleeName, _, args, _):
+            case let .memberCall(receiver, calleeName, typeArgs, args, _):
                 guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }) else {
                     continue
                 }
                 let receiverType = ctx.sema.bindings.exprTypes[receiver]
-                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex)
+                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex, typeArgs: typeArgs)
 
-            case let .safeMemberCall(receiver, calleeName, _, args, _):
+            case let .safeMemberCall(receiver, calleeName, typeArgs, args, _):
                 guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }) else {
                     continue
                 }
                 let receiverType = ctx.sema.bindings.exprTypes[receiver]
-                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex)
+                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex, typeArgs: typeArgs)
 
             default:
                 continue
@@ -1673,10 +1686,12 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let candidateSymbols: [SymbolID]
         let argIndex: Int
+        let explicitTypeArgRefs: [TypeRefID]
 
         switch callContext {
-        case let .topLevel(calleeName, index):
+        case let .topLevel(calleeName, index, typeArgs):
             argIndex = index
+            explicitTypeArgRefs = typeArgs
             candidateSymbols = ctx.filterByVisibility(
                 ctx.cachedScopeLookup(calleeName).filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
@@ -1684,16 +1699,28 @@ extension ExprTypeChecker {
                 }
             ).visible
 
-        case let .member(receiverType, calleeName, index):
+        case let .member(receiverType, calleeName, index, typeArgs):
             guard let receiverType else {
                 return nil
             }
             argIndex = index
+            explicitTypeArgRefs = typeArgs
             candidateSymbols = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: receiverType,
                 sema: sema,
                 interner: ctx.interner
+            )
+        }
+
+        let explicitTypeArgs = explicitTypeArgRefs.map { typeArgRef in
+            driver.helpers.resolveTypeRef(
+                typeArgRef,
+                ast: ctx.ast,
+                sema: sema,
+                interner: ctx.interner,
+                scope: ctx.scope,
+                inferenceContext: ctx
             )
         }
 
@@ -1708,13 +1735,23 @@ extension ExprTypeChecker {
             if case let .functionType(functionType) = sema.types.kind(of: parameterType),
                functionType.params.count == 1
             {
-                inferredParameterTypes.append(functionType.params[0])
+                inferredParameterTypes.append(substituteExplicitTypeArgument(
+                    functionType.params[0],
+                    signature: signature,
+                    explicitTypeArgs: explicitTypeArgs,
+                    sema: sema
+                ))
                 continue
             }
             if let samFunctionType = driver.helpers.samFunctionType(for: parameterType, sema: sema),
                samFunctionType.params.count == 1
             {
-                inferredParameterTypes.append(samFunctionType.params[0])
+                inferredParameterTypes.append(substituteExplicitTypeArgument(
+                    samFunctionType.params[0],
+                    signature: signature,
+                    explicitTypeArgs: explicitTypeArgs,
+                    sema: sema
+                ))
             }
         }
 
@@ -1723,6 +1760,39 @@ extension ExprTypeChecker {
         }
         let allSame = inferredParameterTypes.dropFirst().allSatisfy { $0 == firstType }
         return allSame ? firstType : nil
+    }
+
+    /// Replaces a candidate's own type parameter with the explicit type argument
+    /// written at the call site. Overloads of the same generic function declare
+    /// distinct type parameter symbols, so without this substitution the candidate
+    /// parameter types never agree and the implicit `it` type stays unresolved for
+    /// every argument of a call such as `compareBy<Row>({ it.a }, { it.b })`.
+    private func substituteExplicitTypeArgument(
+        _ type: TypeID,
+        signature: FunctionSignature,
+        explicitTypeArgs: [TypeID],
+        sema: SemaModule
+    ) -> TypeID {
+        guard !explicitTypeArgs.isEmpty,
+              case let .typeParam(typeParam) = sema.types.kind(of: type)
+        else {
+            return type
+        }
+        let ownTypeParameters = signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+        guard let offset = ownTypeParameters.firstIndex(of: typeParam.symbol) else {
+            return type
+        }
+        let argOffset = offset - ownTypeParameters.startIndex
+        guard argOffset < explicitTypeArgs.count else {
+            return type
+        }
+        let explicitType = explicitTypeArgs[argOffset]
+        guard explicitType != sema.types.errorType else {
+            return type
+        }
+        return typeParam.nullability == .nullable
+            ? sema.types.makeNullable(explicitType)
+            : explicitType
     }
 
     /// Infers lambda parameter type from assignment context

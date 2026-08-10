@@ -403,19 +403,6 @@ public func kk_println_double(_ value: Int) {
     Swift.print(rendered)
 }
 
-@_cdecl("kk_math_abs_int")
-public func kk_math_abs_int(_ value: Int) -> Int {
-    if value == Int.min {
-        return Int.min
-    }
-    return value < 0 ? -value : value
-}
-
-@_cdecl("kk_math_abs")
-public func kk_math_abs(_ value: Int) -> Int {
-    kk_double_to_bits(Swift.abs(kk_bits_to_double(value)))
-}
-
 @_cdecl("kk_math_sqrt")
 public func kk_math_sqrt(_ value: Int) -> Int {
     kk_double_to_bits(sqrt(kk_bits_to_double(value)))
@@ -658,149 +645,13 @@ public func kk_math_log(_ x: Int, _ base: Int) -> Int {
     return kk_double_to_bits(log(rawX) / log(rawBase))
 }
 
-// MARK: - STDLIB-432: sign/hypot + PI/E constants
-
-@_cdecl("kk_math_sign")
-public func kk_math_sign(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d.isNaN { return kk_double_to_bits(Double.nan) }
-    if d > 0 { return kk_double_to_bits(1.0) }
-    if d < 0 { return kk_double_to_bits(-1.0) }
-    // Preserve sign of zero: return the original value for +0.0 / -0.0
-    return value
-}
-
-@_cdecl("kk_math_sign_int")
-public func kk_math_sign_int(_ value: Int) -> Int {
-    if value > 0 { return 1 }
-    if value < 0 { return -1 }
-    return 0
-}
-
-@_cdecl("kk_math_sign_long")
-public func kk_math_sign_long(_ value: Int) -> Int {
-    if value > 0 { return 1 }
-    if value < 0 { return -1 }
-    return 0
-}
+// MARK: - STDLIB-432: hypot
 
 @_cdecl("kk_math_hypot")
 public func kk_math_hypot(_ x: Int, _ y: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawY = kk_bits_to_double(y)
     return kk_double_to_bits(hypot(rawX, rawY))
-}
-
-private func kotlinMathMaxDouble(_ a: Double, _ b: Double) -> Double {
-    if a.isNaN || b.isNaN { return Double.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus && b.sign == .minus ? -Double.zero : Double.zero
-    }
-    return a >= b ? a : b
-}
-
-private func kotlinMathMinDouble(_ a: Double, _ b: Double) -> Double {
-    if a.isNaN || b.isNaN { return Double.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus || b.sign == .minus ? -Double.zero : Double.zero
-    }
-    return a <= b ? a : b
-}
-
-private func kotlinMathMaxFloat(_ a: Float, _ b: Float) -> Float {
-    if a.isNaN || b.isNaN { return Float.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus && b.sign == .minus ? -Float.zero : Float.zero
-    }
-    return a >= b ? a : b
-}
-
-private func kotlinMathMinFloat(_ a: Float, _ b: Float) -> Float {
-    if a.isNaN || b.isNaN { return Float.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus || b.sign == .minus ? -Float.zero : Float.zero
-    }
-    return a <= b ? a : b
-}
-
-@inline(__always)
-private func runtimeUnsignedMax(_ a: Int, _ b: Int) -> Int {
-    UInt(bitPattern: a) >= UInt(bitPattern: b) ? a : b
-}
-
-@inline(__always)
-private func runtimeUnsignedMin(_ a: Int, _ b: Int) -> Int {
-    UInt(bitPattern: a) <= UInt(bitPattern: b) ? a : b
-}
-
-@_cdecl("kk_math_max")
-public func kk_math_max(_ a: Int, _ b: Int) -> Int {
-    kk_double_to_bits(kotlinMathMaxDouble(kk_bits_to_double(a), kk_bits_to_double(b)))
-}
-
-@_cdecl("kk_math_max_float")
-public func kk_math_max_float(_ a: Int, _ b: Int) -> Int {
-    kk_float_to_bits(kotlinMathMaxFloat(kk_bits_to_float(a), kk_bits_to_float(b)))
-}
-
-@_cdecl("kk_math_max_int")
-public func kk_math_max_int(_ a: Int, _ b: Int) -> Int {
-    Swift.max(a, b)
-}
-
-@_cdecl("kk_math_max_long")
-public func kk_math_max_long(_ a: Int, _ b: Int) -> Int {
-    Swift.max(a, b)
-}
-
-@_cdecl("kk_math_max_uint")
-public func kk_math_max_uint(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMax(a, b)
-}
-
-@_cdecl("kk_math_max_ulong")
-public func kk_math_max_ulong(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMax(a, b)
-}
-
-@_cdecl("kk_math_min")
-public func kk_math_min(_ a: Int, _ b: Int) -> Int {
-    kk_double_to_bits(kotlinMathMinDouble(kk_bits_to_double(a), kk_bits_to_double(b)))
-}
-
-@_cdecl("kk_math_min_float")
-public func kk_math_min_float(_ a: Int, _ b: Int) -> Int {
-    kk_float_to_bits(kotlinMathMinFloat(kk_bits_to_float(a), kk_bits_to_float(b)))
-}
-
-@_cdecl("kk_math_min_int")
-public func kk_math_min_int(_ a: Int, _ b: Int) -> Int {
-    Swift.min(a, b)
-}
-
-@_cdecl("kk_math_min_long")
-public func kk_math_min_long(_ a: Int, _ b: Int) -> Int {
-    Swift.min(a, b)
-}
-
-@_cdecl("kk_math_min_uint")
-public func kk_math_min_uint(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMin(a, b)
-}
-
-@_cdecl("kk_math_min_ulong")
-public func kk_math_min_ulong(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMin(a, b)
-}
-
-@_cdecl("kk_math_PI")
-public func kk_math_PI() -> Int {
-    kk_double_to_bits(Double.pi)
-}
-
-@_cdecl("kk_math_E")
-public func kk_math_E() -> Int {
-    kk_double_to_bits(M_E)
 }
 
 // MARK: - STDLIB-500~509: Float trig/math overloads
@@ -910,12 +761,7 @@ public func kk_math_floor_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, floorf)
 }
 
-// MARK: - STDLIB-430: additional Float overloads (abs, exp, expm1, ln, ln1p, log2, log10, log, sign, hypot)
-
-@_cdecl("kk_math_abs_float")
-public func kk_math_abs_float(_ value: Int) -> Int {
-    kk_float_to_bits(Swift.abs(kk_bits_to_float(value)))
-}
+// MARK: - STDLIB-430: additional Float overloads (exp, expm1, ln, ln1p, log2, log10, log, hypot)
 
 @_cdecl("kk_math_exp_float")
 public func kk_math_exp_float(_ value: Int) -> Int {
@@ -969,16 +815,6 @@ public func kk_math_log_float(_ x: Int, _ base: Int) -> Int {
         return kk_float_to_bits(rawBase > 1.0 ? -Float.infinity : Float.infinity)
     }
     return kk_float_to_bits(log(rawX) / log(rawBase))
-}
-
-@_cdecl("kk_math_sign_float")
-public func kk_math_sign_float(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    if f.isNaN { return kk_float_to_bits(Float.nan) }
-    if f > 0 { return kk_float_to_bits(1.0) }
-    if f < 0 { return kk_float_to_bits(-1.0) }
-    // Preserve sign of zero: return the original value for +0.0 / -0.0
-    return value
 }
 
 @_cdecl("kk_math_hypot_float")
@@ -1197,15 +1033,7 @@ public func kk_float_fromBits(_ bits: Int) -> Int {
     bits  // already Float bit representation in ABI
 }
 
-// MARK: - STDLIB-514: abs(Long), truncate, IEEErem, withSign, nextTowards
-
-@_cdecl("kk_math_abs_long")
-public func kk_math_abs_long(_ value: Int) -> Int {
-    // Long is transported as Int (64-bit on supported platforms).
-    // Kotlin specifies abs(Long.MIN_VALUE) == Long.MIN_VALUE (overflow).
-    if value == Int.min { return Int.min }
-    return value < 0 ? -value : value
-}
+// MARK: - STDLIB-514: truncate, IEEErem, withSign, nextTowards
 
 @_cdecl("kk_math_truncate")
 public func kk_math_truncate(_ value: Int) -> Int {

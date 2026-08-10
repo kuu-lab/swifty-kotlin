@@ -99,12 +99,26 @@ jobs:
         env:
           SWIFT_TEST_PARALLEL: "1"
         run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS
-      - name: Run CompilerCoreTests shard with strict concurrency warnings
+      # Method-level sharding avoids assigning large Swift Testing suites as
+      # indivisible units. Golden parameter batches and the serialized frontend
+      # benchmark are handled separately below.
+      - name: Run CompilerCoreTests method shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
-            --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests \
+            --mode dynamic --list-filter '^CompilerCoreTests\.' \
+            --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' \
+            --target-prefix CompilerCoreTests \
             --shard-index "${{ matrix.shard_index }}" --shard-count 3 \
-            -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\.FrontendParallelBenchmarkTests/'
+            -- $SWIFT_XSWIFTC_FLAGS
+      - name: Run CompilerCore golden batch shard
+        env:
+          KSWIFTK_GOLDEN_SHARD_INDEX: ${{ matrix.shard_index }}
+          KSWIFTK_GOLDEN_SHARD_COUNT: 3
+          SWIFT_TEST_PARALLEL: "1"
+        run: |
+          bash Scripts/swift_test.sh --skip-build \
+            --filter '^CompilerCoreTests\.Golden(Diagnostics|Lexer|Parser|Sema)GoldenTests/' \
+            $SWIFT_XSWIFTC_FLAGS
       - name: Run CompilerCore frontend benchmarks separately
         if: matrix.shard_index == 0
         env:
@@ -112,17 +126,6 @@ jobs:
         run: |
           bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             $SWIFT_XSWIFTC_FLAGS
-      - name: Build release kswiftc
-        if: matrix.shard_index == 0
-        run: |
-          swift build -debug-info-format none -c release --product kswiftc \
-            -j "$SWIFT_TEST_BUILD_JOBS"
-      - name: Run minimal end-to-end compiler test
-        if: matrix.shard_index == 0
-        run: |
-          kswiftc_bin="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"
-          "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
-          /tmp/swiftbuild_hello
       - name: Reproduce hints
         if: always()
         run: |
@@ -134,10 +137,9 @@ jobs:
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
-              echo 'swift build -debug-info-format none -c release --product kswiftc -j "\$worker_count"'
-              echo 'KSWIFTC="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
             fi
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/'"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\\.' --list-exclude '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS"
+            echo "KSWIFTK_GOLDEN_SHARD_INDEX=${{ matrix.shard_index }} KSWIFTK_GOLDEN_SHARD_COUNT=3 SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.Golden(Diagnostics|Lexer|Parser|Sema)GoldenTests/' $SWIFT_XSWIFTC_FLAGS"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -332,7 +334,9 @@ jobs:
           swift-version: "6.3"
       - name: Show toolchain versions
         run: swift --version
-      - name: Build kswiftc
+      # This required lane owns release-compiler E2E coverage. Every selected
+      # diff case is compiled and executed; shard 1 includes hello.kt.
+      - name: Build release kswiftc
         env:
           SWIFT_BUILD_JOBS: "4"
         run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
