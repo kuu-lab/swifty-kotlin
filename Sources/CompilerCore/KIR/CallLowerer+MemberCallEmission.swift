@@ -151,15 +151,6 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        // removeFirst/removeLast are scoped to ArrayDeque receivers only;
-        // they must NOT go through the general unresolvedCollectionMemberNames
-        // path because MutableList also has these methods and would get
-        // incorrect callee mapping.
-        if calleeText == "removeFirst" || calleeText == "removeLast",
-           isArrayDequeLikeType(receiverType, sema: sema, interner: interner)
-        {
-            arguments.insert(loweredReceiverID, at: 0)
-        }
     }
 
     func emitMemberCallInstruction(
@@ -1121,7 +1112,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_associateBy"),
             interner.intern("kk_sequence_associateTo"),
             interner.intern("kk_sequence_associateByTo"),
-            interner.intern("kk_map_getValue"),
             interner.intern("kk_map_mapKeysTo"),
             interner.intern("kk_map_mapValuesTo"),
             interner.intern("kk_sequence_mapNotNull"),
