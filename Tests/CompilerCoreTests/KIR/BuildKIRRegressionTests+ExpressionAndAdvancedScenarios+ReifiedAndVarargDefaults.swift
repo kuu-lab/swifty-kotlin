@@ -42,152 +42,111 @@ extension BuildKIRRegressionTests {
         #expect(tokenLiteral == RuntimeTypeCheckToken.encode(type: intType, sema: sema, interner: ctx.interner))
     }
 
-    @Test func testVarargMultiplePositionalArgsPackedToArrayInKIR() throws {
-        let source = """
-        fun sum(vararg items: Int): Int = 0
-        fun main() = sum(1, 2, 3)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+    @Test func testReifiedAndVarargDefaultsKIR() throws {
+        let sources = [
+            """
+            package sample1
+            fun sum1(vararg items: Int): Int = 0
+            fun main1() = sum1(1, 2, 3)
+            """,
+            """
+            package sample2
+            fun greet2(prefix: String = "Hi", vararg names: Int): Int = 0
+            fun main2() = greet2("Hello", 1, 2)
+            """,
+            """
+            package sample3
+            fun noArgs3(vararg items: Int): Int = 0
+            fun main3() = noArgs3()
+            """,
+            """
+            package sample4
+            fun greetUser4(name: String, greeting: String = "Hello"): String = greeting
+            fun main4() = greetUser4("Alice")
+            """,
+            """
+            package sample5
+            fun add5(a: Int, b: Int = 10): Int = a + b
+            fun main5() = add5(5)
+            """,
+            """
+            package sample6
+            fun compute6(x: Int, y: Int = 1, z: Int = 2): Int = x + y + z
+            fun main6() = compute6(10)
+            """,
+            """
+            package sample7
+            fun ordered7(a: Int = 1, b: Int = 2, c: Int = 3): Int = a + b + c
+            fun main7() = ordered7()
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let mainFunction = findAllKIRFunctions(in: module).first { function in
-                ctx.interner.resolve(function.name) == "main"
+            let interner = ctx.interner
+
+            do {
+                let body = try findKIRFunctionBody(named: "main1", in: module, interner: interner)
+                let callNames = extractCallees(from: body, interner: interner)
+                #expect(callNames.contains("kk_array_new"))
+                #expect(callNames.contains("kk_array_set"))
             }
-            let body = try #require(mainFunction?.body)
-            let callNames = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
+
+            do {
+                let body = try findKIRFunctionBody(named: "main2", in: module, interner: interner)
+                let callNames = extractCallees(from: body, interner: interner)
+                #expect(callNames.contains("kk_array_new"))
             }
-            #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg packing, got: \(callNames)")
-            #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for vararg packing, got: \(callNames)")
-        }
-    }
 
-    @Test func testVarargWithDefaultParamPacksCorrectly() throws {
-        let source = """
-        fun greet(prefix: String = "Hi", vararg names: Int): Int = 0
-        fun main() = greet("Hello", 1, 2)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainFunction = findAllKIRFunctions(in: module).first { function in
-                ctx.interner.resolve(function.name) == "main"
+            do {
+                let body = try findKIRFunctionBody(named: "main3", in: module, interner: interner)
+                let callNames = extractCallees(from: body, interner: interner)
+                #expect(callNames.contains("kk_array_new"))
             }
-            let body = try #require(mainFunction?.body)
-            let callNames = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
+
+            do {
+                let allFunctions = findAllKIRFunctions(in: module)
+                let stubNames = allFunctions.map { interner.resolve($0.name) }
+                    .filter { $0.hasSuffix("$default") }
+                #expect(stubNames.contains("greetUser4$default"))
             }
-            #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg packing with default arg, got: \(callNames)")
-        }
-    }
 
-    @Test func testVarargEmptyProducesEmptyArrayInKIR() throws {
-        let source = """
-        fun noArgs(vararg items: Int): Int = 0
-        fun main() = noArgs()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainFunction = findAllKIRFunctions(in: module).first { function in
-                ctx.interner.resolve(function.name) == "main"
+            do {
+                let body = try findKIRFunctionBody(named: "main5", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("add5$default"))
             }
-            let body = try #require(mainFunction?.body)
-            let callNames = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
-            }
-            #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for empty vararg, got: \(callNames)")
-        }
-    }
 
-    @Test func testDefaultArgGeneratesStubFunctionInKIR() throws {
-        let source = """
-        fun greetUser(name: String, greeting: String = "Hello"): String = greeting
-        fun main() = greetUser("Alice")
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let allFunctions = findAllKIRFunctions(in: module)
-            let stubNames = allFunctions.map { ctx.interner.resolve($0.name) }
-                .filter { $0.hasSuffix("$default") }
-            #expect(stubNames.contains("greetUser$default"), "Expected greetUser$default stub, got: \(stubNames)")
-        }
-    }
-
-    @Test func testDefaultArgCallSiteRedirectsToStub() throws {
-        let source = """
-        fun add(a: Int, b: Int = 10): Int = a + b
-        fun main() = add(5)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("add$default"), "Expected call to add$default stub, got: \(callees)")
-        }
-    }
-
-    @Test func testDefaultArgStubContainsMaskParameterAndOriginalCall() throws {
-        let source = """
-        fun compute(x: Int, y: Int = 1, z: Int = 2): Int = x + y + z
-        fun main() = compute(10)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let stubFunction = findAllKIRFunctions(in: module).first { function in
-                ctx.interner.resolve(function.name) == "compute$default"
-            }
-            #expect(stubFunction != nil, "Expected compute$default stub function")
-            if let stub = stubFunction {
-                let paramCount = stub.params.count
-                #expect(paramCount >= 4, "Stub should have original params + mask param")
-                let stubCallees = extractCallees(from: stub.body, interner: ctx.interner)
-                #expect(stubCallees.contains("compute"), "Stub should call original function, got: \(stubCallees)")
-            }
-        }
-    }
-
-    @Test func testDefaultArgEvaluationOrderLeftToRight() throws {
-        let source = """
-        fun ordered(a: Int = 1, b: Int = 2, c: Int = 3): Int = a + b + c
-        fun main() = ordered()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let stubFunction = findAllKIRFunctions(in: module).first { function in
-                ctx.interner.resolve(function.name) == "ordered$default"
-            }
-            #expect(stubFunction != nil, "Expected ordered$default stub function")
-            if let stub = stubFunction {
-                var labelOrder: [Int32] = []
-                for instruction in stub.body {
-                    if case let .label(id) = instruction {
-                        labelOrder.append(id)
-                    }
+            do {
+                let stubFunction = findAllKIRFunctions(in: module).first { function in
+                    interner.resolve(function.name) == "compute6$default"
                 }
-                for i in 1 ..< labelOrder.count {
-                    #expect(labelOrder[i] > labelOrder[i - 1], "Labels should be in ascending order for left-to-right evaluation")
+                #expect(stubFunction != nil)
+                if let stub = stubFunction {
+                    #expect(stub.params.count >= 4)
+                    let stubCallees = extractCallees(from: stub.body, interner: interner)
+                    #expect(stubCallees.contains("compute6"))
+                }
+            }
+
+            do {
+                let stubFunction = findAllKIRFunctions(in: module).first { function in
+                    interner.resolve(function.name) == "ordered7$default"
+                }
+                #expect(stubFunction != nil)
+                if let stub = stubFunction {
+                    var labelOrder: [Int32] = []
+                    for instruction in stub.body {
+                        if case let .label(id) = instruction {
+                            labelOrder.append(id)
+                        }
+                    }
+                    for i in 1 ..< labelOrder.count {
+                        #expect(labelOrder[i] > labelOrder[i - 1])
+                    }
                 }
             }
         }

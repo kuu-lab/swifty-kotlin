@@ -231,52 +231,98 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    // MARK: - Catch/Is Token Consistency Tests
+    // MARK: - Pipeline-backed token consistency tests
 
-    @Test func testCatchTokenMatchesIsToken() throws {
-        let source = """
-        class MyException : Exception()
-        fun demo() {
-            try {
-                throw MyException()
-            } catch (e: MyException) {
-                println(e)
+    @Test func testRuntimeTypeCheckTokensViaKIR() throws {
+        let sources = [
+            """
+            class MyException0 : Exception()
+            fun demo0() {
+                try {
+                    throw MyException0()
+                } catch (e: MyException0) {
+                    println(e)
+                }
             }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            """,
+            """
+            fun main1() {
+                val k = String::class
+                println(k)
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
             let ast = try #require(ctx.ast)
 
-            let tryExprID = try #require(firstExprID(in: ast) { _, expr in
-                if case .tryExpr = expr { return true }
-                return false
-            })
-            guard case let .tryExpr(_, catchClauses, _, _)? = ast.arena.expr(tryExprID) else {
-                Issue.record("Expected try expression.")
-                return
+            // sample0: catch-binding token and is-token are consistent
+            do {
+                let sample0Path = paths[0]
+                let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: sample0Path))
+                let tryExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
+                        return false
+                    }
+                    if case .tryExpr = expr { return true }
+                    return false
+                })
+                guard case let .tryExpr(_, catchClauses, _, _)? = ast.arena.expr(tryExprID) else {
+                    Issue.record("Expected try expression.")
+                    return
+                }
+
+                for clause in catchClauses {
+                    if let binding = sema.bindings.catchClauseBinding(for: clause.body) {
+                        let catchToken = RuntimeTypeCheckToken.encode(
+                            type: binding.parameterType,
+                            sema: sema,
+                            interner: ctx.interner
+                        )
+                        let isToken = RuntimeTypeCheckToken.encode(
+                            type: binding.parameterType,
+                            sema: sema,
+                            interner: ctx.interner
+                        )
+                        #expect(
+                            catchToken == isToken,
+                            "Catch and is paths should produce the same token for the same type."
+                        )
+                    }
+                }
             }
 
-            for clause in catchClauses {
-                if let binding = sema.bindings.catchClauseBinding(for: clause.body) {
-                    let catchToken = RuntimeTypeCheckToken.encode(
-                        type: binding.parameterType,
-                        sema: sema,
-                        interner: ctx.interner
-                    )
-                    let isToken = RuntimeTypeCheckToken.encode(
-                        type: binding.parameterType,
-                        sema: sema,
-                        interner: ctx.interner
-                    )
-                    #expect(
-                        catchToken == isToken,
-                        "Catch and is paths should produce the same token for the same type."
-                    )
+            // sample1: String::class resolves through synthetic class symbol but encodes with stringBase
+            do {
+                let sample1Path = paths[1]
+                let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: sample1Path))
+                let classRefExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
+                        return false
+                    }
+                    if case let .callableRef(_, member, _) = expr {
+                        return ctx.interner.resolve(member) == "class"
+                    }
+                    return false
+                })
+                let targetType = try #require(sema.bindings.classRefTargetType(for: classRefExprID))
+
+                guard case let .classType(classType) = sema.types.kind(of: targetType) else {
+                    Issue.record("Expected String::class to resolve through the class-symbol-disguise path; got \(sema.types.kind(of: targetType)).")
+                    return
                 }
+                let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
+                #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "String"])
+
+                let encoded = RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: ctx.interner)
+                let expected = RuntimeTypeCheckToken.encode(base: RuntimeTypeCheckToken.stringBase, nullable: false)
+                #expect(
+                    encoded == expected,
+                    "String::class should encode with stringBase like an ordinary `is String` check, not nominalBase."
+                )
             }
         }
     }
@@ -310,67 +356,6 @@ struct RuntimeTypeCheckTokenTests {
             Issue.record("Resolved type alias to Int should not classify as nominal.")
         }
         #expect(descriptor.category.base == RuntimeTypeCheckToken.intBase)
-    }
-
-    // MARK: - Builtin-disguised-as-nominal `T::class` Tests
-
-    /// Builtins like `String`/`Char`/`Any` additionally register a synthetic
-    /// `.class`-kind symbol under `kotlin.<Name>` purely to host member
-    /// declarations (e.g. String's `CharSequence` conformance — see
-    /// `HeaderHelpers.ensureClassSymbol`). `T::class` resolves through scope
-    /// lookup, which finds that synthetic symbol before ever consulting the
-    /// builtin-name fallback, so `classRefTargetType` for `String::class` is
-    /// `.classType(ClassType(classSymbol: kotlin.String))`, not the canonical
-    /// `sema.types.stringType` (`.stringStruct`) that an ordinary `is String`
-    /// check resolves to. Both must still encode to the same runtime token —
-    /// otherwise `String::class.isInstance(...)` diverges from `is String`.
-    @Test func testBuiltinClassRefTokenMatchesPrimitiveBase() throws {
-        let source = """
-        fun main() {
-            val k = String::class
-            println(k)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            // Not asserting `!hasError` here (unlike most tests in this file) —
-            // bundled stdlib currently emits unrelated pre-existing diagnostics
-            // (KSWIFTK-SEMA-0102 duplicate-stub warnings/errors for
-            // kotlin.time.Instant/TimedValue) on any full compilation that this
-            // test isn't about. The `#require`s below on the classRefTargetType
-            // binding are the actual correctness check for this test.
-
-            let sema = try #require(ctx.sema)
-            let ast = try #require(ctx.ast)
-            let interner = ctx.interner
-
-            let classRefExprID = try #require(firstExprID(in: ast) { _, expr in
-                if case let .callableRef(_, member, _) = expr {
-                    return interner.resolve(member) == "class"
-                }
-                return false
-            })
-            let targetType = try #require(sema.bindings.classRefTargetType(for: classRefExprID))
-
-            // The receiver-resolution quirk described above must still be in
-            // effect for this test to be meaningful (otherwise it would pass
-            // vacuously if `classRefTargetType` ever stopped disguising
-            // String as a nominal type).
-            guard case let .classType(classType) = sema.types.kind(of: targetType) else {
-                Issue.record("Expected String::class to resolve through the class-symbol-disguise path; got \(sema.types.kind(of: targetType)). If this is now the canonical stringStruct kind, this test (and the encode() fix it guards) may no longer be necessary.")
-                return
-            }
-            let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
-            #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "String"])
-
-            let encoded = RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: interner)
-            let expected = RuntimeTypeCheckToken.encode(base: RuntimeTypeCheckToken.stringBase, nullable: false)
-            #expect(
-                encoded == expected,
-                "String::class should encode with stringBase like an ordinary `is String` check, not nominalBase."
-            )
-        }
     }
 
     @Test func testDistinctNominalTypesProduceDifferentTokens() {

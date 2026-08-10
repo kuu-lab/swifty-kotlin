@@ -24,29 +24,41 @@ struct StringLineSequenceFunctionTests {
         return results
     }
 
-    @Test func testLineSequenceResolvesInSource() throws {
-        let source = """
-        fun splitText(s: String) {
-            for (line in s.lineSequence()) {
-                println(line)
+    @Test func testLineSequenceResolvesInSourceAndLowering() throws {
+        let sources: [String] = [
+            """
+            fun splitText(s: String) {
+                for (line in s.lineSequence()) {
+                    println(line)
+                }
             }
-        }
 
-        fun dump() {
-            val items = "a\\nb\\nc".lineSequence()
-            for (line in items) {
-                println(line)
+            fun dump() {
+                val items = "a\\nb\\nc".lineSequence()
+                for (line in items) {
+                    println(line)
+                }
             }
-        }
 
-        fun gather(s: String): List<String> {
-            return s.lineSequence().toList()
-        }
-        """
+            fun gather(s: String): List<String> {
+                return s.lineSequence().toList()
+            }
+            """,
+            """
+            fun mainLineSequence() {
+                val text = "a\\nb\\nc"
+                for (line in text.lineSequence()) {
+                    println(line)
+                }
+            }
+            """,
+        ]
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
@@ -61,29 +73,11 @@ struct StringLineSequenceFunctionTests {
                 in: ast,
                 interner: ctx.interner
             )
-            #expect(callIDs.count == 3, "Expected three lineSequence calls")
-        }
-    }
-
-    /// The lowered KIR should not call the legacy runtime helper after migration
-    /// to bundled Kotlin source.
-    @Test func testLineSequenceDoesNotLowerToLegacyRuntimeHelper() throws {
-        let source = """
-        fun main() {
-            val text = "a\\nb\\nc"
-            for (line in text.lineSequence()) {
-                println(line)
-            }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            #expect(callIDs.count == 4, "Expected four lineSequence calls")
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(
-                named: "main",
+                named: "mainLineSequence",
                 in: module,
                 interner: ctx.interner
             )

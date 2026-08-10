@@ -71,77 +71,57 @@ extension LexerParserEdgeCaseTests {
     }
 
     @Test
-    func testSemaCollectsNestedTypeAliasSymbolsInClassAndObject() throws {
-        let source = """
-        class Box {
-            typealias Elem = Int
-        }
-        object Holder {
-            typealias Value = String
-        }
-        """
+    func testFrontendExpressionPhases() throws {
+        let sources: [String] = [
+            // Nested type alias symbols in class and object
+            """
+            class Box {
+                typealias Elem = Int
+            }
+            object Holder {
+                typealias Value = String
+            }
+            """,
+            // return/if/try expression body
+            """
+            fun demoTry(flag: Boolean): Int = if (flag) return 1 else try 2 catch (e: Throwable) 3
+            """,
+            // Unary expressions
+            """
+            fun demoUnary(x: Int): Int = if (!false) -x + +x else 0
+            """,
+            // Comparison and logical expressions
+            """
+            fun demoA(x: Int): Int = if (x != 0 && x < 10 || x >= 100) 1 else 2
+            fun demoB(x: Int): Int = if (x <= 20 && x > 3) 2 else 3
+            """,
+        ]
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runToKIR(ctx)
 
-            let sema = try #require(ctx.sema)
-            let all = sema.symbols.allSymbols()
-            let elem = all.first(where: { symbol in
-                symbol.kind == .typeAlias &&
-                    ctx.interner.resolve(symbol.name) == "Elem" &&
-                    symbol.fqName.count >= 2 &&
-                    ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "Box"
-            })
-            let value = all.first(where: { symbol in
-                symbol.kind == .typeAlias &&
-                    ctx.interner.resolve(symbol.name) == "Value" &&
-                    symbol.fqName.count >= 2 &&
-                    ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "Holder"
-            })
-
-            #expect(elem != nil)
-            #expect(value != nil)
-        }
-    }
-
-    @Test
-    func testExpressionBodyParsesReturnIfTryWithoutTypeDiagnostics() throws {
-        let source = """
-        fun demo(flag: Boolean): Int = if (flag) return 1 else try 2 catch (e: Throwable) 3
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
             #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
-        }
-    }
 
-    @Test
-    func testUnaryExpressionsParseAndTypeCheckWithoutErrors() throws {
-        let source = """
-        fun demo(x: Int): Int = if (!false) -x + +x else 0
-        """
+            do {
+                let sema = try #require(ctx.sema)
+                let all = sema.symbols.allSymbols()
+                let elem = all.first(where: { symbol in
+                    symbol.kind == .typeAlias &&
+                        ctx.interner.resolve(symbol.name) == "Elem" &&
+                        symbol.fqName.count >= 2 &&
+                        ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "Box"
+                })
+                let value = all.first(where: { symbol in
+                    symbol.kind == .typeAlias &&
+                        ctx.interner.resolve(symbol.name) == "Value" &&
+                        symbol.fqName.count >= 2 &&
+                        ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "Holder"
+                })
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
-        }
-    }
-
-    @Test
-    func testComparisonAndLogicalExpressionsParseAndTypeCheckWithoutErrors() throws {
-        let source = """
-        fun demoA(x: Int): Int = if (x != 0 && x < 10 || x >= 100) 1 else 2
-        fun demoB(x: Int): Int = if (x <= 20 && x > 3) 2 else 3
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
+                #expect(elem != nil)
+                #expect(value != nil)
+            }
         }
     }
 
@@ -364,22 +344,44 @@ extension LexerParserEdgeCaseTests {
     }
 
     @Test
-    func testCharArithmeticTypeInference() throws {
-        let source = """
-        fun test() {
-            val a = 'a' + 1
-            val b = 'z' - 'a'
-            val c = 'z' - 1
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    func testCharAndNumericBinaryExpressionTypes() throws {
+        let sources: [String] = [
+            """
+            package sample0
+            fun test() {
+                val a = 'a' + 1
+                val b = 'z' - 'a'
+                val c = 'z' - 1
+            }
+            """,
+            """
+            package sample1
+            fun test() {
+                var a: Char = 'a'
+                a += 1
+                var b: Char = 'z'
+                b -= 1
+            }
+            """,
+            """
+            package sample2
+            fun test() {
+                val a = 1 + 2
+                val b = 1.0 + 2
+                val c = 10L - 3
+                val d = "hello" + 1
+                val e = 1.0f * 2
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // Find binary expressions and check their types
             var binaryTypes: [String] = []
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
@@ -393,73 +395,20 @@ extension LexerParserEdgeCaseTests {
                 binaryTypes.append("\(op):\(typeName)")
             }
 
-            // 'a' + 1 -> Char, 'z' - 'a' -> Int, 'z' - 1 -> Char
+            // Char arithmetic
             #expect(binaryTypes.contains("add:Char"), "Expected 'a' + 1 to produce Char, got: \(binaryTypes)")
             #expect(binaryTypes.contains { $0 == "subtract:Int" }, "Expected 'z' - 'a' to produce Int, got: \(binaryTypes)")
             #expect(binaryTypes.contains { $0 == "subtract:Char" }, "Expected 'z' - 1 to produce Char, got: \(binaryTypes)")
-            #expect(!(ctx.diagnostics.hasError))
-        }
-    }
 
-    @Test
-    func testCharCompoundAssignmentPreservesCharType() throws {
-        let source = """
-        fun test() {
-            var a: Char = 'a'
-            a += 1
-            var b: Char = 'z'
-            b -= 1
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            // Compound assignment on Char should not produce errors
-            // (would fail if type corrupted to Int, causing subsequent mismatches)
-            #expect(!(ctx.diagnostics.hasError), "Char compound assignment should not produce errors, got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
-        }
-    }
-
-    @Test
-    func testNumericBinaryOpsNotBrokenByCharChanges() throws {
-        let source = """
-        fun test() {
-            val a = 1 + 2
-            val b = 1.0 + 2
-            val c = 10L - 3
-            val d = "hello" + 1
-            val e = 1.0f * 2
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            var binaryTypes: [String] = []
-            for index in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(index))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .binary(op, _, _, _) = expr,
-                      let exprType = sema.bindings.exprTypes[exprID]
-                else {
-                    continue
-                }
-                let typeName = sema.types.renderType(exprType)
-                binaryTypes.append("\(op):\(typeName)")
-            }
-
-            // Int + Int -> Int, Double + Int -> Double, Long - Int -> Long,
-            // String + Int -> String, Float * Int -> Float
+            // Numeric binary ops
             #expect(binaryTypes.contains("add:Int"), "Expected Int + Int -> Int, got: \(binaryTypes)")
             #expect(binaryTypes.contains("add:Double"), "Expected Double + Int -> Double, got: \(binaryTypes)")
             #expect(binaryTypes.contains("subtract:Long"), "Expected Long - Int -> Long, got: \(binaryTypes)")
             #expect(binaryTypes.contains("add:String"), "Expected String + Int -> String, got: \(binaryTypes)")
             #expect(binaryTypes.contains("multiply:Float"), "Expected Float * Int -> Float, got: \(binaryTypes)")
-            #expect(!(ctx.diagnostics.hasError))
+
+            // Char compound assignment should not produce errors
+            #expect(!(ctx.diagnostics.hasError), "Char compound assignment should not produce errors, got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
         }
     }
 

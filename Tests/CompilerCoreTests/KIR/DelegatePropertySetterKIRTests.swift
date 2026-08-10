@@ -6,70 +6,68 @@ import Testing
 /// Tests for delegate property setter rewriting and lowering pass recording.
 @Suite
 struct DelegatePropertySetterKIRTests {
-    // MARK: - Setter Rewrite: Observable
+    // MARK: - Setter Rewrite: Observable / Vetoable
 
-    @Test func testObservableSetterRewritesToSetValueCall() throws {
-        let source = """
-        import kotlin.properties.Delegates
-        var name: String by Delegates.observable("initial") { prop, old, new ->
-            println("changed")
-        }
-        fun main() {
-            name = "updated"
-            println(name)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+    @Test func testObservableAndVetoableSettersRewriteToSetValueCalls() throws {
+        let sources = [
+            """
+            package sample0
+
+            import kotlin.properties.Delegates
+
+            var name: String by Delegates.observable("initial") { prop, old, new ->
+                println("changed")
+            }
+
+            fun main0() {
+                name = "updated"
+                println(name)
+            }
+            """,
+            """
+            package sample1
+
+            import kotlin.properties.Delegates
+
+            var count: Int by Delegates.vetoable(0) { prop, old, new ->
+                new >= 0
+            }
+
+            fun main1() {
+                count = 5
+                println(count)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
             let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError),
-                           "observable setter should compile without errors: \(diagnosticMessages)")
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "observable/vetoable setters should compile without errors: \(diagnosticMessages)"
+            )
 
             let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(
-                named: "main", in: module, interner: ctx.interner
-            )
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
+            let observableBody = try findKIRFunctionBody(
+                named: "main0", in: module, interner: ctx.interner
+            )
+            let observableCallees = extractCallees(from: observableBody, interner: ctx.interner)
             #expect(
-                callees.contains("kk_observable_set_value"),
-                "Should emit kk_observable_set_value, got: \(callees)"
+                observableCallees.contains("kk_observable_set_value"),
+                "Should emit kk_observable_set_value, got: \(observableCallees)"
             )
-        }
-    }
 
-    // MARK: - Setter Rewrite: Vetoable
-
-    @Test func testVetoableSetterRewritesToSetValueCall() throws {
-        let source = """
-        import kotlin.properties.Delegates
-        var count: Int by Delegates.vetoable(0) { prop, old, new ->
-            new >= 0
-        }
-        fun main() {
-            count = 5
-            println(count)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError),
-                           "vetoable setter should compile without errors: \(diagnosticMessages)")
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(
-                named: "main", in: module, interner: ctx.interner
+            let vetoableBody = try findKIRFunctionBody(
+                named: "main1", in: module, interner: ctx.interner
             )
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
+            let vetoableCallees = extractCallees(from: vetoableBody, interner: ctx.interner)
             #expect(
-                callees.contains("kk_vetoable_set_value"),
-                "Should emit kk_vetoable_set_value, got: \(callees)"
+                vetoableCallees.contains("kk_vetoable_set_value"),
+                "Should emit kk_vetoable_set_value, got: \(vetoableCallees)"
             )
         }
     }
