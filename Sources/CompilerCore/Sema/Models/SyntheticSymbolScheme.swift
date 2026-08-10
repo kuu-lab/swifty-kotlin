@@ -128,7 +128,7 @@ enum SyntheticSymbolScheme {
     /// `Delegates.observable`/`vetoable`; unused for `lazy`, which has none).
     /// Shared between Sema (`typeCheckDelegate`, which binds these names as
     /// locals so bare references elsewhere in the body -- including to other
-    /// outer instance fields, BUG-200 -- get resolved at all) and KIR lowering
+    /// outer instance fields, BUG-170 -- get resolved at all) and KIR lowering
     /// (`lowerDelegateLambdaBody`, which allocates the actual KIR parameters):
     /// both sides must compute the identical symbol for a binding made by one
     /// to be visible to the other.

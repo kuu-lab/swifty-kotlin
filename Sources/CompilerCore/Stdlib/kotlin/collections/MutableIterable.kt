@@ -15,7 +15,7 @@ package kotlin.collections
 // `iterator()` is intentionally omitted (as with `Comparable.compareTo` in
 // KSP-669) and stays a compiler residual: the covariant override of the
 // read-only `Iterable.iterator()` has to be re-typed against the reused shell's
-// type parameter, which library metadata cannot express yet (BUG-198).
+// type parameter, which library metadata cannot express yet (BUG-183).
 
 /**
  * Classes that inherit from this interface can be represented as a sequence of

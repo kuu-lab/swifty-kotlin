@@ -376,7 +376,7 @@ extension KIRLoweringDriver {
     ///
     /// A class-member delegate body (`lazy { }`, `Delegates.observable(...) { }`)
     /// may reference other instance fields by bare name (e.g. `initCount += 1`,
-    /// DEBT-KIR-008/BUG-200). The generated function is invoked later through
+    /// DEBT-KIR-008/BUG-170). The generated function is invoked later through
     /// the delegate's stored function pointer (`kk_lazy_create`'s for `.lazy`,
     /// `RuntimeObservableBox`/`RuntimeVetoableBox`'s `callbackFnPtr` for the
     /// other two), which cannot simply gain an extra KIR parameter — the

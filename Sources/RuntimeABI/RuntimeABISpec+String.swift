@@ -1284,7 +1284,7 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
-        // BUG-172: boxes a values()/entries element as a genuine ordinal Int
+        // BUG-177: boxes a values()/entries element as a genuine ordinal Int
         // (tagged with its declared name for generic Any-printing) instead of
         // a pre-baked name string.
         RuntimeABIFunctionSpec(
