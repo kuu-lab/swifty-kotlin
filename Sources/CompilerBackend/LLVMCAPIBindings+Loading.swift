@@ -253,6 +253,8 @@ extension LLVMCAPIBindings {
                 initializeAArch64AsmPrinterFn: loadSymbol(handle: handle, name: "LLVMInitializeAArch64AsmPrinter", as: LLVMInitializeAArch64AsmPrinterFn.self),
                 addGlobalFn: loadSymbol(handle: handle, name: "LLVMAddGlobal", as: LLVMAddGlobalFn.self),
                 setInitializerFn: loadSymbol(handle: handle, name: "LLVMSetInitializer", as: LLVMSetInitializerFn.self),
+                positionBuilderBeforeFn: loadSymbol(handle: handle, name: "LLVMPositionBuilderBefore", as: LLVMPositionBuilderBeforeFn.self),
+                getFirstInstructionFn: loadSymbol(handle: handle, name: "LLVMGetFirstInstruction", as: LLVMGetFirstInstructionFn.self),
                 createDIBuilderFn: loadSymbol(handle: handle, name: "LLVMCreateDIBuilder", as: LLVMCreateDIBuilderFn.self),
                 disposeDIBuilderFn: loadSymbol(handle: handle, name: "LLVMDisposeDIBuilder", as: LLVMDisposeDIBuilderFn.self),
                 diBuilderFinalizeFn: loadSymbol(handle: handle, name: "LLVMDIBuilderFinalize", as: LLVMDIBuilderFinalizeFn.self),

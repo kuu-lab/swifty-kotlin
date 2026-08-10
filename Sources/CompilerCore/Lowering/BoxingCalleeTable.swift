@@ -70,19 +70,21 @@ struct BoxingCalleeTable {
     /// Box callees used in place of the default one when the source's static
     /// type is provably non-null (TypeKind nullability `.nonNull`).
     ///
-    /// Only `.long`/`.ulong` need this: `runtimeNullSentinelInt` (Int64.min)
-    /// collides bit-for-bit with a legitimate value of those two 64-bit types
-    /// (Long.MIN_VALUE / ULong 2^63), so the default box callees must keep
-    /// treating that bit pattern as null for callers whose source might
-    /// genuinely be null (e.g. a nullable Long? argument). When the source
-    /// is statically known non-null, that ambiguity can't arise, so the
-    /// `_nonnull` variant boxes the value unconditionally instead of
-    /// misreporting it as null. Every other primitive's box callee already
-    /// handles non-null values correctly (no bit-pattern collision), so no
-    /// override is needed for them.
+    /// Only `.long`/`.ulong`/`.double` need this: `runtimeNullSentinelInt`
+    /// (Int64.min) collides bit-for-bit with a legitimate value of those
+    /// 64-bit types (Long.MIN_VALUE / ULong 2^63 / Double -0.0), so the
+    /// default box callees must keep treating that bit pattern as null for
+    /// callers whose source might genuinely be null (e.g. a nullable Long?
+    /// argument). When the source is statically known non-null, that
+    /// ambiguity can't arise, so the `_nonnull` variant boxes the value
+    /// unconditionally instead of misreporting it as null. Every other
+    /// primitive's box callee already handles non-null values correctly
+    /// (Float's bit pattern occupies only the low 32 bits), so no override
+    /// is needed for them.
     private static let nonNullOnlyBoxCalleeOverridesByPrimitive: [PrimitiveType: String] = [
         .long: "kk_box_long_nonnull",
         .ulong: "kk_box_ulong_nonnull",
+        .double: "kk_box_double_nonnull",
     ]
 
     private let calleesByPrimitive: [PrimitiveType: InternedPrimitiveCallees]

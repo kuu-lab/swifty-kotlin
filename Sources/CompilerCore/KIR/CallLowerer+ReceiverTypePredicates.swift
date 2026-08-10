@@ -74,19 +74,10 @@ extension CallLowerer {
     }
 
     func toMutableListRuntimeCalleeForSequenceOrIterableFallback(
-        chosenCallee: SymbolID?,
         useIterableFallback: Bool,
-        sema: SemaModule,
         interner: StringInterner
     ) -> InternedString {
-        if useIterableFallback,
-           let chosenCallee,
-           let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_collection_toMutableList" || externalLinkName == "kk_iterable_toMutableList"
-        {
-            return interner.intern(externalLinkName)
-        }
-        return interner.intern(useIterableFallback ? "kk_iterable_toMutableList" : "kk_sequence_toMutableList")
+        interner.intern(useIterableFallback ? "__kk_collection_toMutableList" : "kk_sequence_toMutableList")
     }
 
     func isGroupingLikeType(

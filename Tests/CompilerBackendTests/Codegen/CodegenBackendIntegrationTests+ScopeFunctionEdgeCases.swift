@@ -174,5 +174,46 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
             )
         }
     }
+
+    /// KSP-603: a user-declared `contextOf()` must keep normal call lowering
+    /// instead of being rewritten into a context receiver read.
+    func testCodegenUserDeclaredContextOfShadowsIntrinsic() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        fun contextOf(): String = "user contextOf"
+
+        fun context(a: Int): Int = a * 2
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            println(contextOf())
+            println(context(5))
+            println(context(7) { contextOf<Int>() * 2 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ContextHelperShadow",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                """
+                user contextOf
+                10
+                14
+                """
+                + "\n"
+            )
+        }
+    }
 }
 #endif

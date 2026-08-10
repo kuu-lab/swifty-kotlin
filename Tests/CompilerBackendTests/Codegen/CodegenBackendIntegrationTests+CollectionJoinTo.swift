@@ -96,7 +96,9 @@ struct CodegenBackendCollectionJoinToTests {
         )
     }
 
-    @Test func testCodegenIterableJoinToUsesRuntimeHelper() throws {
+    // KSP-435: Iterable.joinTo is bundled Kotlin source, so the call lowers to
+    // the source function instead of the kk_iterable_joinTo runtime bridge.
+    @Test func testCodegenIterableJoinToUsesBundledSource() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -113,7 +115,8 @@ struct CodegenBackendCollectionJoinToTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_iterable_joinTo"))
+            #expect(callees.contains("joinTo"))
+            #expect(!callees.contains("kk_iterable_joinTo"))
         }
     }
 }
