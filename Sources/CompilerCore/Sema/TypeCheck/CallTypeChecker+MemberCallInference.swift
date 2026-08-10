@@ -35,17 +35,9 @@ extension CallTypeChecker {
         }
 
         let receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
-        let recoveredReceiverType = recoveredMemberCallReceiverType(
-            receiverID: receiverID,
-            receiverType: receiverType,
-            ctx: ctx,
-            locals: locals
-        )
-
         if let result = tryInferMemberCallEarlyReceiverSpecials(
             request,
             receiverType: receiverType,
-            recoveredReceiverType: recoveredReceiverType,
             locals: &locals
         ) {
             return result

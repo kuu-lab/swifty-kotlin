@@ -1068,7 +1068,7 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
-        appendRegexCall("kk_match_group_collection_get", arguments: [matchGroupCollectionExpr, patternExpr])
+        appendRegexCall("__kk_match_result_group_index_of_name", arguments: [matchGroupCollectionExpr, patternExpr])
         appendRegexCall("kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
@@ -1111,7 +1111,7 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_matchEntire",
             "kk_regex_containsMatchIn",
             "kk_regex_from_literal",
-            "kk_match_group_collection_get",
+            "__kk_match_result_group_index_of_name",
             "kk_regex_matches",
         ]
         for rawName in rawNames {
@@ -1482,11 +1482,6 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_map_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapIndexed_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapNotNull_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_firstNotNullOf_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_firstNotNullOfOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexed_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexedOrNull_flat", resultType: types.intType)
@@ -1530,11 +1525,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_find_flat",
             "kk_string_findLast_flat",
             "kk_string_partition_flat",
-            "kk_string_map_flat",
-            "kk_string_mapIndexed_flat",
-            "kk_string_mapNotNull_flat",
-            "kk_string_firstNotNullOf_flat",
-            "kk_string_firstNotNullOfOrNull_flat",
             "kk_string_reduceOrNull_flat",
             "kk_string_reduceRightIndexed_flat",
             "kk_string_reduceRightIndexedOrNull_flat",

@@ -240,6 +240,34 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-612: DeepRecursiveFunction / DeepRecursiveScope は bundled Kotlin source。
+    // block は receiver ラムダ `DeepRecursiveScope<T, R>.(T) -> R` として lower され、
+    // 暗黙 `it` / 明示パラメータ / 外側変数キャプチャの3形とも runtime トランポリン経由で
+    // 正しく再帰することを end-to-end で検証する。
+    @Test
+    func testDeepRecursiveFunctionMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val sumTo = DeepRecursiveFunction<Int, Int> {
+                    if (it <= 0) 0 else it + callRecursive(it - 1)
+                }
+                val factorial = DeepRecursiveFunction<Int, Int> { n ->
+                    if (n <= 1) 1 else n * callRecursive(n - 1)
+                }
+                val step = 3
+                val countDown = DeepRecursiveFunction<Int, Int> { n ->
+                    if (n <= 0) 0 else callRecursive(n - step) + 1
+                }
+                println(sumTo(10))
+                println(factorial(5))
+                println(countDown(9))
+            }
+            """,
+            expectedOutput: "55\n120\n3\n"
+        )
+    }
+
     // KSP-661: Char 判定系は bundled Kotlin (kotlin.text.CharPredicates) で実装され、
     // Unicode テーブル参照だけを __kk_char_* ブリッジ経由で行う。移行後の述語が
     // 実際にコンパイル・実行され正しい結果を返すことを end-to-end で検証する。
@@ -331,6 +359,52 @@ struct BundledStdlibExecutionTests {
             A
             invalid-digit
             invalid-radix
+
+            """
+        )
+    }
+
+    // KSP-472: measureTime / measureTimedValue が bundled Kotlin の inline 関数として
+    // 展開され、ラムダ・関数参照・例外伝播のいずれでも正しく動くことを検証する。
+    @Test
+    func testMeasureTimeExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.time.measureTime
+            import kotlin.time.measureTimedValue
+
+            fun work(): Int {
+                var sum = 0
+                for (i in 1..1000) {
+                    sum += i
+                }
+                return sum
+            }
+
+            fun noop() {
+            }
+
+            fun main() {
+                println(measureTime { work() }.inWholeNanoseconds >= 0L)
+                println(measureTime(::noop).inWholeNanoseconds >= 0L)
+
+                val timed = measureTimedValue { work() }
+                println(timed.value)
+                println(timed.duration.inWholeNanoseconds >= 0L)
+
+                try {
+                    measureTime { throw RuntimeException("boom") }
+                } catch (e: RuntimeException) {
+                    println(e.message)
+                }
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            500500
+            true
+            boom
 
             """
         )
