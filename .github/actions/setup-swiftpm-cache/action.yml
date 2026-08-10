@@ -1,6 +1,6 @@
 name: Setup SwiftPM build cache
 description: |
-  Restore the SwiftPM .build directory and optionally save it back.
+  Restore the SwiftPM .build directory and optionally save it after the job.
   Trusted non-PR runs should set save=true so that default-branch caches
   can be restored by pull requests. Caches are keyed by runner OS, Swift
   toolchain version, Package.swift contents, ci.yml, build variant, and the
@@ -22,10 +22,10 @@ inputs:
 outputs:
   cache-hit:
     description: Whether the primary cache key matched exactly.
-    value: ${{ steps.restore.outputs.cache-hit }}
+    value: ${{ steps.result.outputs.cache-hit }}
   cache-key:
     description: The primary cache key used for restore/save.
-    value: ${{ steps.restore.outputs.cache-primary-key }}
+    value: ${{ steps.key.outputs.primary }}
 
 runs:
   using: composite
@@ -44,8 +44,22 @@ runs:
         echo "primary=${primary}" >> "$GITHUB_OUTPUT"
         echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
 
+    # actions/cache restores now and registers its save operation as a post-job
+    # step, after the caller has built the test products into .build.
+    - name: Restore SwiftPM .build cache and schedule post-job save
+      id: cache
+      if: ${{ inputs.save == 'true' }}
+      uses: actions/cache@v5
+      with:
+        path: .build
+        key: ${{ steps.key.outputs.primary }}
+        restore-keys: |
+          ${{ steps.key.outputs.prefix }}
+
+    # Pull requests stay restore-only so untrusted code cannot publish caches.
     - name: Restore SwiftPM .build cache
       id: restore
+      if: ${{ inputs.save != 'true' }}
       uses: actions/cache/restore@v5
       with:
         path: .build
@@ -53,9 +67,17 @@ runs:
         restore-keys: |
           ${{ steps.key.outputs.prefix }}
 
-    - name: Save SwiftPM .build cache
-      if: ${{ inputs.save == 'true' && steps.restore.outputs.cache-hit != 'true' }}
-      uses: actions/cache/save@v5
-      with:
-        path: .build
-        key: ${{ steps.restore.outputs.cache-primary-key }}
+    - name: Export SwiftPM cache result
+      id: result
+      shell: bash
+      env:
+        SAVE_ENABLED: ${{ inputs.save }}
+        SAVE_CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        RESTORE_CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
+      run: |
+        if [[ "$SAVE_ENABLED" == "true" ]]; then
+          cache_hit="$SAVE_CACHE_HIT"
+        else
+          cache_hit="$RESTORE_CACHE_HIT"
+        fi
+        echo "cache-hit=$cache_hit" >> "$GITHUB_OUTPUT"

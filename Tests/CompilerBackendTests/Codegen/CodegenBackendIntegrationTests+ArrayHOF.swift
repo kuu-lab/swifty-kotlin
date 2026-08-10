@@ -1,10 +1,70 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenArrayReduceComputesSum() throws {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendArrayHOFTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test func testCodegenArrayReduceComputesSum() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -15,7 +75,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayReduce", expected: "6\n")
     }
 
-    func testCodegenArrayReduceOrNullReturnsValueForNonEmptyArray() throws {
+    @Test func testCodegenArrayReduceOrNullReturnsValueForNonEmptyArray() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -26,7 +86,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayReduceOrNull", expected: "6\n")
     }
 
-    func testCodegenArrayReduceIndexedAccumulatesWithIndex() throws {
+    @Test func testCodegenArrayReduceIndexedAccumulatesWithIndex() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -39,7 +99,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayReduceIndexed", expected: "9\n")
     }
 
-    func testCodegenArrayFoldComputesSumWithInitial() throws {
+    @Test func testCodegenArrayFoldComputesSumWithInitial() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -50,7 +110,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFold", expected: "16\n")
     }
 
-    func testCodegenArrayFoldIndexedAccumulatesWithIndexAndInitial() throws {
+    @Test func testCodegenArrayFoldIndexedAccumulatesWithIndexAndInitial() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -64,7 +124,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFoldIndexed", expected: "8\n")
     }
 
-    func testCodegenArrayFlatMapExpandsElements() throws {
+    @Test func testCodegenArrayFlatMapExpandsElements() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -84,7 +144,7 @@ extension CodegenBackendIntegrationTests {
     // CallTypeChecker+ArrayMemberFallback.swift, CollectionLiteralLoweringPass+
     // VirtualCallRewrite+Array.swift, and CallLowerer+UnresolvedMemberCalls.swift.
 
-    func testCodegenArrayMapIndexedComputesIndexedTransform() throws {
+    @Test func testCodegenArrayMapIndexedComputesIndexedTransform() throws {
         let source = """
         fun main() {
             val arr = arrayOf(10, 20, 30)
@@ -96,7 +156,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayMapIndexed", expected: "[10, 21, 32]\n")
     }
 
-    func testCodegenArrayFilterIndexedKeepsOnlyIndexMatches() throws {
+    @Test func testCodegenArrayFilterIndexedKeepsOnlyIndexMatches() throws {
         let source = """
         fun main() {
             val arr = arrayOf(10, 20, 30, 40)
@@ -107,7 +167,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFilterIndexed", expected: "[10, 30]\n")
     }
 
-    func testCodegenArrayMapNotNullDropsNullResults() throws {
+    @Test func testCodegenArrayMapNotNullDropsNullResults() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3, 4, 5)
@@ -118,7 +178,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayMapNotNull", expected: "[20, 40]\n")
     }
 
-    func testCodegenArrayFilterNotExcludesMatchingElements() throws {
+    @Test func testCodegenArrayFilterNotExcludesMatchingElements() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3, 4, 5)
@@ -129,7 +189,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFilterNot", expected: "[1, 3, 5]\n")
     }
 
-    func testCodegenArrayFilterNotNullDropsNullElements() throws {
+    @Test func testCodegenArrayFilterNotNullDropsNullElements() throws {
         let source = """
         fun main() {
             val arr: Array<Int?> = arrayOf(1, null, 2, null, 3)
@@ -140,7 +200,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFilterNotNull", expected: "[1, 2, 3]\n")
     }
 
-    func testCodegenArrayFirstAndLastZeroArgReturnEndpointsAndThrowWhenEmpty() throws {
+    @Test func testCodegenArrayFirstAndLastZeroArgReturnEndpointsAndThrowWhenEmpty() throws {
         let source = """
         fun main() {
             val arr = arrayOf(5, 10, 15)
@@ -183,7 +243,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenArrayFirstAndLastWithPredicateReturnMatchOrThrow() throws {
+    @Test func testCodegenArrayFirstAndLastWithPredicateReturnMatchOrThrow() throws {
         let source = """
         fun main() {
             val arr = arrayOf(5, 10, 15, 20)
@@ -220,4 +280,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-
+#endif

@@ -315,7 +315,7 @@ extension CallLowerer {
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_compare_with_comparator"),
+                    callee: interner.intern("__kk_compare_with_comparator"),
                     arguments: [loweredArgIDs[comparatorArgIndex], candidateExpr, currentExpr],
                     result: compareResultExpr,
                     canThrow: true,

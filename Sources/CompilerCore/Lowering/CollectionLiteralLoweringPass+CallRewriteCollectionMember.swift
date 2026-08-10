@@ -182,40 +182,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        if callee == lookup.containsKeyName {
-            if arguments.count == 2 {
-                let receiverID = arguments[0]
-                if state.mapExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapContainsKeyName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-            }
-        }
-
-        if callee == lookup.containsValueName {
-            if arguments.count == 2 {
-                let receiverID = arguments[0]
-                if state.mapExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapContainsValueName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-            }
-        }
-
         if callee == lookup.addName {
             if arguments.count == 2 {
                 let receiverID = arguments[0]

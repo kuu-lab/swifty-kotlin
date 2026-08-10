@@ -39,18 +39,24 @@ extension CallTypeChecker {
                 expectedType: sema.types.intType
             )
         }
+        // The accumulator of `fold`/`foldIndexed` takes the type of the initial
+        // value: typing it as `Any` makes a primitive accumulator arrive at the
+        // operator lowering as a reference, so `DoubleArray.fold(0.0) { a, b -> a + b }`
+        // reinterprets the accumulator's raw word as an Int.
+        var accumulatorType: TypeID?
         if (memberName == "fold" || memberName == "foldIndexed"), args.indices.contains(0) {
-            _ = driver.inferExpr(
+            accumulatorType = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
                 locals: &locals,
-                expectedType: sema.types.anyType
+                expectedType: nil
             )
         }
         if let expectation = arrayMemberLambdaExpectation(
             memberName: memberName,
             argCount: args.count,
             receiverElementType: receiverElementType,
+            accumulatorType: accumulatorType ?? sema.types.anyType,
             sema: sema
         ),
             args.indices.contains(expectation.argumentIndex)
@@ -76,6 +82,7 @@ extension CallTypeChecker {
             memberName: memberName,
             receiverID: receiverID,
             elementType: receiverElementType,
+            accumulatorType: accumulatorType ?? sema.types.anyType,
             sema: sema,
             interner: interner
         )
@@ -144,6 +151,7 @@ extension CallTypeChecker {
         memberName: String,
         receiverID: ExprID,
         elementType: TypeID,
+        accumulatorType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
@@ -167,7 +175,7 @@ extension CallTypeChecker {
         case "reduceOrNull":
             return sema.types.makeNullable(elementType)
         case "fold", "foldIndexed":
-            return sema.types.anyType
+            return accumulatorType
         case "concatToString":
             return sema.types.stringType
         case "get":
@@ -204,6 +212,7 @@ extension CallTypeChecker {
         memberName: String,
         argCount: Int,
         receiverElementType: TypeID,
+        accumulatorType: TypeID,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
         let boolPredicateMembers: Set = [
@@ -243,8 +252,8 @@ extension CallTypeChecker {
         }
         if memberName == "fold", argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.anyType, receiverElementType],
-                returnType: sema.types.anyType,
+                params: [accumulatorType, receiverElementType],
+                returnType: accumulatorType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -252,8 +261,8 @@ extension CallTypeChecker {
         }
         if memberName == "foldIndexed", argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, sema.types.anyType, receiverElementType],
-                returnType: sema.types.anyType,
+                params: [sema.types.intType, accumulatorType, receiverElementType],
+                returnType: accumulatorType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
