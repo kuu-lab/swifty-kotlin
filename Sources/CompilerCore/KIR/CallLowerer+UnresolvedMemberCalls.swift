@@ -214,11 +214,11 @@ extension CallLowerer {
         if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "addAll":
-                return interner.intern("kk_mutable_set_addAll")
+                return interner.intern("__kk_mutable_set_addAll")
             case "removeAll":
-                return interner.intern("kk_mutable_set_removeAll")
+                return interner.intern("__kk_mutable_set_removeAll")
             case "retainAll":
-                return interner.intern("kk_mutable_set_retainAll")
+                return interner.intern("__kk_mutable_set_retainAll")
             default:
                 break
             }
@@ -228,42 +228,36 @@ extension CallLowerer {
             switch memberName {
             case "sort":
                 if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_mutable_list_sort_primitive")
+                    return interner.intern("__kk_mutable_list_sort_primitive")
                 }
-                return interner.intern("kk_mutable_list_sort")
+                return interner.intern("__kk_mutable_list_sort")
             case "sortWith":
-                return interner.intern("kk_mutable_list_sortWith")
+                return interner.intern("__kk_mutable_list_sortWith")
             case "sortBy":
-                return interner.intern("kk_mutable_list_sortBy")
+                return interner.intern("__kk_mutable_list_sortBy")
             case "sortByDescending":
-                return interner.intern("kk_mutable_list_sortByDescending")
+                return interner.intern("__kk_mutable_list_sortByDescending")
             case "sortDescending":
                 if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_mutable_list_sortDescending_primitive")
+                    return interner.intern("__kk_mutable_list_sortDescending_primitive")
                 }
-                return interner.intern("kk_mutable_list_sortDescending")
+                return interner.intern("__kk_mutable_list_sortDescending")
             case "add" where argumentCount == 1:
-                return interner.intern("kk_mutable_list_add")
+                return interner.intern("__kk_mutable_list_add")
             case "addAll":
-                return interner.intern("kk_mutable_list_addAll")
+                return interner.intern("__kk_mutable_list_addAll")
             case "removeAll":
-                return interner.intern("kk_mutable_list_removeAll")
+                return interner.intern("__kk_mutable_list_removeAll")
             case "retainAll":
-                return interner.intern("kk_mutable_list_retainAll")
-            case "fill":
-                return interner.intern("kk_mutable_list_fill")
-            case "replaceAll":
-                return interner.intern("kk_mutable_list_replaceAll")
-            case "removeIf":
-                return interner.intern("kk_mutable_list_removeIf")
+                return interner.intern("__kk_mutable_list_retainAll")
             case "removeFirst":
-                return interner.intern("kk_mutable_list_removeFirst")
+                return interner.intern("__kk_mutable_list_removeFirst")
             case "removeFirstOrNull":
-                return interner.intern("kk_mutable_list_removeFirstOrNull")
+                return interner.intern("__kk_mutable_list_removeFirstOrNull")
             case "removeLast":
-                return interner.intern("kk_mutable_list_removeLast")
+                return interner.intern("__kk_mutable_list_removeLast")
             case "removeLastOrNull":
-                return interner.intern("kk_mutable_list_removeLastOrNull")
+                return interner.intern("__kk_mutable_list_removeLastOrNull")
             default:
                 break
             }
@@ -977,7 +971,7 @@ extension CallLowerer {
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil
             }
-            return interner.intern("kk_mutable_map_putAll")
+            return interner.intern("__kk_mutable_map_putAll")
         default:
             return nil
         }

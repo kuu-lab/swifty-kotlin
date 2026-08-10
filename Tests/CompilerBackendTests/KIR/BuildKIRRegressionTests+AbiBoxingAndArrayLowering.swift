@@ -788,12 +788,12 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_mutable_list_add_at"))
-            #expect(callNames.contains("kk_mutable_list_set"))
+            #expect(callNames.contains("__kk_mutable_list_add_at"))
+            #expect(callNames.contains("__kk_mutable_list_set"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
         }
     }
 

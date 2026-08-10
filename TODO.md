@@ -257,8 +257,11 @@
 - [x] KSP-435: Iterable/Collection 汎用を Kotlin 化（`kk_iterable_*` 12 関数, `kk_collection_*` 6 関数）
   - Kotlin 化: `Stdlib/kotlin/collections/Iterables.kt`（`all`/`any`/`firstNotNullOf(OrNull)`/`requireNoNulls`/`last`/`joinTo`/`joinToString`/`toCollection`/`toMutableList`/`toMutableSet`/`toHashSet`）と `Collections.kt`（`Collection.toList`/`toTypedArray`）を追加。`asSequence` は既存 `Sequences.kt` の source 実装へ委譲
   - ブリッジ残留（`__kk_` 降格）: 実行時表現（List/Set box）で分岐が必要な `__kk_collection_size` / `__kk_collection_isEmpty`、および Sequence/未解決レシーバのフォールバック用 `__kk_iterable_*` / `__kk_collection_*`。公開 `kk_iterable_*` / `kk_collection_*` は Sources から全廃
-- [ ] KSP-436: 可変操作の最小ブリッジを確定する（MutableList/Set/Map の `add`/`remove`/`clear`/`set`/`put` 系 33 関数）
-  - 原則ブリッジ残留（ストレージ直接変異）: `kk_mutable_*` を `__kk_` へ一括改名し、`removeIf`/`retainAll`/`replaceAll`/`fill`/`addAll` 系など述語・複合系のみ Kotlin 化。`CallLowerer+MemberCallEmission.swift` の該当特例を Kotlin 宣言経由に置換
+- [x] KSP-436: 可変操作の最小ブリッジを確定する（MutableList/Set/Map の `add`/`remove`/`clear`/`set`/`put` 系 33 関数）
+  - ストレージ直接変異は `__kk_mutable_*` ブリッジ残留（`kk_mutable_*` を一括改名）。`removeIf`/`replaceAll`/`fill` を `Stdlib/kotlin/collections/MutableCollections.kt` へ Kotlin 化し、`CallLowerer` の該当特例を削除
+  - `addAll`/`removeAll`/`retainAll`（Collection/Iterable/Sequence/Array 各オーバーロード）はブリッジ残留。合成メンバとして登録されていることが `MutableList<out Number>` などの use-site variance 検査（`KSWIFTK-SEMA-VAR-OUT`）の前提であり、Kotlin 拡張関数化すると射影レシーバへの書き込みを検出できなくなるため
+  - 併せて修正: `MutableSet` に `MutableCollection` スーパータイプが無く、`MutableSet` を `MutableCollection` 引数に渡せなかった（`KSWIFTK-SEMA-0002`）。`MutableCollection` の `remove`/`clear`/`removeAll`/`retainAll` はリンク名未登録でディスパッチできなかった
+  - 残課題: `MutableCollection<T>` レシーバの `size` は itable に無く未リンクになる（KSP-435 取り込み後も `_size` 未解決を確認）
 
 #### kotlin.sequences [M4 実行体]（KSP-441 が先頭。他は 441 完了後に並列可）
 
