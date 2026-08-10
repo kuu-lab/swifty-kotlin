@@ -270,29 +270,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticPreconditionFunction(
-        named name: String,
-        packageFQName: [InternedString],
-        packageSymbol: SymbolID,
-        parameters: [(name: String, type: TypeID)],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        registerSyntheticFunctionStub(
-            named: name,
-            ownerFQName: packageFQName,
-            parentSymbol: packageSymbol,
-            parameters: syntheticFunctionParameters(parameters),
-            returnType: returnType,
-            externalLinkName: externalLinkName,
-            matchReturnType: true,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
     func registerSyntheticGenericSequenceVarargFunction(
         named name: String,
         packageFQName: [InternedString],

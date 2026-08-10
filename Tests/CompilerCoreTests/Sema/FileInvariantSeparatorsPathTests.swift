@@ -14,10 +14,7 @@ import Testing
 
 @Suite
 struct FileInvariantSeparatorsPathTests {
-
-    // MARK: - Resolves with explicit import
-
-    @Test func testFileInvariantSeparatorsPathWithExplicitImportResolves() throws {
+    @Test func testFileInvariantSeparatorsPathResolvesInSource() throws {
         let source = """
         import java.io.File
         import kotlin.io.invariantSeparatorsPath
@@ -25,70 +22,16 @@ struct FileInvariantSeparatorsPathTests {
         fun normalized(file: File): String {
             return file.invariantSeparatorsPath
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "File.invariantSeparatorsPath in kotlin.io should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-        }
-    }
-
-    // MARK: - Returned value typed as String
-
-    @Test func testFileInvariantSeparatorsPathReturnsString() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.invariantSeparatorsPath
 
         fun length(file: File): Int {
             val normalized: String = file.invariantSeparatorsPath
             return normalized.length
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "File.invariantSeparatorsPath should type as String, allowing .length use: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-        }
-    }
-
-    // MARK: - Inline File construction
-
-    @Test func testFileInvariantSeparatorsPathOnFreshlyConstructedFile() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.invariantSeparatorsPath
 
         fun main() {
             val s: String = File("/tmp/foo").invariantSeparatorsPath
             println(s)
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "File(...).invariantSeparatorsPath should compile end-to-end through Sema: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-        }
-    }
-
-    // MARK: - External link name is registered on the synthetic symbol
-
-    @Test func testFileInvariantSeparatorsPathExternalLinkNameIsRegistered() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.invariantSeparatorsPath
 
         fun stub(file: File): String = file.invariantSeparatorsPath
         """
@@ -96,6 +39,10 @@ struct FileInvariantSeparatorsPathTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "File.invariantSeparatorsPath should resolve as String: \(ctx.diagnostics.diagnostics.map { $0.message })"
+            )
 
             let interner = ctx.interner
             let sema = try #require(ctx.sema)

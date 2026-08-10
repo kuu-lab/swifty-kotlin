@@ -17,6 +17,45 @@ struct GoldenHarnessCaseBatch: Sendable, CustomTestStringConvertible {
     }
 }
 
+private struct GoldenHarnessShard: Equatable {
+    private static let indexKey = "KSWIFTK_GOLDEN_SHARD_INDEX"
+    private static let countKey = "KSWIFTK_GOLDEN_SHARD_COUNT"
+
+    let index: Int
+    let count: Int
+
+    static func fromEnvironment(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> GoldenHarnessShard? {
+        let rawIndex = environment[indexKey]
+        let rawCount = environment[countKey]
+
+        guard rawIndex != nil || rawCount != nil else {
+            return nil
+        }
+        guard
+            let rawIndex,
+            let rawCount,
+            let index = Int(rawIndex),
+            let count = Int(rawCount),
+            count > 0,
+            index >= 0,
+            index < count
+        else {
+            fatalError(
+                "\(indexKey) and \(countKey) must be integers satisfying 0 <= index < count"
+            )
+        }
+        return GoldenHarnessShard(index: index, count: count)
+    }
+
+    func select<T>(_ values: [T]) -> [T] {
+        values.enumerated().compactMap { offset, value in
+            offset % count == index ? value : nil
+        }
+    }
+}
+
 private enum GoldenHarnessStaticCases {
     private static let batchSize = 8
 
@@ -27,10 +66,39 @@ private enum GoldenHarnessStaticCases {
 
     private static func batches(suiteName: String) -> [GoldenHarnessCaseBatch] {
         let cases = GoldenHarness.loadCasesOrCrash(suiteName: suiteName)
-        return stride(from: 0, to: cases.count, by: batchSize).map { startIndex in
+        let allBatches = stride(from: 0, to: cases.count, by: batchSize).map { startIndex in
             let endIndex = min(startIndex + batchSize, cases.count)
             return GoldenHarnessCaseBatch(cases: Array(cases[startIndex ..< endIndex]))
         }
+
+        guard let shard = GoldenHarnessShard.fromEnvironment() else {
+            return allBatches
+        }
+        let selectedBatches = shard.select(allBatches)
+        print(
+            "GoldenHarness: \(suiteName) shard \(shard.index)/\(shard.count) "
+                + "selected \(selectedBatches.count) of \(allBatches.count) batches"
+        )
+        return selectedBatches
+    }
+}
+
+@Suite
+struct GoldenHarnessShardingTests {
+    @Test
+    func disabledWithoutEnvironment() {
+        #expect(GoldenHarnessShard.fromEnvironment([:]) == nil)
+    }
+
+    @Test
+    func selectsInterleavedValues() throws {
+        let shard = try #require(
+            GoldenHarnessShard.fromEnvironment([
+                "KSWIFTK_GOLDEN_SHARD_INDEX": "1",
+                "KSWIFTK_GOLDEN_SHARD_COUNT": "3",
+            ])
+        )
+        #expect(shard.select(Array(0 ..< 8)) == [1, 4, 7])
     }
 }
 
