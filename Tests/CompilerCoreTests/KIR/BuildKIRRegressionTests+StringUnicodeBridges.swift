@@ -4,8 +4,8 @@ import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
-    /// KSP-417: Unicode 正規化 / codePointCount / random は Kotlin 化せずランタイム
-    /// ブリッジのまま残すが、シンボルは private tier (`__kk_`) に降格済み。
+    /// KSP-417 keeps normalization, codePointCount, and random as runtime bridges,
+    /// but demotes their symbols to the private `__kk_` tier.
     @Test func testUnicodeNormalizationAndRandomLowerToPrivateRuntimeBridges() throws {
         let source = """
         import kotlin.random.Random

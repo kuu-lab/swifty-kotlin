@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+private func assertKotlinOutput(
+    _ source: String,
+    moduleName: String,
+    expected: String
+) throws {
+    try withTemporaryFile(contents: source) { path in
+        let outputBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        let ctx = try runCodegenPipeline(
+            inputPath: path,
+            moduleName: moduleName,
+            emit: .executable,
+            outputPath: outputBase
+        )
+        try LinkPhase().run(ctx)
+        let result = try CommandRunner.run(executable: outputBase, arguments: [])
+        let normalizedStdout = result.stdout
+            .replacingOccurrences(of: "\r\n", with: "\n")
+        #expect(normalizedStdout == expected)
+    }
+}
+
+@Suite
+struct CodegenBackendThrowableEdgeCasesTests {
+
+    @Test
     func testCodegenThrowableSuppressedExceptionsProperty() throws {
         let source = """
         fun main() {
@@ -31,6 +93,7 @@ extension CodegenBackendIntegrationTests {
     // constructor bridge, so the typed RuntimeThrowableBox adds the exception name
     // to rendered output. What this test guards is that all three conversions ($e,
     // +, println) stay in lockstep and none of them regresses to printing a raw pointer.
+    @Test
     func testCodegenCaughtThrowableStringConversionMatchesPrintln() throws {
         let source = """
         fun main() {
@@ -59,6 +122,7 @@ extension CodegenBackendIntegrationTests {
     // Same regression as above, exercised through a different pre-existing exception
     // type (ArithmeticException raised by integer division by zero) to confirm the
     // fix is general and not tied to IllegalStateException specifically.
+    @Test
     func testCodegenCaughtArithmeticExceptionStringConversionMatchesPrintln() throws {
         let source = """
         fun main() {
@@ -85,4 +149,40 @@ extension CodegenBackendIntegrationTests {
                 """ + "\n"
         )
     }
+
+    // KSP-616: TODO() is a bundled Kotlin declaration throwing NotImplementedError,
+    // which must stay catchable both as its own type and as its Error supertype.
+    func testCodegenTodoThrowsCatchableNotImplementedError() throws {
+        let source = """
+        fun main() {
+            try {
+                TODO()
+            } catch (e: NotImplementedError) {
+                println(e.message)
+            }
+            try {
+                TODO("later")
+            } catch (e: Error) {
+                println(e.message)
+            }
+            try {
+                TODO("rendered")
+            } catch (e: Throwable) {
+                println(e)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TodoNotImplementedError",
+            expected:
+                """
+                An operation is not implemented.
+                An operation is not implemented: later
+                Throwable(NotImplementedError: An operation is not implemented: rendered)
+                """ + "\n"
+        )
+    }
 }
+#endif

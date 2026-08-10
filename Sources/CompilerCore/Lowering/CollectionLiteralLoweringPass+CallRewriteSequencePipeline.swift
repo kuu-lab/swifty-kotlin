@@ -19,15 +19,9 @@ extension CollectionLiteralConstructionLoweringPass {
     // route through normal function resolution so the source implementation runs.
     // When the receiver is a runtime Sequence handle (RuntimeSequenceBox), keep
     // the call in the lowering pipeline so it can be rewritten to a `kk_*` helper.
-    //
-    // flatMap/flatMapIndexed source implementations are an exception: their
-    // overloaded extension object-expressions hit a compiler itable bug, so they
-    // are rewritten to kk_sequence_flatMap/kk_sequence_flatMapIndexed below.
     if isSourceBacked(symbol: symbol, ctx: ctx),
        let receiverID = arguments.first,
-       !state.sequenceExprIDs.contains(receiverID.rawValue),
-       callee != lookup.flatMapName,
-       callee != lookup.flatMapIndexedName {
+       !state.sequenceExprIDs.contains(receiverID.rawValue) {
         return false
     }
 
@@ -59,14 +53,24 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
-        // KSP-441〜447: asSequence は source 化済み。runtime rewrite せず元の仮想呼び出しを残す。
-        let isSourceBacked = (ctx.sema?.symbols.externalLinkName(for: symbol ?? .invalid) ?? "").isEmpty
-        if isSourceBacked {
-            loweredBody.append(instruction)
-            return true
-        }
-
         let receiverID = arguments[0]
+        // Seed tracking from static type so `intArrayOf(...).asSequence()` works even when
+        // CallLowerer already rewrote the factory to `kk_array_of` (which PreScan does not
+        // always tag as an array factory name).
+        classifyTrackedExprByStaticType(
+            receiverID,
+            module: module,
+            sema: ctx.sema,
+            interner: ctx.interner,
+            state: &state
+        )
+
+        // Runtime array/list handles must use kk_*_asSequence. Source-backed
+        // Iterable/Sequence.asSequence cannot traverse RuntimeArrayBox/ListBox.
+        // Check tracking before the source-backed short-circuit: an unbound
+        // asSequence call (symbol == nil) has an empty externalLinkName and would
+        // otherwise be misclassified as source-backed, leaving a virtual call that
+        // yields an empty sequence (BUG with primitive Array.asSequence pipelines).
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
                 symbol: nil,
@@ -78,7 +82,8 @@ extension CollectionLiteralConstructionLoweringPass {
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
-        } else if state.listExprIDs.contains(receiverID.rawValue) {
+        }
+        if state.listExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkListAsSequenceName,
@@ -89,10 +94,21 @@ extension CollectionLiteralConstructionLoweringPass {
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
-        } else {
+        }
+
+        // KSP-441〜447: true source-backed Sequence/Iterable.asSequence — keep virtual.
+        // Require a real symbol so unbound calls are not treated as source-backed.
+        if let symbol,
+           let sema = ctx.sema,
+           sema.symbols.symbol(symbol) != nil,
+           (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        {
             loweredBody.append(instruction)
             return true
         }
+
+        loweredBody.append(instruction)
+        return true
     }
 
     // constrainOnce() on sequence -> kk_sequence_constrainOnce
@@ -157,21 +173,15 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // flatMap/flatMapIndexed on sequence → kk_sequence_flatMap/kk_sequence_flatMapIndexed
-    // KSP-441: The bundled source implementation uses overloaded extension
-    // functions whose nested object-expressions hit a compiler itable bug for
-    // generic Iterator classes. Route source-backed Sequence receivers through
-    // the runtime pipeline instead, which can traverse both source Sequence
-    // objects and RuntimeSequenceBox handles.
+    // flatMap/flatMapIndexed on a runtime sequence handle
+    // → kk_sequence_flatMap/kk_sequence_flatMapIndexed
     if callee == lookup.flatMapName || callee == lookup.flatMapIndexedName,
        arguments.count == 2 || arguments.count == 3
     {
         let receiverID = arguments[0]
-        let isRuntimeSequence = state.sequenceExprIDs.contains(receiverID.rawValue)
-            && !state.arrayExprIDs.contains(receiverID.rawValue)
-        let sourceBacked = isSourceBacked(symbol: symbol, ctx: ctx)
-        let isSourceSeq = sourceBacked && isStaticallySequenceReceiver(receiverID, module: module, ctx: ctx)
-        if isRuntimeSequence || isSourceSeq {
+        if state.sequenceExprIDs.contains(receiverID.rawValue),
+           !state.arrayExprIDs.contains(receiverID.rawValue)
+        {
             let arity = callee == lookup.flatMapIndexedName ? 2 : 1
             let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: arity) ?? callee
             let expanded = expandSequenceLambdaArgument(
@@ -539,21 +549,6 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
         return false
-    }
-
-    private func isStaticallySequenceReceiver(
-        _ receiverID: KIRExprID,
-        module: KIRModule,
-        ctx: KIRContext
-    ) -> Bool {
-        guard let sema = ctx.sema,
-              let typeID = module.arena.exprType(receiverID),
-              let (_, symbol) = resolveClassTypeSymbol(typeID, sema: sema),
-              let simpleName = symbol.fqName.last
-        else {
-            return false
-        }
-        return ctx.interner.resolve(simpleName) == "Sequence"
     }
 
     /// Decomposes a materialized Sequence HOF lambda (a `kk_function_create_N`

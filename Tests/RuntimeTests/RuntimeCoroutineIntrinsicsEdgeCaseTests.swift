@@ -1,3 +1,4 @@
+#if canImport(Testing)
 import Dispatch
 @testable import Runtime
 import Testing
@@ -57,7 +58,7 @@ private func coro_intrinsics_throw_immediately(_ continuation: Int, _ outThrown:
 // RuntimeCancellationBox reports this chain via exceptionHierarchyFQNames so catch clauses
 // targeting IllegalStateException / RuntimeException match CancellationException at runtime (PR #1261).
 
-@Suite(.runtimeIsolation(.all))
+@Suite(.serialized, .runtimeIsolation(.all))
 struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     // MARK: - COROUTINE_SUSPENDED sentinel
@@ -275,7 +276,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(kk_is_cancellation_exception(exc) == 1)
 
         // Verify the message is accessible through the throwable API.
-        let msgRaw = kk_throwable_message(exc)
+        let msgRaw = __kk_throwable_message(exc)
         #expect(msgRaw != 0, "CancellationException message handle must be non-zero")
     }
 
@@ -285,7 +286,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let exc = runtimeAllocateCancellationException(message: "cancelled with cause", cause: cause)
         #expect(kk_is_cancellation_exception(exc) == 1)
 
-        let causeRaw = kk_throwable_cause(exc)
+        let causeRaw = __kk_throwable_cause(exc)
         #expect(causeRaw == cause, "CancellationException must preserve its cause reference")
     }
 
@@ -342,8 +343,8 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     /// (same mechanism as all throwable allocations) and respond to throwable APIs.
     @Test func cancellationExceptionIsSubtypeOfThrowable() {
         let exc = runtimeAllocateCancellationException(message: "hierarchy check")
-        // If it is a throwable, kk_throwable_message must return a non-zero handle.
-        let msgRaw = kk_throwable_message(exc)
+        // If it is a throwable, __kk_throwable_message must return a non-zero handle.
+        let msgRaw = __kk_throwable_message(exc)
         #expect(msgRaw != 0, "CancellationException must respond to throwable APIs (is-a RuntimeThrowableBox)")
         // And it must still be identified as a CancellationException.
         #expect(kk_is_cancellation_exception(exc) == 1, "CancellationException must also satisfy is-cancellation check (is-a RuntimeCancellationBox)")
@@ -353,7 +354,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     @Test func regularThrowableIsNotCancellationException() {
         let exc = runtimeAllocateThrowable(message: "not cancelled")
         // It IS a throwable.
-        let msgRaw = kk_throwable_message(exc)
+        let msgRaw = __kk_throwable_message(exc)
         #expect(msgRaw != 0, "Regular throwable must respond to throwable APIs")
         // But NOT a CancellationException.
         #expect(kk_is_cancellation_exception(exc) == 0, "Regular throwable must not be identified as CancellationException")
@@ -398,16 +399,15 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     /// IllegalStateException must appear before RuntimeException in the hierarchy list
     /// (subtype ordering: CancellationException → ISE → RuntimeException → Exception → Throwable).
-    @Test func cancellationExceptionHierarchyOrderingISEBeforeRuntimeException() {
+    @Test func cancellationExceptionHierarchyOrderingISEBeforeRuntimeException() throws {
         let box = RuntimeCancellationBox(message: "cancelled")
         let names = box.exceptionHierarchyFQNames
-        let iseIndex = names.firstIndex(of: "kotlin.IllegalStateException")
-        let rteIndex = names.firstIndex(of: "kotlin.RuntimeException")
-        #expect(iseIndex != nil, "kotlin.IllegalStateException must be present")
-        #expect(rteIndex != nil, "kotlin.RuntimeException must be present")
-        if let ise = iseIndex, let rte = rteIndex {
-            #expect(ise < rte, "IllegalStateException must precede RuntimeException in the hierarchy list")
-        }
+        let iseIndex = try #require(names.firstIndex(of: "kotlin.IllegalStateException"),
+            "kotlin.IllegalStateException must be present")
+        let rteIndex = try #require(names.firstIndex(of: "kotlin.RuntimeException"),
+            "kotlin.RuntimeException must be present")
+        #expect(iseIndex < rteIndex,
+            "IllegalStateException must precede RuntimeException in the hierarchy list")
     }
 
     /// runtimeThrowableMatchesNominalTypeID must return true when checking CancellationException
@@ -425,3 +425,4 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(runtimeThrowableMatchesNominalTypeID(box, targetTypeID: rteTypeID), "catch (e: RuntimeException) must catch CancellationException")
     }
 }
+#endif

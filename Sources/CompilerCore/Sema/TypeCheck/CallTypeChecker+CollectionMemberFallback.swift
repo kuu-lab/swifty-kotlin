@@ -370,6 +370,7 @@ extension CallTypeChecker {
             memberName: calleeName,
             receiverID: receiverID,
             argExprs: args.map(\.expr),
+            argLabels: args.map(\.label),
             argCount: args.count,
             ctx: ctx,
             sema: sema,
@@ -600,6 +601,7 @@ extension CallTypeChecker {
         memberName: InternedString,
         receiverID: ExprID,
         argExprs: [ExprID] = [],
+        argLabels: [InternedString?] = [],
         argCount: Int,
         ctx: TypeInferenceContext,
         sema: SemaModule,
@@ -645,6 +647,27 @@ extension CallTypeChecker {
                     continue
                 }
                 allCandidates.append(candidate)
+            }
+            // Named arguments can only bind to parameters a candidate actually
+            // declares. Without this filter the arity-based matching below can
+            // pick an overload that has none of the labels — e.g.
+            // `joinToString(prefix = "<", postfix = ">")` matched the 2-param
+            // `joinToString(separator, prefix)` source overload and bound the
+            // `postfix` value to `separator`.
+            let usedLabels = argLabels.compactMap { $0 }
+            if !usedLabels.isEmpty {
+                let labelMatches = allCandidates.filter { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    let parameterNames = Set(signature.valueParameterSymbols.compactMap { parameterSymbol in
+                        sema.symbols.symbol(parameterSymbol)?.name
+                    })
+                    return usedLabels.allSatisfy { parameterNames.contains($0) }
+                }
+                if !labelMatches.isEmpty {
+                    allCandidates = labelMatches
+                }
             }
             // STDLIB-214: For slice(IntRange) vs slice(Iterable<Int>), prefer the
             // IntRange overload (kk_list_slice) when the first argument is a range expression,
@@ -1556,7 +1579,7 @@ extension CallTypeChecker {
 
         let boolReturningMembers: Set = [
             knownNames.isEmpty, interner.intern("contains"), interner.intern("containsAll"),
-            interner.intern("containsKey"),
+            interner.intern("containsKey"), interner.intern("containsValue"),
             interner.intern("add"), interner.intern("addAll"), interner.intern("remove"), interner.intern("removeAll"),
             interner.intern("retainAll"),
         ]
@@ -1756,6 +1779,24 @@ extension CallTypeChecker {
             || memberName == interner.intern("minOfOrNull")
         {
             return sema.types.nullableAnyType
+        }
+
+        // Map.toList() pairs up each entry instead of yielding Map.Entry values.
+        if memberName == interner.intern("toList"), isMapReceiver,
+           let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first
+        {
+            let entryTypes = stdlibSurfaceMapEntryTypes(receiverElementType: receiverElementType, sema: sema)
+            let pairType = sema.types.make(.classType(ClassType(
+                classSymbol: pairSymbol,
+                args: [.invariant(entryTypes.key), .invariant(entryTypes.value)],
+                nullability: .nonNull
+            )))
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: pairType
+            )
         }
 
         if memberName == interner.intern("toList")

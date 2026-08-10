@@ -5,115 +5,69 @@ import Testing
 @Suite
 struct StringToIntOrNullFunctionTests {
     @Test
-    func testStringToIntOrNullInfersNullableIntType() throws {
+    func testStringToIntOrNullResolvesInSource() throws {
         let source = """
-        fun probe(text: String) {
+        fun probeNoRadix(text: String) {
             val result: Int? = text.toIntOrNull()
             println(result)
         }
-        """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected String.toIntOrNull() to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "toIntOrNull"
-            })
-
-            #expect(
-                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
-            )
-
-            let fqName = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("text"),
-                ctx.interner.intern("toIntOrNull"),
-            ]
-            let allSatisfy = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_flat"
-            }
-            #expect(allSatisfy)
-        }
-    }
-
-    @Test
-    func testStringToIntOrNullWithRadixInfersNullableIntType() throws {
-        let source = """
-        fun probe(text: String) {
+        fun probeRadix(text: String) {
             val result: Int? = text.toIntOrNull(16)
             println(result)
         }
-        """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected String.toIntOrNull(radix) to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "toIntOrNull" && args.count == 1
-            })
-
-            #expect(
-                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
-            )
-
-            let fqName = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("text"),
-                ctx.interner.intern("toIntOrNull"),
-            ]
-            let allSatisfy = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_radix_flat"
-            }
-            #expect(allSatisfy)
-        }
-    }
-
-    @Test
-    func testStringToIntOrNullOnLiteralAndElvisFallback() throws {
-        let source = """
-        fun probe(): Int {
+        fun probeLiteral(): Int {
             val parsed: Int? = "42".toIntOrNull()
             return parsed ?: 0
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected String.toIntOrNull() on a literal to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+        #expect(
+            ctx.diagnostics.diagnostics.isEmpty,
+            "Expected String.toIntOrNull overloads to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+        )
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "toIntOrNull"
-            })
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
-            #expect(
-                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
-            )
-        }
+        let noRadixCall = try #require(
+            firstExprID(in: ast) { exprID, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr,
+                      let range = ast.arena.exprRange(exprID)
+                else { return false }
+                return interner.resolve(callee) == "toIntOrNull"
+                    && args.isEmpty
+                    && !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            },
+            "Expected member call to toIntOrNull() in AST"
+        )
+        #expect(
+            sema.bindings.exprType(for: noRadixCall) == sema.types.makeNullable(sema.types.intType)
+        )
+
+        let radixCall = try #require(
+            firstExprID(in: ast) { exprID, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr,
+                      let range = ast.arena.exprRange(exprID)
+                else { return false }
+                return interner.resolve(callee) == "toIntOrNull"
+                    && args.count == 1
+                    && !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            },
+            "Expected member call to toIntOrNull(radix) in AST"
+        )
+        #expect(
+            sema.bindings.exprType(for: radixCall) == sema.types.makeNullable(sema.types.intType)
+        )
+
+        let fqName = ["kotlin", "text", "toIntOrNull"].map { interner.intern($0) }
+        let links = Set(sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.externalLinkName(for: $0) })
+        #expect(links.contains("kk_string_toIntOrNull_flat"))
+        #expect(links.contains("kk_string_toIntOrNull_radix_flat"))
     }
 }

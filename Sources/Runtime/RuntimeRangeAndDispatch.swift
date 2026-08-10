@@ -542,6 +542,31 @@ public func kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMut
     return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: alignedLast, step: nextStep))
 }
 
+private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Iterable"
+)
+
+/// BUG-167: Calls `iterator()` on a source-implemented `Iterable` object through
+/// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
+/// the value does not implement `Iterable` in source, so callers can fall back
+/// to the runtime box representations.
+private func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
+    guard fnPtr != 0 else {
+        return nil
+    }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let iterRaw = fn(iterableRaw, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+    }
+    return iterRaw
+}
+
 @_cdecl("kk_range_iterator")
 public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
@@ -566,6 +591,14 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     }
     if runtimeIndexingIterableBox(from: rangeRaw) != nil {
         return kk_indexing_iterable_iterator(rangeRaw)
+    }
+    // BUG-167: A source-implemented `Iterable` (e.g. `class C : Iterable<Int>`)
+    // reaches this entry point too, since its `iterator()` is only known
+    // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
+    // — the same shape `runtimeTraverseSourceSequenceObject` uses for
+    // `Sequence` — instead of treating the object as an invalid range.
+    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw) {
+        return sourceIterator
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0

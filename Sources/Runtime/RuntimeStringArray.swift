@@ -78,8 +78,8 @@ public func kk_throwable_is_cancellation(_ throwableRaw: Int) -> Int {
     kk_is_cancellation_exception(throwableRaw)
 }
 
-@_cdecl("kk_throwable_message")
-public func kk_throwable_message(_ throwableRaw: Int) -> Int {
+@_cdecl("__kk_throwable_message")
+public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return runtimeNullSentinelInt
     }
@@ -102,8 +102,8 @@ public func kk_throwable_message(_ throwableRaw: Int) -> Int {
     return Int(bitPattern: opaque)
 }
 
-@_cdecl("kk_throwable_cause")
-public func kk_throwable_cause(_ throwableRaw: Int) -> Int {
+@_cdecl("__kk_throwable_cause")
+public func __kk_throwable_cause(_ throwableRaw: Int) -> Int {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return runtimeNullSentinelInt
     }
@@ -136,9 +136,9 @@ public func kk_throwable_printStackTrace(_ throwableRaw: Int) -> Int {
 
 // MARK: - Advanced exception features (STDLIB-EXCEPT-105)
 
-/// initCause(cause: Throwable?): Throwable — sets the cause on a throwable, returns the throwable.
-@_cdecl("kk_throwable_initCause")
-public func kk_throwable_initCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
+/// Storage bridge for `Throwable.initCause`: overwrites the cause slot.
+@_cdecl("__kk_throwable_setCause")
+public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
           let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
           let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
@@ -150,9 +150,9 @@ public func kk_throwable_initCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int 
     return throwableRaw
 }
 
-/// addSuppressed(exception: Throwable): Unit — adds a suppressed exception.
-@_cdecl("kk_throwable_addSuppressed")
-public func kk_throwable_addSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
+/// Storage bridge for `Throwable.addSuppressed`: appends to the suppressed list.
+@_cdecl("__kk_throwable_appendSuppressed")
+public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
     guard let throwable = runtimeThrowableBox(from: throwableRaw)
     else {
         return 0
@@ -170,9 +170,9 @@ public func kk_throwable_addSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int
     return 0
 }
 
-/// getSuppressed(): Array<Throwable> — returns the suppressed exceptions as an array.
-@_cdecl("kk_throwable_getSuppressed")
-public func kk_throwable_getSuppressed(_ throwableRaw: Int) -> Int {
+/// Storage bridge for `Throwable.getSuppressed`: the raw `Array<Throwable>`.
+@_cdecl("__kk_throwable_suppressedRaw")
+public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
     guard let throwable = runtimeThrowableBox(from: throwableRaw)
     else {
         return runtimeAllocateArrayBox(length: 0)
@@ -187,15 +187,6 @@ public func kk_throwable_getSuppressed(_ throwableRaw: Int) -> Int {
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     return Int(bitPattern: opaque)
-}
-
-/// suppressedExceptions: List<Throwable> - returns suppressed exceptions as a Kotlin List.
-@_cdecl("kk_throwable_suppressedExceptions")
-public func kk_throwable_suppressedExceptions(_ throwableRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw) else {
-        return kk_emptyList()
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: throwable.suppressed), typeID: listRuntimeTypeID)
 }
 
 @_cdecl("kk_abort_unreachable")
@@ -1551,12 +1542,15 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
 
 @_cdecl("kk_array_get_inbounds")
 public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
+    // Uses the O(1) subscript rather than `elements`, which copies the whole
+    // backing store on every access. This is the hot path for object field
+    // reads as well as array indexing.
     guard let array = runtimeArrayBox(from: arrayRaw),
-          array.elements.indices.contains(index)
+          index >= 0, index < array.count
     else {
         runtimeStructuredPanic("kk_array_get_inbounds precondition failed")
     }
-    return array.elements[index]
+    return array[index]
 }
 
 @_cdecl("kk_array_set")
