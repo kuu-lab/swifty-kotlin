@@ -1,4 +1,10 @@
 
+// KSP-612: kotlin.DeepRecursiveFunction / DeepRecursiveScope are Kotlin source
+// (Sources/CompilerCore/Stdlib/kotlin/DeepRecursive.kt). Both types are opaque
+// handles over the boxes below and every entry point stays here as a demoted
+// __kk_* bridge: re-entering the block through a runtime-owned scope is the
+// trampoline that gives these bridges their reason to exist.
+
 final class RuntimeDeepRecursiveFunctionBox {
     let fnPtr: Int
     let closureRaw: Int
@@ -48,32 +54,32 @@ private func runtimeInvokeDeepRecursive(
     return result
 }
 
-@_cdecl("kk_deep_recursive_function_new")
-public func kk_deep_recursive_function_new(_ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_deep_recursive_function_new")
+public func kk_deep_recursive_bridge_function_new(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard fnPtr != 0 else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: DeepRecursiveFunction requires a valid block")
     }
     return registerRuntimeObject(RuntimeDeepRecursiveFunctionBox(fnPtr: fnPtr, closureRaw: closureRaw))
 }
 
-@_cdecl("kk_deep_recursive_function_invoke")
-public func kk_deep_recursive_function_invoke(_ functionRaw: Int, _ value: Int) -> Int {
+@_cdecl("__kk_deep_recursive_function_invoke")
+public func kk_deep_recursive_bridge_function_invoke(_ functionRaw: Int, _ value: Int) -> Int {
     guard let function = runtimeDeepRecursiveFunctionBox(from: functionRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid DeepRecursiveFunction handle")
     }
     return runtimeInvokeDeepRecursive(function, value)
 }
 
-@_cdecl("kk_deep_recursive_scope_callRecursive")
-public func kk_deep_recursive_scope_callRecursive(_ scopeRaw: Int, _ value: Int) -> Int {
+@_cdecl("__kk_deep_recursive_scope_callRecursive")
+public func kk_deep_recursive_bridge_scope_callRecursive(_ scopeRaw: Int, _ value: Int) -> Int {
     guard let scope = runtimeDeepRecursiveScopeBox(from: scopeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid DeepRecursiveScope handle")
     }
     return runtimeInvokeDeepRecursive(scope.function, value)
 }
 
-@_cdecl("kk_deep_recursive_function_callRecursive")
-public func kk_deep_recursive_function_callRecursive(_ functionRaw: Int, _ value: Int) -> Int {
+@_cdecl("__kk_deep_recursive_function_callRecursive")
+public func kk_deep_recursive_bridge_function_callRecursive(_ functionRaw: Int, _ value: Int) -> Int {
     guard let function = runtimeDeepRecursiveFunctionBox(from: functionRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid DeepRecursiveFunction handle")
     }

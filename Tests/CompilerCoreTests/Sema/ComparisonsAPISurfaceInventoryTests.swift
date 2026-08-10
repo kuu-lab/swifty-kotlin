@@ -194,26 +194,26 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - 7. Comparator member: nullsFirst
 
-    @Test func testComparatorNullsFirstIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorNullsFirstIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "nullsFirst"],
+        #expect(hasSourceBackedComparatorExtension(
+            "nullsFirst",
+            parameterCount: 0,
             sema: sema,
             interner: interner
-        )
-        #expect(link == "kk_comparator_nulls_first", "Comparator.nullsFirst must link to kk_comparator_nulls_first")
+        ), "Comparator.nullsFirst must be source-backed")
     }
 
     // MARK: - 8. Comparator member: nullsLast
 
-    @Test func testComparatorNullsLastIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorNullsLastIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "nullsLast"],
+        #expect(hasSourceBackedComparatorExtension(
+            "nullsLast",
+            parameterCount: 0,
             sema: sema,
             interner: interner
-        )
-        #expect(link == "kk_comparator_nulls_last", "Comparator.nullsLast must link to kk_comparator_nulls_last")
+        ), "Comparator.nullsLast must be source-backed")
     }
 
     // MARK: - 9. Factory: compareBy (single-selector)
@@ -255,24 +255,24 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     @Test func testCompareByTwoSelectorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareBy"],
+            parameterCount: 2,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_multi_selectors"), "compareBy with 2 selectors must link to kk_comparator_from_multi_selectors; found: \(links)")
+        ), "compareBy with 2 selectors must be registered from bundled stdlib source")
     }
 
     // MARK: - 13. Factory: compareBy with multi-selector (3 selectors)
 
     @Test func testCompareByThreeSelectorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareBy"],
+            parameterCount: 3,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_multi_selectors3"), "compareBy with 3 selectors must link to kk_comparator_from_multi_selectors3; found: \(links)")
+        ), "compareBy with 3 selectors must be registered from bundled stdlib source")
     }
 
     // MARK: - 14. Factory: naturalOrder
@@ -301,50 +301,50 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - 16. compareValues (2 nullable args -> Int)
 
-    @Test func testCompareValuesIsRegisteredWithCorrectLink() throws {
+    @Test func testCompareValuesIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValues"],
+            parameterCount: 2,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_compareValues"), "kotlin.comparisons.compareValues must link to kk_compareValues; found: \(links)")
+        ), "kotlin.comparisons.compareValues must be registered from bundled stdlib source")
     }
 
     // MARK: - 17. compareValuesBy (1 selector)
 
     @Test func testCompareValuesByArity1IsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
+            parameterCount: 3,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_compareValuesBy1"), "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)")
+        ), "compareValuesBy (1-selector) must be registered from bundled stdlib source")
     }
 
     // MARK: - 18. compareValuesBy (2 selectors)
 
     @Test func testCompareValuesByArity2IsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
+            parameterCount: 4,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_compareValuesBy"), "compareValuesBy (2-selector) must link to kk_compareValuesBy; found: \(links)")
+        ), "compareValuesBy (2-selector) must be registered from bundled stdlib source")
     }
 
     // MARK: - 19. compareValuesBy (3 selectors)
 
     @Test func testCompareValuesByArity3IsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
+            parameterCount: 5,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_compareValuesBy3"), "compareValuesBy (3-selector) must link to kk_compareValuesBy3; found: \(links)")
+        ), "compareValuesBy (3-selector) must be registered from bundled stdlib source")
     }
 
     // MARK: - 20. minOf / maxOf with Comparator (2-arg comparator overload)
@@ -451,13 +451,11 @@ struct ComparisonsAPISurfaceInventoryTests {
             )
         }
 
-        let runtimeBackedComparatorMembers: [(path: [String], link: String)] = [
-            (["kotlin", "Comparator", "nullsFirst"], "kk_comparator_nulls_first"),
-            (["kotlin", "Comparator", "nullsLast"], "kk_comparator_nulls_last"),
-        ]
-        for entry in runtimeBackedComparatorMembers {
-            let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
-            #expect(links.contains(entry.link), "Missing or mislinked: \(entry.path.joined(separator: ".")) -> \(entry.link)")
+        for name in ["nullsFirst", "nullsLast"] {
+            #expect(
+                hasSourceBackedComparatorExtension(name, parameterCount: 0, sema: sema, interner: interner),
+                "Missing source-backed comparator extension: kotlin.comparisons.\(name)"
+            )
         }
 
         let sourceBackedFactories: [[String]] = [
@@ -470,35 +468,47 @@ struct ComparisonsAPISurfaceInventoryTests {
             #expect(hasSourceBackedFunction(fqPath: path, sema: sema, interner: interner), "Missing source-backed factory: \(path.joined(separator: "."))")
         }
 
-        // Runtime-backed factory functions.
-        let factoryLinks: [(path: [String], expectedLinks: [String])] = [
-            (
-                ["kotlin", "comparisons", "compareBy"],
-                [
-                    "kk_comparator_from_multi_selectors",
-                    "kk_comparator_from_multi_selectors3",
-                    "kk_comparator_from_multi_selectors_vararg",
-                ]
-            ),
-            (["kotlin", "comparisons", "compareValues"], ["kk_compareValues"]),
-            (
-                ["kotlin", "comparisons", "compareValuesBy"],
-                [
-                    "kk_compareValuesBy1",
-                    "kk_compareValuesBy",
-                    "kk_compareValuesBy3",
-                    "kk_compareValuesByVararg",
-                    "kk_compareValuesByComparator"
-                ]
-            ),
+        // KSP-461: every comparison helper is bundled Kotlin source; the arity is
+        // the only thing that distinguishes the overloads now.
+        let sourceBackedArities: [(path: [String], arities: [Int])] = [
+            (["kotlin", "comparisons", "compareBy"], [1, 2, 3]),
+            (["kotlin", "comparisons", "compareValues"], [2]),
+            (["kotlin", "comparisons", "compareValuesBy"], [3, 4, 5]),
+            (["kotlin", "comparisons", "nullsFirst"], [0, 1]),
+            (["kotlin", "comparisons", "nullsLast"], [0, 1]),
         ]
-
-        for entry in factoryLinks {
-            let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
-            for expectedLink in entry.expectedLinks {
-                #expect(links.contains(expectedLink), "Missing: \(entry.path.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
+        for entry in sourceBackedArities {
+            for arity in entry.arities {
+                #expect(
+                    hasSourceBackedFunction(fqPath: entry.path, parameterCount: arity, sema: sema, interner: interner),
+                    "Missing source-backed overload: \(entry.path.joined(separator: ".")) with \(arity) parameters"
+                )
             }
         }
+
+        // The migrated runtime entry points must be gone.
+        let removedLinks: Set<String> = [
+            "kk_compareValues",
+            "kk_compareValuesBy1",
+            "kk_compareValuesBy",
+            "kk_compareValuesBy3",
+            "kk_compareValuesByVararg",
+            "kk_compareValuesByComparator",
+            "kk_comparator_from_multi_selectors",
+            "kk_comparator_from_multi_selectors3",
+            "kk_comparator_from_multi_selectors_vararg",
+            "kk_comparator_nulls_first",
+            "kk_comparator_nulls_last",
+            "kk_comparator_nulls_last_natural",
+        ]
+        let observedLinks = allExternalLinks(fqPath: ["kotlin", "comparisons", "compareBy"], sema: sema, interner: interner)
+            .union(allExternalLinks(fqPath: ["kotlin", "comparisons", "compareValues"], sema: sema, interner: interner))
+            .union(allExternalLinks(fqPath: ["kotlin", "comparisons", "compareValuesBy"], sema: sema, interner: interner))
+            .union(allExternalLinks(fqPath: ["kotlin", "comparisons", "nullsFirst"], sema: sema, interner: interner))
+            .union(allExternalLinks(fqPath: ["kotlin", "comparisons", "nullsLast"], sema: sema, interner: interner))
+            .union(allExternalLinks(fqPath: ["kotlin", "Comparator", "nullsFirst"], sema: sema, interner: interner))
+            .union(allExternalLinks(fqPath: ["kotlin", "Comparator", "nullsLast"], sema: sema, interner: interner))
+        #expect(observedLinks.isDisjoint(with: removedLinks), "Stale comparator runtime links: \(observedLinks.intersection(removedLinks))")
     }
 }
 #endif

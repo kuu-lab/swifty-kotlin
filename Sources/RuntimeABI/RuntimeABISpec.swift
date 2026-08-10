@@ -140,7 +140,6 @@ public enum RuntimeABISpec {
         stringBridgeFunctions,
         stringBuilderFunctions,
         stringFunctions,
-        stringHOFFunctions,
         stringParsingFunctions,
         stringSearchFunctions,
         systemFunctions,
