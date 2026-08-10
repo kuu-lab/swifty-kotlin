@@ -4,97 +4,79 @@ import Foundation
 import Testing
 
 extension VirtualDispatchTests {
-    @Test func testResolveVirtualDispatchViaFullPipelineOpenClass() throws {
-        let source = """
-        open class Animal {
-            open fun speak(): String = "..."
-        }
-        class Dog : Animal() {
-            override fun speak(): String = "Woof"
-        }
-        fun callSpeak(a: Animal): String = a.speak()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            // Run through sema and KIR building
+    @Test func testResolveVirtualDispatchScenarios() throws {
+        let sources = [
+            """
+            package sample0
+            open class Animal0 {
+                open fun speak(): String = "..."
+            }
+            class Dog0 : Animal0() {
+                override fun speak(): String = "Woof"
+            }
+            fun callSpeak0(a: Animal0): String = a.speak()
+            """,
+            """
+            package sample1
+            open class Animal1 {
+                open fun speak(): String = "..."
+            }
+            class Dog1 : Animal1() {
+                override fun speak(): String = "Woof"
+            }
+            fun callSpeak1(a: Animal1?): String? = a?.speak()
+            """,
+            """
+            package sample2
+            class FinalClass2 {
+                fun doSomething2(): Int = 42
+            }
+            fun callFinal2(x: FinalClass2): Int = x.doSomething2()
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             do {
                 try runToKIR(ctx)
             } catch {
-                // If the frontend doesn't support open/override syntax yet,
-                // this is expected. The isolated unit tests above cover the
+                // If the frontend does not support open/override syntax yet,
+                // skip the whole scenario. The isolated unit tests below cover
                 // lowering behavior independently.
                 return
             }
 
             let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "callSpeak", in: module, interner: ctx.interner)
-            let hasVirtualCall = body.contains { instruction in
-                if case .virtualCall = instruction { return true }
-                return false
-            }
-            #expect(
-                hasVirtualCall,
-                "Open class with subtypes should use vtable virtualCall"
-            )
-        }
-    }
 
-    @Test func testSafeCallOpenClassMethodUsesVtableDispatch() throws {
-        let source = """
-        open class Animal {
-            open fun speak(): String = "..."
-        }
-        class Dog : Animal() {
-            override fun speak(): String = "Woof"
-        }
-        fun callSpeak(a: Animal?): String? = a?.speak()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            // sample0: open class dispatch uses virtualCall
             do {
-                try runToKIR(ctx)
-            } catch {
-                return
+                let body = try findKIRFunctionBody(named: "callSpeak0", in: module, interner: ctx.interner)
+                let hasVirtualCall = body.contains { instruction in
+                    if case .virtualCall = instruction { return true }
+                    return false
+                }
+                #expect(hasVirtualCall, "Open class with subtypes should use vtable virtualCall")
             }
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "callSpeak", in: module, interner: ctx.interner)
-            let hasVirtualCall = body.contains { instruction in
-                if case .virtualCall = instruction { return true }
-                return false
-            }
-            #expect(
-                hasVirtualCall,
-                "Safe call on open class should use vtable virtualCall on the non-null branch"
-            )
-        }
-    }
-
-    // MARK: - 16. resolveVirtualDispatch: final class -> static dispatch (no virtualCall)
-
-    @Test func testFinalClassMethodUsesStaticDispatch() throws {
-        let source = """
-        class FinalClass {
-            fun doSomething(): Int = 42
-        }
-        fun callFinal(x: FinalClass): Int = x.doSomething()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            // sample1: safe call on open class uses virtualCall on the non-null branch
             do {
-                try runToKIR(ctx)
-            } catch {
-                return
+                let body = try findKIRFunctionBody(named: "callSpeak1", in: module, interner: ctx.interner)
+                let hasVirtualCall = body.contains { instruction in
+                    if case .virtualCall = instruction { return true }
+                    return false
+                }
+                #expect(hasVirtualCall, "Safe call on open class should use vtable virtualCall on the non-null branch")
             }
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "callFinal", in: module, interner: ctx.interner)
-            let hasVirtualCall = body.contains { instruction in
-                if case .virtualCall = instruction { return true }
-                return false
+            // sample2: final class method uses static dispatch (no virtualCall)
+            do {
+                let body = try findKIRFunctionBody(named: "callFinal2", in: module, interner: ctx.interner)
+                let hasVirtualCall = body.contains { instruction in
+                    if case .virtualCall = instruction { return true }
+                    return false
+                }
+                #expect(!hasVirtualCall, "Final class method should use static dispatch (.call), not virtualCall")
             }
-            // Final class (no subtypes in Kotlin) should use static dispatch
-            #expect(!hasVirtualCall, "Final class method should use static dispatch (.call), not virtualCall")
         }
     }
 

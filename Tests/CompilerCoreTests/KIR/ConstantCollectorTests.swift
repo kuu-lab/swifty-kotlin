@@ -98,8 +98,30 @@ struct ConstantCollectorTests {
 
     // MARK: - literalConstantExpr via collectPropertyConstantInitializers
 
-    @Test func testCollectIntLiteralFromTopLevelVal() throws {
-        let ctx = makeContextFromSource("val answer = 42")
+    @Test func testCollectLiteralConstantsFromTopLevelVals() throws {
+        let sources = [
+            """
+            package sample0
+            val answer = 42
+            """,
+            """
+            package sample1
+            val flag = true
+            """,
+            #"""
+            package sample2
+            val greeting = "hello"
+            """#,
+            """
+            package sample3
+            val neg = -100
+            """,
+            """
+            package sample4
+            val flag2 = !false
+            """,
+        ]
+        let ctx = makeContextFromSources(sources)
         try runSema(ctx)
         guard let ast = ctx.ast, let sema = ctx.sema else {
             Issue.record("AST/Sema module not available")
@@ -110,70 +132,11 @@ struct ConstantCollectorTests {
             ast: ast, sema: sema, interner: ctx.interner, sourceByFileID: sourceByFileID
         )
         #expect(!mapping.isEmpty, "Should have collected at least one constant")
-        let hasIntLiteral = mapping.values.contains { if case .intLiteral(42) = $0 { return true }; return false }
-        #expect(hasIntLiteral, "Expected intLiteral(42) in mapping, got: \(mapping.values)")
-    }
-
-    @Test func testCollectBoolLiteralFromTopLevelVal() throws {
-        let ctx = makeContextFromSource("val flag = true")
-        try runSema(ctx)
-        guard let ast = ctx.ast, let sema = ctx.sema else {
-            Issue.record("AST/Sema module not available")
-            return
-        }
-        let sourceByFileID = buildSourceByFileID(ctx: ctx)
-        let mapping = collector.collectPropertyConstantInitializers(
-            ast: ast, sema: sema, interner: ctx.interner, sourceByFileID: sourceByFileID
-        )
-        let hasBoolLiteral = mapping.values.contains { if case .boolLiteral(true) = $0 { return true }; return false }
-        #expect(hasBoolLiteral, "Expected boolLiteral(true) in mapping")
-    }
-
-    @Test func testCollectStringLiteralFromTopLevelVal() throws {
-        let ctx = makeContextFromSource(#"val greeting = "hello""#)
-        try runSema(ctx)
-        guard let ast = ctx.ast, let sema = ctx.sema else {
-            Issue.record("AST/Sema module not available")
-            return
-        }
-        let sourceByFileID = buildSourceByFileID(ctx: ctx)
-        let mapping = collector.collectPropertyConstantInitializers(
-            ast: ast, sema: sema, interner: ctx.interner, sourceByFileID: sourceByFileID
-        )
-        let hasStringLiteral = mapping.values.contains {
-            if case .stringLiteral = $0 { return true }; return false
-        }
-        #expect(hasStringLiteral, "Expected stringLiteral in mapping")
-    }
-
-    @Test func testCollectNegativeIntLiteralViaUnaryMinus() throws {
-        let ctx = makeContextFromSource("val neg = -100")
-        try runSema(ctx)
-        guard let ast = ctx.ast, let sema = ctx.sema else {
-            Issue.record("AST/Sema module not available")
-            return
-        }
-        let sourceByFileID = buildSourceByFileID(ctx: ctx)
-        let mapping = collector.collectPropertyConstantInitializers(
-            ast: ast, sema: sema, interner: ctx.interner, sourceByFileID: sourceByFileID
-        )
-        let hasNegInt = mapping.values.contains { if case .intLiteral(-100) = $0 { return true }; return false }
-        #expect(hasNegInt, "Expected intLiteral(-100) in mapping")
-    }
-
-    @Test func testCollectBoolNegationViaUnaryNot() throws {
-        let ctx = makeContextFromSource("val flag = !false")
-        try runSema(ctx)
-        guard let ast = ctx.ast, let sema = ctx.sema else {
-            Issue.record("AST/Sema module not available")
-            return
-        }
-        let sourceByFileID = buildSourceByFileID(ctx: ctx)
-        let mapping = collector.collectPropertyConstantInitializers(
-            ast: ast, sema: sema, interner: ctx.interner, sourceByFileID: sourceByFileID
-        )
-        let hasBoolTrue = mapping.values.contains { if case .boolLiteral(true) = $0 { return true }; return false }
-        #expect(hasBoolTrue, "Expected boolLiteral(true) for !false")
+        #expect(mapping.values.contains { if case .intLiteral(42) = $0 { return true }; return false }, "Expected intLiteral(42) in mapping, got: \(mapping.values)")
+        #expect(mapping.values.contains { if case .boolLiteral(true) = $0 { return true }; return false }, "Expected boolLiteral(true) in mapping")
+        #expect(mapping.values.contains { if case .stringLiteral = $0 { return true }; return false }, "Expected stringLiteral in mapping")
+        #expect(mapping.values.contains { if case .intLiteral(-100) = $0 { return true }; return false }, "Expected intLiteral(-100) in mapping")
+        #expect(mapping.values.contains { if case .boolLiteral(true) = $0 { return true }; return false }, "Expected boolLiteral(true) for !false")
     }
 
     @Test func testNonLiteralInitializerNotCollected() throws {

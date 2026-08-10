@@ -97,177 +97,139 @@ struct CallableRefTypeIdentityTests {
 
     // MARK: - KIR lowering tests
 
-    @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
-        let source = """
-        fun inc(x: Int): Int = x + 1
-        fun main(): Int {
-            val f = ::inc
-            return f(2)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(
-                callees.contains("kk_callable_ref_tag_kfunction"),
-                "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
-            )
-        }
-    }
-
-    @Test func testKIREmitsKPropertyTagForPropertyCallableRef() throws {
-        let source = """
-        val answer: Int = 42
-        fun main(): Int {
-            val ref = ::answer
-            return answer
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            // Property callable refs are lowered inline in main.
-            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
-                return extractCallees(from: function.body, interner: ctx.interner)
+    @Test func testCallableRefKIREmissions() throws {
+        let sources: [String] = [
+            // KFunction tag for function callable ref
+            """
+            fun inc1(x: Int): Int = x + 1
+            fun main1(): Int {
+                val f = ::inc1
+                return f(2)
             }
-            // Verify the property ref is tagged with the KProperty tag.
-            #expect(
-                allCallees.contains("kk_callable_ref_tag_kproperty"),
-                "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
-            )
-            // Verify it does not accidentally tag as kfunction.
-            #expect(
-                !(allCallees.contains("kk_callable_ref_tag_kfunction")),
-                "Property callable ref should NOT be tagged as KFunction."
-            )
-        }
-    }
+            """,
+            // KProperty tag for property callable ref
+            """
+            val answerProp: Int = 42
+            fun main2(): Int {
+                val ref = ::answerProp
+                return answerProp
+            }
+            """,
+            // KFunction tag name and arity
+            """
+            fun add(a: Int, b: Int): Int = a + b
+            fun main3(): Int {
+                val f = ::add
+                return f(1, 2)
+            }
+            """,
+            // Bound callable ref
+            """
+            class Box {
+                fun plus(x: Int): Int = x
+            }
+            fun main4(box: Box): Int {
+                val f = box::plus
+                return f(7)
+            }
+            """,
+            // Non-throwing tag call
+            """
+            fun inc5(x: Int): Int = x + 1
+            fun main5(): Int {
+                val f = ::inc5
+                return f(2)
+            }
+            """,
+        ]
 
-    @Test func testKIRKFunctionTagIncludesCorrectNameAndArity() throws {
-        let source = """
-        fun add(a: Int, b: Int): Int = a + b
-        fun main(): Int {
-            val f = ::add
-            return f(1, 2)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // Find the tagging call and verify its arguments.
-            let tagCall = mainBody.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                    return false
+            do {
+                let mainBody = try findKIRFunctionBody(named: "main1", in: module, interner: ctx.interner)
+                let callees = extractCallees(from: mainBody, interner: ctx.interner)
+                #expect(
+                    callees.contains("kk_callable_ref_tag_kfunction"),
+                    "KIR main1 body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
+                )
+            }
+
+            do {
+                let mainBody = try findKIRFunctionBody(named: "main2", in: module, interner: ctx.interner)
+                let callees = extractCallees(from: mainBody, interner: ctx.interner)
+                #expect(
+                    callees.contains("kk_callable_ref_tag_kproperty"),
+                    "Property callable ref should be tagged as KProperty. Callees: \(callees)"
+                )
+                #expect(
+                    !callees.contains("kk_callable_ref_tag_kfunction"),
+                    "Property callable ref should NOT be tagged as KFunction."
+                )
+            }
+
+            do {
+                let mainBody = try findKIRFunctionBody(named: "main3", in: module, interner: ctx.interner)
+                let tagCall = mainBody.first { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                    return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
                 }
-                return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
-            }
-            guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
-                Issue.record("Expected kk_callable_ref_tag_kfunction call in main body.")
-                return
-            }
-
-            // arguments[0] = callable value, arguments[1] = name, arguments[2] = arity,
-            // arguments[3] = isSuspend flag.
-            #expect(arguments.count == 4)
-
-            // Verify the name argument is the string "add".
-            if let nameExpr = module.arena.expr(arguments[1]),
-               case let .stringLiteral(nameInterned) = nameExpr
-            {
-                #expect(ctx.interner.resolve(nameInterned) == "add")
-            } else {
-                Issue.record("Second argument to tag call should be string literal 'add'.")
-            }
-
-            // Verify the arity argument is 2 (two value parameters).
-            if let arityExpr = module.arena.expr(arguments[2]),
-               case let .intLiteral(arityValue) = arityExpr
-            {
-                #expect(arityValue == 2, "::add has arity 2 (a, b).")
-            } else {
-                Issue.record("Third argument to tag call should be int literal for arity.")
-            }
-
-            // Non-suspend callable refs should emit an isSuspend flag of 0.
-            if let suspendExpr = module.arena.expr(arguments[3]),
-               case let .intLiteral(isSuspendValue) = suspendExpr
-            {
-                #expect(isSuspendValue == 0, "::add is not a suspend function.")
-            } else {
-                Issue.record("Fourth argument to tag call should be int literal for isSuspend.")
-            }
-        }
-    }
-
-    @Test func testKIRKFunctionTagForBoundCallableRef() throws {
-        let source = """
-        class Box {
-            fun plus(x: Int): Int = x
-        }
-        fun main(box: Box): Int {
-            val f = box::plus
-            return f(7)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(
-                callees.contains("kk_callable_ref_tag_kfunction"),
-                "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
-            )
-        }
-    }
-
-    // MARK: - Non-throwing verification
-
-    @Test func testCallableRefTagCallsAreNonThrowing() throws {
-        let source = """
-        fun inc(x: Int): Int = x + 1
-        fun main(): Int {
-            val f = ::inc
-            return f(2)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-
-            let tagCall = mainBody.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                    return false
+                guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
+                    Issue.record("Expected kk_callable_ref_tag_kfunction call in main3 body.")
+                    return
                 }
-                return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
+
+                #expect(arguments.count == 4)
+
+                if let nameExpr = module.arena.expr(arguments[1]),
+                   case let .stringLiteral(nameInterned) = nameExpr
+                {
+                    #expect(ctx.interner.resolve(nameInterned) == "add")
+                } else {
+                    Issue.record("Second argument to tag call should be string literal 'add'.")
+                }
+
+                if let arityExpr = module.arena.expr(arguments[2]),
+                   case let .intLiteral(arityValue) = arityExpr
+                {
+                    #expect(arityValue == 2, "::add has arity 2 (a, b).")
+                } else {
+                    Issue.record("Third argument to tag call should be int literal for arity.")
+                }
+
+                if let suspendExpr = module.arena.expr(arguments[3]),
+                   case let .intLiteral(isSuspendValue) = suspendExpr
+                {
+                    #expect(isSuspendValue == 0, "::add is not a suspend function.")
+                } else {
+                    Issue.record("Fourth argument to tag call should be int literal for isSuspend.")
+                }
             }
-            guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
-                Issue.record("Expected kk_callable_ref_tag_kfunction call.")
-                return
+
+            do {
+                let mainBody = try findKIRFunctionBody(named: "main4", in: module, interner: ctx.interner)
+                let callees = extractCallees(from: mainBody, interner: ctx.interner)
+                #expect(
+                    callees.contains("kk_callable_ref_tag_kfunction"),
+                    "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
+                )
             }
-            #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
+
+            do {
+                let mainBody = try findKIRFunctionBody(named: "main5", in: module, interner: ctx.interner)
+                let tagCall = mainBody.first { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                    return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
+                }
+                guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
+                    Issue.record("Expected kk_callable_ref_tag_kfunction call in main5 body.")
+                    return
+                }
+                #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
+            }
         }
     }
 }

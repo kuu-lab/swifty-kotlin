@@ -51,232 +51,187 @@ struct KIRBuildClassLoweringTests {
         assertHasDiagnostic("KSWIFTK-KIR-0001", in: ctx)
     }
 
-    @Test func testBuildKIRPhaseProducesModuleForValidInput() throws {
-        let source = """
-        fun answer(): Int = 42
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runSema(ctx)
-            try BuildKIRPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            #expect(module.functionCount >= 1)
-            assertNoDiagnostic("KSWIFTK-KIR-0001", in: ctx)
-        }
-    }
-
-    @Test func testClassLoweringSynthesizesCompanionInitializerFunction() throws {
-        let source = """
-        class Host {
-            companion object {
-                val answer: Int = 42
+    @Test func testBuildKIRClassLoweringScenarios() throws {
+        let sources = [
+            """
+            package sample0
+            fun answer0(): Int = 42
+            """,
+            """
+            package sample1
+            class Host1 {
+                companion object {
+                    val answer: Int = 42
+                }
             }
-        }
-        fun main(): Int = Host.answer
-        """
+            fun main1(): Int = Host1.answer
+            """,
+            """
+            package sample2
+            class Box2 {
+                constructor(value: Int = 7)
+            }
+            fun main2() = Box2()
+            """,
+            """
+            package sample3
+            open class Base3(x: Int)
+            class Child3 : Base3 {
+                constructor() : super(1)
+            }
+            fun main3() = Child3()
+            """,
+            """
+            package sample4
+            class DelegateBox4 {
+                operator fun provideDelegate(thisRef: Any?, property: String): DelegateBox4 = this
+                operator fun getValue(thisRef: Any?, property: String): Int = 1
+            }
+            class Owner4 {
+                val value by DelegateBox4()
+            }
+            fun main4(): Int = Owner4().value
+            """,
+            """
+            package sample5
+            interface EventSink5 {
+                fun send(message: String): Int
+            }
+            class Box5(delegate: EventSink5) : EventSink5 by delegate
+            fun main5(): Int = 0
+            """,
+            """
+            package sample6
+            interface ComparableInput6 {
+                fun evaluate(value: Int): Int
+            }
+            class OverloadedSink6 : ComparableInput6 {
+                fun evaluate(value: String): Int = 0
+                override fun evaluate(value: Int): Int = 10
+            }
+            class Box6(delegate: ComparableInput6) : ComparableInput6 by delegate
+            fun main6(): Int = Box6(OverloadedSink6()).evaluate(1)
+            """,
+        ]
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
+            let interner = ctx.interner
             let functionNames = findAllKIRFunctions(in: module).map { function in
-                ctx.interner.resolve(function.name)
+                interner.resolve(function.name)
             }
 
+            assertNoDiagnostic("KSWIFTK-KIR-0001", in: ctx)
+            #expect(module.functionCount >= 1)
+
+            // sample1: companion initializer
             #expect(
                 functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
                 "Expected synthesized companion initializer, got: \(functionNames)"
             )
-        }
-    }
 
-    @Test func testClassLoweringGeneratesConstructorDefaultStubForSecondaryConstructor() throws {
-        let source = """
-        class Box {
-            constructor(value: Int = 7)
-        }
-        fun main() = Box()
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let functionNames = findAllKIRFunctions(in: module).map { function in
-                ctx.interner.resolve(function.name)
-            }
-
-            // Secondary constructor defaults should generate a default stub path.
+            // sample2: secondary constructor default stub
             #expect(
-                functionNames.contains(where: { $0.hasPrefix("Box") }),
-                "Expected lowered Box constructor-related functions, got: \(functionNames)"
+                functionNames.contains(where: { $0.hasPrefix("Box2") }),
+                "Expected lowered Box2 constructor-related functions, got: \(functionNames)"
             )
-        }
-    }
 
-    @Test func testClassLoweringLowersSecondaryConstructorSuperDelegation() throws {
-        let source = """
-        open class Base(x: Int)
-        class Child : Base {
-            constructor() : super(1)
-        }
-        fun main() = Child()
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let childConstructors = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-                return ctx.interner.resolve(function.name) == "Child" ? function : nil
-            }
-
-            #expect(!childConstructors.isEmpty)
-            let hasInitDelegationCall = childConstructors.contains { function in
-                function.body.contains { instruction in
-                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                    return ctx.interner.resolve(callee) == "<init>"
+            // sample3: secondary constructor super delegation
+            do {
+                let childConstructors = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
+                    return interner.resolve(function.name) == "Child3" ? function : nil
                 }
-            }
-            #expect(hasInitDelegationCall, "Expected <init> delegation call in Child constructors")
-        }
-    }
-
-    @Test func testClassLoweringLowersDelegatedPropertyInitializationPath() throws {
-        let source = """
-        class DelegateBox {
-            operator fun provideDelegate(thisRef: Any?, property: String): DelegateBox = this
-            operator fun getValue(thisRef: Any?, property: String): Int = 1
-        }
-
-        class Owner {
-            val value by DelegateBox()
-        }
-
-        fun main(): Int = Owner().value
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let ownerConstructor = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-                return ctx.interner.resolve(function.name) == "Owner" ? function : nil
-            }.first
-
-            let body = try #require(ownerConstructor?.body)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("DelegateBox"), "Expected delegate constructor call, got: \(callees)")
-        }
-    }
-
-    @Test func testClassLoweringEmitsDelegationForwarderEvenWithNoDispatchTargets() throws {
-        let source = """
-        interface EventSink {
-            fun send(message: String): Int
-        }
-
-        class Box(delegate: EventSink) : EventSink by delegate
-
-        fun main(): Int = 0
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-
-            let forwardingFunctions = loweredFunctions(in: module).filter {
-                hasCall(named: "kk_array_get", in: $0.body, interner: ctx.interner)
-            }
-
-            #expect(forwardingFunctions.count == 1, "Expected one delegation forwarder with no dispatch target match")
-
-            let forwardingBody = forwardingFunctions[0].body
-            let callees = extractCallees(from: forwardingBody, interner: ctx.interner)
-            #expect(
-                callees.contains("kk_abort_unreachable"),
-                "Expected explicit abort fallback in delegation forwarder, got: \(callees)"
-            )
-            let abortCallArgumentCounts = forwardingBody.compactMap { instruction -> Int? in
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "kk_abort_unreachable"
-                else {
-                    return nil
-                }
-                return arguments.count
-            }
-            #expect(abortCallArgumentCounts == [1], "Expected kk_abort_unreachable to receive null outThrown.")
-        }
-    }
-
-    @Test func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {
-        let source = """
-        interface ComparableInput {
-            fun evaluate(value: Int): Int
-        }
-
-        class OverloadedSink : ComparableInput {
-            fun evaluate(value: String): Int = 0
-            override fun evaluate(value: Int): Int = 10
-        }
-
-        class Box(delegate: ComparableInput) : ComparableInput by delegate
-
-        fun main(): Int = Box(OverloadedSink()).evaluate(1)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-
-            let forwarderFunction = loweredFunctions(in: module).first {
-                ctx.interner.resolve($0.name) == "evaluate"
-                    && hasCall(named: "kk_object_type_id", in: $0.body, interner: ctx.interner)
-            }
-
-            let forwardingBody = try #require(
-                forwarderFunction,
-                "Expected delegation forwarder for ComparableInput.evaluate()"
-            ).body
-
-            let delegateCallSymbols = delegationTargetSymbols(
-                in: forwardingBody,
-                interner: ctx.interner
-            )
-
-            let nonSyntheticOverrideCalls = delegateCallSymbols.compactMap { symbol -> SymbolID? in
-                guard let signatureSymbol = ctx.sema?.symbols.symbol(symbol),
-                      signatureSymbol.flags.contains(.overrideMember),
-                      !signatureSymbol.flags.contains(.synthetic)
-                else {
-                    return nil
-                }
-                return symbol
-            }
-
-            #expect(
-                nonSyntheticOverrideCalls.isEmpty == false,
-                "Expected delegation forwarder to call non-synthetic override target for ComparableInput.evaluate, got: \(delegateCallSymbols)"
-            )
-            #expect(
-                delegateCallSymbols.allSatisfy { symbol in
-                    guard let signatureSymbol = ctx.sema?.symbols.symbol(symbol) else {
-                        return false
+                #expect(!childConstructors.isEmpty)
+                let hasInitDelegationCall = childConstructors.contains { function in
+                    function.body.contains { instruction in
+                        guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                        return interner.resolve(callee) == "<init>"
                     }
-                    return !signatureSymbol.flags.contains(.synthetic)
-                },
-                "Expected delegation dispatch targets to exclude synthetic forwarding functions, got: \(delegateCallSymbols)"
-            )
+                }
+                #expect(hasInitDelegationCall, "Expected <init> delegation call in Child3 constructors")
+            }
+
+            // sample4: delegated property initialization path
+            do {
+                let ownerConstructor = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
+                    return interner.resolve(function.name) == "Owner4" ? function : nil
+                }.first
+
+                let body = try #require(ownerConstructor?.body)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("DelegateBox4"), "Expected delegate constructor call, got: \(callees)")
+            }
+
+            // sample5: delegation forwarder with no dispatch targets
+            do {
+                let forwardingFunctions = loweredFunctions(in: module).filter {
+                    interner.resolve($0.name) == "send"
+                        && hasCall(named: "kk_array_get", in: $0.body, interner: interner)
+                }
+
+                #expect(forwardingFunctions.count == 1, "Expected one delegation forwarder with no dispatch target match, got \(forwardingFunctions.count)")
+
+                let forwardingBody = forwardingFunctions[0].body
+                let callees = extractCallees(from: forwardingBody, interner: interner)
+                #expect(
+                    callees.contains("kk_abort_unreachable"),
+                    "Expected explicit abort fallback in delegation forwarder, got: \(callees)"
+                )
+                let abortCallArgumentCounts = forwardingBody.compactMap { instruction -> Int? in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          interner.resolve(callee) == "kk_abort_unreachable"
+                    else {
+                        return nil
+                    }
+                    return arguments.count
+                }
+                #expect(abortCallArgumentCounts == [1], "Expected kk_abort_unreachable to receive null outThrown.")
+            }
+
+            // sample6: delegation dispatch by exact signature
+            do {
+                let forwarderFunction = loweredFunctions(in: module).first {
+                    interner.resolve($0.name) == "evaluate"
+                        && hasCall(named: "kk_object_type_id", in: $0.body, interner: interner)
+                }
+
+                let forwardingBody = try #require(
+                    forwarderFunction,
+                    "Expected delegation forwarder for ComparableInput6.evaluate()"
+                ).body
+
+                let delegateCallSymbols = delegationTargetSymbols(
+                    in: forwardingBody,
+                    interner: interner
+                )
+
+                let nonSyntheticOverrideCalls = delegateCallSymbols.compactMap { symbol -> SymbolID? in
+                    guard let signatureSymbol = ctx.sema?.symbols.symbol(symbol),
+                          signatureSymbol.flags.contains(.overrideMember),
+                          !signatureSymbol.flags.contains(.synthetic)
+                    else {
+                        return nil
+                    }
+                    return symbol
+                }
+
+                #expect(
+                    nonSyntheticOverrideCalls.isEmpty == false,
+                    "Expected delegation forwarder to call non-synthetic override target for ComparableInput6.evaluate, got: \(delegateCallSymbols)"
+                )
+                #expect(
+                    delegateCallSymbols.allSatisfy { symbol in
+                        guard let signatureSymbol = ctx.sema?.symbols.symbol(symbol) else {
+                            return false
+                        }
+                        return !signatureSymbol.flags.contains(.synthetic)
+                    },
+                    "Expected delegation dispatch targets to exclude synthetic forwarding functions, got: \(delegateCallSymbols)"
+                )
+            }
         }
     }
 

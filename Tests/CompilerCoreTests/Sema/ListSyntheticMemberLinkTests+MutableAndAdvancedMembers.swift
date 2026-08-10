@@ -778,6 +778,86 @@ extension ListSyntheticMemberLinkTests {
                     }
 
             """,
+            // testCollectionAndIterableConversionMembersUseRuntimeExternalLinks (toMutableList/Collection)
+            """
+            package sample59
+
+                    fun copy(values: Collection<String>) {
+                        values.toMutableList()
+                    }
+            """,
+            // testCollectionAndIterableConversionMembersUseRuntimeExternalLinks (toTypedArray)
+            """
+            package sample60
+
+                    fun copy(values: Collection<String>) {
+                        values.toTypedArray()
+                    }
+            """,
+            // testCollectionAndIterableConversionMembersUseRuntimeExternalLinks (toMutableList/Iterable)
+            """
+            package sample61
+
+                    fun copy(values: Iterable<String>) {
+                        values.toMutableList()
+                    }
+            """,
+            // testCollectionAndIterableConversionMembersUseRuntimeExternalLinks (toMutableSet)
+            """
+            package sample62
+
+                    fun copy(values: Iterable<String>) {
+                        values.toMutableSet()
+                    }
+            """,
+            // testListPrimitiveArrayConversionsUseRuntimeExternalLinks (toBooleanArray)
+            """
+            package sample63
+
+                    fun convert(values: List<Boolean>) {
+                        values.toBooleanArray()
+                    }
+            """,
+            // testListPrimitiveArrayConversionsUseRuntimeExternalLinks (toByteArray)
+            """
+            package sample64
+
+                    fun convert(values: List<Byte>) {
+                        values.toByteArray()
+                    }
+            """,
+            // testListPrimitiveArrayConversionsUseRuntimeExternalLinks (toShortArray)
+            """
+            package sample65
+
+                    fun convert(values: List<Short>) {
+                        values.toShortArray()
+                    }
+            """,
+            // testListPrimitiveArrayConversionsUseRuntimeExternalLinks (toIntArray)
+            """
+            package sample66
+
+                    fun convert(values: List<Int>) {
+                        values.toIntArray()
+                    }
+            """,
+            // testListPrimitiveArrayConversionsUseRuntimeExternalLinks (toDoubleArray)
+            """
+            package sample67
+
+                    fun convert(values: List<Double>) {
+                        values.toDoubleArray()
+                    }
+            """,
+            // testListPrimitiveArrayConversionsUseRuntimeExternalLinks (toFloatArray)
+            """
+            package sample68
+
+                    fun convert(values: List<Float>) {
+                        values.toFloatArray()
+                    }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -894,60 +974,18 @@ extension ListSyntheticMemberLinkTests {
             // === testCollectionAndIterableConversionMembersUseRuntimeExternalLinks ===
 
             do {
-
-                let sample2Path = paths[2]
-
-                let source = sources[2]
-
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
-
                 let cases: [SyntheticMemberCallCase] = [
-                    .init(
-                        source: """
-                        fun copy(values: Collection<String>) {
-                            values.toMutableList()
-                        }
-                        """,
-                        memberName: "toMutableList",
-                        expectedExternalLink: "kk_collection_toMutableList",
-                        expectedTypeShape: .classNamed("MutableList")
-                    ),
-                    .init(
-                        source: """
-                        fun copy(values: Collection<String>) {
-                            values.toTypedArray()
-                        }
-                        """,
-                        memberName: "toTypedArray",
-                        expectedExternalLink: "kk_collection_toTypedArray",
-                        expectedTypeShape: .classNamed("Array")
-                    ),
-                    .init(
-                        source: """
-                        fun copy(values: Iterable<String>) {
-                            values.toMutableList()
-                        }
-                        """,
-                        memberName: "toMutableList",
-                        expectedExternalLink: "kk_iterable_toMutableList",
-                        expectedTypeShape: .classNamed("MutableList")
-                    ),
-                    .init(
-                        source: """
-                        fun copy(values: Iterable<String>) {
-                            values.toMutableSet()
-                        }
-                        """,
-                        memberName: "toMutableSet",
-                        expectedExternalLink: "kk_iterable_toMutableSet",
-                        expectedTypeShape: .classNamed("MutableSet")
-                    ),
+                    .init(source: "", memberName: "toMutableList", expectedExternalLink: "kk_collection_toMutableList", expectedTypeShape: .classNamed("MutableList")),
+                    .init(source: "", memberName: "toTypedArray", expectedExternalLink: "kk_collection_toTypedArray", expectedTypeShape: .classNamed("Array")),
+                    .init(source: "", memberName: "toMutableList", expectedExternalLink: "kk_iterable_toMutableList", expectedTypeShape: .classNamed("MutableList")),
+                    .init(source: "", memberName: "toMutableSet", expectedExternalLink: "kk_iterable_toMutableSet", expectedTypeShape: .classNamed("MutableSet")),
                 ]
 
-                for testCase in cases {
-                    try assertSyntheticMemberCall(testCase)
+                let base = 59
+                for (offset, testCase) in cases.enumerated() {
+                    let samplePath = paths[base + offset]
+                    try assertSyntheticMemberCall(testCase, in: ctx, ast: ast, sema: sema, path: samplePath)
                 }
-
             }
 
             // === testSetBinaryMembersKeepSetResultTypeInFallbackPath ===
@@ -1386,80 +1424,20 @@ extension ListSyntheticMemberLinkTests {
             // === testListPrimitiveArrayConversionsUseRuntimeExternalLinks ===
 
             do {
-
-                let sample15Path = paths[15]
-
-                let source = sources[15]
-
-                let sample15Diagnostics = diagnosticsForPath(sample15Path, in: ctx)
-
                 let cases: [SyntheticMemberCallCase] = [
-                    .init(
-                        source: """
-                        fun convert(values: List<Boolean>) {
-                            values.toBooleanArray()
-                        }
-                        """,
-                        memberName: "toBooleanArray",
-                        expectedExternalLink: "kk_list_toBooleanArray",
-                        expectedTypeShape: .classNamed("BooleanArray")
-                    ),
-                    .init(
-                        source: """
-                        fun convert(values: List<Byte>) {
-                            values.toByteArray()
-                        }
-                        """,
-                        memberName: "toByteArray",
-                        expectedExternalLink: "kk_list_toByteArray",
-                        expectedTypeShape: .classNamed("ByteArray")
-                    ),
-                    .init(
-                        source: """
-                        fun convert(values: List<Short>) {
-                            values.toShortArray()
-                        }
-                        """,
-                        memberName: "toShortArray",
-                        expectedExternalLink: "kk_list_toShortArray",
-                        expectedTypeShape: .classNamed("ShortArray")
-                    ),
-                    .init(
-                        source: """
-                        fun convert(values: List<Int>) {
-                            values.toIntArray()
-                        }
-                        """,
-                        memberName: "toIntArray",
-                        expectedExternalLink: "kk_list_toIntArray",
-                        expectedTypeShape: .classNamed("IntArray")
-                    ),
-                    .init(
-                        source: """
-                        fun convert(values: List<Double>) {
-                            values.toDoubleArray()
-                        }
-                        """,
-                        memberName: "toDoubleArray",
-                        expectedExternalLink: "kk_list_toDoubleArray",
-                        expectedTypeShape: .classNamed("DoubleArray")
-                    ),
-                    .init(
-                        source: """
-                        fun convert(values: List<Float>) {
-                            values.toFloatArray()
-                        }
-                        """,
-                        memberName: "toFloatArray",
-                        expectedExternalLink: "kk_list_toFloatArray",
-                        expectedTypeShape: .classNamed("FloatArray")
-                    ),
+                    .init(source: "", memberName: "toBooleanArray", expectedExternalLink: "kk_list_toBooleanArray", expectedTypeShape: .classNamed("BooleanArray")),
+                    .init(source: "", memberName: "toByteArray", expectedExternalLink: "kk_list_toByteArray", expectedTypeShape: .classNamed("ByteArray")),
+                    .init(source: "", memberName: "toShortArray", expectedExternalLink: "kk_list_toShortArray", expectedTypeShape: .classNamed("ShortArray")),
+                    .init(source: "", memberName: "toIntArray", expectedExternalLink: "kk_list_toIntArray", expectedTypeShape: .classNamed("IntArray")),
+                    .init(source: "", memberName: "toDoubleArray", expectedExternalLink: "kk_list_toDoubleArray", expectedTypeShape: .classNamed("DoubleArray")),
+                    .init(source: "", memberName: "toFloatArray", expectedExternalLink: "kk_list_toFloatArray", expectedTypeShape: .classNamed("FloatArray")),
                 ]
 
-                for testCase in cases {
-                    try assertSyntheticMemberCall(testCase)
+                let base = 63
+                for (offset, testCase) in cases.enumerated() {
+                    let samplePath = paths[base + offset]
+                    try assertSyntheticMemberCall(testCase, in: ctx, ast: ast, sema: sema, path: samplePath)
                 }
-
             }
 
             // === testMutableListBulkMutationMembersUseInvariantReceiverTypes ===

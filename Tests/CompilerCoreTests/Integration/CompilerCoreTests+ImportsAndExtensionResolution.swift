@@ -219,6 +219,202 @@ extension CompilerCoreTests {
     }
 
 
+    // MARK: - Cross-package top-level function and import-alias resolution
+
+    /// Consolidates the multi-source import resolution tests into a single Sema run.
+    /// Uses unique package names so the scenarios do not collide in one module.
+    @Test func testCrossPackageImportAndAliasResolutionSema() throws {
+        let sources: [String] = [
+            // 0: same-package top-level function resolution
+            """
+            package demo0
+            fun helper0(x: Int) = x
+            """,
+            """
+            package demo0
+            fun use0() = helper0(1)
+            """,
+
+            // 1: explicit import across packages
+            """
+            package lib1
+            fun helper1(x: Int) = x
+            """,
+            """
+            package app1
+            import lib1.helper1
+            fun use1() = helper1(1)
+            """,
+
+            // 2: import alias wildcard diagnostic
+            """
+            package lib2
+            fun helper2(x: Int) = x
+            """,
+            """
+            package app2
+            import lib2 as L2
+            fun use2() = 1
+            """,
+
+            // 3: import alias duplicate diagnostic
+            """
+            package lib3
+            fun foo3(x: Int) = x
+            fun bar3(x: Int) = x
+            """,
+            """
+            package app3
+            import lib3.foo3 as X3
+            import lib3.bar3 as X3
+            fun use3() = 1
+            """,
+
+            // 4: import alias resolves across packages
+            """
+            package lib4
+            fun helper4(x: Int) = x
+            """,
+            """
+            package app4
+            import lib4.helper4 as h4
+            fun use4() = h4(1)
+            """,
+
+            // 5: import alias return type is inferred
+            """
+            package lib5
+            fun compute5(x: Int): Int = x + 1
+            """,
+            """
+            package app5
+            import lib5.compute5 as calc5
+            fun use5(): Int = calc5(5)
+            """,
+
+            // 6: multiple distinct aliases in same file
+            """
+            package lib6
+            fun foo6(x: Int) = x
+            fun bar6(x: Int) = x + 1
+            """,
+            """
+            package app6
+            import lib6.foo6 as f6
+            import lib6.bar6 as b6
+            fun use6() = f6(1) + b6(2)
+            """,
+
+            // 7: alias coexists with non-aliased import
+            """
+            package lib7
+            fun foo7(x: Int) = x
+            fun bar7(x: Int) = x + 1
+            """,
+            """
+            package app7
+            import lib7.foo7 as f7
+            import lib7.bar7
+            fun use7() = f7(1) + bar7(2)
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+
+            // 0: same package
+            do {
+                let diags = diagnosticsForPath(paths[1], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diags)
+            }
+
+            // 1: explicit import
+            do {
+                let diags = diagnosticsForPath(paths[3], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diags)
+            }
+
+            // 2: wildcard alias diagnostic
+            do {
+                let diags = diagnosticsForPath(paths[5], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0022", in: diags)
+            }
+
+            // 3: duplicate alias diagnostic
+            do {
+                let diags = diagnosticsForPath(paths[7], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0023", in: diags)
+            }
+
+            // 4: alias resolves
+            do {
+                let diags = diagnosticsForPath(paths[9], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diags)
+            }
+
+            // 5: alias return type inferred
+            do {
+                let diags = diagnosticsForPath(paths[11], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diags)
+
+                let use5Symbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+                    symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use5"
+                })?.id)
+                let use5Signature = try #require(sema.symbols.functionSignature(for: use5Symbol))
+                #expect(use5Signature.returnType != sema.types.errorType)
+            }
+
+            // 6: multiple distinct aliases
+            do {
+                let diags = diagnosticsForPath(paths[13], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diags)
+                assertNoDiagnostic("KSWIFTK-SEMA-0023", in: diags)
+            }
+
+            // 7: alias + non-aliased import
+            do {
+                let diags = diagnosticsForPath(paths[15], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diags)
+            }
+        }
+    }
+
+    // MARK: - Default import precedence
+
+    @Test func testExplicitImportWinsOverDefaultImportForSameName() throws {
+        let sources = [
+            """
+            package kotlin.io
+            fun pick(x: Int) = "default"
+            """,
+            """
+            package custom.io
+            fun pick(x: Int) = 2
+            """,
+            """
+            package app
+            import custom.io.pick
+            fun use() = pick(1)
+            """,
+        ]
+
+        let ctx = makeContextFromSources(sources)
+        try runSema(ctx)
+
+        let sema = try #require(ctx.sema)
+        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
+        })?.id)
+        let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
+        #expect(useSignature.returnType != sema.types.errorType)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+    }
+
+
     @Test func testBuildASTParsesExtensionFunctionReceiverType() throws {
         let source = """
         fun String.echo(): String = this
@@ -296,200 +492,5 @@ extension CompilerCoreTests {
         #expect(classDecl.typeParams.map(\.variance) == [.out, .in, .invariant])
         #expect(classDecl.typeParams.map { ctx.interner.resolve($0.name) } == ["T", "U", "V"])
     }
-
-
-    @Test func testSemaResolvesTopLevelFunctionAcrossFilesInSamePackage() throws {
-        let sources = [
-            """
-            package demo
-            fun helper(x: Int) = x
-            """,
-            """
-            package demo
-            fun use() = helper(1)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
-
-    @Test func testSemaResolvesExplicitImportAcrossPackages() throws {
-        let sources = [
-            """
-            package lib
-            fun helper(x: Int) = x
-            """,
-            """
-            package app
-            import lib.helper
-            fun use() = helper(1)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
-
-    @Test func testExplicitImportWinsOverDefaultImportForSameName() throws {
-        let sources = [
-            """
-            package kotlin.io
-            fun pick(x: Int) = "default"
-            """,
-            """
-            package custom.io
-            fun pick(x: Int) = 2
-            """,
-            """
-            package app
-            import custom.io.pick
-            fun use() = pick(1)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
-        })?.id)
-        let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
-        #expect(useSignature.returnType != sema.types.errorType)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
-    }
-
-
-    @Test func testImportAliasWildcardDiagnostic() throws {
-        let sources = [
-            """
-            package lib
-            fun helper(x: Int) = x
-            """,
-            """
-            package app
-            import lib as L
-            fun use() = 1
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
-    }
-
-
-    @Test func testImportAliasDuplicateDiagnostic() throws {
-        let sources = [
-            """
-            package lib
-            fun foo(x: Int) = x
-            fun bar(x: Int) = x
-            """,
-            """
-            package app
-            import lib.foo as X
-            import lib.bar as X
-            fun use() = 1
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-    }
-
-
-    @Test func testImportAliasResolvesAcrossPackages() throws {
-        let sources = [
-            """
-            package lib
-            fun helper(x: Int) = x
-            """,
-            """
-            package app
-            import lib.helper as h
-            fun use() = h(1)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
-
-    @Test func testImportAliasReturnTypeIsInferred() throws {
-        let sources = [
-            """
-            package lib
-            fun compute(x: Int): Int = x + 1
-            """,
-            """
-            package app
-            import lib.compute as calc
-            fun use(): Int = calc(5)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
-        })?.id)
-        let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
-        #expect(useSignature.returnType != sema.types.errorType)
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
-
-    @Test func testImportAliasMultipleDistinctAliasesInSameFile() throws {
-        let sources = [
-            """
-            package lib
-            fun foo(x: Int) = x
-            fun bar(x: Int) = x + 1
-            """,
-            """
-            package app
-            import lib.foo as f
-            import lib.bar as b
-            fun use() = f(1) + b(2)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-    }
-
-
-    @Test func testImportAliasCoexistsWithNonAliasedImport() throws {
-        let sources = [
-            """
-            package lib
-            fun foo(x: Int) = x
-            fun bar(x: Int) = x + 1
-            """,
-            """
-            package app
-            import lib.foo as f
-            import lib.bar
-            fun use() = f(1) + bar(2)
-            """,
-        ]
-        let ctx = makeContextFromSources(sources)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
 }
 #endif

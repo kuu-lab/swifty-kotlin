@@ -371,61 +371,30 @@ extension LibMetadataSerializationTests {
         #expect(!classStr.contains("arity="))
     }
 
-    // MARK: - Integration: Sealed Class Import via Library
+        // MARK: - Integration: library metadata imports consolidated into a single runToKIR
 
-    @Test func testMetadataImportRestoresSealedClassFlagViaLibrary() throws {
+    @Test func testLibraryMetadataImports() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let libDir = baseDir.appendingPathExtension("kklib")
-        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
 
-        let manifest = """
+        // Sample 0: sealed class import
+        let sealedDir = baseDir.appendingPathComponent("sealed.kklib")
+        try fm.createDirectory(at: sealedDir, withIntermediateDirectories: true)
+        try """
         {
           "formatVersion": 1,
           "moduleName": "ExtSealedClass",
           "metadata": "metadata.bin"
         }
-        """
-        let metadata = """
+        """.write(to: sealedDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try """
         symbols=1
         class _kk_Shape fq=ext.Shape schema=v1 fields=0 layoutWords=2 vtable=0 itable=0 sealedClass=1
-        """
-        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        """.write(to: sealedDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
 
-        try withTemporaryFile(contents: "fun main() = 0") { path in
-            let ctx = makeCompilationContext(
-                inputs: [path],
-                moduleName: "SealedClassImport",
-                emit: .kirDump,
-                searchPaths: [libDir.path]
-            )
-            try runToKIR(ctx)
-
-            let sema = try #require(ctx.sema)
-            let shapeSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "Shape" && symbol.kind == .class
-            }
-            #expect(shapeSymbol != nil)
-            #expect(shapeSymbol?.flags.contains(.sealedType) ?? false)
-            #expect(!(shapeSymbol?.flags.contains(.dataType) ?? true))
-        }
-    }
-
-    @Test func testMetadataImportRestoresAnnotationsViaLibrary() throws {
-        let fm = FileManager.default
-        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let libDir = baseDir.appendingPathExtension("kklib")
-        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
-
-        let manifest = """
-        {
-          "formatVersion": 1,
-          "moduleName": "ExtAnnotated",
-          "metadata": "metadata.bin"
-        }
-        """
-        // Build the annotations field using the same encoding the encoder uses
+        // Sample 1: annotated function import
+        let annotatedDir = baseDir.appendingPathComponent("annotated.kklib")
+        try fm.createDirectory(at: annotatedDir, withIntermediateDirectories: true)
         let encoder = MetadataEncoder()
         let annotatedRecord = MetadataRecord(
             kind: .function,
@@ -436,51 +405,22 @@ extension LibMetadataSerializationTests {
                 MetadataAnnotationRecord(annotationFQName: "kotlin.Deprecated", arguments: ["replaced"]),
             ]
         )
-        let serialized = encoder.serialize([annotatedRecord])
-        // Extract the single line for the function
-        let functionLine = serialized.split(whereSeparator: \.isNewline)
+        let annotatedSerialized = encoder.serialize([annotatedRecord])
+        let annotatedFunctionLine = annotatedSerialized.split(whereSeparator: \.isNewline)
             .first { $0.hasPrefix("function") }
-        #expect(functionLine != nil)
-
-        let metadata = "symbols=1\n\(functionLine!)\n"
-        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
-
-        try withTemporaryFile(contents: "fun main() = 0") { path in
-            let ctx = makeCompilationContext(
-                inputs: [path],
-                moduleName: "AnnotatedImport",
-                emit: .kirDump,
-                searchPaths: [libDir.path]
-            )
-            try runToKIR(ctx)
-
-            let sema = try #require(ctx.sema)
-            let ext = ctx.interner.intern("ext")
-            let oldMethod = ctx.interner.intern("oldMethod")
-            let symbolID = try #require(sema.symbols.lookupAll(fqName: [ext, oldMethod]).first)
-            let annotations = sema.symbols.annotations(for: symbolID)
-            #expect(annotations.count == 1)
-            #expect(annotations[0].annotationFQName == "kotlin.Deprecated")
-            #expect(annotations[0].arguments == ["replaced"])
-        }
-    }
-
-    @Test func testMetadataImportRestoresWasExperimentalAnnotationsViaLibrary() throws {
-        let fm = FileManager.default
-        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let libDir = baseDir.appendingPathExtension("kklib")
-        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
-
-        let manifest = """
+        try """
         {
           "formatVersion": 1,
-          "moduleName": "ExtStable",
+          "moduleName": "ExtAnnotated",
           "metadata": "metadata.bin"
         }
-        """
-        let encoder = MetadataEncoder()
-        let annotatedRecord = MetadataRecord(
+        """.write(to: annotatedDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try "symbols=1\n\(annotatedFunctionLine!)\n".write(to: annotatedDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        // Sample 2: WasExperimental annotated function import
+        let stableDir = baseDir.appendingPathComponent("stable.kklib")
+        try fm.createDirectory(at: stableDir, withIntermediateDirectories: true)
+        let stableRecord = MetadataRecord(
             kind: .function,
             mangledName: "_kk_ext_stable",
             fqName: "ext.stableApi",
@@ -492,32 +432,72 @@ extension LibMetadataSerializationTests {
                 ),
             ]
         )
-        let serialized = encoder.serialize([annotatedRecord])
-        let functionLine = serialized.split(whereSeparator: \.isNewline)
+        let stableSerialized = encoder.serialize([stableRecord])
+        let stableFunctionLine = stableSerialized.split(whereSeparator: \.isNewline)
             .first { $0.hasPrefix("function") }
-        #expect(functionLine != nil)
+        try """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtStable",
+          "metadata": "metadata.bin"
+        }
+        """.write(to: stableDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try "symbols=1\n\(stableFunctionLine!)\n".write(to: stableDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
 
-        let metadata = "symbols=1\n\(functionLine!)\n"
-        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        let sources: [String] = [
+            """
+            package sample0
+            fun main() = 0
+            """,
+            """
+            package sample1
+            fun main() = 0
+            """,
+            """
+            package sample2
+            fun main() = 0
+            """,
+        ]
 
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(
-                inputs: [path],
-                moduleName: "WasExperimentalImport",
+                inputs: paths,
                 emit: .kirDump,
-                searchPaths: [libDir.path]
+                searchPaths: [sealedDir.path, annotatedDir.path, stableDir.path]
             )
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let ext = ctx.interner.intern("ext")
-            let stableApi = ctx.interner.intern("stableApi")
-            let symbolID = try #require(sema.symbols.lookupAll(fqName: [ext, stableApi]).first)
-            let annotations = sema.symbols.annotations(for: symbolID)
-            #expect(annotations.count == 1)
-            #expect(annotations[0].annotationFQName == "kotlin.WasExperimental")
-            #expect(annotations[0].arguments == ["markerClass = ext.ExperimentalApi::class"])
+            let interner = ctx.interner
+
+            do {
+                let shapeSymbol = sema.symbols.allSymbols().first { symbol in
+                    interner.resolve(symbol.name) == "Shape" && symbol.kind == .class
+                }
+                #expect(shapeSymbol != nil)
+                #expect(shapeSymbol?.flags.contains(.sealedType) ?? false)
+                #expect(!(shapeSymbol?.flags.contains(.dataType) ?? true))
+            }
+
+            do {
+                let ext = interner.intern("ext")
+                let oldMethod = interner.intern("oldMethod")
+                let symbolID = try #require(sema.symbols.lookupAll(fqName: [ext, oldMethod]).first)
+                let annotations = sema.symbols.annotations(for: symbolID)
+                #expect(annotations.count == 1)
+                #expect(annotations[0].annotationFQName == "kotlin.Deprecated")
+                #expect(annotations[0].arguments == ["replaced"])
+            }
+
+            do {
+                let ext = interner.intern("ext")
+                let stableApi = interner.intern("stableApi")
+                let symbolID = try #require(sema.symbols.lookupAll(fqName: [ext, stableApi]).first)
+                let annotations = sema.symbols.annotations(for: symbolID)
+                #expect(annotations.count == 1)
+                #expect(annotations[0].annotationFQName == "kotlin.WasExperimental")
+                #expect(annotations[0].arguments == ["markerClass = ext.ExperimentalApi::class"])
+            }
         }
     }
 }

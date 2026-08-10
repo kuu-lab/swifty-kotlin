@@ -445,13 +445,42 @@ struct AnnotationSemanticTests {
             """
             package sample49
             fun noop() {}
+            """,
+            // testContextFunctionTypeParamsResolvesAnnotatedFunctionType
             """
+            package sample50
+            interface Host {
+                val action: @ContextFunctionTypeParams(2) @ExtensionFunctionType Function4<String, Int, Double, Byte, Unit>
+                val block: @ContextFunctionTypeParams(count = 1) Function2<String, Byte, Unit>
+            }
+            """,
+            // testPrivateDataClassCopyVisibilityMigrationWarnsAndKeepsPublicCopy
+            """
+            package sample51
+
+            data class Secret private constructor(val value: Int)
+            """,
+            // testConsistentCopyVisibilityMakesCopyUseConstructorVisibility
+            """
+            package sample52
+
+            @ConsistentCopyVisibility
+            data class Secret private constructor(val value: Int)
+            """,
+            // testExposedCopyVisibilitySuppressesWarningAndKeepsPublicCopy
+            """
+            package sample53
+
+            @ExposedCopyVisibility
+            data class Secret private constructor(val value: Int)
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
             // testDeprecatedLevelErrorEmitsErrorAtCallSite
@@ -1191,118 +1220,98 @@ struct AnnotationSemanticTests {
             )
 
             }
-        }
-    }
 
+            // testContextFunctionTypeParamsResolvesAnnotatedFunctionType
+            do {
+                let sample50Path = paths[50]
+                let sample50Diags = diagnosticsForPath(sample50Path, in: ctx)
+                #expect(sample50Diags.isEmpty, "Expected ContextFunctionTypeParams source to compile cleanly, got: \(sample50Diags)")
 
-
-
-    @Test func testContextFunctionTypeParamsResolvesAnnotatedFunctionType() throws {
-        let source = """
-        interface Host {
-            val action: @ContextFunctionTypeParams(2) @ExtensionFunctionType Function4<String, Int, Double, Byte, Unit>
-            val block: @ContextFunctionTypeParams(count = 1) Function2<String, Byte, Unit>
-        }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected ContextFunctionTypeParams source to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let file = try #require(ast.files.first)
-        let interfaceDeclID = try #require(
-            file.topLevelDecls.first(where: {
-                if case .interfaceDecl = ast.arena.decl($0) {
-                    return true
+                let fileID = try #require(ctx.sourceManager.fileID(forPath: sample50Path))
+                let file = try #require(ast.files.first { $0.fileID == fileID })
+                let interfaceDeclID = try #require(
+                    file.topLevelDecls.first(where: {
+                        if case .interfaceDecl = ast.arena.decl($0) {
+                            return true
+                        }
+                        return false
+                    })
+                )
+                guard case let .interfaceDecl(interfaceDecl) = ast.arena.decl(interfaceDeclID) else {
+                    Issue.record("Expected interface declaration")
+                    return
                 }
-                return false
-            })
-        )
-        guard case let .interfaceDecl(interfaceDecl) = ast.arena.decl(interfaceDeclID) else {
-            Issue.record("Expected interface declaration")
-            return
+
+                let actionPropertyType = try propertyType(named: "action", in: interfaceDecl, ast: ast, sema: sema, interner: ctx.interner)
+                guard case let .functionType(actionFunctionType) = sema.types.kind(of: actionPropertyType) else {
+                    Issue.record("Expected action to resolve as a function type")
+                    return
+                }
+                #expect(actionFunctionType.contextReceivers == [sema.types.stringType, sema.types.intType])
+                #expect(actionFunctionType.receiver == sema.types.doubleType)
+                #expect(actionFunctionType.params == [sema.types.intType])
+                #expect(actionFunctionType.returnType == sema.types.unitType)
+
+                let blockPropertyType = try propertyType(named: "block", in: interfaceDecl, ast: ast, sema: sema, interner: ctx.interner)
+                guard case let .functionType(blockFunctionType) = sema.types.kind(of: blockPropertyType) else {
+                    Issue.record("Expected block to resolve as a function type, got \(sema.types.renderType(blockPropertyType))")
+                    return
+                }
+                #expect(blockFunctionType.contextReceivers == [sema.types.stringType])
+                #expect(blockFunctionType.receiver == nil)
+                #expect(blockFunctionType.params == [sema.types.intType])
+                #expect(blockFunctionType.returnType == sema.types.unitType)
+            }
+
+            // testPrivateDataClassCopyVisibilityMigrationWarnsAndKeepsPublicCopy
+            do {
+                let sample51Path = paths[51]
+                let sample51Diags = diagnosticsForPath(sample51Path, in: ctx)
+                let diagnostics = sample51Diags.filter { $0.code == "KSWIFTK-SEMA-DATA-COPY-VISIBILITY" }
+
+                #expect(diagnostics.count == 1, "Expected one data class copy visibility warning, got: \(sample51Diags)")
+                let v36 = diagnostics.allSatisfy(isWarning)
+                #expect(v36, "Data class copy visibility diagnostic should be a warning")
+                #expect(diagnostics[0].message.contains("private"), "Expected primary constructor visibility in message, got: \(diagnostics[0].message)")
+                #expect(
+                    try symbolVisibility(["sample51", "Secret", "copy"], in: ctx) == .public,
+                    "Unannotated migration mode should keep copy() public"
+                )
+            }
+
+            // testConsistentCopyVisibilityMakesCopyUseConstructorVisibility
+            do {
+                let sample52Path = paths[52]
+                let sample52Diags = diagnosticsForPath(sample52Path, in: ctx)
+                let diagnostics = sample52Diags.filter { $0.code == "KSWIFTK-SEMA-DATA-COPY-VISIBILITY" }
+
+                #expect(diagnostics.isEmpty, "Expected ConsistentCopyVisibility to opt in to constructor visibility, got: \(sample52Diags)")
+                #expect(
+                    try symbolVisibility(["sample52", "Secret", "copy"], in: ctx) == .private,
+                    "Annotated data class copy() should use the private primary constructor visibility"
+                )
+            }
+
+            // testExposedCopyVisibilitySuppressesWarningAndKeepsPublicCopy
+            do {
+                let sample53Path = paths[53]
+                let sample53Diags = diagnosticsForPath(sample53Path, in: ctx)
+                let diagnostics = sample53Diags.filter { $0.code == "KSWIFTK-SEMA-DATA-COPY-VISIBILITY" }
+
+                #expect(diagnostics.isEmpty, "Expected ExposedCopyVisibility to suppress migration warning, got: \(sample53Diags)")
+                #expect(
+                    try symbolVisibility(["sample53", "Secret", "copy"], in: ctx) == .public,
+                    "ExposedCopyVisibility should keep copy() public"
+                )
+            }
         }
-
-        let actionPropertyType = try propertyType(named: "action", in: interfaceDecl, ast: ast, sema: sema, interner: ctx.interner)
-        guard case let .functionType(actionFunctionType) = sema.types.kind(of: actionPropertyType) else {
-            Issue.record("Expected action to resolve as a function type")
-            return
-        }
-        #expect(actionFunctionType.contextReceivers == [sema.types.stringType, sema.types.intType])
-        #expect(actionFunctionType.receiver == sema.types.doubleType)
-        #expect(actionFunctionType.params == [sema.types.intType])
-        #expect(actionFunctionType.returnType == sema.types.unitType)
-
-        let blockPropertyType = try propertyType(named: "block", in: interfaceDecl, ast: ast, sema: sema, interner: ctx.interner)
-        guard case let .functionType(blockFunctionType) = sema.types.kind(of: blockPropertyType) else {
-            Issue.record("Expected block to resolve as a function type, got \(sema.types.renderType(blockPropertyType))")
-            return
-        }
-        #expect(blockFunctionType.contextReceivers == [sema.types.stringType])
-        #expect(blockFunctionType.receiver == nil)
-        #expect(blockFunctionType.params == [sema.types.intType])
-        #expect(blockFunctionType.returnType == sema.types.unitType)
     }
 
 
-    @Test func testPrivateDataClassCopyVisibilityMigrationWarnsAndKeepsPublicCopy() throws {
-        let source = """
-        package test
-
-        data class Secret private constructor(val value: Int)
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DATA-COPY-VISIBILITY", in: ctx)
-
-        #expect(diagnostics.count == 1, "Expected one data class copy visibility warning, got: \(ctx.diagnostics.diagnostics)")
-        let v36 = diagnostics.allSatisfy(isWarning)
-        #expect(v36, "Data class copy visibility diagnostic should be a warning")
-        #expect(diagnostics[0].message.contains("private"), "Expected primary constructor visibility in message, got: \(diagnostics[0].message)")
-        #expect(
-            try symbolVisibility(["test", "Secret", "copy"], in: ctx) == .public,
-            "Unannotated migration mode should keep copy() public"
-        )
-    }
 
 
-    @Test func testConsistentCopyVisibilityMakesCopyUseConstructorVisibility() throws {
-        let source = """
-        package test
-
-        @ConsistentCopyVisibility
-        data class Secret private constructor(val value: Int)
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DATA-COPY-VISIBILITY", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected ConsistentCopyVisibility to opt in to constructor visibility, got: \(ctx.diagnostics.diagnostics)")
-        #expect(
-            try symbolVisibility(["test", "Secret", "copy"], in: ctx) == .private,
-            "Annotated data class copy() should use the private primary constructor visibility"
-        )
-    }
 
 
-    @Test func testExposedCopyVisibilitySuppressesWarningAndKeepsPublicCopy() throws {
-        let source = """
-        package test
-
-        @ExposedCopyVisibility
-        data class Secret private constructor(val value: Int)
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DATA-COPY-VISIBILITY", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected ExposedCopyVisibility to suppress migration warning, got: \(ctx.diagnostics.diagnostics)")
-        #expect(
-            try symbolVisibility(["test", "Secret", "copy"], in: ctx) == .public,
-            "ExposedCopyVisibility should keep copy() public"
-        )
-    }
 
 }
 #endif

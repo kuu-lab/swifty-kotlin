@@ -1331,115 +1331,11 @@ extension AnnotationSemanticTests {
     }
 
 
-    @Test func testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias() throws {
-        let source = """
-        interface Host {
-            val receiverAction: @ExtensionFunctionType Function1<String, Unit>
-        }
-
-        typealias Action = @ExtensionFunctionType Function2<String, Int, Unit>
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected extension function type source to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let file = try #require(ast.files.first)
-
-        let interfaceDeclID = try #require(
-            file.topLevelDecls.first(where: {
-                if case .interfaceDecl = ast.arena.decl($0) {
-                    return true
-                }
-                return false
-            })
-        )
-        guard case let .interfaceDecl(interfaceDecl) = ast.arena.decl(interfaceDeclID) else {
-            Issue.record("Expected interface declaration")
-            return
-        }
-        let propertyDeclID = try #require(interfaceDecl.memberProperties.first)
-        let propertySymbol = try #require(sema.bindings.declSymbol(for: propertyDeclID))
-        let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
-
-        if case let .functionType(functionType) = sema.types.kind(of: propertyType) {
-            #expect(functionType.receiver == sema.types.stringType)
-            #expect(functionType.params.isEmpty)
-            #expect(functionType.returnType == sema.types.unitType)
-            #expect(!functionType.isSuspend)
-        } else {
-            Issue.record("Expected interface property type to resolve as functionType")
-        }
-
-        let actionSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Action")]))
-        let actionUnderlyingType = try #require(sema.symbols.typeAliasUnderlyingType(for: actionSymbol))
-
-        if case let .functionType(functionType) = sema.types.kind(of: actionUnderlyingType) {
-            #expect(functionType.receiver == sema.types.stringType)
-            #expect(functionType.params == [sema.types.intType])
-            #expect(functionType.returnType == sema.types.unitType)
-            #expect(!functionType.isSuspend)
-        } else {
-            Issue.record("Expected typealias underlying type to resolve as functionType")
-        }
-    }
 
 
-    @Test func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {
-        let source = """
-        fun hex(): String = 255.toHexString()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(
-            source,
-            frontendFlags: ["opt-in=kotlin.ExperimentalStdlibApi"]
-        )
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress stdlib opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
-    }
 
 
-    @Test func testExperimentalVersionOverloadingAnnotationAcceptsCompilerOptInFlag() {
-        let source = """
-        import kotlin.ExperimentalVersionOverloading
 
-        @ExperimentalVersionOverloading
-        annotation class Versioned
-
-        @Versioned
-        fun api() {}
-        """
-
-        let ctx = runSemaCollectingDiagnostics(
-            source,
-            frontendFlags: ["opt-in=kotlin.ExperimentalVersionOverloading"]
-        )
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalVersionOverloading diagnostics, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-
-    @Test func testExperimentalContextParametersMarkerAcceptsCompilerOptInFlag() {
-        let source = """
-        import kotlin.ExperimentalContextParameters
-
-        @ExperimentalContextParameters
-        fun contextApi(): Int = 1
-
-        fun caller(): Int = contextApi()
-        """
-
-        let ctx = runSemaCollectingDiagnostics(
-            source,
-            frontendFlags: ["opt-in=kotlin.ExperimentalContextParameters"]
-        )
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
-
-        #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalContextParameters diagnostics, got: \(ctx.diagnostics.diagnostics)")
-    }
 
 
 
@@ -1461,32 +1357,131 @@ extension AnnotationSemanticTests {
         return try #require(sema.symbols.propertyType(for: propertySymbol))
     }
 
-    func runSemaCollectingDiagnostics(
-        _ source: String,
-        frontendFlags: [String] = []
-    ) -> CompilationContext {
-        let ctx = makeAnnotationSemanticContext(source, frontendFlags: frontendFlags)
-        do {
+    @Test func testCompilerOptInAndExtensionFunctionTypeAnnotations() throws {
+        let sources: [String] = [
+            // testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias
+            """
+            package sample0
+            interface Host {
+                val receiverAction: @ExtensionFunctionType Function1<String, Unit>
+            }
+
+            typealias Action = @ExtensionFunctionType Function2<String, Int, Unit>
+            """,
+            // testCompilerOptInFlagAllowsExperimentalStdlibApiUsage
+            """
+            package sample1
+            fun hex(): String = 255.toHexString()
+            """,
+            // testExperimentalVersionOverloadingAnnotationAcceptsCompilerOptInFlag
+            """
+            package sample2
+            import kotlin.ExperimentalVersionOverloading
+
+            @ExperimentalVersionOverloading
+            annotation class Versioned
+
+            @Versioned
+            fun api() {}
+            """,
+            // testExperimentalContextParametersMarkerAcceptsCompilerOptInFlag
+            """
+            package sample3
+            import kotlin.ExperimentalContextParameters
+
+            @ExperimentalContextParameters
+            fun contextApi(): Int = 1
+
+            fun caller(): Int = contextApi()
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                frontendFlags: [
+                    "opt-in=kotlin.ExperimentalStdlibApi",
+                    "opt-in=kotlin.ExperimentalVersionOverloading",
+                    "opt-in=kotlin.ExperimentalContextParameters",
+                ]
+            )
             try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted by each test.
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            // testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias
+            do {
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+                #expect(sample0Diagnostics.isEmpty, "Expected extension function type source to compile cleanly, got: \(sample0Diagnostics)")
+
+                let fileID = try #require(ctx.sourceManager.fileID(forPath: sample0Path))
+                let file = try #require(ast.files.first { $0.fileID == fileID })
+
+                let interfaceDeclID = try #require(
+                    file.topLevelDecls.first(where: {
+                        if case .interfaceDecl = ast.arena.decl($0) {
+                            return true
+                        }
+                        return false
+                    })
+                )
+                guard case let .interfaceDecl(interfaceDecl) = ast.arena.decl(interfaceDeclID) else {
+                    Issue.record("Expected interface declaration")
+                    return
+                }
+                let propertyDeclID = try #require(interfaceDecl.memberProperties.first)
+                let propertySymbol = try #require(sema.bindings.declSymbol(for: propertyDeclID))
+                let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
+
+                if case let .functionType(functionType) = sema.types.kind(of: propertyType) {
+                    #expect(functionType.receiver == sema.types.stringType)
+                    #expect(functionType.params.isEmpty)
+                    #expect(functionType.returnType == sema.types.unitType)
+                    #expect(!functionType.isSuspend)
+                } else {
+                    Issue.record("Expected interface property type to resolve as functionType")
+                }
+
+                let actionSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("sample0"), ctx.interner.intern("Action")]))
+                let actionUnderlyingType = try #require(sema.symbols.typeAliasUnderlyingType(for: actionSymbol))
+
+                if case let .functionType(functionType) = sema.types.kind(of: actionUnderlyingType) {
+                    #expect(functionType.receiver == sema.types.stringType)
+                    #expect(functionType.params == [sema.types.intType])
+                    #expect(functionType.returnType == sema.types.unitType)
+                    #expect(!functionType.isSuspend)
+                } else {
+                    Issue.record("Expected typealias underlying type to resolve as functionType")
+                }
+            }
+
+            // testCompilerOptInFlagAllowsExperimentalStdlibApiUsage
+            do {
+                let sample1Path = paths[1]
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+                let optInDiags = sample1Diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+                #expect(optInDiags.isEmpty, "Expected compiler -opt-in flag to suppress stdlib opt-in diagnostics, got: \(sample1Diagnostics)")
+            }
+
+            // testExperimentalVersionOverloadingAnnotationAcceptsCompilerOptInFlag
+            do {
+                let sample2Path = paths[2]
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+                let optInDiags = sample2Diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+                #expect(optInDiags.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalVersionOverloading diagnostics, got: \(sample2Diagnostics)")
+            }
+
+            // testExperimentalContextParametersMarkerAcceptsCompilerOptInFlag
+            do {
+                let sample3Path = paths[3]
+                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+                let optInDiags = sample3Diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+                #expect(optInDiags.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalContextParameters diagnostics, got: \(sample3Diagnostics)")
+            }
         }
-        return ctx
-    }
-
-    private func makeAnnotationSemanticContext(
-        _ source: String,
-        frontendFlags: [String]
-    ) -> CompilationContext {
-        let fakePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
-        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-        return ctx
-    }
-
-    func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {
-        ctx.diagnostics.diagnostics.filter { $0.code == code }
     }
 
     func isError(_ diagnostic: Diagnostic) -> Bool {

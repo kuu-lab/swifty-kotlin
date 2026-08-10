@@ -9,517 +9,399 @@ import Testing
 
 @Suite
 struct BuildASTBodyParsingRegressionTests {
-    // MARK: - Typed local variable declaration
 
+    /// Body-parsing regression cases must parse through the full pipeline in
+    /// a single compilation, with per-source AST checks isolated by file ID.
     @Test
-    func testTypedLocalVariableDeclaration() throws {
-        let source = """
-        fun main(): Int {
-            val x: Int = 42
-            var y: String = "hello"
-            val z: Boolean = true
-            return x
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-            let ast = try #require(ctx.ast)
-            #expect(ast.declarationCount >= 1)
-        }
-    }
-
-    // MARK: - Local variable without initializer
-
-    @Test
-    func testLocalVariableWithoutInitializer() throws {
-        let source = """
-        fun main(): Int {
-            var x: Int
-            x = 5
-            return x
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-            let ast = try #require(ctx.ast)
-            #expect(ast.declarationCount >= 1)
-        }
-    }
-
-    // MARK: - Local function with expression body
-
-    @Test
-    func testLocalFunctionWithExpressionBody() throws {
-        let source = """
-        fun outer(): Int {
-            fun add(a: Int, b: Int) = a + b
-            return add(1, 2)
-        }
-        fun main() = outer()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let sema = try #require(ctx.sema)
-            #expect(!(sema.bindings.exprTypes.isEmpty))
-        }
-    }
-
-    // MARK: - Nested local function
-
-    @Test
-    func testNestedLocalFunction() throws {
-        let source = """
-        fun outer(): Int {
-            fun inner(): Int {
-                fun deep(): Int = 42
-                return deep()
+    func testBuildASTBodyParsingRegression() throws {
+        let sources: [String] = [
+            // 0: typed local variable declaration
+            """
+            package sample0
+            fun main0(): Int {
+                val x: Int = 42
+                var y: String = "hello"
+                val z: Boolean = true
+                return x
             }
-            return inner()
-        }
-        fun main() = outer()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            """,
+            // 1: local variable without initializer
+            """
+            package sample1
+            fun main1(): Int {
+                var x: Int
+                x = 5
+                return x
+            }
+            """,
+            // 2: local function with expression body
+            """
+            package sample2
+            fun outer2(): Int {
+                fun add2(a: Int, b: Int) = a + b
+                return add2(1, 2)
+            }
+            fun main2() = outer2()
+            """,
+            // 3: nested local function
+            """
+            package sample3
+            fun outer3(): Int {
+                fun inner3(): Int {
+                    fun deep3(): Int = 42
+                    return deep3()
+                }
+                return inner3()
+            }
+            fun main3() = outer3()
+            """,
+            // 4: suspend local function parses through KIR
+            """
+            package sample4
+            suspend fun delayed4(value: Int): Int = value
+
+            fun outer4(): Int {
+                suspend fun local4(value: Int): Int = delayed4(value)
+                return 1
+            }
+            """,
+            // 5: compound assignment operators
+            """
+            package sample5
+            fun main5(): Int {
+                var x = 10
+                x += 5
+                x -= 3
+                x *= 2
+                x /= 4
+                x %= 3
+                return x
+            }
+            """,
+            // 6: array assignment
+            """
+            package sample6
+            fun main6(): Int {
+                val arr = IntArray(5)
+                arr[0] = 42
+                arr[1] = 99
+                return arr[0]
+            }
+            """,
+            // 7: block body with multiple statements
+            """
+            package sample7
+            fun compute7(a: Int, b: Int): Int {
+                val sum = a + b
+                val diff = a - b
+                val product = sum * diff
+                return product
+            }
+            fun main7() = compute7(5, 3)
+            """,
+            // 8: string template in body
+            """
+            package sample8
+            fun greet8(name: String): String {
+                val greeting = "Hello, $name!"
+                return greeting
+            }
+            fun main8() = greet8("World")
+            """,
+            // 9: annotated extension function type alias preserves annotations
+            """
+            package sample9
+            annotation class A9
+            annotation class B9
+            typealias Action9 = @A9 @B9 @ExtensionFunctionType Function1<String, Unit>
+            """,
+            // 10: lambda / object literal / callable reference roundtrip
+            """
+            package sample10
+            fun host(receiver: String): Int {
+                val lambda = { value: Int -> value + 1 }
+                val instance = object {
+                    fun size(): Int = 1
+                }
+                val ref = receiver::length
+                return lambda(41)
+            }
+
+            fun after() = 7
+            """,
+            // 11: multi-line function call merges into single statement
+            """
+            package sample11
+            fun add11(a: Int, b: Int, c: Int): Int = a + b + c
+            fun main11(): Int {
+                val result = add11(
+                    1,
+                    2,
+                    3)
+                return result
+            }
+            """,
+            // 12: multi-line binary expression merges into single statement
+            """
+            package sample12
+            fun main12(): Int {
+                val x = 1 +
+                    2 +
+                    3
+                return x
+            }
+            """,
+            // 13: multi-line string concat merges correctly
+            """
+            package sample13
+            fun main13(): String {
+                val s = "Hello" +
+                    ", " +
+                    "World"
+                return s
+            }
+            """,
+            // 14: chained member calls across lines merge
+            """
+            package sample14
+            fun main14(): String {
+                val s = "  hello  "
+                    .trim()
+                    .uppercase()
+                return s
+            }
+            """,
+            // 15: closing paren on separate line merges with call
+            """
+            package sample15
+            fun pair15(a: Int, b: Int): Int = a + b
+            fun main15(): Int {
+                val x = pair15(
+                    10,
+                    20
+                )
+                return x
+            }
+            """,
+            // 16: top-level declaration annotations with mixed modifier order
+            """
+            package sample16
+
+            public @Suppress("UNCHECKED_CAST")
+            fun suppressedCast16(x: Any): String = x as String
+            """,
+            // 17: companion member annotations with mixed modifier order
+            """
+            package sample17
+
+            class Host17 {
+                companion object {
+                    public @JvmStatic
+                    fun create(): Int = 1
+                }
+            }
+            """,
+            // 18: annotation after bodyless external function starts next declaration
+            """
+            package sample18
+
+            @RuntimeName("first")
+            external fun first18(value: Boolean)
+
+            @RuntimeName("second")
+            external fun second18(value: Boolean)
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runToKIR(ctx)
-            let sema = try #require(ctx.sema)
-            #expect(!(sema.bindings.exprTypes.isEmpty))
-        }
-    }
 
-    @Test
-    func testSuspendLocalFunctionParsesThroughKIR() throws {
-        let source = """
-        suspend fun delayed(value: Int): Int = value
-
-        fun outer(): Int {
-            suspend fun local(value: Int): Int = delayed(value)
-            return 1
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let sema = try #require(ctx.sema)
-            #expect(!(sema.bindings.exprTypes.isEmpty))
-        }
-    }
-
-    // MARK: - Compound assignment operators in body parsing
-
-    @Test
-    func testCompoundAssignmentOperatorsInBody() throws {
-        let source = """
-        fun main(): Int {
-            var x = 10
-            x += 5
-            x -= 3
-            x *= 2
-            x /= 4
-            x %= 3
-            return x
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
             let ast = try #require(ctx.ast)
-            #expect(ast.declarationCount >= 1)
-        }
-    }
-
-    // MARK: - Array assignment
-
-    @Test
-    func testArrayAssignmentInBody() throws {
-        let source = """
-        fun main(): Int {
-            val arr = IntArray(5)
-            arr[0] = 42
-            arr[1] = 99
-            return arr[0]
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-            let ast = try #require(ctx.ast)
-            #expect(ast.declarationCount >= 1)
-        }
-    }
-
-    // MARK: - Block body with multiple statements
-
-    @Test
-    func testBlockBodyMultipleStatements() throws {
-        let source = """
-        fun compute(a: Int, b: Int): Int {
-            val sum = a + b
-            val diff = a - b
-            val product = sum * diff
-            return product
-        }
-        fun main() = compute(5, 3)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
-            #expect(!(body.isEmpty))
-        }
-    }
-
-    // MARK: - String template in body
-
-    @Test
-    func testStringTemplateInBody() throws {
-        let source = """
-        fun greet(name: String): String {
-            val greeting = "Hello, $name!"
-            return greeting
-        }
-        fun main() = greet("World")
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
+            let kir = try #require(ctx.kir)
             let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            #expect(!ast.files.isEmpty)
             #expect(!(sema.bindings.exprTypes.isEmpty))
-        }
-    }
 
-    @Test
-    func testAnnotatedExtensionFunctionTypeAliasPreservesTypeAnnotations() throws {
-        let source = """
-        annotation class A
-        annotation class B
-        typealias Action = @A @B @ExtensionFunctionType Function1<String, Unit>
-        """
+            for (index, path) in paths.enumerated() {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                // Sources 10 (callable reference) and 18 (external declarations) are
+                // BuildAST-only regression cases; Sema may emit diagnostics for them.
+                if index != 10 && index != 18 {
+                    #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.message))")
+                }
+            }
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
+            func fileByPath(_ path: String) throws -> ASTFile {
+                let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
+                return try #require(ast.files.first { $0.fileID == fileID })
+            }
 
-            let ast = try #require(ctx.ast)
-            // Skip bundled stdlib file — user file is last
-            let file = try #require(ast.files.last)
-            let aliasDeclID = try #require(file.topLevelDecls.first(where: {
+            // 0-1: AST has declarations
+            do {
+                _ = try fileByPath(paths[0])
+                _ = try fileByPath(paths[1])
+            }
+
+            // 7: compute function body is not empty
+            do {
+                let body = try findKIRFunctionBody(named: "compute7", in: kir, interner: interner)
+                #expect(!body.isEmpty)
+            }
+
+            // 9: typealias preserves annotations and named type reference
+            do {
+                let file = try fileByPath(paths[9])
+                let aliasDeclID = try #require(file.topLevelDecls.first(where: {
                     if case .typeAliasDecl = ast.arena.decl($0) {
                         return true
                     }
                     return false
                 }))
 
-            guard case let .typeAliasDecl(typeAliasDecl) = ast.arena.decl(aliasDeclID) else {
-                Issue.record("Expected typealias declaration")
-                return
-            }
-            let underlyingType = try #require(typeAliasDecl.underlyingType)
-            guard case let .annotated(base, annotations) = try #require(ast.arena.typeRef(underlyingType)) else {
-                Issue.record("Expected annotated type reference")
-                return
-            }
-
-            #expect(annotations.map(\.name) == ["A", "B", "ExtensionFunctionType"])
-
-            guard case let .named(path, args, nullable) = try #require(ast.arena.typeRef(base)) else {
-                Issue.record("Expected named type reference")
-                return
-            }
-
-            #expect(path.map(ctx.interner.resolve) == ["Function1"])
-            #expect(args.count == 2)
-            #expect(!(nullable))
-        }
-    }
-
-    // MARK: - Lambda/Object literal/Callable reference roundtrip
-
-    @Test
-    func testLambdaObjectLiteralAndCallableReferenceRoundtripToASTLocals() throws {
-        let source = """
-        fun host(receiver: String): Int {
-            val lambda = { value: Int -> value + 1 }
-            val instance = object {
-                fun size(): Int = 1
-            }
-            val ref = receiver::length
-            return lambda(41)
-        }
-
-        fun after(): Int = 7
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            let funDecls = ast.arena.declarations().compactMap { decl -> FunDecl? in
-                guard case let .funDecl(funDecl) = decl else {
-                    return nil
+                guard case let .typeAliasDecl(typeAliasDecl) = ast.arena.decl(aliasDeclID) else {
+                    Issue.record("Expected typealias declaration")
+                    return
                 }
-                return funDecl
-            }
-            let funNames = Set(funDecls.map { ctx.interner.resolve($0.name) })
-            #expect(funNames.contains("host"))
-            #expect(funNames.contains("after"))
+                let underlyingType = try #require(typeAliasDecl.underlyingType)
+                guard case let .annotated(base, annotations) = try #require(ast.arena.typeRef(underlyingType)) else {
+                    Issue.record("Expected annotated type reference")
+                    return
+                }
 
-            let hostDecl = try #require(funDecls.first(where: { ctx.interner.resolve($0.name) == "host" }))
-            guard case let .block(bodyExprs, _) = hostDecl.body else {
-                Issue.record("host should have a block body")
-                return
+                #expect(annotations.map(\.name) == ["A9", "B9", "ExtensionFunctionType"])
+
+                guard case let .named(path, args, nullable) = try #require(ast.arena.typeRef(base)) else {
+                    Issue.record("Expected named type reference")
+                    return
+                }
+
+                #expect(path.map(interner.resolve) == ["Function1"])
+                #expect(args.count == 2)
+                #expect(!nullable)
             }
 
-            let localInitializers = bodyExprs.compactMap { exprID -> (String, ExprID)? in
-                guard let expr = ast.arena.expr(exprID),
-                      case let .localDecl(name, _, _, initializer, _, _) = expr,
-                      let initializer
+            // 10: lambda / object literal / callable reference roundtrip
+            do {
+                _ = try fileByPath(paths[10])
+                let funDecls = ast.arena.declarations().compactMap { decl -> FunDecl? in
+                    guard case let .funDecl(funDecl) = decl else { return nil }
+                    return funDecl
+                }
+                let funNames = Set(funDecls.map { interner.resolve($0.name) })
+                #expect(funNames.contains("host"))
+                #expect(funNames.contains("after"))
+
+                let hostDecl = try #require(funDecls.first(where: { interner.resolve($0.name) == "host" }))
+                guard case let .block(bodyExprs, _) = hostDecl.body else {
+                    Issue.record("host should have a block body")
+                    return
+                }
+
+                let localInitializers = bodyExprs.compactMap { exprID -> (String, ExprID)? in
+                    guard let expr = ast.arena.expr(exprID),
+                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          let initializer
+                    else {
+                        return nil
+                    }
+                    return (interner.resolve(name), initializer)
+                }
+                let localsByName = Dictionary(uniqueKeysWithValues: localInitializers.map { ($0.0, $0.1) })
+
+                let lambdaInit = try #require(localsByName["lambda"])
+                guard let lambdaExpr = ast.arena.expr(lambdaInit),
+                      case .lambdaLiteral = lambdaExpr
                 else {
-                    return nil
+                    Issue.record("Expected `lambda` local initializer to be `.lambdaLiteral`.")
+                    return
                 }
-                return (ctx.interner.resolve(name), initializer)
-            }
-            let localsByName = Dictionary(uniqueKeysWithValues: localInitializers.map { ($0.0, $0.1) })
 
-            let lambdaInit = try #require(localsByName["lambda"])
-            guard let lambdaExpr = ast.arena.expr(lambdaInit),
-                  case .lambdaLiteral = lambdaExpr
-            else {
-                Issue.record("Expected `lambda` local initializer to be `.lambdaLiteral`.")
-                return
-            }
-
-            let objectInit = try #require(localsByName["instance"])
-            guard let objectExpr = ast.arena.expr(objectInit),
-                  case .objectLiteral = objectExpr
-            else {
-                Issue.record("Expected `instance` local initializer to be `.objectLiteral`.")
-                return
-            }
-
-            let callableInit = try #require(localsByName["ref"])
-            guard let callableExpr = ast.arena.expr(callableInit),
-                  case .callableRef = callableExpr
-            else {
-                Issue.record("Expected `ref` local initializer to be `.callableRef`.")
-                return
-            }
-        }
-    }
-
-    // MARK: - Multi-line expression merging (BuildASTPhase+BodyParsing fix)
-
-    @Test
-    func testMultiLineFunctionCallMergesIntoSingleStatement() throws {
-        // Arguments spread across multiple lines should be parsed as one call.
-        let source = """
-        fun add(a: Int, b: Int, c: Int): Int = a + b + c
-        fun main(): Int {
-            val result = add(
-                1,
-                2,
-                3)
-            return result
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for multi-line call, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
-    }
-
-    @Test
-    func testMultiLineBinaryExpressionMergesIntoSingleStatement() throws {
-        // A binary expression split across lines should merge when the previous
-        // line ends with the operator.
-        let source = """
-        fun main(): Int {
-            val x = 1 +
-                2 +
-                3
-            return x
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for multi-line binary expr, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
-    }
-
-    @Test
-    func testMultiLineStringConcatMergesCorrectly() throws {
-        let source = """
-        fun main(): String {
-            val s = "Hello" +
-                ", " +
-                "World"
-            return s
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for multi-line string concat, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
-    }
-
-    @Test
-    func testChainedMemberCallsAcrossLinesMerge() throws {
-        // Method chains split across lines (dot at start of next line) should parse correctly.
-        let source = """
-        fun main(): String {
-            val s = "  hello  "
-                .trim()
-                .uppercase()
-            return s
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for chained member calls, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
-    }
-
-    @Test
-    func testClosingParenOnSeparateLineMergesWithCall() throws {
-        // Closing paren on its own line should still be merged with the call.
-        let source = """
-        fun pair(a: Int, b: Int): Int = a + b
-        fun main(): Int {
-            val x = pair(
-                10,
-                20
-            )
-            return x
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for closing paren on separate line, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
-    }
-
-    @Test
-    func testTopLevelDeclarationAnnotationsAreCollectedWithMixedModifierOrder() throws {
-        let source = """
-        package anno.ast
-
-        public @Suppress("UNCHECKED_CAST")
-        fun suppressedCast(x: Any): String = x as String
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            // Skip bundled stdlib file — user file is last
-            let file = try #require(ast.sortedFiles.last)
-            let function = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(funDecl) = decl,
-                      ctx.interner.resolve(funDecl.name) == "suppressedCast"
+                let objectInit = try #require(localsByName["instance"])
+                guard let objectExpr = ast.arena.expr(objectInit),
+                      case .objectLiteral = objectExpr
                 else {
-                    return nil
+                    Issue.record("Expected `instance` local initializer to be `.objectLiteral`.")
+                    return
                 }
-                return funDecl
-            }.first)
 
-            #expect(function.annotations.count == 1)
-            #expect(function.annotations[0].name == "Suppress")
-            #expect(function.annotations[0].arguments == ["\"\"UNCHECKED_CAST\"\""])
-        }
-    }
-
-    @Test
-    func testCompanionMemberAnnotationsAreCollectedWithMixedModifierOrder() throws {
-        let source = """
-        package anno.ast
-
-        class Host {
-            companion object {
-                public @JvmStatic
-                fun create(): Int = 1
-            }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            // Skip bundled stdlib file — user file is last
-            let file = try #require(ast.sortedFiles.last)
-            let hostClass = try #require(file.topLevelDecls.compactMap { declID -> ClassDecl? in
-                guard let decl = ast.arena.decl(declID),
-                      case let .classDecl(classDecl) = decl,
-                      ctx.interner.resolve(classDecl.name) == "Host"
+                let callableInit = try #require(localsByName["ref"])
+                guard let callableExpr = ast.arena.expr(callableInit),
+                      case .callableRef = callableExpr
                 else {
-                    return nil
+                    Issue.record("Expected `ref` local initializer to be `.callableRef`.")
+                    return
                 }
-                return classDecl
-            }.first)
-            let companionDeclID = try #require(hostClass.companionObject)
-            guard let companionDecl = ast.arena.decl(companionDeclID),
-                  case let .objectDecl(companionObject) = companionDecl
-            else {
-                Issue.record("Expected companion object declaration.")
-                return
-            }
-            let companionFunctionDeclID = try #require(companionObject.memberFunctions.first)
-            guard let functionDecl = ast.arena.decl(companionFunctionDeclID),
-                  case let .funDecl(function) = functionDecl
-            else {
-                Issue.record("Expected companion member function declaration.")
-                return
             }
 
-            #expect(function.annotations.count == 1)
-            #expect(function.annotations[0].name == "JvmStatic")
-        }
-    }
+            // 16: top-level declaration annotations
+            do {
+                let file = try fileByPath(paths[16])
+                let function = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
+                    guard let decl = ast.arena.decl(declID),
+                          case let .funDecl(funDecl) = decl,
+                          interner.resolve(funDecl.name) == "suppressedCast16"
+                    else {
+                        return nil
+                    }
+                    return funDecl
+                }.first)
 
-    @Test
-    func testAnnotationAfterBodylessExternalFunctionStartsNextDeclaration() throws {
-        let source = """
-        package anno.ast
+                #expect(function.annotations.count == 1)
+                #expect(function.annotations[0].name == "Suppress")
+                #expect(function.annotations[0].arguments == ["\"\"UNCHECKED_CAST\"\""])
+            }
 
-        @RuntimeName("first")
-        external fun first(value: Boolean)
-
-        @RuntimeName("second")
-        external fun second(value: Boolean)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            // Skip bundled stdlib file — user file is last
-            let file = try #require(ast.sortedFiles.last)
-            let functions = file.topLevelDecls.compactMap { declID -> FunDecl? in
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(function) = decl
+            // 17: companion member annotations
+            do {
+                let file = try fileByPath(paths[17])
+                let hostClass = try #require(file.topLevelDecls.compactMap { declID -> ClassDecl? in
+                    guard let decl = ast.arena.decl(declID),
+                          case let .classDecl(classDecl) = decl,
+                          interner.resolve(classDecl.name) == "Host17"
+                    else {
+                        return nil
+                    }
+                    return classDecl
+                }.first)
+                let companionDeclID = try #require(hostClass.companionObject)
+                guard let companionDecl = ast.arena.decl(companionDeclID),
+                      case let .objectDecl(companionObject) = companionDecl
                 else {
-                    return nil
+                    Issue.record("Expected companion object declaration.")
+                    return
                 }
-                return function
+                let companionFunctionDeclID = try #require(companionObject.memberFunctions.first)
+                guard let functionDecl = ast.arena.decl(companionFunctionDeclID),
+                      case let .funDecl(function) = functionDecl
+                else {
+                    Issue.record("Expected companion member function declaration.")
+                    return
+                }
+
+                #expect(function.annotations.count == 1)
+                #expect(function.annotations[0].name == "JvmStatic")
             }
 
-            #expect(functions.count == 2)
-            #expect(functions.map { ctx.interner.resolve($0.name) } == ["first", "second"])
-            #expect(functions.map { $0.annotations.first?.name } == ["RuntimeName", "RuntimeName"])
-            #expect(functions.map { $0.annotations.first?.arguments.first } == ["\"\"first\"\"", "\"\"second\"\""])
+            // 18: annotation after bodyless external function
+            do {
+                let file = try fileByPath(paths[18])
+                let functions = file.topLevelDecls.compactMap { declID -> FunDecl? in
+                    guard let decl = ast.arena.decl(declID),
+                          case let .funDecl(function) = decl
+                    else {
+                        return nil
+                    }
+                    return function
+                }
+
+                #expect(functions.count == 2)
+                #expect(functions.map { interner.resolve($0.name) } == ["first18", "second18"])
+                #expect(functions.map { $0.annotations.first?.name } == ["RuntimeName", "RuntimeName"])
+                #expect(functions.map { $0.annotations.first?.arguments.first } == ["\"\"first\"\"", "\"\"second\"\""])
+            }
         }
     }
 }

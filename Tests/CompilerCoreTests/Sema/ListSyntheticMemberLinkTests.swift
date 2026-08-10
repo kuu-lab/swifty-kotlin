@@ -873,6 +873,30 @@ struct ListSyntheticMemberLinkTests {
                     fun caller(): Int = checksum(listOf(1, 2, 3))
 
             """,
+            // testListAndCollectionConversionMembersUseRuntimeExternalLinks (toMap)
+            """
+            package sample56
+
+                    fun copy(values: List<Pair<String, Int>>) {
+                        values.toMap()
+                    }
+            """,
+            // testListAndCollectionConversionMembersUseRuntimeExternalLinks (toList)
+            """
+            package sample57
+
+                    fun copy(values: Collection<String>): List<String> {
+                        return values.toList()
+                    }
+            """,
+            // testListAndCollectionConversionMembersUseRuntimeExternalLinks (toHashSet)
+            """
+            package sample58
+
+                    fun copy(values: List<String>): MutableSet<String> {
+                        return values.toHashSet()
+                    }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -951,50 +975,32 @@ struct ListSyntheticMemberLinkTests {
             // === testListAndCollectionConversionMembersUseRuntimeExternalLinks ===
 
             do {
-
-                let sample2Path = paths[2]
-
-                let source = sources[2]
-
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
-
                 let cases: [SyntheticMemberCallCase] = [
                     .init(
-                        source: """
-                        fun copy(values: List<Pair<String, Int>>) {
-                            values.toMap()
-                        }
-                        """,
+                        source: "",
                         memberName: "toMap",
                         expectedExternalLink: "kk_list_toMap",
                         expectedTypeShape: .classNamed("Map")
                     ),
                     .init(
-                        source: """
-                        fun copy(values: Collection<String>): List<String> {
-                            return values.toList()
-                        }
-                        """,
+                        source: "",
                         memberName: "toList",
                         expectedExternalLink: "kk_collection_toList",
                         expectedTypeShape: .classNamed("List")
                     ),
                     .init(
-                        source: """
-                        fun copy(values: List<String>): MutableSet<String> {
-                            return values.toHashSet()
-                        }
-                        """,
+                        source: "",
                         memberName: "toHashSet",
                         expectedExternalLink: "kk_list_toHashSet",
                         expectedTypeShape: nil
                     ),
                 ]
 
-                for testCase in cases {
-                    try assertSyntheticMemberCall(testCase)
+                let base = 56
+                for (offset, testCase) in cases.enumerated() {
+                    let samplePath = paths[base + offset]
+                    try assertSyntheticMemberCall(testCase, in: ctx, ast: ast, sema: sema, path: samplePath)
                 }
-
             }
 
             // === testListIndicesExtensionPropertyResolvesToRuntimeGetter ===
@@ -2948,40 +2954,57 @@ enum SyntheticMemberTypeShape {
 
 func assertSyntheticMemberCall(
     _ testCase: SyntheticMemberCallCase,
+    in ctx: CompilationContext,
+    ast: ASTModule,
+    sema: SemaModule,
+    path: String,
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws {
-    try withTemporaryFile(contents: testCase.source) { path in
-        let ctx = makeCompilationContext(inputs: [path])
-        try runSema(ctx)
+    guard let fileID = ctx.sourceManager.fileID(forPath: path) else {
+        Issue.record("Missing file ID for \(path)")
+        return
+    }
+    let sampleDiags = ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
+    #expect(
+        sampleDiags.isEmpty,
+        "Expected \(testCase.memberName) to type-check cleanly, got: \(sampleDiags)"
+    )
 
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected \(testCase.memberName) to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+    let callExpr = try #require(
+        {
+            for index in ast.arena.exprs.indices.reversed() {
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                guard case let .memberCall(_, callee, _, _, _) = expr else { continue }
+                if ctx.interner.resolve(callee) == testCase.memberName { return exprID }
+            }
+            return nil
+        }(),
+        "Expected \(testCase.memberName) member call in \(path)"
+    )
 
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        // Use lastExprID rather than firstExprID: bundled stdlib sources (injected
-        // before the fixture's own source) may contain unrelated calls to the same
-        // member name (e.g. Sequence aggregate HOFs calling `this.toList()`
-        // internally), which would otherwise shadow the fixture's own call site.
-        let callExpr = try #require(lastExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == testCase.memberName
-        })
-        let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosenCallee) == testCase.expectedExternalLink, "Expected \(testCase.memberName) to resolve to \(testCase.expectedExternalLink)")
+    let binding = try #require(sema.bindings.callBinding(for: callExpr))
+    let chosenCallee = try #require(binding.chosenCallee)
+    #expect(
+        sema.symbols.externalLinkName(for: chosenCallee) == testCase.expectedExternalLink,
+        "Expected \(testCase.memberName) to resolve to \(testCase.expectedExternalLink)"
+    )
 
-        if let expectedTypeShape = testCase.expectedTypeShape {
-            let resultType = try #require(sema.bindings.exprType(for: callExpr))
-            try assertSyntheticMemberType(
-                resultType,
-                matches: expectedTypeShape,
-                sema: sema,
-                interner: ctx.interner,
-                memberName: testCase.memberName,
-                file: file,
-                line: line
-            )
-        }
+    if let expectedTypeShape = testCase.expectedTypeShape {
+        let resultType = try #require(sema.bindings.exprType(for: callExpr))
+        try assertSyntheticMemberType(
+            resultType,
+            matches: expectedTypeShape,
+            sema: sema,
+            interner: ctx.interner,
+            memberName: testCase.memberName,
+            file: file,
+            line: line
+        )
     }
 }
 
