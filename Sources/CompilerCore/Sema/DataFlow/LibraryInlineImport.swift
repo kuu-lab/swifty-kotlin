@@ -122,14 +122,25 @@ extension DataFlowSemaPhase {
         var importLabelCounter: Int32 = 900_000
         var importExprCounter: Int32 = 900_000
         for line in bodyLines {
-            let instructions = parseImportedInlineInstructions(
+            guard let instructions = parseImportedInlineInstructions(
                 line: line,
                 parameterSymbolMapping: parameterSymbolMapping,
                 interner: interner,
                 labelCounter: &importLabelCounter,
                 exprCounter: &importExprCounter,
                 externalLinkNameToSymbol: externalLinkNameToSymbol
-            )
+            ) else {
+                // Dropping a single instruction leaves the remaining ones reading
+                // registers that are never defined, which silently miscompiles the
+                // call site. Skip the inline body entirely instead so the call
+                // keeps targeting the library function.
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0023",
+                    "Unsupported instruction in inline KIR artifact '\(path)'; the function will not be inlined",
+                    range: nil
+                )
+                return nil
+            }
             body.append(contentsOf: instructions)
         }
         if body.isEmpty {
@@ -218,10 +229,10 @@ extension DataFlowSemaPhase {
         labelCounter: inout Int32,
         exprCounter: inout Int32,
         externalLinkNameToSymbol: [String: SymbolID]
-    ) -> [KIRInstruction] {
+    ) -> [KIRInstruction]? {
         let parts = line.split(separator: " ")
         guard let opcode = parts.first else {
-            return []
+            return nil
         }
         let pairs = parseInlineKeyValuePairs(parts.dropFirst())
 
@@ -232,7 +243,7 @@ extension DataFlowSemaPhase {
                   let elseRaw = pairs["else"], let elseValue = Int32(elseRaw),
                   let resultRaw = pairs["result"], let result = Int32(resultRaw)
             else {
-                return []
+                return nil
             }
             let elseLabel = labelCounter
             let endLabel = labelCounter + 1
@@ -260,7 +271,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             externalLinkNameToSymbol: externalLinkNameToSymbol
         ) else {
-            return []
+            return nil
         }
         return [instruction]
     }

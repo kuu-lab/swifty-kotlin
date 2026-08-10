@@ -89,7 +89,7 @@ extension CallLowerer {
         // bundled stdlib).  String is excluded above; Char and primitives are excluded by
         // tryLowerPrimitiveCompareTo which runs before this path.
         if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("kk_comparable_compareTo")
+            return interner.intern("__kk_comparable_compareTo")
         }
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {

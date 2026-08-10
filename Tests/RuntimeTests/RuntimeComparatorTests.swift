@@ -7,10 +7,6 @@ import Testing
 // We must NOT pass @_cdecl functions directly to comparatorPtr() because Swift
 // would re-export the C symbol in this module, causing duplicate symbol linker errors.
 
-private let nullsFirstTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
-    kk_comparator_nulls_first_trampoline(closureRaw, a, b, outThrown)
-}
-
 // MARK: - Test lambdas
 
 private let selectIdentity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -134,127 +130,75 @@ struct RuntimeComparatorTests {
 
     // MARK: - compareByDescending
 
-    @Test
-    func testComparatorFromMultiSelectorsVararg() {
-        let selectors = makeArray([
-            selectorPtr(selectModTen), 0,
-            selectorPtr(selectIdentity), 0,
-            selectorPtr(selectIdentity), 0,
-            selectorPtr(selectIdentity), 0,
-        ])
-        let closureRaw = kk_comparator_from_multi_selectors_vararg(selectors)
-
-        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 25, nil) < 0)
-        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil) < 0)
-        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 17, 17, nil) == 0)
-    }
-
     // MARK: - compareValues
 
+    // KSP-461: `compareValues` is bundled Kotlin source; the residual runtime
+    // entry point is the generic comparison core reached through `compareTo` on a
+    // `Comparable<*>` receiver.
     @Test
-    func testCompareValuesLessThan() {
-        var thrown = 0
-        let result = kk_compareValues(kk_box_int(3), kk_box_int(7), &thrown)
-        #expect(kk_unbox_int(result) < 0)
-        #expect(thrown == 0)
+    func testComparableCompareToOrdersBoxedValues() {
+        #expect(__kk_comparable_compareTo(kk_box_int(3), kk_box_int(7)) < 0)
+        #expect(__kk_comparable_compareTo(kk_box_int(5), kk_box_int(5)) == 0)
+        #expect(__kk_comparable_compareTo(kk_box_int(9), kk_box_int(2)) > 0)
     }
 
     @Test
-    func testCompareValuesEqual() {
-        var thrown = 0
-        let result = kk_compareValues(kk_box_int(5), kk_box_int(5), &thrown)
-        #expect(kk_unbox_int(result) == 0)
-        #expect(thrown == 0)
+    func testComparableCompareToOrdersNullsFirst() {
+        #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_int(1)) < 0)
+        #expect(__kk_comparable_compareTo(kk_box_int(1), runtimeNullSentinelInt) > 0)
+        #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, runtimeNullSentinelInt) == 0)
     }
 
-    @Test
-    func testCompareValuesGreaterThan() {
-        var thrown = 0
-        let result = kk_compareValues(kk_box_int(9), kk_box_int(2), &thrown)
-        #expect(kk_unbox_int(result) > 0)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testCompareValuesNullLessThanNonNull() {
-        var thrown = 0
-        let result = kk_compareValues(runtimeNullSentinelInt, kk_box_int(1), &thrown)
-        #expect(kk_unbox_int(result) < 0)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testCompareValuesNonNullGreaterThanNull() {
-        var thrown = 0
-        let result = kk_compareValues(kk_box_int(1), runtimeNullSentinelInt, &thrown)
-        #expect(kk_unbox_int(result) > 0)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testCompareValuesBothNull() {
-        var thrown = 0
-        let result = kk_compareValues(runtimeNullSentinelInt, runtimeNullSentinelInt, &thrown)
-        #expect(kk_unbox_int(result) == 0)
-        #expect(thrown == 0)
-    }
-
-    // Regression (KSP-659): a boxed zero can reach compareValues as the raw
+    // Regression (KSP-659): a boxed zero can reach the comparison core as the raw
     // value 0 (e.g. the generic element argument of `Array<Int>.binarySearch(0)`).
     // It must compare as the integer zero and must not be mistaken for `null`.
     @Test
-    func testCompareValuesBoxedZeroIsNotNull() {
-        var thrown = 0
-        #expect(kk_unbox_int(kk_compareValues(kk_box_int(0), 0, &thrown)) == 0)
-        #expect(kk_unbox_int(kk_compareValues(0, kk_box_int(0), &thrown)) == 0)
-        #expect(kk_unbox_int(kk_compareValues(0, 0, &thrown)) == 0)
-        #expect(kk_unbox_int(kk_compareValues(0, kk_box_int(5), &thrown)) < 0)
-        #expect(kk_unbox_int(kk_compareValues(kk_box_int(5), 0, &thrown)) > 0)
-        #expect(thrown == 0)
+    func testComparableCompareToBoxedZeroIsNotNull() {
+        #expect(__kk_comparable_compareTo(kk_box_int(0), 0) == 0)
+        #expect(__kk_comparable_compareTo(0, kk_box_int(0)) == 0)
+        #expect(__kk_comparable_compareTo(0, 0) == 0)
+        #expect(__kk_comparable_compareTo(0, kk_box_int(5)) < 0)
+        #expect(__kk_comparable_compareTo(kk_box_int(5), 0) > 0)
+    }
+
+    // Regression (KSP-461): `String.compareTo` returns the difference of the first
+    // differing characters in Kotlin, and the generic comparison core has to report
+    // the same magnitude (it used to normalise the result to -1/0/1).
+    @Test
+    func testComparableCompareToReportsKotlinStringDifference() {
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("a"), makeRuntimeString("c")) == -2
+        )
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("c"), makeRuntimeString("a")) == 2
+        )
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("ab"), makeRuntimeString("abcd")) == -2
+        )
+        #expect(
+            __kk_comparable_compareTo(makeRuntimeString("abc"), makeRuntimeString("abc")) == 0
+        )
     }
 
     // Regression (KSP-659): only the null sentinel counts as `null`, so a real
     // null orders strictly below a boxed zero (previously they compared equal).
     @Test
-    func testCompareValuesNullOrdersBelowBoxedZero() {
-        var thrown = 0
-        #expect(kk_unbox_int(kk_compareValues(runtimeNullSentinelInt, 0, &thrown)) < 0)
-        #expect(kk_unbox_int(kk_compareValues(0, runtimeNullSentinelInt, &thrown)) > 0)
-        #expect(thrown == 0)
+    func testComparableCompareToNullOrdersBelowBoxedZero() {
+        #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, 0) < 0)
+        #expect(__kk_comparable_compareTo(0, runtimeNullSentinelInt) > 0)
     }
 
+    // KSP-461: explicit comparator arguments (e.g. `maxWith`) route through the
+    // demoted invocation bridge, which dispatches the comparator object's compare.
     @Test
-    func testCompareValuesByVarargSelectors() {
-        let selectors = makeArray([
-            selectorPtr(selectModTen), 0,
-            selectorPtr(selectIdentity), 0,
-            selectorPtr(selectIdentity), 0,
-            selectorPtr(selectIdentity), 0,
-        ])
-        var thrown = 0
-        let result = kk_compareValuesByVararg(13, 25, selectors, &thrown)
-        #expect(kk_unbox_int(result) == -1)
-        #expect(thrown == 0)
-
-        let tiedFirstKey = kk_compareValuesByVararg(13, 23, selectors, &thrown)
-        #expect(kk_unbox_int(tiedFirstKey) == -1)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testCompareValuesByComparatorSelector() {
+    func testCompareWithComparatorDispatchesComparatorObject() {
         withComparatorObject(mode: 0) { comparatorRaw in
-            var thrown = 0
-            let result = kk_compareValuesByComparator(
-                13,
-                25,
-                comparatorRaw,
-                selectorPtr(selectModTen),
-                0,
-                &thrown
-            )
-            #expect(kk_unbox_int(result) == -1)
-            #expect(thrown == 0)
+            #expect(__kk_compare_with_comparator(comparatorRaw, 3, 7, nil) < 0)
+            #expect(__kk_compare_with_comparator(comparatorRaw, 7, 3, nil) > 0)
+            #expect(__kk_compare_with_comparator(comparatorRaw, 7, 7, nil) == 0)
+        }
+        withComparatorObject(mode: 1) { comparatorRaw in
+            #expect(__kk_compare_with_comparator(comparatorRaw, 3, 7, nil) > 0)
         }
     }
 
@@ -554,62 +498,11 @@ struct RuntimeComparatorTests {
         #expect(listElements(source) == [22, 12, 21, 11])
     }
 
-    @Test
-    func testSortedWithNullsFirstComparator() {
-        let source = makeList([5, runtimeNullSentinelInt, 3, runtimeNullSentinelInt, 4, 1])
-        let chain = kk_comparator_nulls_first(comparatorPtr(comparatorNatural), 0)
-        let sorted = kk_list_sortedWith(
-            source,
-            comparatorPtr(nullsFirstTrampoline),
-            chain,
-            nil
-        )
-        #expect(listElements(sorted) == [runtimeNullSentinelInt, runtimeNullSentinelInt, 1, 3, 4, 5])
-    }
-
     // MARK: - Exception propagation
 
     // MARK: - Edge cases
 
-    @Test
-    func testComparatorNullsFirstTrampoline() {
-        let chain = kk_comparator_nulls_first(comparatorPtr(comparatorNatural), 0)
-        #expect(kk_comparator_nulls_first_trampoline(chain, runtimeNullSentinelInt, 5, nil) < 0)
-        #expect(kk_comparator_nulls_first_trampoline(chain, 5, runtimeNullSentinelInt, nil) > 0)
-        #expect(kk_comparator_nulls_first_trampoline(chain, 3, 5, nil) < 0)
-        #expect(kk_comparator_nulls_first_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil) == 0)
-    }
-
-    @Test
-    func testComparatorNullsLastTrampoline() {
-        let chain = kk_comparator_nulls_last(comparatorPtr(comparatorNatural), 0)
-        #expect(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, 5, nil) > 0)
-        #expect(kk_comparator_nulls_last_trampoline(chain, 5, runtimeNullSentinelInt, nil) < 0)
-        #expect(kk_comparator_nulls_last_trampoline(chain, 5, 3, nil) > 0)
-        #expect(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil) == 0)
-    }
-
     // MARK: - naturalOrder / reverseOrder: runtimeNullSentinelInt 挙動 (TEST-COMP-011)
-
-    // MARK: - compareBy: 全キー等値で 0 を返すこと (TEST-COMP-011)
-
-    @Test
-    func testCompareByAllSelectorsEqualReturnsZero() {
-        // All four slots use selectModTen.  13%10 == 23%10 == 3 for every selector,
-        // so the loop exhausts without finding a non-zero result and returns 0.
-        let selectors = makeArray([
-            selectorPtr(selectModTen), 0,
-            selectorPtr(selectModTen), 0,
-            selectorPtr(selectModTen), 0,
-            selectorPtr(selectModTen), 0,
-        ])
-        let closureRaw = kk_comparator_from_multi_selectors_vararg(selectors)
-        // inputs differ (13 ≠ 23) but all key projections are identical
-        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil) == 0)
-        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 23, 13, nil) == 0)
-        // sanity: equal inputs still produce 0
-        #expect(kk_comparator_from_multi_selectors_trampoline(closureRaw, 7, 7, nil) == 0)
-    }
 
     // MARK: - 参照型オブジェクトの安定ソート（原順序保持：インデックスベース検証）(TEST-COMP-011)
 

@@ -295,8 +295,9 @@
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
-- [ ] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
+- [x] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
   - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+  - 残留: `kk_string_case_insensitive_order(_trampoline)` は companion `val` の同一インスタンス保証（BUG-036/BUG-154）のため runtime シングルトンのまま。比較コアは `__kk_comparable_compareTo` / Comparator 呼び出しは `__kk_compare_with_comparator` へ降格
   - Comparator 消費側（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`）: 上記 rg パターンには**含まれない**。実体は `RuntimeCollectionHOFMaxMin.swift` の `kk_list_maxWith(OrNull)` / `kk_list_minWith(OrNull)` と `RuntimeSequenceAssociation.swift` の `kk_sequence_maxWith(OrNull)` / `kk_sequence_minWith(OrNull)` の 8 関数で、削除自体は KSP-426（List）/ KSP-444（Sequence）の担当。KSP-461 は本 API が依存する Comparator の Kotlin 実装（`compare` の member dispatch）を提供する側として整合を確認する
 
 #### kotlin.random [M7 実行体]
