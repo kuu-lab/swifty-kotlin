@@ -499,73 +499,61 @@ struct BuildKIRRegressionTests {
     // was taken from the initializer's own arena type (Long) instead of the
     // symbol's Sema-recorded declared type (Any), so the local aliased the
     // raw unboxed literal register and no box call was ever emitted.
-    @Test func testLocalDeclBoxesLiteralWhenWidenedToAny() throws {
-        let source = """
-        fun main() {
-            val x: Any = 42L
-            println(x)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+    // Companion: an unannotated local (`val x = 42L`) must NOT gain a spurious
+    // box/copy. The same widening gap also affected reassignment of a widened
+    // local, so verify both the initial box and the reassignment's box.
+    @Test func testLocalDeclBoxesWidenedLiteralsCorrectly() throws {
+        let sources = [
+            """
+            package sample0
+            fun main0() {
+                val x: Any = 42L
+                println(x)
+            }
+            """,
+            """
+            package sample1
+            fun main1() {
+                val x = 42L
+                println(x)
+            }
+            """,
+            """
+            package sample2
+            fun main2() {
+                var v: Any = 42
+                v = 100L
+                println(v)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
             let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+            let interner = ctx.interner
 
-            #expect(callees.contains("kk_box_long_nonnull"))
-        }
-    }
+            do {
+                let body = try findKIRFunctionBody(named: "main0", in: module, interner: interner)
+                let callees = Set(extractCallees(from: body, interner: interner))
+                #expect(callees.contains("kk_box_long_nonnull"))
+            }
 
-    // Companion to the above: an unannotated local (`val x = 42L`) must NOT
-    // gain a spurious box/copy — the declared and initializer types coincide,
-    // so the direct-alias fast path should still apply.
-    @Test func testLocalDeclDoesNotBoxWhenDeclaredTypeMatchesInitializer() throws {
-        let source = """
-        fun main() {
-            val x = 42L
-            println(x)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            do {
+                let body = try findKIRFunctionBody(named: "main1", in: module, interner: interner)
+                let callees = Set(extractCallees(from: body, interner: interner))
+                #expect(!callees.contains("kk_box_long"))
+            }
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
-
-            #expect(!callees.contains("kk_box_long"))
-        }
-    }
-
-    // The same widening gap affected reassignment of a widened local: since
-    // the *first* declaration never established an Any-typed storage slot,
-    // later `v = <primitive>` copies inherited the initializer's narrow type
-    // and skipped boxing too. Verify both the initial box and the
-    // reassignment's box are now emitted.
-    @Test func testLocalDeclWideningFixAlsoBoxesLaterReassignment() throws {
-        let source = """
-        fun main() {
-            var v: Any = 42
-            v = 100L
-            println(v)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callees.contains("kk_box_int"))
-            #expect(callees.contains("kk_box_long_nonnull"))
+            do {
+                let body = try findKIRFunctionBody(named: "main2", in: module, interner: interner)
+                let callees = extractCallees(from: body, interner: interner)
+                #expect(callees.contains("kk_box_int"))
+                #expect(callees.contains("kk_box_long_nonnull"))
+            }
         }
     }
 
