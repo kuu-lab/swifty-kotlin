@@ -382,13 +382,6 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
         // registered for it here.
 
-        // Keep collection aliases visible while bundled collection factories
-        // are loaded; their declarations reference MutableList/MutableMap
-        // symbols during the two-phase stdlib bootstrap.
-        registerSyntheticCollectionTypeAliases(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
         registerSyntheticCollectionFactoryStubs(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
