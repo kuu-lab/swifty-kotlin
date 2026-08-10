@@ -645,12 +645,10 @@
   - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
   - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
 - [x] CLEANUP-STUB-121: `HeaderHelpers+SyntheticSerializationStubs.swift`（723行）と `HeaderHelpers+SyntheticBucketedStubRegistry.swift` の `name: "Serialization"` 登録を削除。連動して `Sources/Runtime/RuntimeSerialization.swift`（`kk_json_*` 22件）と `Sources/RuntimeABI/RuntimeABISpec+Serialization.swift` を削除し、唯一の消費者が JSON エンコードだった `kk_json_register_data_class_field_name` 発行（`CallLowerer` / `ObjectLiteralLowerer` / `CallLowerer+TypeOfAndMetadata` / `CallLowerer+KClassReflectMemberCalls`）も除去。`Tests/RuntimeTests/RuntimeSerializationTests.swift` と diff cases `json_serialization.kt`/`dataclass_serialization.kt`/`collection_serialization.kt`/`custom_serializer.kt` を削除（`LibMetadataSerializationTests*.swift` は lib metadata のシリアライズで kotlinx.serialization とは無関係のため存置）
-- [ ] CLEANUP-STUB-122: `HeaderHelpers+SyntheticTestStubs.swift` を削除する
-  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTestStubs.swift`（184行）
-  - 削除内容: `registerSyntheticTestFrameworkStubs(...)` および `kotlin.test` 注釈（`Test`/`Before`/`After`/`Ignore` 等）・`assertEquals`/`assertTrue`/`assertNull`/`fail` 等の登録を削除
-  - 呼び出し元: `HeaderHelpers.swift:1203`（`kotlinPkg` 指定）、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:119`（`name: "TestFramework"`）を削除
-  - 連動整理: Runtime `Sources/Runtime/RuntimeTest.swift`（`kk_test_*` 12件）、`Sources/RuntimeABI/RuntimeABISpec+Test.swift`
-  - テスト影響: `Tests/CompilerCoreTests/Sema/TestFrameworkSyntheticStubTests.swift`、diff cases `test_framework_basic.kt`/`test_array_new_functions.kt` 等 `kotlin.test` 関連ケースの整理
+- [x] CLEANUP-STUB-122: `HeaderHelpers+SyntheticTestStubs.swift` を削除する（完了）
+  - 削除済み: `HeaderHelpers+SyntheticTestStubs.swift` 本体、呼び出し元 2 箇所（`HeaderHelpers.swift` の post-bundled 再登録・`HeaderHelpers+SyntheticBucketedStubRegistry.swift` の `name: "TestFramework"`）、Runtime `Sources/Runtime/RuntimeTest.swift`（`kk_test_assert*` 6 export）、`Sources/RuntimeABI/RuntimeABISpec+Test.swift`（`testFunctions` は `RuntimeABISpec.allFunctions` からも除去）、`NativeEmitter+FunctionEmission.swift` の `__testAssert*` intrinsic マップ 6 件
+  - テスト削除: `Tests/CompilerCoreTests/Sema/TestFrameworkSyntheticStubTests.swift`、`Tests/RuntimeTests/RuntimeTestFrameworkTests.swift`、diff case `Scripts/diff_cases/test_framework_basic.kt`（SKIP-DIFF だった）と `Scripts/diff_cases/README.md` の該当行。`test_array_new_functions.kt` は `kotlin.test` を使っていないため変更なし
+  - 検証: `swift build` / `--filter Golden` / `validate_runtime_abi_links.sh` / `--filter ABIMismatch` green
 - [ ] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
   - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除

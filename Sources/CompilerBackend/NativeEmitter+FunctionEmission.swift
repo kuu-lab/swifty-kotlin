@@ -3494,12 +3494,6 @@ extension NativeEmitter {
         case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
-        case "__testAssertEquals": "kk_test_assertEquals"
-        case "__testAssertEqualsMessage": "kk_test_assertEquals_message"
-        case "__testAssertTrue": "kk_test_assertTrue"
-        case "__testAssertTrueMessage": "kk_test_assertTrue_message"
-        case "__testAssertNull": "kk_test_assertNull"
-        case "__testAssertNullMessage": "kk_test_assertNull_message"
         default: nil
         }
     }

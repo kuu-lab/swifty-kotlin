@@ -143,7 +143,6 @@ public enum RuntimeABISpec {
         stringParsingFunctions,
         stringSearchFunctions,
         systemFunctions,
-        testFunctions,
         threadLocalFunctions,
         timeAndPathBridgeFunctions,
         uuidFunctions,
