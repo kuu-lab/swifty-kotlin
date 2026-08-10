@@ -41,7 +41,8 @@ struct CharSyntheticMemberLinkTests {
 
         // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isDefined は
         // bundled Kotlin へ移行済みのため合成スタブの外部リンクを持たない。
-        // KSP-662: digitToInt(OrNull)/uppercaseChar/lowercaseChar/titlecaseChar も同様。
+        // KSP-662: The same applies to digitToInt(OrNull), uppercaseChar,
+        // lowercaseChar, and titlecaseChar.
         let expected: [String: String] = [
             "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
             // New numeric conversion functions
@@ -60,8 +61,8 @@ struct CharSyntheticMemberLinkTests {
         }
     }
 
-    // KSP-662: Int.digitToChar() / Int.digitToChar(radix) は bundled Kotlin
-    // (kotlin.text.CharConversions) へ移行済みで、合成スタブの外部リンクを持たない。
+    // KSP-662: Int.digitToChar() / Int.digitToChar(radix) live in bundled Kotlin
+    // (kotlin.text.CharConversions) and therefore have no synthetic external link.
     @Test func testIntDigitToCharStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -253,8 +254,8 @@ struct CharSyntheticMemberLinkTests {
         }
     }
 
-    // KSP-662: ロケール依存・radix 付きオーバーロードも bundled Kotlin 側で定義され、
-    // 合成スタブの外部リンクを持たない（ロケール変換は __kk_char_*_locale ブリッジ経由）。
+    // KSP-662: Locale-aware and radix overloads are also defined in bundled Kotlin
+    // without synthetic external links; locale conversion uses __kk_char_*_locale bridges.
     @Test func testCharLocaleCaseStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 

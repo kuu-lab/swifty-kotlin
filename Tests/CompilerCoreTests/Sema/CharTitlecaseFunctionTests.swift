@@ -5,8 +5,8 @@ import Testing
 /// STDLIB-TEXT-PROP-021: Validates that `kotlin.text.titlecase` resolves through
 /// Sema as a `Char` extension (Kotlin spec defines it as
 /// `fun Char.titlecase(): String`). The related no-arg `titlecaseChar()`
-/// overload returning `Char` is also exposed. KSP-662 以降は bundled Kotlin
-/// (kotlin.text.CharConversions) 実装のため、合成スタブの外部リンクを持たない。
+/// overload returning `Char` is also exposed. Since KSP-662 these are implemented
+/// by bundled Kotlin (kotlin.text.CharConversions) and have no synthetic external link.
 @Suite
 struct CharTitlecaseFunctionTests {
     @Test func testTitlecaseResolvesInSource() throws {

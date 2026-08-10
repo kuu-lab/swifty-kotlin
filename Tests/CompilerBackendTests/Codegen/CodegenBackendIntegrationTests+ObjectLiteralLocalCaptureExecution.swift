@@ -1,3 +1,4 @@
+#if canImport(Testing)
 // KSP-CAP-001: End-to-end execution tests for object-expression member
 // function bodies capturing outer local variables/parameters. Property
 // initializer capture already worked (inlined at the construction site);
@@ -6,10 +7,70 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
+@Suite
+struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesValParameter() throws {
         let source = """
         interface Greeter {
@@ -37,6 +98,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesAndMutatesVarAcrossCalls() throws {
         let source = """
         interface Counter {
@@ -78,6 +140,7 @@ extension CodegenBackendIntegrationTests {
     // the member function binds to the captured outer local, not the object
     // literal's own member of the same name -- the outer local wins, and the
     // object's own member would only be reachable via explicit `this.x`.
+    @Test
     func testCodegenObjectLiteralCapturedOuterLocalShadowsOwnPropertyOfSameName() throws {
         let source = """
         interface Box {
@@ -106,6 +169,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenObjectLiteralMemberFunctionCapturesFunctionTypedParameter() throws {
         let source = """
         interface Provider {
@@ -133,6 +197,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenObjectLiteralMultipleInstancesCaptureIndependentMutableState() throws {
         // Two separate makeCounter() calls must not share the same captured
         // `count` box -- each object literal instance captures its own.
@@ -177,6 +242,7 @@ extension CodegenBackendIntegrationTests {
 
     // KSP-441: for-in over a generic object-expression Sequence/Iterator pipeline
     // whose `map` is inferred from the receiver's element type.
+    @Test
     func testCodegenForInOverGenericObjectExpressionSequence() throws {
         let source = """
         interface Seq<out T> {
@@ -237,6 +303,7 @@ extension CodegenBackendIntegrationTests {
 
     // KSP-441: trailing-lambda type inference for a member function of a
     // user-defined generic class must substitute the receiver's type args.
+    @Test
     func testCodegenGenericClassMemberTrailingLambdaTypeInference() throws {
         let source = """
         class Box<T>(val value: T) {
@@ -256,3 +323,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif

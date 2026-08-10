@@ -4,8 +4,8 @@ import Testing
 
 @Suite
 struct RuntimeCharTests {
-    // KSP-662: 変換ロジックは kotlin.text.CharConversions が持ち、ランタイムには
-    // Unicode ケースマッピング表と digitOf テーブル参照だけが残る。
+    // KSP-662: kotlin.text.CharConversions owns conversion logic; the runtime
+    // retains only Unicode case-mapping and digitOf table lookup.
 
     @Test func charCaseConversionPreservesUnicodeMappings() {
         #expect(runtimeStringValue(__kk_char_uppercase_string(scalarValue(of: "ß"))) == "SS")
@@ -39,7 +39,7 @@ struct RuntimeCharTests {
         #expect(__kk_char_titlecase_code(0xD800) == -1)
     }
 
-    // MARK: - KSP-662: __kk_char_digit_value (kotlin.text.digitOf 相当)
+    // MARK: - KSP-662: __kk_char_digit_value (equivalent to kotlin.text.digitOf)
 
     @Test func digitValue_asciiDigitsAndLatinLetters() {
         #expect(__kk_char_digit_value(scalarValue(of: "5")) == 5)

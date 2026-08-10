@@ -272,39 +272,6 @@ extension CallLowerer {
             )
         }()
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-        if args.count == 1,
-           interner.resolve(calleeName) == "withDefault"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            if isMapLikeType(receiverType, sema: sema, interner: interner) {
-                let runtimeArguments: [KIRExprID]
-                if normalizedArgIDs.count >= 2 {
-                    runtimeArguments = [loweredReceiverID, normalizedArgIDs[0], normalizedArgIDs[1]]
-                } else if let defaultValueArg = normalizedArgIDs.first {
-                    let split = splitCallableLambdaArgument(
-                        defaultValueArg,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, split.fnPtrExpr, split.envPtrExpr]
-                } else {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    runtimeArguments = [loweredReceiverID, zeroExpr, zeroExpr]
-                }
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_map_withDefault"),
-                    arguments: runtimeArguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
         let chosenBase64Callee: SymbolID? = {
             guard let selected = sema.bindings.callBindings[exprID]?.chosenCallee, selected != .invalid else {
                 return nil
@@ -1189,8 +1156,8 @@ extension CallLowerer {
         }
 
         // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
-        // KSP-662: digitToInt / digitToIntOrNull は bundled Kotlin
-        // (kotlin.text.CharConversions) が解決するため特例を持たない。
+        // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
+        // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, interner.resolve(calleeName) == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
@@ -1338,17 +1305,6 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_sequence_orEmpty"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if isMapLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_map_orEmpty"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1653,56 +1609,9 @@ extension CallLowerer {
             let isCharSequenceTextHelper = calleeStr == "ifBlank"
                 || calleeStr == "ifEmpty"
                 || calleeStr == "chunkedSequence"
-                || calleeStr == "firstNotNullOf"
-                || calleeStr == "firstNotNullOfOrNull"
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
             if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
-                if calleeStr == "firstNotNullOf"
-                    || calleeStr == "firstNotNullOfOrNull"
-                {
-                    let originalCallBinding = sema.bindings.callBindings[exprID]
-                    let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
-                        chosen
-                    } else {
-                        nil
-                    }
-                    let normalizedOriginalArgs = driver.callSupportLowerer.normalizedCallArguments(
-                        providedArguments: loweredArgIDs,
-                        callBinding: originalCallBinding,
-                        chosenCallee: originalChosen,
-                        spreadFlags: args.map(\.isSpread),
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers,
-                        instructions: &instructions
-                    ).arguments
-                    let transformArg = normalizedOriginalArgs.first ?? loweredArgIDs[0]
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        transformArg,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    let runtimeCallee = switch calleeStr {
-                    case "firstNotNullOf":
-                        "kk_string_firstNotNullOf_flat"
-                    default:
-                        "kk_string_firstNotNullOfOrNull_flat"
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID, fnPtrExpr, envPtrExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1744,10 +1653,6 @@ extension CallLowerer {
                     ("kk_string_compareTo_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
                     ("kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "mapIndexed":
-                    ("kk_string_mapIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "mapNotNull":
-                    ("kk_string_mapNotNull_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
@@ -3444,19 +3349,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-            }
-            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               interner.resolve(calleeName) == "pattern"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_regex_pattern"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
             }
         }
 

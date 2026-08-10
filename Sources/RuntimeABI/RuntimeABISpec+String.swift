@@ -1541,8 +1541,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // KSP-662: Char 変換系の Kotlin 化に伴い残す Unicode ケースマッピング・
-        // ロケール依存変換・digitOf テーブル参照ブリッジ。
+        // KSP-662: Bridges retained for Unicode case mapping, locale-aware
+        // conversion, and digitOf table lookup after moving Char conversions to Kotlin.
         RuntimeABIFunctionSpec(
             name: "__kk_char_uppercase_string",
             parameters: [
@@ -1846,81 +1846,9 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // KSP-410: filterIndexed/onEachIndexed/reduce family are bundled
-        // Kotlin source (StringHOF.kt); their flat ABI entries were
-        // removed.
-        // BUG-170: mapNotNull/firstNotNullOf(OrNull) stay Swift-backed.
-        // BUG-171: map/mapIndexed also stay Swift-backed.
-        RuntimeABIFunctionSpec(
-            name: "kk_string_map_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_mapIndexed_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_mapNotNull_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_firstNotNullOf_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_firstNotNullOfOrNull_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        // KSP-410: map/mapIndexed/mapNotNull/firstNotNullOf(OrNull)/
+        // filterIndexed/onEachIndexed/reduce family are bundled Kotlin source
+        // (StringHOF.kt); their flat ABI entries were removed.
         // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
         // (StringTakeDrop.kt); their flat ABI entries were removed.
         RuntimeABIFunctionSpec(

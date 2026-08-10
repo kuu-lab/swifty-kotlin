@@ -110,7 +110,7 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
     // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
     // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
     // KSP-662: uppercase(Char)/lowercase(Char)/titlecase(Char)/digitToInt(OrNull)/
-    // digitToChar は bundled Kotlin (kotlin.text.CharConversions) へ移行済み。
+    // digitToChar now live in bundled Kotlin (kotlin.text.CharConversions).
     // New numeric conversion functions
     SyntheticCharMemberSpec(
         name: "toInt",

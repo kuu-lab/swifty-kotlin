@@ -36,8 +36,8 @@ struct SyntheticStubSurfaceSpecTests {
         )
     }
 
-    // KSP-662: digitToInt(radix) が bundled Kotlin へ移行したため、残る 1 引数の
-    // 宣言的 Char スペックである compareTo(other) でパラメータメタデータを固定する。
+    // KSP-662: digitToInt(radix) moved to bundled Kotlin, so use the remaining
+    // one-argument declarative Char spec compareTo(other) to verify parameter metadata.
     @Test func testDeclarativeCharSpecsKeepOverloadParameterMetadata() throws {
         let (sema, interner) = try makeSema()
         let compareTo = try function(
