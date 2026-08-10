@@ -225,7 +225,6 @@ package struct KnownCompilerNames {
     let regex: InternedString
     let stringBuilder: InternedString
     let sequence: InternedString
-    let grouping: InternedString
     let continuation: InternedString
     let suspendCoroutine: InternedString
     let resume: InternedString
@@ -342,7 +341,6 @@ package struct KnownCompilerNames {
     let kotlinSequenceFQName: [InternedString]
     let kotlinContinuationFQName: [InternedString]
     let kotlinSuspendCoroutineFQName: [InternedString]
-    let kotlinCollectionsGroupingFQName: [InternedString]
     let kotlinCollectionsListFQName: [InternedString]
     let kotlinCollectionsMutableListFQName: [InternedString]
     let kotlinCollectionsSetFQName: [InternedString]
@@ -412,7 +410,6 @@ package struct KnownCompilerNames {
         regex = interner.intern("Regex")
         stringBuilder = interner.intern("StringBuilder")
         sequence = interner.intern("Sequence")
-        grouping = interner.intern("Grouping")
         continuation = interner.intern("Continuation")
         suspendCoroutine = interner.intern("suspendCoroutine")
         resume = interner.intern("resume")
@@ -539,7 +536,6 @@ package struct KnownCompilerNames {
         kotlinSequenceFQName = [kotlin, kotlinSequences, sequence]
         kotlinContinuationFQName = [kotlin, kotlinCoroutines, continuation]
         kotlinSuspendCoroutineFQName = [kotlin, kotlinCoroutines, suspendCoroutine]
-        kotlinCollectionsGroupingFQName = [kotlin, kotlinCollections, grouping]
         kotlinCollectionsListFQName = [kotlin, kotlinCollections, list]
         kotlinCollectionsMutableListFQName = [kotlin, kotlinCollections, mutableList]
         kotlinCollectionsSetFQName = [kotlin, kotlinCollections, set]
@@ -650,10 +646,6 @@ package struct KnownCompilerNames {
 
     func isSequenceSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == sequence || symbolMatches(symbol, fqName: kotlinSequenceFQName)
-    }
-
-    func isGroupingSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == grouping || symbolMatches(symbol, fqName: kotlinCollectionsGroupingFQName)
     }
 
     func isCoroutineHandleSymbol(_ symbol: SemanticSymbol) -> Bool {

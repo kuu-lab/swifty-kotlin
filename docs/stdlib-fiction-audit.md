@@ -106,7 +106,7 @@ DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswift
 **これらは意図的かつ kotlinc と整合検証された JVM 互換 interop** であることが判明した:
 
 - `Scripts/diff_kotlinc.sh` の回帰は **kotlinc(JVM) でコンパイル・実行した出力**と KSwiftK の
-  出力を比較する。`url_basic` / `stream_basic` / `locale_basic` / `files_utility` /
+  出力を比較する。`url_basic` / `stream_basic` / `i18n_common_edge_cases` / `files_utility` /
   `platform_time_conversion` / `http_client_basic` など多数の `java.*` ケースが
   **非スキップ（= kotlinc と一致することを期待）** で存在する。
 - kotlinc 非互換な部分は明示的に `// SKIP-DIFF` でマークされている
