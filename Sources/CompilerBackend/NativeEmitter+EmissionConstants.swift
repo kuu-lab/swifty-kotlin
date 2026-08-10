@@ -701,6 +701,58 @@ extension NativeEmitter {
             )
         }
 
+        func bridgeRuntimeRawToStringAggregateIfNeeded(
+            _ raw: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let expectedType,
+                  let typeLowering = state.typeLowering,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: expectedType)
+            else {
+                return raw
+            }
+            guard let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
+                  let lengthSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_hash_\(suffix)")
+            else {
+                return nil
+            }
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: lengthSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: byteCountSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: hashSlot)
+            guard let bridgeFunctionType = bindings.functionType(
+                    returnType: typeLowering.dataPointerType,
+                    parameters: [state.int64Type, pointerType, pointerType, pointerType],
+                    isVarArg: false
+                ),
+                  let bridgeFunctionValue = bindings.getNamedFunction(module: state.module, name: "kk_string_to_flat")
+                    ?? bindings.addFunction(module: state.module, name: "kk_string_to_flat", functionType: bridgeFunctionType),
+                  let data = bindings.buildCall(
+                      state.builder,
+                      functionType: bridgeFunctionType,
+                      callee: bridgeFunctionValue,
+                      arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
+                      name: "string_bridge_data_\(suffix)"
+                  ),
+                  let length = bindings.buildLoad(state.builder, type: state.int64Type, pointer: lengthSlot, name: "string_bridge_length_val_\(suffix)"),
+                  let byteCount = bindings.buildLoad(state.builder, type: state.int64Type, pointer: byteCountSlot, name: "string_bridge_bytes_val_\(suffix)"),
+                  let hash = bindings.buildLoad(state.builder, type: state.int64Type, pointer: hashSlot, name: "string_bridge_hash_val_\(suffix)")
+            else {
+                return nil
+            }
+            return buildStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                data: data,
+                length: length,
+                byteCount: byteCount,
+                hash: hash,
+                name: "string_bridge_\(suffix)"
+            )
+        }
+
         switch expression {
         case let .intLiteral(number):
             if number == 0,
@@ -817,18 +869,22 @@ extension NativeEmitter {
                 return functionPointer
             }
             // Load from LLVM global variable if this symbol refers to a global.
+            // Global slots always hold raw runtime handles (i64); bridge to the
+            // lowered aggregate representation only when the expected KIR type is
+            // the String struct.
             if let globalPtr = globalVariables[symbol] {
-                let loadType = loweredLLVMType(
-                    for: expectedType,
-                    lowering: state.typeLowering,
-                    defaultType: state.int64Type
-                )
-                return bindings.buildLoad(
+                guard let loaded = bindings.buildLoad(
                     state.builder,
-                    type: loadType,
+                    type: state.int64Type,
                     pointer: globalPtr,
                     name: "global_load_\(symbol.rawValue)"
-                ) ?? state.zeroValue
+                ) else {
+                    return state.zeroValue
+                }
+                return bridgeRuntimeRawToStringAggregateIfNeeded(
+                    loaded,
+                    suffix: "global_\(symbol.rawValue)"
+                ) ?? loaded
             }
             // Imported library artifact functions are not internal to the current module,
             // but they may be referenced as function pointers (e.g. for vtable/itable

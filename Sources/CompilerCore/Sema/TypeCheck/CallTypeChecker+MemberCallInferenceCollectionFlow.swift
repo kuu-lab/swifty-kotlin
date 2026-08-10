@@ -1936,7 +1936,7 @@ extension CallTypeChecker {
                             params: [groupingKeyType, collectionElementType],
                             returnType: expectedGroupingValueType
                         )))
-                        _ = driver.inferExpr(
+                        let initialValueSelectorType = driver.inferExpr(
                             args[0].expr,
                             ctx: ctx,
                             locals: &locals,
@@ -1945,11 +1945,13 @@ extension CallTypeChecker {
                         if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                         }
-                        let groupingResultValueType: TypeID = inferredLambdaReturnType(
-                            argExpr: args[0].expr,
-                            ast: ast,
-                            sema: sema
-                        )
+                        let groupingResultValueType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: initialValueSelectorType) {
+                            fnType.returnType
+                        } else if expectedGroupingValueType != sema.types.anyType {
+                            expectedGroupingValueType
+                        } else {
+                            sema.types.anyType
+                        }
                         let operationExpectedType = sema.types.make(.functionType(FunctionType(
                             params: [groupingKeyType, groupingResultValueType, collectionElementType],
                             returnType: groupingResultValueType
