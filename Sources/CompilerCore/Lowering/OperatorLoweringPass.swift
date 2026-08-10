@@ -724,9 +724,15 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let toStringResult = arena.appendTemporary(type: stringType
         )
         // Emit a direct call to the toString() method with the object as receiver.
+        let externalLinkName = sema.symbols.externalLinkName(for: toStringSym)
+        let toStringCallee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
+            interner.intern(externalLinkName)
+        } else {
+            toStringName
+        }
         body.append(.call(
             symbol: toStringSym,
-            callee: toStringName,
+            callee: toStringCallee,
             arguments: [argument],
             result: toStringResult,
             canThrow: false,

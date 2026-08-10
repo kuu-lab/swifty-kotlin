@@ -1,13 +1,49 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    /// Slots requested while lowering a loop body (thrown slots, channel out
-    /// values, string bridge scratch) must be allocated in the function entry
-    /// block. Emitting them into the loop block makes the stack grow by one
-    /// slot per iteration, which overflows on long-running loops.
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendLoopAllocaHoistingTests {
+
+    @Test
     func testCodegenHoistsLoopBodyAllocasIntoEntryBlock() throws {
         let source = """
         class Counter {
@@ -39,7 +75,7 @@ extension CodegenBackendIntegrationTests {
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             var blocksInCurrentFunction = 0
@@ -54,10 +90,11 @@ extension CodegenBackendIntegrationTests {
                 }
             }
 
-            XCTAssertTrue(
+            #expect(
                 allocasOutsideEntry.isEmpty,
                 "allocas must stay in the entry block, found: \(allocasOutsideEntry)"
             )
         }
     }
 }
+#endif

@@ -110,14 +110,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ScopeFunction") { phase, symbols, types, interner, _ in
             phase.registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "TestFramework") { phase, symbols, types, interner, context in
-            phase.registerSyntheticTestFrameworkStubs(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                kotlinPkg: context.kotlinPkg
-            )
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coroutine") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -263,9 +255,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeInterop") { phase, symbols, types, interner in
             phase.registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "BigInteger") { phase, symbols, types, interner in
-            phase.registerSyntheticBigIntegerStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "NativeInvoke") { phase, symbols, _, interner in
             phase.registerSyntheticNativeInvokeStubs(symbols: symbols, interner: interner)
