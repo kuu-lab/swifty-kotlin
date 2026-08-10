@@ -621,11 +621,14 @@
   - 呼び出し元: `HeaderHelpers.swift:1247`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:219`（`name: "Path"`）を削除
   - 連動整理: 3つの split ファイル（CLEANUP-STUB-116〜118）も併せて削除；Runtime `Sources/Runtime/RuntimePath.swift`（`kk_path_*` 273件、`kk_uri_*`/`kk_url_*` も含む）、`Sources/RuntimeABI/RuntimeABISpec+Path.swift`（114件）
   - テスト影響: `Tests/CompilerCoreTests/Sema/Path*FunctionTests.swift`（5ファイル）、`PathWalkOptionEnumTests.swift`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+PathCreateSymbolicLink.swift`、`Scripts/diff_cases/path_basic.kt`、Golden 該当ケースの整理
-- [ ] CLEANUP-STUB-116: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` を削除する
+- [x] CLEANUP-STUB-116: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift`（548行）
-  - 削除内容: `registerPathUseLinesFunction(...)` 等の overload 群、`useLines`/`readLines`/`forEachLine` 等の generic function 登録ヘルパーを削除
-  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 1364行付近の呼び出しを削除
-  - テスト影響: Path 系テストと連動
+  - 削除内容: `registerPathUseLinesFunction` / `registerPathUseDirectoryEntriesFunction` / `registerPathReadAttributesFunction`（generic `readAttributes<A : BasicFileAttributes>` のみ）/ `registerPathFileAttributesViewFunction` / `registerPathFileAttributesViewOrNullFunction`
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` の 5 箇所と、未使用になった `sequenceOfStringType` を削除
+  - 追随削除: `CallTypeChecker+MemberCallInferenceScopeResultAndFile.swift` の `Path.useLines` 特例ラムダ推論と、専用ヘルパー `isPathType`（他に参照なし）
+  - 残留: 非 generic の `readAttributes(String, vararg LinkOption)`（`kk_path_readAttributes_string`）は別登録のため残す。`File`/`BufferedReader` の `useLines`/`forEachLine` 特例も対象外
+  - テスト影響: `PathUseLinesFunctionTests.swift` / `CodegenBackendIntegrationTests+PathUseLines.swift` / golden `path_use_lines`・`io_path_use_lines` を削除、`SemanticsAndUtilitiesRegressionTests.swift` から該当 4 テストを削除。回帰テストとして `PathGenericFunctionStubRemovalTests.swift` を追加
+  - 検証: `swift build` / `--filter Golden` / `--filter 'Path|LoweringPassRegression|SemanticsAndUtilitiesRegression|KotlinIOCommonEdgeCase'` / `bash Scripts/validate_runtime_abi_links.sh` pass
 - [ ] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`（315行）
   - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
