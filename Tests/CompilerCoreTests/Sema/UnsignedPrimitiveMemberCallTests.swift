@@ -168,11 +168,10 @@ struct UnsignedPrimitiveMemberCallTests {
         return nil
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaClean() throws {
-
+    func testUnsignedPrimitiveMemberCallSema() throws {
         let sources: [String] = [
             // testUnsignedMemberCallsInferExpectedTypes
             """
@@ -233,18 +232,49 @@ struct UnsignedPrimitiveMemberCallTests {
                     }
 
             """,
+            // testUnsignedMemberCallsRejectMixedWidths
+            """
+            package sample5
+
+                    fun sample(ub: UByte, us: UShort) {
+                        ub.and(us)
+                    }
+
+            """,
+            // testUnsignedMemberCallsRejectNullableRhs
+            """
+            package sample6
+
+                    fun sample(ub: UByte, rhs: UByte?) {
+                        ub.and(rhs)
+                    }
+
+            """,
+            // testUnsignedMemberCallsRejectShiftOnUByte
+            """
+            package sample7
+
+                    fun sample(ub: UByte) {
+                        ub.shl(1)
+                    }
+
+            """,
+            // testUnsignedMemberCallsRejectShiftOnUShort
+            """
+            package sample8
+
+                    fun sample(us: UShort) {
+                        us.shr(1)
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
-
             let ast = try #require(ctx.ast)
-
             let sema = try #require(ctx.sema)
-
             let interner = ctx.interner
 
             // === testUnsignedMemberCallsInferExpectedTypes ===
@@ -380,70 +410,11 @@ struct UnsignedPrimitiveMemberCallTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnostics() throws {
-
-        let sources: [String] = [
-            // testUnsignedMemberCallsRejectMixedWidths
-            """
-            package sample0
-
-                    fun sample(ub: UByte, us: UShort) {
-                        ub.and(us)
-                    }
-
-            """,
-            // testUnsignedMemberCallsRejectNullableRhs
-            """
-            package sample1
-
-                    fun sample(ub: UByte, rhs: UByte?) {
-                        ub.and(rhs)
-                    }
-
-            """,
-            // testUnsignedMemberCallsRejectShiftOnUByte
-            """
-            package sample2
-
-                    fun sample(ub: UByte) {
-                        ub.shl(1)
-                    }
-
-            """,
-            // testUnsignedMemberCallsRejectShiftOnUShort
-            """
-            package sample3
-
-                    fun sample(us: UShort) {
-                        us.shr(1)
-                    }
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testUnsignedMemberCallsRejectMixedWidths ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample0Path = paths[5]
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
@@ -455,7 +426,7 @@ struct UnsignedPrimitiveMemberCallTests {
 
             do {
 
-                let sample1Path = paths[1]
+                let sample1Path = paths[6]
 
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
@@ -467,7 +438,7 @@ struct UnsignedPrimitiveMemberCallTests {
 
             do {
 
-                let sample2Path = paths[2]
+                let sample2Path = paths[7]
 
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
@@ -479,7 +450,7 @@ struct UnsignedPrimitiveMemberCallTests {
 
             do {
 
-                let sample3Path = paths[3]
+                let sample3Path = paths[8]
 
                 let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
 
@@ -489,5 +460,4 @@ struct UnsignedPrimitiveMemberCallTests {
 
         }
     }
-
 }

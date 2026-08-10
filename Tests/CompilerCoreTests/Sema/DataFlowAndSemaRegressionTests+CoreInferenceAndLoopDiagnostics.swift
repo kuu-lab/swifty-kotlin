@@ -191,11 +191,10 @@ extension DataFlowAndSemaRegressionTests {
         return nil
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaCleanCoreInferenceAndLoopDiagnostics() throws {
-
+    func testDataFlowAndSemaRegression_CoreInferenceAndLoopDiagnosticsSema() throws {
         let sources: [String] = [
             // testRangeToOperatorInference
             """
@@ -216,18 +215,45 @@ extension DataFlowAndSemaRegressionTests {
                     fun main(): Int = 0
 
             """,
+            // testContinueOutsideLoopEmitsDiagnostic
+            """
+            package sample2
+
+                    fun main(): Int {
+                        continue
+                        return 0
+                    }
+
+            """,
+            // testUnresolvedReferenceEmitsDiagnostic
+            """
+            package sample3
+
+                    fun main(): Int = unknownVar
+
+            """,
+            // testUnresolvedFunctionEmitsDiagnostic
+            """
+            package sample4
+
+                    fun main(): Int = unknownFunc(42)
+
+            """,
+            // testLocalAssignToUnresolvedVariableEmitsDiagnostic
+            """
+            package sample5
+
+                    fun main() {
+                        noSuchVar = 42
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
             let sema = try #require(ctx.sema)
-
             let interner = ctx.interner
 
             // === testRangeToOperatorInference ===
@@ -265,67 +291,11 @@ extension DataFlowAndSemaRegressionTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnosticsCoreInferenceAndLoopDiagnostics() throws {
-
-        let sources: [String] = [
-            // testContinueOutsideLoopEmitsDiagnostic
-            """
-            package sample0
-
-                    fun main(): Int {
-                        continue
-                        return 0
-                    }
-
-            """,
-            // testUnresolvedReferenceEmitsDiagnostic
-            """
-            package sample1
-
-                    fun main(): Int = unknownVar
-
-            """,
-            // testUnresolvedFunctionEmitsDiagnostic
-            """
-            package sample2
-
-                    fun main(): Int = unknownFunc(42)
-
-            """,
-            // testLocalAssignToUnresolvedVariableEmitsDiagnostic
-            """
-            package sample3
-
-                    fun main() {
-                        noSuchVar = 42
-                    }
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testContinueOutsideLoopEmitsDiagnostic ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample0Path = paths[2]
 
                 let path = sample0Path
 
@@ -339,7 +309,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample1Path = paths[1]
+                let sample1Path = paths[3]
 
                 let path = sample1Path
 
@@ -353,7 +323,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample2Path = paths[2]
+                let sample2Path = paths[4]
 
                 let path = sample2Path
 
@@ -367,7 +337,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample3Path = paths[3]
+                let sample3Path = paths[5]
 
                 let path = sample3Path
 
@@ -379,8 +349,7 @@ extension DataFlowAndSemaRegressionTests {
 
         }
     }
-
-    // MARK: - Consolidated runToKIR clean tests
+// MARK: - Consolidated runToKIR clean tests
 
     @Test
     func testRunToKIRCleanCoreInferenceAndLoopDiagnostics() throws {

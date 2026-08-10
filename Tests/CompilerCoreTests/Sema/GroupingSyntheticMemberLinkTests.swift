@@ -5,17 +5,37 @@ import Testing
 
 @Suite
 struct GroupingSyntheticMemberLinkTests {
-    @Test func testGroupingAggregateMembersUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    @Test func testGroupingSyntheticMemberLinks() throws {
+        let sources = [
+            "fun noop() {}",
+            """
+            fun render(values: List<Int>) {
+                val grouping = values.groupingBy { it % 2 }
+                val aggregated: Map<Int, Int> = grouping.aggregate { key, accumulator, element, first ->
+                    if (first) key + element else accumulator!! + element
+                }
+                val destination: MutableMap<Int, Int> = mutableMapOf(1 to 100)
+                grouping.aggregateTo(destination) { key, accumulator, element, first ->
+                    if (first) key + element else accumulator!! + element
+                }
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
+            #expect(!ctx.diagnostics.hasError, "Expected Grouping synthetic member sources to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+
+            // Synthetic Grouping members are registered with the expected external links.
             let expectedExternalLinks = [
                 "aggregate": "kk_grouping_aggregate",
                 "aggregateTo": "kk_grouping_aggregateTo",
             ]
-
             for (memberName, externalLinkName) in expectedExternalLinks {
                 let symbolID = try #require(
                     sema.symbols.lookup(
@@ -33,30 +53,8 @@ struct GroupingSyntheticMemberLinkTests {
                     "Expected \(memberName) to resolve to \(externalLinkName)"
                 )
             }
-        }
-    }
 
-    @Test func testGroupingAggregateCallsUseRuntimeExternalLinks() throws {
-        let source = """
-        fun render(values: List<Int>) {
-            val grouping = values.groupingBy { it % 2 }
-            val aggregated: Map<Int, Int> = grouping.aggregate { key, accumulator, element, first ->
-                if (first) key + element else accumulator!! + element
-            }
-            val destination: MutableMap<Int, Int> = mutableMapOf(1 to 100)
-            grouping.aggregateTo(destination) { key, accumulator, element, first ->
-                if (first) key + element else accumulator!! + element
-            }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
+            // Call sites resolve to the same runtime external links.
             let aggregateCallExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "aggregate"

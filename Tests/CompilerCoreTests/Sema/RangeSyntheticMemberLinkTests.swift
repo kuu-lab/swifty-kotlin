@@ -5,15 +5,55 @@ import Testing
 
 @Suite
 struct RangeSyntheticMemberLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
+
+    private func functionDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> FunDecl? {
+        for file in ast.files {
+            for declID in file.topLevelDecls {
+                guard case let .funDecl(function) = ast.arena.decl(declID),
+                      interner.resolve(function.name) == name
+                else { continue }
+                return function
+            }
         }
-        return try #require(result)
+        return nil
+    }
+
+    private func bodyRange(of function: FunDecl) -> SourceRange? {
+        switch function.body {
+        case .block(_, let range), .expr(_, let range):
+            return range
+        case .unit:
+            return nil
+        }
+    }
+
+    private func firstCallExpr(
+        named callName: String,
+        in function: FunDecl,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> ExprID? {
+        guard let functionBodyRange = bodyRange(of: function) else { return nil }
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let exprRange = ast.arena.exprRange(exprID),
+                  functionBodyRange.contains(exprRange)
+            else { continue }
+
+            let matches: Bool
+            switch expr {
+            case let .call(calleeExpr, _, _, _):
+                guard case let .nameRef(callee, _) = ast.arena.expr(calleeExpr) else { continue }
+                matches = interner.resolve(callee) == callName
+            case let .memberCall(_, callee, _, _, _):
+                matches = interner.resolve(callee) == callName
+            default:
+                continue
+            }
+            if matches { return exprID }
+        }
+        return nil
     }
 
     private func externalLink(
@@ -45,8 +85,26 @@ struct RangeSyntheticMemberLinkTests {
         }.flatMap { sema.symbols.externalLinkName(for: $0) }
     }
 
-    @Test func testCharProgressionSyntheticSurface() throws {
-        let (sema, interner) = try makeSema()
+    @Test func testRangeSyntheticLinksAndCallBindings() throws {
+        let source = """
+        import kotlin.ranges.*
+
+        fun intProbe(range: IntRange): Int = range.random()
+        fun longProbe(range: LongRange): Long = range.random()
+        fun charProbe(range: CharRange): Char = range.random()
+        fun uintProbe(range: UIntRange): UInt = range.random()
+        fun ulongProbe(range: ULongRange): ULong = range.random()
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let interner = ctx.interner
+
+        // MARK: - CharProgression synthetic surface
+
         let charProgressionFQName = ["kotlin", "ranges", "CharProgression"].map { interner.intern($0) }
         let charProgressionSymbol = try #require(sema.symbols.lookup(fqName: charProgressionFQName))
         let charProgressionType = sema.types.make(.classType(ClassType(
@@ -64,6 +122,7 @@ struct RangeSyntheticMemberLinkTests {
         #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == "kk_char_progression_fromClosedRange")
         #expect(fromClosedRangeSignature.parameterTypes == [sema.types.charType, sema.types.charType, sema.types.intType])
         #expect(fromClosedRangeSignature.returnType == charProgressionType)
+
         let bundledToListName = ["kotlin", "ranges", "toList"].map { interner.intern($0) }
         let bundledToListSymbol = try #require(sema.symbols.lookupAll(fqName: bundledToListName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
@@ -81,6 +140,7 @@ struct RangeSyntheticMemberLinkTests {
                 interner: interner
             ) == "List<Char>"
         )
+
         let bundledIsEmptyName = ["kotlin", "ranges", "isEmpty"].map { interner.intern($0) }
         let bundledIsEmptySymbol = try #require(sema.symbols.lookupAll(fqName: bundledIsEmptyName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
@@ -109,12 +169,10 @@ struct RangeSyntheticMemberLinkTests {
                 interner: interner
             ) == "kk_char_range_step"
         )
-    }
 
-    @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        // MARK: - Range random / firstOrNull / lastOrNull external links
 
-        let expected: [(owner: String, link: String)] = [
+        let randomExpected: [(owner: String, link: String)] = [
             ("IntRange", "kk_range_random"),
             ("LongRange", "kk_long_range_random"),
             ("CharRange", "kk_range_random"),
@@ -122,139 +180,68 @@ struct RangeSyntheticMemberLinkTests {
             ("ULongRange", "kk_ulong_range_random"),
         ]
 
-        let orNullExpected: [(owner: String, link: String)] = [
+        let firstOrNullExpected: [(owner: String, link: String)] = [
             ("IntRange", "kk_range_firstOrNull"),
             ("LongRange", "kk_long_range_firstOrNull"),
             ("ULongRange", "kk_ulong_range_firstOrNull"),
         ]
-        for expectation in orNullExpected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "firstOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).firstOrNull should link to \(expectation.link)")
-            )
-        }
+
         let lastOrNullExpected: [(owner: String, link: String)] = [
             ("IntRange", "kk_range_lastOrNull"),
             ("LongRange", "kk_long_range_lastOrNull"),
             ("ULongRange", "kk_ulong_range_lastOrNull"),
         ]
+
+        for expectation in firstOrNullExpected {
+            #expect(
+                externalLink(for: expectation.owner, member: "firstOrNull", sema: sema, interner: interner) == expectation.link,
+                "\(expectation.owner).firstOrNull should link to \(expectation.link)"
+            )
+        }
+
         for expectation in lastOrNullExpected {
             #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "lastOrNull",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).lastOrNull should link to \(expectation.link)")
+                externalLink(for: expectation.owner, member: "lastOrNull", sema: sema, interner: interner) == expectation.link,
+                "\(expectation.owner).lastOrNull should link to \(expectation.link)"
             )
         }
 
-        for expectation in expected {
+        for expectation in randomExpected {
             #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "random",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).random should link to \(expectation.link)")
+                externalLink(for: expectation.owner, member: "random", sema: sema, interner: interner) == expectation.link,
+                "\(expectation.owner).random should link to \(expectation.link)"
             )
         }
-    }
 
-    @Test func testRangeRandomMembersResolveInCallExpressions() throws {
-        try assertRandomCallLink(
-            source: """
-            import kotlin.ranges.*
+        // MARK: - Call expression binding checks
 
-            fun probe(range: IntRange): Int = range.random()
-            """,
-            expectedLink: "kk_range_random",
-            expectedTypeName: "Int"
-        )
-        try assertRandomCallLink(
-            source: """
-            import kotlin.ranges.*
+        let probes: [(function: String, expectedLink: String, expectedType: TypeID)] = [
+            ("intProbe", "kk_range_random", sema.types.intType),
+            ("longProbe", "kk_long_range_random", sema.types.longType),
+            ("charProbe", "kk_range_random", sema.types.charType),
+            ("uintProbe", "kk_uint_range_random", sema.types.uintType),
+            ("ulongProbe", "kk_ulong_range_random", sema.types.ulongType),
+        ]
 
-            fun probe(range: LongRange): Long = range.random()
-            """,
-            expectedLink: "kk_long_range_random",
-            expectedTypeName: "Long"
-        )
-        try assertRandomCallLink(
-            source: """
-            import kotlin.ranges.*
-
-            fun probe(range: CharRange): Char = range.random()
-            """,
-            expectedLink: "kk_range_random",
-            expectedTypeName: "Char"
-        )
-        try assertRandomCallLink(
-            source: """
-            import kotlin.ranges.*
-
-            fun probe(range: UIntRange): UInt = range.random()
-            """,
-            expectedLink: "kk_uint_range_random",
-            expectedTypeName: "UInt"
-        )
-        try assertRandomCallLink(
-            source: """
-            import kotlin.ranges.*
-
-            fun probe(range: ULongRange): ULong = range.random()
-            """,
-            expectedLink: "kk_ulong_range_random",
-            expectedTypeName: "ULong"
-        )
-    }
-
-    private func assertRandomCallLink(
-        source: String,
-        expectedLink: String,
-        expectedTypeName: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else {
-                    return false
-                }
-                return ctx.interner.resolve(callee) == "random"
-            })
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedLink)
-            let expectedType: TypeID
-            switch expectedTypeName {
-            case "Int":
-                expectedType = sema.types.intType
-            case "Long":
-                expectedType = sema.types.longType
-            case "Char":
-                expectedType = sema.types.charType
-            case "UInt":
-                expectedType = sema.types.uintType
-            case "ULong":
-                expectedType = sema.types.ulongType
-            default:
-                Issue.record(Comment(rawValue: "Unexpected expected type name: \(expectedTypeName)"))
-                return
-            }
-            #expect(
-                sema.bindings.exprTypes[callExpr] == expectedType,
-                Comment(rawValue: "Expected random() to return \(expectedTypeName)")
+        for entry in probes {
+            let function = try #require(
+                functionDecl(named: entry.function, in: ast, interner: interner),
+                "Missing function \(entry.function)"
             )
+            let exprID = try #require(
+                firstCallExpr(named: "random", in: function, ast: ast, interner: interner),
+                "Missing range.random() call in \(entry.function)"
+            )
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                "No call binding for range.random() in \(entry.function)"
+            )
+            let link = try #require(
+                sema.symbols.externalLinkName(for: chosenCallee),
+                "No external link for range.random() in \(entry.function)"
+            )
+            #expect(link == entry.expectedLink, "\(entry.function) should resolve to \(entry.expectedLink), got \(link)")
+            #expect(sema.bindings.exprTypes[exprID] == entry.expectedType, "Unexpected return type for \(entry.function)")
         }
     }
 }

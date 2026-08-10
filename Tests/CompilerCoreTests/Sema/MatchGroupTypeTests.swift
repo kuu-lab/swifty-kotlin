@@ -5,7 +5,8 @@ import Testing
 
 /// STDLIB-TEXT-TYPE-007 / KSP-486: Validates that `kotlin.text.MatchGroup` comes
 /// from the bundled Kotlin source (`__bundled_kotlin/text/MatchResult.kt`) with
-/// its `value: String` / `range: IntRange` constructor properties, and that
+/// its `value: String` / `range: IntRange` constructor properties, that both
+/// properties are plain source properties with no runtime ABI link, and that
 /// source-level access through `MatchResult.groups[..]` type-checks without
 /// diagnostics.
 @Suite
