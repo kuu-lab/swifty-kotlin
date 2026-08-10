@@ -24,33 +24,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // MIGRATION-RANGE-003: Int/Long/Double/Float coerceIn(min,max),
-        // coerceAtLeast, coerceAtMost migrated to bundled Kotlin source
-        // (RangeCoercion.kt). Only the coerceIn(range:) overload remains as a
-        // synthetic stub because it is not yet migrated.
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_int_coerceIn",
-            receiverType: types.intType,
-            parameters: [(name: "range", type: types.intType)],
-            returnType: types.intType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_long_coerceIn",
-            receiverType: types.longType,
-            parameters: [(name: "range", type: types.longType)],
-            returnType: types.longType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- Unsigned coercion (STDLIB-500) ---
         registerSyntheticCoercionFunction(
             named: "coerceIn",

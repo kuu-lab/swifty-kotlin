@@ -1189,8 +1189,7 @@ public func kk_float_to_long(_ value: Int) -> Int {
 }
 
 /// Long→* conversions: `Int` (intptr_t) is used for Long values.
-/// This is correct on 64-bit macOS where Int == Int64; see the note above
-/// kk_long_coerceIn for the full rationale.
+/// This is correct on 64-bit macOS where Int == Int64.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))

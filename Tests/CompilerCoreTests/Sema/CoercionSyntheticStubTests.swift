@@ -75,29 +75,29 @@ struct CoercionSyntheticStubTests {
     // MARK: - Int coercion stubs
 
     @Test
-    func testIntCoercionStubsHaveCorrectExternalLinks() throws {
+    func testIntCoercionStubsHaveNoStaleExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        // MIGRATION-RANGE-003: coerceIn(min,max)/coerceAtLeast/coerceAtMost migrated to
-        // bundled Kotlin source (RangeCoercion.kt). Only coerceIn(range:) remains as a
-        // synthetic stub, so we only verify the range overload's external link here.
-        let expected: [(member: String, paramTypes: [TypeID], link: String)] = [
-            ("coerceIn", [sema.types.intType], "kk_int_coerceIn"),
+        // MIGRATION-RANGE-003: Int.coerceIn(min,max)/coerceAtLeast/coerceAtMost
+        // and coerceIn(range:) migrated to bundled Kotlin source (RangeCoercion.kt).
+        // No synthetic stubs with external links should remain for Int.
+        let migrated: [(member: String, paramTypes: [TypeID])] = [
+            ("coerceIn", [sema.types.intType, sema.types.intType]),
+            ("coerceIn", [sema.types.intType]),
+            ("coerceAtLeast", [sema.types.intType]),
+            ("coerceAtMost", [sema.types.intType]),
         ]
 
-        for entry in expected {
+        for entry in migrated {
             let symbols = coercionSymbols(for: entry.member, sema: sema, interner: interner)
-            let matchingSymbol = symbols.first { symbolID in
+            let matchingStub = symbols.first { symbolID in
                 guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return sig.receiverType == sema.types.intType
                     && sig.parameterTypes == entry.paramTypes
                     && sig.returnType == sema.types.intType
+                    && sema.symbols.externalLinkName(for: symbolID) != nil
             }
-            let sym = try #require(matchingSymbol, "Expected Int.\(entry.member) coercion stub")
-            #expect(
-                sema.symbols.externalLinkName(for: sym) == entry.link,
-                "Int.\(entry.member) should link to \(entry.link)"
-            )
+            #expect(matchingStub == nil, "Int.\(entry.member) should not have a synthetic stub with external link")
         }
     }
 
@@ -158,29 +158,29 @@ struct CoercionSyntheticStubTests {
     // MARK: - Long coercion stubs
 
     @Test
-    func testLongCoercionStubsHaveCorrectExternalLinks() throws {
+    func testLongCoercionStubsHaveNoStaleExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        // MIGRATION-RANGE-003: coerceIn(min,max)/coerceAtLeast/coerceAtMost migrated to
-        // bundled Kotlin source (RangeCoercion.kt). Only coerceIn(range:) remains as a
-        // synthetic stub, so we only verify the range overload's external link here.
-        let expected: [(member: String, paramTypes: [TypeID], link: String)] = [
-            ("coerceIn", [sema.types.longType], "kk_long_coerceIn"),
+        // MIGRATION-RANGE-003: Long.coerceIn(min,max)/coerceAtLeast/coerceAtMost
+        // and coerceIn(range:) migrated to bundled Kotlin source (RangeCoercion.kt).
+        // No synthetic stubs with external links should remain for Long.
+        let migrated: [(member: String, paramTypes: [TypeID])] = [
+            ("coerceIn", [sema.types.longType, sema.types.longType]),
+            ("coerceIn", [sema.types.longType]),
+            ("coerceAtLeast", [sema.types.longType]),
+            ("coerceAtMost", [sema.types.longType]),
         ]
 
-        for entry in expected {
+        for entry in migrated {
             let symbols = coercionSymbols(for: entry.member, sema: sema, interner: interner)
-            let matchingSymbol = symbols.first { symbolID in
+            let matchingStub = symbols.first { symbolID in
                 guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return sig.receiverType == sema.types.longType
                     && sig.parameterTypes == entry.paramTypes
                     && sig.returnType == sema.types.longType
+                    && sema.symbols.externalLinkName(for: symbolID) != nil
             }
-            let sym = try #require(matchingSymbol, "Expected Long.\(entry.member) coercion stub")
-            #expect(
-                sema.symbols.externalLinkName(for: sym) == entry.link,
-                "Long.\(entry.member) should link to \(entry.link)"
-            )
+            #expect(matchingStub == nil, "Long.\(entry.member) should not have a synthetic stub with external link")
         }
     }
 
