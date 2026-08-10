@@ -1047,8 +1047,8 @@ final class CallTypeChecker {
                 elementReturnType = switch calleeNameStr {
                 case "IntArray": sema.types.intType
                 case "LongArray": sema.types.longType
-                case "ShortArray": sema.types.intType
-                case "ByteArray": sema.types.intType
+                case "ShortArray": sema.types.shortType
+                case "ByteArray": sema.types.byteType
                 case "UShortArray": sema.types.ushortType
                 case "UByteArray": sema.types.ubyteType
                 case "UIntArray": sema.types.uintType

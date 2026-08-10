@@ -26,7 +26,9 @@ extension CallTypeChecker {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType || lookupReceiverType == ubyteType || lookupReceiverType == ushortType {
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
+            if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType || lookupReceiverType == ubyteType || lookupReceiverType == ushortType || lookupReceiverType == byteType || lookupReceiverType == shortType {
                 let resultType = lookupReceiverType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
@@ -45,12 +47,14 @@ extension CallTypeChecker {
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let charType = sema.types.charType
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             let rawRhsType = argTypes[0]
-            let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType
+            let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType
             let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
             // Helper: whether a type is a small unsigned type (UByte/UShort).
             // In Kotlin stdlib, small unsigned types promote to UInt for most
@@ -60,7 +64,7 @@ extension CallTypeChecker {
                 t == uintType || t == ulongType || isSmallUnsigned(t)
             }
             let isSignedInteger = { (t: TypeID) -> Bool in
-                t == intType || t == longType
+                t == intType || t == longType || t == byteType || t == shortType
             }
             let isFloating = { (t: TypeID) -> Bool in
                 t == floatType || t == doubleType
@@ -82,7 +86,10 @@ extension CallTypeChecker {
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     // UByte/UShort arithmetic promotes to UInt in Kotlin stdlib
                     uintType
-                } else if receiverForCheck == intType || rhsType == intType || receiverForCheck == charType {
+                } else if receiverForCheck == intType || rhsType == intType || receiverForCheck == charType
+                           || receiverForCheck == byteType || rhsType == byteType
+                           || receiverForCheck == shortType || rhsType == shortType
+                {
                     intType
                 } else {
                     nil
@@ -107,7 +114,7 @@ extension CallTypeChecker {
                     ulongType
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     uintType
-                } else if receiverForCheck == intType {
+                } else if receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType {
                     intType
                 } else {
                     nil
@@ -234,6 +241,7 @@ extension CallTypeChecker {
                 || receiverForCheck == doubleType || receiverForCheck == floatType
                 || receiverForCheck == ubyteType || receiverForCheck == ushortType
                 || receiverForCheck == uintType || receiverForCheck == ulongType
+                || receiverForCheck == sema.types.byteType || receiverForCheck == sema.types.shortType
             {
                 _ = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck) }
                 let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
@@ -293,6 +301,7 @@ extension CallTypeChecker {
                 let supportsValueCoercion = supportsRangeCoercion
                     || receiverForCheck == ubyteType || receiverForCheck == ushortType
                     || receiverForCheck == uintType || receiverForCheck == ulongType
+                    || receiverForCheck == sema.types.byteType || receiverForCheck == sema.types.shortType
                 if (!isRangeArg && supportsValueCoercion) || (isRangeArg && supportsRangeCoercion) {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck)
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
@@ -328,17 +337,19 @@ extension CallTypeChecker {
         // KSP-642: Int/Long rotateLeft / rotateRight resolve through the bundled Kotlin
         // declarations in `Stdlib/kotlin/Numbers.kt`, so no special inference is needed.
 
-        // Primitive member function: Int/Long.toString() / toString(radix: Int) → String (EXPR-003)
+        // Primitive member function: Int/Long/Byte/Short.toString() / toString(radix: Int) → String (EXPR-003)
         if interner.resolve(calleeName) == "toString",
            args.count <= 1
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let stringType = sema.types.stringType
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            if receiverForCheck == intType || receiverForCheck == longType {
+            if receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == byteType || receiverForCheck == shortType {
                 if args.isEmpty || argTypes[0] == intType {
                     let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
                     sema.bindings.bindExprType(id, type: finalType)
@@ -397,6 +408,8 @@ extension CallTypeChecker {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.ubyteType
             let ushortType = sema.types.ushortType
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
             let receiverForCheck = safeCall
@@ -404,16 +417,17 @@ extension CallTypeChecker {
                 : lookupReceiverType
             let calleeStr = interner.resolve(calleeName)
             let (targetType, matches): (TypeID, Bool) = switch calleeStr {
-            case "toInt": (intType, receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == sema.types.charType)
-            case "toUInt": (uintType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType)
-            case "toLong": (longType, receiverForCheck == intType || receiverForCheck == uintType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == longType || receiverForCheck == ulongType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == sema.types.charType)
-            case "toULong": (ulongType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType)
-            case "toFloat": (floatType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == doubleType || receiverForCheck == floatType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType)
-            case "toDouble": (doubleType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType)
-            case "toByte", "toShort": (intType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType)
-            case "toUByte": (sema.types.ubyteType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType)
-            case "toUShort": (sema.types.ushortType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType)
-            case "toChar": (sema.types.charType, receiverForCheck == intType || receiverForCheck == longType)
+            case "toInt": (intType, receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == sema.types.charType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toUInt": (uintType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toLong": (longType, receiverForCheck == intType || receiverForCheck == uintType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == longType || receiverForCheck == ulongType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == sema.types.charType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toULong": (ulongType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toFloat": (floatType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == doubleType || receiverForCheck == floatType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toDouble": (doubleType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toByte": (byteType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toShort": (shortType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toUByte": (sema.types.ubyteType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toUShort": (sema.types.ushortType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toChar": (sema.types.charType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == byteType || receiverForCheck == shortType)
             default: (sema.types.errorType, false)
             }
             if matches {

@@ -345,10 +345,14 @@ extension CallTypeChecker {
                     sema.types.make(.primitive(.boolean, .nonNull))
                 case "toBooleanStrictOrNull":
                     sema.types.make(.primitive(.boolean, .nullable))
-                case "toShort", "toByte":
-                    sema.types.intType
-                case "toShortOrNull", "toByteOrNull":
-                    sema.types.make(.primitive(.int, .nullable))
+                case "toByte":
+                    sema.types.byteType
+                case "toShort":
+                    sema.types.shortType
+                case "toByteOrNull":
+                    sema.types.makeNullable(sema.types.byteType)
+                case "toShortOrNull":
+                    sema.types.makeNullable(sema.types.shortType)
                 case "first", "last", "single":
                     sema.types.make(.primitive(.char, .nonNull))
                 case "firstOrNull", "lastOrNull", "singleOrNull":

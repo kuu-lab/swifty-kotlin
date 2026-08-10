@@ -32,12 +32,12 @@ final class ExprTypeChecker {
         let stringType = sema.types.stringType
 
         switch expr {
-        case .intLiteral:
+        case let .intLiteral(value, _):
             // An unsuffixed integer literal takes on Long/UInt/ULong when that is
             // the expected type at this position (e.g. `Millis(1500)` where the
             // value class's single field is declared `Long`), matching Kotlin's
             // literal-widening rule. Falls back to Int otherwise.
-            let literalType = intLiteralType(expectedType: expectedType, sema: sema, defaultType: intType)
+            let literalType = intLiteralType(expectedType: expectedType, sema: sema, defaultType: intType, literalValue: value)
             sema.bindings.bindExprType(id, type: literalType)
             return literalType
 
@@ -236,10 +236,10 @@ final class ExprTypeChecker {
             )
 
         case let .unaryExpr(op, operandID, range):
-            let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
             let type: TypeID
             switch op {
             case .not:
+                let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
                 if let overloadedType = inferUnaryOperatorExpr(
                     id,
                     op: op,
@@ -258,17 +258,32 @@ final class ExprTypeChecker {
                 )
                 type = boolType
             case .unaryPlus, .unaryMinus:
-                if let overloadedType = inferUnaryOperatorExpr(
-                    id,
-                    op: op,
-                    operandType: operandType,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType
-                ) {
-                    return overloadedType
+                // Constant-fold unary +/- over an integer literal so that e.g.
+                // `val x: Byte = -1` can resolve to Byte without a full constant
+                // propagation pass.
+                if case let .intLiteral(literalValue, _) = ast.arena.expr(operandID) {
+                    let foldedValue = op == .unaryMinus ? -literalValue : literalValue
+                    type = intLiteralType(
+                        expectedType: expectedType,
+                        sema: sema,
+                        defaultType: intType,
+                        literalValue: foldedValue
+                    )
+                    _ = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: nil)
+                } else {
+                    let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: expectedType)
+                    if let overloadedType = inferUnaryOperatorExpr(
+                        id,
+                        op: op,
+                        operandType: operandType,
+                        range: range,
+                        ctx: ctx,
+                        expectedType: expectedType
+                    ) {
+                        return overloadedType
+                    }
+                    type = operandType
                 }
-                type = operandType
             }
             sema.bindings.bindExprType(id, type: type)
             return type
@@ -916,7 +931,9 @@ final class ExprTypeChecker {
     /// type at its use site. Kotlin widens such literals to `Long`/`UInt`/`ULong`
     /// when that is the expected type (e.g. a value class field declared `Long`
     /// receiving a plain `1500`); any other expected type falls back to `Int`.
-    private func intLiteralType(expectedType: TypeID?, sema: SemaModule, defaultType: TypeID) -> TypeID {
+    /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`
+    /// and negative constants for unsigned types.
+    private func intLiteralType(expectedType: TypeID?, sema: SemaModule, defaultType: TypeID, literalValue: Int64 = 0) -> TypeID {
         guard let expectedType else { return defaultType }
         let nonNullExpected = sema.types.makeNonNullable(expectedType)
         guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullExpected) else {
@@ -924,8 +941,10 @@ final class ExprTypeChecker {
         }
         switch primitive {
         case .long: return sema.types.longType
-        case .uint: return sema.types.uintType
-        case .ulong: return sema.types.ulongType
+        case .uint: return literalValue >= 0 ? sema.types.uintType : defaultType
+        case .ulong: return literalValue >= 0 ? sema.types.ulongType : defaultType
+        case .byte: return (literalValue >= -128 && literalValue <= 127) ? sema.types.byteType : defaultType
+        case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : defaultType
         default: return defaultType
         }
     }

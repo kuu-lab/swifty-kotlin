@@ -1156,12 +1156,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        let byteType = types.byteType
+        let shortType = types.shortType
+        let nullableByteType = types.makeNullable(byteType)
+        let nullableShortType = types.makeNullable(shortType)
+
         registerSyntheticStringExtensionFunction(
             named: "toShort",
             externalLinkName: "kk_string_toShort",
             receiverType: stringType,
             parameters: [],
-            returnType: intType,
+            returnType: shortType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1172,7 +1177,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_toShortOrNull",
             receiverType: stringType,
             parameters: [],
-            returnType: nullableIntType,
+            returnType: nullableShortType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1183,7 +1188,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_toByte",
             receiverType: stringType,
             parameters: [],
-            returnType: intType,
+            returnType: byteType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1197,7 +1202,7 @@ extension DataFlowSemaPhase {
             parameters: [
                 ("radix", intType, false, false),
             ],
-            returnType: intType,
+            returnType: byteType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1208,7 +1213,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_toByteOrNull",
             receiverType: stringType,
             parameters: [],
-            returnType: nullableIntType,
+            returnType: nullableByteType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
