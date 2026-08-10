@@ -7,54 +7,62 @@ import Testing
 /// stored `KClass<T>` variable receiver.
 @Suite
 struct ReflectKClassBooleanIntrospectionTests {
-    private func makeSema(source: String) throws -> (SemaModule, StringInterner, CompilationContext) {
-        var result: (SemaModule, StringInterner, CompilationContext)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    @Test func testKClassBooleanIntrospectionSourceResolution() throws {
+        let sources: [String] = [
+            """
+            package sample0
+            data class Point(val x: Int)
+
+            fun isDataOf(): Boolean = Point::class.isData
+            fun isSealedOf(): Boolean = Point::class.isSealed
+            fun isValueOf(): Boolean = Point::class.isValue
+            """,
+            """
+            package sample1
+            import kotlin.reflect.KClass
+            data class Point(val x: Int)
+
+            fun isDataOf(k: KClass<Point>): Boolean = k.isData
+            fun isSealedOf(k: KClass<Point>): Boolean = k.isSealed
+            fun isValueOf(k: KClass<Point>): Boolean = k.isValue
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "Expected KClass boolean introspection source to type-check, got: \(ctx.diagnostics.diagnostics)")
-            )
-            result = (try #require(ctx.sema), ctx.interner, ctx)
-        }
-        return try #require(result)
-    }
 
-    @Test func testClassLiteralBooleanMembersInferBoolean() throws {
-        let source = """
-        data class Point(val x: Int)
-        fun isDataOf(): Boolean = Point::class.isData
-        fun isSealedOf(): Boolean = Point::class.isSealed
-        fun isValueOf(): Boolean = Point::class.isValue
-        """
-        let (sema, interner, _) = try makeSema(source: source)
-        for functionName in ["isDataOf", "isSealedOf", "isValueOf"] {
-            let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(
-                signature.returnType == sema.types.booleanType,
-                Comment(rawValue: "\(functionName) should infer Boolean from a KClass boolean member")
-            )
-        }
-    }
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
 
-    @Test func testVariableReceiverBooleanMembersInferBoolean() throws {
-        let source = """
-        import kotlin.reflect.KClass
-        data class Point(val x: Int)
-        fun isDataOf(k: KClass<Point>): Boolean = k.isData
-        fun isSealedOf(k: KClass<Point>): Boolean = k.isSealed
-        fun isValueOf(k: KClass<Point>): Boolean = k.isValue
-        """
-        let (sema, interner, _) = try makeSema(source: source)
-        for functionName in ["isDataOf", "isSealedOf", "isValueOf"] {
-            let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(
-                signature.returnType == sema.types.booleanType,
-                Comment(rawValue: "\(functionName) should infer Boolean from a KClass<T> variable boolean member")
-            )
+            for (index, _) in sources.enumerated() {
+                let path = paths[index]
+                let pathDiagnostics = diagnosticsForPath(path, in: ctx)
+                #expect(
+                    !pathDiagnostics.contains(where: { $0.severity == .error }),
+                    "Expected KClass boolean introspection source to type-check, got: \(pathDiagnostics)"
+                )
+            }
+
+            for functionName in ["isDataOf", "isSealedOf", "isValueOf"] {
+                let symbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern(functionName),
+                ]))
+                let symbolFromVariable = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample1"),
+                    interner.intern(functionName),
+                ]))
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                let signatureFromVariable = try #require(sema.symbols.functionSignature(for: symbolFromVariable))
+                #expect(
+                    signature.returnType == sema.types.booleanType,
+                    "\(functionName) should infer Boolean from a KClass boolean member"
+                )
+                #expect(
+                    signatureFromVariable.returnType == sema.types.booleanType,
+                    "\(functionName) should infer Boolean from a KClass<T> variable boolean member"
+                )
+            }
         }
     }
 }
