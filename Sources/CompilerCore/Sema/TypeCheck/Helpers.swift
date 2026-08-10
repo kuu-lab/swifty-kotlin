@@ -669,7 +669,7 @@ struct TypeCheckHelpers {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0025",
                     "Unresolved type '\(interner.resolve(shortName))'.",
-                    range: nil
+                    range: usageRange
                 )
                 return sema.types.errorType
             }
