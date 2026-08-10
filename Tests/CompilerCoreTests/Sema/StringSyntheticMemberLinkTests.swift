@@ -143,7 +143,7 @@ struct StringSyntheticMemberLinkTests {
                             && !replaceLinks.contains("kk_string_replace_char_flat")
                             && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
                             && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
-                            && !replaceLinks.contains("kk_string_replace_regex"),
+                            && !replaceLinks.contains("__kk_string_replace_regex"),
                         "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
                     )
         }

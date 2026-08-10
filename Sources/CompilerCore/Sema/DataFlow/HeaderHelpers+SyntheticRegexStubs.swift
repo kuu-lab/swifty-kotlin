@@ -1,11 +1,13 @@
 
-/// Synthetic stubs for Regex, MatchResult, and related methods (STDLIB-100/101/103).
+/// Synthetic anchors for MatchResult and Destructured.
 ///
 /// KSP-486: the MatchResult / MatchGroup / MatchGroupCollection / Destructured
 /// member layer is declared in Kotlin
 /// (`Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`), so only the
-/// opaque `MatchResult` / `MatchResult.Destructured` anchors and the Regex
-/// engine entry points are registered here.
+/// opaque `MatchResult` / `MatchResult.Destructured` anchors are registered here.
+///
+/// KSP-487: Regex / RegexOption and their engine entry points are now declared
+/// in bundled Kotlin source (`Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`).
 extension DataFlowSemaPhase {
     func registerSyntheticRegexStubs(
         symbols: SymbolTable,
@@ -15,7 +17,6 @@ extension DataFlowSemaPhase {
         let kotlinTextPkg = ensureKotlinTextPackage(symbols: symbols, interner: interner)
 
         // --- Class symbols ---
-        let regexSymbol = ensureClassSymbol(named: "Regex", in: kotlinTextPkg, symbols: symbols, interner: interner)
         let matchResultSymbol = ensureClassSymbol(named: "MatchResult", in: kotlinTextPkg, symbols: symbols, interner: interner)
 
         // --- STDLIB-TEXT-TYPE-010: MatchResult.Destructured nested class ---
@@ -30,215 +31,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- Types ---
-        let regexType = types.make(.classType(ClassType(
-            classSymbol: regexSymbol, args: [], nullability: .nonNull
-        )))
-        let matchResultType = types.make(.classType(ClassType(
-            classSymbol: matchResultSymbol, args: [], nullability: .nonNull
-        )))
-        let nullableMatchResultType = types.makeNullable(matchResultType)
-        let stringType = types.stringType
-        let listMatchResultType = makeListType(
-            symbols: symbols, types: types, interner: interner,
-            elementType: matchResultType
-        )
 
-        // --- STDLIB-100: Regex(pattern) constructor (top-level function) ---
-        registerRegexTopLevelFunction(
-            named: "Regex",
-            packageFQName: kotlinTextPkg,
-            parameters: [("pattern", stringType)],
-            returnType: regexType,
-            externalLinkName: "kk_regex_create_flat",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-101: Regex.find / Regex.findAll ---
-        registerRegexMemberFunction(
-            named: "find",
-            externalLinkName: "kk_regex_find_flat",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [("input", stringType, false, false)],
-            returnType: nullableMatchResultType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerRegexMemberFunction(
-            named: "findAll",
-            externalLinkName: "kk_regex_findAll_flat",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [("input", stringType, false, false)],
-            returnType: listMatchResultType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-350: Regex.matchEntire ---
-        registerRegexMemberFunction(
-            named: "matchEntire",
-            externalLinkName: "kk_regex_matchEntire_flat",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [("input", stringType, false, false)],
-            returnType: nullableMatchResultType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-480: RegexOption enum class ---
-        let regexOptionSymbol = ensureRegexOptionEnumClass(
-            in: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let regexOptionType = types.make(.classType(ClassType(
-            classSymbol: regexOptionSymbol, args: [], nullability: .nonNull
-        )))
-
-        // Set property types for enum entries so that
-        // resolveClassNameMemberValue can resolve e.g. RegexOption.DOT_MATCHES_ALL.
-        setRegexOptionEntryTypes(
-            enumSymbol: regexOptionSymbol,
-            enumType: regexOptionType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-480: Regex(pattern, option) constructor ---
-        registerRegexTopLevelFunction(
-            named: "Regex",
-            packageFQName: kotlinTextPkg,
-            parameters: [("pattern", stringType), ("option", regexOptionType)],
-            returnType: regexType,
-            externalLinkName: "kk_regex_create_with_option_flat",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-480: Regex(pattern, options) constructor ---
-        // Only register the Set<RegexOption> overload if kotlin.collections.Set
-        // is available. Otherwise we would create an unintended Regex(String, Any)
-        // overload that confuses overload resolution.
-        if let setRegexOptionType = makeSetType(
-            symbols: symbols, types: types, interner: interner,
-            elementType: regexOptionType
-        ) {
-            registerRegexTopLevelFunction(
-                named: "Regex",
-                packageFQName: kotlinTextPkg,
-                parameters: [("pattern", stringType), ("options", setRegexOptionType)],
-                returnType: regexType,
-                externalLinkName: "kk_regex_create_with_options_flat",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // --- STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options) ---
-        registerSyntheticStringExtensionFunction(
-            named: "toRegex",
-            externalLinkName: "kk_string_toRegex_with_option_flat",
-            receiverType: stringType,
-            parameters: [("option", regexOptionType, false, false)],
-            returnType: regexType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let setRegexOptionType = makeSetType(
-            symbols: symbols, types: types, interner: interner,
-            elementType: regexOptionType
-        ) {
-            registerSyntheticStringExtensionFunction(
-                named: "toRegex",
-                externalLinkName: "kk_string_toRegex_with_options_flat",
-                receiverType: stringType,
-                parameters: [("options", setRegexOptionType, false, false)],
-                returnType: regexType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // --- STDLIB-480: Regex.containsMatchIn(input) ---
-        let boolType = types.make(.primitive(.boolean, .nonNull))
-        registerRegexMemberFunction(
-            named: "containsMatchIn",
-            externalLinkName: "kk_regex_containsMatchIn_flat",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [("input", stringType, false, false)],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-098: Regex.matches(input) ---
-        registerRegexMemberFunction(
-            named: "matches",
-            externalLinkName: "kk_regex_matches_flat",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [("input", stringType, false, false)],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-351: Regex.replace(input) { lambda } ---
-        let matchResultToStringLambda = types.make(.functionType(FunctionType(
-            params: [matchResultType],
-            returnType: stringType,
-            nullability: .nonNull
-        )))
-        registerRegexMemberFunction(
-            named: "replace",
-            externalLinkName: "kk_regex_replace_lambda",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [
-                ("input", stringType, false, false),
-                ("transform", matchResultToStringLambda, false, false),
-            ],
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-094: Regex.matches(input: String) -> Boolean ---
-        registerRegexMemberFunction(
-            named: "matches",
-            externalLinkName: "kk_regex_matches_flat",
-            ownerSymbol: regexSymbol,
-            ownerType: regexType,
-            parameters: [("input", stringType, false, false)],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-REGEX-094: Regex.Companion.fromLiteral(literal: String): Regex ---
-        let regexCompanionFQName = ensureRegexCompanionSymbol(
-            ownerSymbol: regexSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerRegexCompanionMethod(
-            named: "fromLiteral",
-            externalLinkName: "kk_regex_from_literal_flat",
-            companionFQName: regexCompanionFQName,
-            parameters: [("literal", stringType)],
-            returnType: regexType,
-            types: types,
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     /// Defines a nested class symbol inside `parentFQName` if it doesn't already exist.

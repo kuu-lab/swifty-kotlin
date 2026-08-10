@@ -1425,7 +1425,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
         RuntimeABIFunctionSpec(
@@ -1439,7 +1440,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-573: String.encodeToByteArray(charset)
         RuntimeABIFunctionSpec(
@@ -1452,7 +1454,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "charsetID", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-574: ByteArray.decodeToString
         RuntimeABIFunctionSpec(

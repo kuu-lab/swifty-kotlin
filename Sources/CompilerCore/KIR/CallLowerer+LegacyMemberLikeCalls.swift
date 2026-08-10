@@ -1487,32 +1487,9 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "toRegex" {
-                    if args.count == 1 {
-                        let argID = loweredArgIDs[0]
-                        let argType = sema.bindings.exprTypes[args[0].expr]
-                        let knownNames = KnownCompilerNames(interner: interner)
-                        let isSetArg: Bool = {
-                            guard let argType,
-                                  let (_, sym) = resolveClassTypeSymbol(argType, sema: sema)
-                            else { return false }
-                            return knownNames.isSetLikeSymbol(sym)
-                        }()
-                        let rtName = isSetArg
-                            ? "kk_string_toRegex_with_options_flat"
-                            : "kk_string_toRegex_with_option_flat"
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: interner.intern(rtName),
-                            arguments: [loweredReceiverID, argID],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        return result
-                    }
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toRegex_flat"),
+                        callee: interner.intern("__kk_string_toRegex_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1690,6 +1667,28 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "toRegex" {
+                    let argType = sema.bindings.exprTypes[args[0].expr]
+                    let isSetArg: Bool = {
+                        guard let argType,
+                              let (_, sym) = resolveClassTypeSymbol(argType, sema: sema)
+                        else { return false }
+                        let knownNames = KnownCompilerNames(interner: interner)
+                        return knownNames.isSetLikeSymbol(sym)
+                    }()
+                    let rtName = isSetArg
+                        ? "__kk_string_toRegex_with_options_flat"
+                        : "__kk_string_toRegex_with_option_flat"
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(rtName),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
@@ -1699,7 +1698,7 @@ extension CallLowerer {
                     }
                 case "contains":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        ("kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
+                        ("__kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         nil
                     }
@@ -1708,7 +1707,7 @@ extension CallLowerer {
                 case "compareTo":
                     ("kk_string_compareTo_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
-                    ("kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
+                    ("__kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
@@ -2937,9 +2936,9 @@ extension CallLowerer {
                 let calleeStr = interner.resolve(calleeName)
                 let runtimeCallee: String? = switch calleeStr {
                 case "find":
-                    "kk_regex_find_flat"
+                    "__kk_regex_find_flat"
                 case "findAll":
-                    "kk_regex_findAll_flat"
+                    "__kk_regex_findAll_flat"
                 default:
                     nil
                 }

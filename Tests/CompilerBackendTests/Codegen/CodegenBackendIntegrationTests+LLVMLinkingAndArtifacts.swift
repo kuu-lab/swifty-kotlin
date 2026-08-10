@@ -1054,22 +1054,22 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendRegexCall("kk_regex_create_flat", arguments: [patternExpr])
-        appendRegexCall("kk_regex_create_with_option_flat", arguments: [patternExpr, optionExpr])
-        appendRegexCall("kk_regex_create_with_options_flat", arguments: [patternExpr, optionsSetExpr])
-        appendRegexCall("kk_string_matches_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("kk_string_contains_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("kk_string_toRegex_flat", arguments: [patternExpr])
-        appendRegexCall("kk_string_toRegex_with_option_flat", arguments: [patternExpr, optionExpr])
-        appendRegexCall("kk_string_toRegex_with_options_flat", arguments: [patternExpr, optionsSetExpr])
-        appendRegexCall("kk_regex_find_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("kk_regex_findAll_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("kk_string_split_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
+        appendRegexCall("__kk_regex_create_flat", arguments: [patternExpr])
+        appendRegexCall("__kk_regex_create_with_option_flat", arguments: [patternExpr, optionExpr])
+        appendRegexCall("__kk_regex_create_with_options_flat", arguments: [patternExpr, optionsSetExpr])
+        appendRegexCall("__kk_string_matches_regex_flat", arguments: [inputExpr, regexExpr])
+        appendRegexCall("__kk_string_contains_regex_flat", arguments: [inputExpr, regexExpr])
+        appendRegexCall("__kk_string_toRegex_flat", arguments: [patternExpr])
+        appendRegexCall("__kk_string_toRegex_with_option_flat", arguments: [patternExpr, optionExpr])
+        appendRegexCall("__kk_string_toRegex_with_options_flat", arguments: [patternExpr, optionsSetExpr])
+        appendRegexCall("__kk_regex_find_flat", arguments: [regexExpr, inputExpr])
+        appendRegexCall("__kk_regex_findAll_flat", arguments: [regexExpr, inputExpr])
+        appendRegexCall("__kk_string_split_regex_flat", arguments: [inputExpr, regexExpr])
+        appendRegexCall("__kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
+        appendRegexCall("__kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
+        appendRegexCall("__kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
         appendRegexCall("__kk_match_result_group_index_of_name", arguments: [matchGroupCollectionExpr, patternExpr])
-        appendRegexCall("kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
+        appendRegexCall("__kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1100,29 +1100,29 @@ extension CodegenBackendIntegrationTests {
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
         let rawNames = [
-            "kk_regex_create",
-            "kk_regex_create_with_option",
-            "kk_regex_create_with_options",
-            "kk_string_toRegex",
-            "kk_string_toRegex_with_option",
-            "kk_string_toRegex_with_options",
-            "kk_regex_find",
-            "kk_regex_findAll",
-            "kk_regex_matchEntire",
-            "kk_regex_containsMatchIn",
-            "kk_regex_from_literal",
+            "__kk_regex_create",
+            "__kk_regex_create_with_option",
+            "__kk_regex_create_with_options",
+            "__kk_string_toRegex",
+            "__kk_string_toRegex_with_option",
+            "__kk_string_toRegex_with_options",
+            "__kk_regex_find",
+            "__kk_regex_findAll",
+            "__kk_regex_matchEntire",
+            "__kk_regex_containsMatchIn",
+            "__kk_regex_from_literal",
             "__kk_match_result_group_index_of_name",
-            "kk_regex_matches",
+            "__kk_regex_matches",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
         }
 
-        XCTAssertFalse(ir.contains("@kk_string_split_regex("), "Unexpected raw Regex String call: kk_string_split_regex")
-        XCTAssertTrue(ir.contains("@kk_string_split_regex_flat"), "Missing flat Regex String call: kk_string_split_regex_flat")
+        XCTAssertFalse(ir.contains("@__kk_string_split_regex("), "Unexpected raw Regex String call: __kk_string_split_regex")
+        XCTAssertTrue(ir.contains("@__kk_string_split_regex_flat"), "Missing flat Regex String call: __kk_string_split_regex_flat")
 
-        let removedRawStringPredicateNames = ["matches", "contains"].map { "kk_string_\($0)_regex" }
+        let removedRawStringPredicateNames = ["matches", "contains"].map { "__kk_string_\($0)_regex" }
         for rawName in removedRawStringPredicateNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw Regex String call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")

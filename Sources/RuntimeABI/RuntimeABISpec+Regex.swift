@@ -4,7 +4,7 @@
 public extension RuntimeABISpec {
     static let regexFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_regex_create_flat",
+            name: "__kk_regex_create_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -16,7 +16,7 @@ public extension RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_matches_regex_flat",
+            name: "__kk_string_matches_regex_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -29,7 +29,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_contains_regex_flat",
+            name: "__kk_string_contains_regex_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -42,7 +42,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_regex_find_flat",
+            name: "__kk_regex_find_flat",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -55,7 +55,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_regex_findAll_flat",
+            name: "__kk_regex_findAll_flat",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -68,24 +68,11 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_replace_regex",
+            name: "__kk_string_replace_regex",
             parameters: [
                 RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
                 RuntimeABIParameter(name: "replacement", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_split_regex_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -106,7 +93,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
         RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_with_option_flat",
+            name: "__kk_string_toRegex_with_option_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -119,7 +106,7 @@ public extension RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_with_options_flat",
+            name: "__kk_string_toRegex_with_options_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -132,7 +119,7 @@ public extension RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_flat",
+            name: "__kk_string_toRegex_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -164,7 +151,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-351: Regex.replace lambda / STDLIB-350: Regex.matchEntire
         RuntimeABIFunctionSpec(
-            name: "kk_regex_replace_lambda",
+            name: "__kk_regex_replace_lambda",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
@@ -176,7 +163,7 @@ public extension RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_regex_matchEntire_flat",
+            name: "__kk_regex_matchEntire_flat",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -190,7 +177,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-480: Regex(pattern, option) constructor
         RuntimeABIFunctionSpec(
-            name: "kk_regex_create_with_option_flat",
+            name: "__kk_regex_create_with_option_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -204,7 +191,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-480: Regex(pattern, options: Set<RegexOption>) constructor
         RuntimeABIFunctionSpec(
-            name: "kk_regex_create_with_options_flat",
+            name: "__kk_regex_create_with_options_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -218,7 +205,20 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-480: Regex.containsMatchIn(input)
         RuntimeABIFunctionSpec(
-            name: "kk_regex_containsMatchIn_flat",
+            name: "__kk_regex_containsMatchIn_flat",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_regex_matches_flat",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -297,7 +297,7 @@ public extension RuntimeABISpec {
         // STDLIB-REGEX-094: Regex.fromLiteral
         // First param is the Companion object receiver (ignored at runtime).
         RuntimeABIFunctionSpec(
-            name: "kk_regex_from_literal_flat",
+            name: "__kk_regex_from_literal_flat",
             parameters: [
                 RuntimeABIParameter(name: "companionRef", type: .intptr),
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -306,11 +306,12 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-REGEX-094: String.replaceFirst(Regex, replacement)
         RuntimeABIFunctionSpec(
-            name: "kk_string_replaceFirst_regex",
+            name: "__kk_string_replaceFirst_regex",
             parameters: [
                 RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),

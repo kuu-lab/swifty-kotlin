@@ -388,7 +388,7 @@ enum MemberRuntimeDispatch {
         case ("toCharArray", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCharArray_flat")
         case ("toRegex", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toRegex_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toRegex_flat")
         case ("firstOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
@@ -408,7 +408,7 @@ enum MemberRuntimeDispatch {
         case ("compareTo", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareTo_flat")
         case ("matches", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_matches_regex_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_matches_regex_flat")
         case ("chunked", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
         case ("chunkedSequence", 1):
