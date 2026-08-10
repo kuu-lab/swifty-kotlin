@@ -295,8 +295,9 @@
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
-- [ ] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
+- [x] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
   - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+  - 残留: `kk_string_case_insensitive_order(_trampoline)` は companion `val` の同一インスタンス保証（BUG-036/BUG-154）のため runtime シングルトンのまま。比較コアは `__kk_comparable_compareTo` / Comparator 呼び出しは `__kk_compare_with_comparator` へ降格
   - Comparator 消費側（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`）: 上記 rg パターンには**含まれない**。実体は `RuntimeCollectionHOFMaxMin.swift` の `kk_list_maxWith(OrNull)` / `kk_list_minWith(OrNull)` と `RuntimeSequenceAssociation.swift` の `kk_sequence_maxWith(OrNull)` / `kk_sequence_minWith(OrNull)` の 8 関数で、削除自体は KSP-426（List）/ KSP-444（Sequence）の担当。KSP-461 は本 API が依存する Comparator の Kotlin 実装（`compare` の member dispatch）を提供する側として整合を確認する
 
 #### kotlin.random [M7 実行体]
@@ -308,11 +309,15 @@
 
 #### kotlin.time [M8 実行体]
 
-- [~] KSP-472: Instant/Clock/measureTime のブリッジを確定する（2026-07-08、一部配線）
+- [x] KSP-472: Instant/Clock/measureTime のブリッジを確定する（2026-07-08 起票、2026-08-06 完了）
   - Kotlin 化済み: `kk_instant_epoch_seconds`, `kk_instant_nano_of_second`, `kk_instant_is_distant_past/future`, `kk_instant_plus/minus_duration`, `kk_instant_compare`, `kk_instant_until` を `__kk_instant_*` bridge（`HeaderHelpers+SyntheticInstantStubs.swift`）へ降格し、`Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt` の拡張プロパティ/演算子/関数から呼ぶ形に配線。`elapsed()` はブリッジなしで `this.until(Instant.now())` として実装。`kk_timedvalue_value`/`kk_timedvalue_duration` も同様に `__kk_timedvalue_*` bridge 化し `Sources/CompilerCore/Stdlib/kotlin/time/TimedValue.kt` へ配線（`HeaderHelpers+SyntheticDurationStubs.swift`）
   - 副次修正: `HeaderHelpers+SyntheticClockStubs.swift` が `HeaderHelpers+SyntheticInstantStubs.swift` と同じ Instant companion/property/method を重複登録していたバグを解消（Clock 関連の登録のみに縮小、Instant symbol/type の再取得のみ残す）
-  - 進捗（PR 作成中）: `kk_instant_now`, `kk_instant_from_epoch_millis`, `kk_clock_system_now` を Kotlin source 拡張化。`Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt` に `Instant.Companion.now()` / `fromEpochMilliseconds()`、`Sources/CompilerCore/Stdlib/kotlin/time/Clock.kt` に `Clock.System.now()` を追加し、`@KsSymbolName` 経由で `kk_instant_now` / `kk_instant_from_epoch_millis` / `kk_clock_system_now` ABI ブリッジを呼ぶ。`HeaderHelpers+SyntheticInstantStubs.swift` / `HeaderHelpers+SyntheticClockStubs.swift` から companion/nested-object への直接メンバ登録を除去。`kk_clock_now` は `Clock` がユーザー実装可能な interface であり `now()` の member dispatch が必須（KSP-CAP-003 とは無関係、引き続き対象外）。`kk_measureTime`/`kk_measureTimedValue` は `CallLowerer+StdlibLoops.swift` の KIR 特殊インライン展開が `stdlibSpecialCallKind`（関数名ベース）でディスパッチしており、direct stub 名を変更すると壊れるため対象外。`kk_timedvalue_new` は `measureTimedValue` の KIR lowering からのみ呼ばれる内部コンストラクタで、Kotlin source から到達しないため対象外
-  - 検証: `swift build` / `swift test --filter InstantDistantPropertiesSyntheticTests` / `RuntimeABIExternalLinkValidationTests` / `CompanionObjectTests` / `RuntimeInstantTests` / `CodegenBackendIntegrationTests --filter TimeEdgeCases` pass。`Scripts/diff_cases/instant_basic.kt` / `clock_basic.kt` および `Instant.now()` の追加ケースを `kswiftc` で実行確認
+  - Kotlin 化: `kk_instant_now`, `kk_instant_from_epoch_millis`, `kk_clock_system_now` を Kotlin source 拡張化。`Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt` に `Instant.Companion.now()` / `fromEpochMilliseconds()`、`Sources/CompilerCore/Stdlib/kotlin/time/Clock.kt` に `Clock.System.now()` を追加し、`@KsSymbolName` 経由で `kk_instant_now` / `kk_instant_from_epoch_millis` / `kk_clock_system_now` ABI ブリッジを呼ぶ。`HeaderHelpers+SyntheticInstantStubs.swift` / `HeaderHelpers+SyntheticClockStubs.swift` から companion/nested-object への直接メンバ登録を除去
+  - Kotlin 化: `measureTime` / `measureTimedValue` を `Sources/CompilerCore/Stdlib/kotlin/time/MeasureTime.kt` の `inline fun` として実装し、`CallLowerer+StdlibLoops.swift` の KIR 特殊インライン展開（`stdlibSpecialCallKind` の `.measureTime` / `.measureTimedValue`）と `CallTypeChecker.swift` の関数名ベース特例、`HeaderHelpers+SyntheticTODOAndIOStubs.swift` の synthetic 登録を削除。残る native は monotonic clock（syscall: `kk_system_nanoTime`）と TimedValue 生成（オブジェクト表現: `kk_timedvalue_new`）のみで、`__kk_system_nanoTime` / `__kk_timedvalue_new` ブリッジ経由で呼ぶ（§13-2 理由コード: syscall / メモリ表現、いずれも `RuntimeABISpec` 登録済み・`specVersion` は `allFunctions` から自動導出）
+  - 削除: `kk_measureTime`, `kk_measureTimedValue`（Kotlin source 化で到達不能）と、measureTime エピローグ専用に残していた `kk_duration_from_nanoseconds` を Runtime / `RuntimeABISpec` から削除
+  - 副次修正: ライブラリ（`.kklib`）から取り込んだ inline 本体が、ライブラリ側で定義されたプロパティ getter を宣言名（例: `nanoseconds`）で呼び出しリンク時に undefined reference になるバグを修正。`LibraryInlineImport.swift` で consumer 側 symbol に解決できない場合は mangle 済みリンク名へフォールバックする（回帰テスト: `LibraryMetadataImportIntegrationTests.testImportedInlineBodyCallsLibraryPropertyGetterByLinkName`）
+  - 対象外: `kk_clock_now` は `Clock` がユーザー実装可能な interface であり `now()` の member dispatch が必須（KSP-CAP-003 とは無関係）
+  - 検証: `swift build` / `bash Scripts/swift_test.sh --filter Golden`（`measure_timed_value.golden` 更新）/ `RuntimeABIExternalLinkValidationTests` / `LibraryMetadataImportIntegrationTests` / `BundledStdlibExecutionTests` / `RuntimeDurationTests` / `CodegenBackendIntegrationTests --filter TimeEdgeCases` pass。`bash Scripts/validate_runtime_abi_links.sh` pass。`Scripts/diff_cases/measure_time.kt` / `measure_time_duration.kt` / `measure_timed_value.kt` / `instant_basic.kt` / `clock_basic.kt` を `Scripts/diff_kotlinc.sh` で PASS 確認。bundled .kt 実行テストは `BundledStdlibExecutionTests.testMeasureTimeExecutesThroughBundledKotlin`（ラムダ / 関数参照 / 例外伝播）
 
 #### kotlin.uuid [M12 実行体]
 
