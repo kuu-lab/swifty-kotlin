@@ -524,7 +524,7 @@ extension DataFlowSemaPhase {
                     )
                     symbols.setParentSymbol(symbol, for: entrySymbol)
                     symbols.setPropertyType(classType, for: entrySymbol)
-                    scope.insert(entrySymbol)
+                    classScope.insert(entrySymbol)
                 }
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: symbol,

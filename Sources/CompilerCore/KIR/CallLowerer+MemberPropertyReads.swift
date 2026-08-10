@@ -280,7 +280,7 @@ extension CallLowerer {
     /// interface's itable to the implementing type's getter, mirroring how
     /// interface member functions are dispatched (see resolveItableDispatch).
     ///
-    /// BUG-185: the same applies to an implicit-receiver read (`rank` inside an
+    /// BUG-187: the same applies to an implicit-receiver read (`rank` inside an
     /// interface default method body), which otherwise calls the interface's own
     /// abstract getter and observes its `null` placeholder body.
     func tryLowerInterfaceItablePropertyGetterRead(
@@ -361,7 +361,7 @@ extension CallLowerer {
     func tryLowerEnumEntryPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
-        receiverExpr _: ExprID,
+        receiverExpr: ExprID,
         calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
@@ -372,22 +372,66 @@ extension CallLowerer {
         guard args.isEmpty else { return nil }
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "name" || calleeStr == "ordinal" else { return nil }
-        guard case let .symbolRef(entrySym) = arena.expr(loweredReceiverID),
-              isEnumEntryField(entrySym, sema: sema),
-              let entryInfo = sema.symbols.symbol(entrySym)
-        else { return nil }
-        let entryName = interner.resolve(entryInfo.name)
-        let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
-        let helperName = interner.intern(entryName + helperSuffix)
         let resultType = sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
                 ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
+        if case let .symbolRef(entrySym) = arena.expr(loweredReceiverID),
+           isEnumEntryField(entrySym, sema: sema),
+           let entryInfo = sema.symbols.symbol(entrySym)
+        {
+            let entryName = interner.resolve(entryInfo.name)
+            let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
+            let helperName = interner.intern(entryName + helperSuffix)
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: helperName,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        // The receiver isn't a compile-time-known entry (e.g. a reassigned
+        // `var` or a function parameter) — fall back to a dynamic lookup
+        // keyed off the receiver's own runtime value instead of returning
+        // nil. Returning nil here would fall through to the generic
+        // member-call path, which silently drops the receiver argument for
+        // this synthetic property (it has no FunctionSignature.receiverType
+        // for appendReceiverToMemberArguments to key off), producing an
+        // unresolved "name"/"ordinal" external symbol at link time.
+        guard let receiverType = sema.bindings.exprTypes[receiverExpr],
+              let (_, classSym) = resolveClassTypeSymbol(receiverType, sema: sema),
+              classSym.kind == .enumClass
+        else {
+            return nil
+        }
+        if calleeStr == "ordinal" {
+            // Enum values are represented as their boxed ordinal (see
+            // DataEnumSealedSynthesisPass's $enumOrdinalToName, which unboxes
+            // its receiver-typed parameter the same way), so `.ordinal` on a
+            // dynamic receiver is just that unboxing.
+            return emitNonThrowingCall(
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                arg: loweredReceiverID,
+                resultType: resultType,
+                arena: arena,
+                into: &instructions
+            )
+        }
+        // "name": the $enumOrdinalToName helper doesn't exist yet at
+        // KIR-build time (DataEnumSealedSynthesisPass synthesizes it during
+        // the later Lowering phase) — emit a receiverless-named placeholder
+        // call carrying the receiver as its sole argument, matching what
+        // EnumNameAccessLoweringPass rewrites into a real call to that
+        // helper once it exists.
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
-            callee: helperName,
-            arguments: [],
+            callee: calleeName,
+            arguments: [loweredReceiverID],
             result: result,
             canThrow: false,
             thrownResult: nil

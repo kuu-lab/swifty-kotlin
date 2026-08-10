@@ -59,7 +59,6 @@ extension ABILoweringPass {
         "kk_mutable_set_add",
         "kk_mutable_map_put",
         "kk_mutable_map_putAll",
-        "kk_mutable_map_getOrPut",
         "kk_mutable_map_plusAssign_pair",
     ]
 
@@ -249,12 +248,19 @@ extension ABILoweringPass {
 
     func isNonValueClassReference(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
         guard case let .classType(classType) = kind else { return false }
-        // Exclude value classes — they are unboxed to their underlying primitive.
-        if let symbols,
-           let sym = symbols.symbol(classType.classSymbol),
-           sym.flags.contains(.valueType)
-        {
-            return false
+        // Non-null enum values use their raw ordinal representation outside
+        // Any-erased and nullable slots, just like value classes use their
+        // underlying primitive. Keep an enum-typed copy from being mistaken
+        // for a reference boundary and boxed unnecessarily.
+        if let symbols, let sym = symbols.symbol(classType.classSymbol) {
+            if classType.nullability == .nonNull, sym.kind == .enumClass {
+                return false
+            }
+            // Exclude value classes — they are unboxed to their underlying
+            // primitive.
+            if sym.flags.contains(.valueType) {
+                return false
+            }
         }
         return true
     }

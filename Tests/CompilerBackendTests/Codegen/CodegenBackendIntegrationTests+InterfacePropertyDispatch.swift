@@ -121,7 +121,7 @@ struct CodegenBackendInterfacePropertyDispatchTests {
         )
     }
 
-    // BUG-185: an implicit-receiver read inside an interface default method body
+    // BUG-187: an implicit-receiver read inside an interface default method body
     // (`value` meaning `this.value`) must dispatch through the itable as well;
     // previously it called the interface's own abstract getter, whose placeholder
     // body returns null, so the default method observed 0.
@@ -143,7 +143,7 @@ struct CodegenBackendInterfacePropertyDispatchTests {
 
         try assertKotlinOutput(
             source,
-            moduleName: "Bug185ImplicitReceiverInterfaceProperty",
+            moduleName: "Bug187ImplicitReceiverInterfaceProperty",
             expected: "42\n42\n"
         )
     }
