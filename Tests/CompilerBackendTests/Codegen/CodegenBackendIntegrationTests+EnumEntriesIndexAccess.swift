@@ -8,11 +8,11 @@ import Testing
 /// `enumEntries<Direction>()[0]`) crashed at runtime with
 /// `KSwiftK panic [KSWIFTK-LINK-0003]: Unhandled top-level exception`.
 /// `entries` is backed by a `RuntimeListBox` (`kk_enum_make_entries_list`),
-/// but `EnumEntries<T>` was registered as a member-less synthetic interface
-/// with no `kotlin.collections.List<T>` supertype, so `[]` never found
-/// `List.get` and fell back to the array bridge `kk_array_get`, which read
-/// the list handle as a `RuntimeArrayBox` and threw. Registering the
-/// supertype (`ensureEnumEntriesInterface`) routes `[]` to `__kk_list_get`;
+/// but `EnumEntries<T>` had no owned `get` operator. Its `List<T>` supertype
+/// alone was not enough for synthetic member lookup to find `List.get`, so
+/// `[]` fell back to the array bridge `kk_array_get`, which read the list
+/// handle as a `RuntimeArrayBox` and threw. Registering `get(index: Int): T`
+/// directly on `EnumEntries<T>` routes `[]` to `__kk_list_get`;
 /// `Array<T>`-typed `values()`/`enumValues<T>()` indexing keeps using
 /// `kk_array_get` and is pinned here too.
 @Suite

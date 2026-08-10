@@ -583,10 +583,11 @@ extension LoweringPassRegressionTests {
     // MARK: - BUG-178: `Direction.entries[i]` / `enumEntries<T>()[i]` must
     // dispatch to the List `get` runtime. `EnumEntries<T>` is backed by a
     // `RuntimeListBox` (`kk_enum_make_entries_list`), but while the interface
-    // had no registered `List<T>` supertype the indexing operator fell back to
-    // the array bridge `kk_array_get`, which read the list handle as a
-    // `RuntimeArrayBox`, threw ArrayIndexOutOfBounds and aborted the program
-    // with `KSWIFTK-LINK-0003: Unhandled top-level exception`.
+    // had no owned `get` operator, its `List<T>` supertype alone did not make
+    // synthetic member lookup find `List.get`. The indexing operator therefore
+    // fell back to the array bridge `kk_array_get`, which read the list handle
+    // as a `RuntimeArrayBox`, threw ArrayIndexOutOfBounds and aborted the
+    // program with `KSWIFTK-LINK-0003: Unhandled top-level exception`.
     @Test
     func testEnumEntriesIndexAccessUsesListGetNotArrayGet() throws {
         let source = """
