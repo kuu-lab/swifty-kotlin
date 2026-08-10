@@ -6,125 +6,80 @@ import Testing
 /// REFL-003: Tests for KFunction / KProperty type identity on callable references.
 @Suite
 struct CallableRefTypeIdentityTests {
-    // MARK: - Sema binding tests
-
-    @Test func testSemaBindsFunctionRefKindForCallableReference() throws {
-        let source = """
-        fun inc(x: Int): Int = x + 1
-        fun main() {
-            val f = ::inc
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
-            if case .callableRef = expr { return true }
-            return false
-        })
-
-        let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        #expect(refKind == .functionRef, "::inc should be marked as a function reference.")
-    }
-
-    @Test func testSemaBindsPropertyRefKindForPropertyCallableReference() throws {
-        let source = """
-        val answer: Int = 42
-        fun main() {
-            val ref = ::answer
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
-            if case .callableRef = expr { return true }
-            return false
-        })
-
-        let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        #expect(refKind == .propertyRef, "::answer should be marked as a property reference.")
-    }
-
-    @Test func testSemaBindsFunctionRefKindForBoundCallableReference() throws {
-        let source = """
-        class Box {
-            fun value(): Int = 42
-        }
-        fun main(box: Box) {
-            val f = box::value
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
-            if case .callableRef = expr { return true }
-            return false
-        })
-
-        let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        #expect(refKind == .functionRef, "box::value should be marked as a function reference.")
-    }
-
-    @Test func testSemaBindsFunctionRefKindForOverloadedCallableReference() throws {
-        let source = """
-        fun target(x: Int): Int = x + 1
-        fun target(x: String): String = x
-        fun main() {
-            val ref: (Int) -> Int = ::target
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
-            if case .callableRef = expr { return true }
-            return false
-        })
-
-        let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        #expect(refKind == .functionRef, "Overloaded ::target should be marked as a function reference.")
-    }
-
-    // MARK: - KIR lowering tests
-
-    @Test func testCallableRefKIREmissions() throws {
+    @Test func testCallableRefTypeIdentity() throws {
         let sources: [String] = [
-            // KFunction tag for function callable ref
+            // 0: Sema: function reference
             """
+            package sample0
+            fun inc(x: Int): Int = x + 1
+            fun host0() {
+                val f = ::inc
+            }
+            """,
+
+            // 1: Sema: property reference
+            """
+            package sample1
+            val answer: Int = 42
+            fun host1() {
+                val ref = ::answer
+            }
+            """,
+
+            // 2: Sema: bound callable reference
+            """
+            package sample2
+            class Box {
+                fun value(): Int = 42
+            }
+            fun host2(box: Box) {
+                val f = box::value
+            }
+            """,
+
+            // 3: Sema: overloaded callable reference
+            """
+            package sample3
+            fun target(x: Int): Int = x + 1
+            fun target(x: String): String = x
+            fun host3() {
+                val ref: (Int) -> Int = ::target
+            }
+            """,
+
+            // 4: KIR: KFunction tag for function callable ref
+            """
+            package sample4
             fun inc1(x: Int): Int = x + 1
             fun main1(): Int {
                 val f = ::inc1
                 return f(2)
             }
             """,
-            // KProperty tag for property callable ref
+
+            // 5: KIR: KProperty tag for property callable ref
             """
+            package sample5
             val answerProp: Int = 42
             fun main2(): Int {
                 val ref = ::answerProp
                 return answerProp
             }
             """,
-            // KFunction tag name and arity
+
+            // 6: KIR: KFunction tag name and arity
             """
+            package sample6
             fun add(a: Int, b: Int): Int = a + b
             fun main3(): Int {
                 val f = ::add
                 return f(1, 2)
             }
             """,
-            // Bound callable ref
+
+            // 7: KIR: bound callable ref
             """
+            package sample7
             class Box {
                 fun plus(x: Int): Int = x
             }
@@ -133,8 +88,10 @@ struct CallableRefTypeIdentityTests {
                 return f(7)
             }
             """,
-            // Non-throwing tag call
+
+            // 8: KIR: non-throwing tag call
             """
+            package sample8
             fun inc5(x: Int): Int = x + 1
             fun main5(): Int {
                 val f = ::inc5
@@ -147,20 +104,77 @@ struct CallableRefTypeIdentityTests {
             let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToKIR(ctx)
 
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let module = try #require(ctx.kir)
+            let interner = ctx.interner
 
+            let sourceFileIDs = try paths.map { path in
+                try #require(ctx.sourceManager.fileID(forPath: path))
+            }
+
+            // 0: function reference
             do {
-                let mainBody = try findKIRFunctionBody(named: "main1", in: module, interner: ctx.interner)
-                let callees = extractCallees(from: mainBody, interner: ctx.interner)
+                let sourceFileID = sourceFileIDs[0]
+                let callableRefExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else { return false }
+                    if case .callableRef = expr { return true }
+                    return false
+                })
+                let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
+                #expect(refKind == .functionRef, "::inc should be marked as a function reference.")
+            }
+
+            // 1: property reference
+            do {
+                let sourceFileID = sourceFileIDs[1]
+                let callableRefExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else { return false }
+                    if case .callableRef = expr { return true }
+                    return false
+                })
+                let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
+                #expect(refKind == .propertyRef, "::answer should be marked as a property reference.")
+            }
+
+            // 2: bound callable reference
+            do {
+                let sourceFileID = sourceFileIDs[2]
+                let callableRefExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else { return false }
+                    if case .callableRef = expr { return true }
+                    return false
+                })
+                let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
+                #expect(refKind == .functionRef, "box::value should be marked as a function reference.")
+            }
+
+            // 3: overloaded callable reference
+            do {
+                let sourceFileID = sourceFileIDs[3]
+                let callableRefExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else { return false }
+                    if case .callableRef = expr { return true }
+                    return false
+                })
+                let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
+                #expect(refKind == .functionRef, "Overloaded ::target should be marked as a function reference.")
+            }
+
+            // 4: KFunction tag
+            do {
+                let mainBody = try findKIRFunctionBody(named: "main1", in: module, interner: interner)
+                let callees = extractCallees(from: mainBody, interner: interner)
                 #expect(
                     callees.contains("kk_callable_ref_tag_kfunction"),
                     "KIR main1 body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
                 )
             }
 
+            // 5: KProperty tag
             do {
-                let mainBody = try findKIRFunctionBody(named: "main2", in: module, interner: ctx.interner)
-                let callees = extractCallees(from: mainBody, interner: ctx.interner)
+                let mainBody = try findKIRFunctionBody(named: "main2", in: module, interner: interner)
+                let callees = extractCallees(from: mainBody, interner: interner)
                 #expect(
                     callees.contains("kk_callable_ref_tag_kproperty"),
                     "Property callable ref should be tagged as KProperty. Callees: \(callees)"
@@ -171,8 +185,9 @@ struct CallableRefTypeIdentityTests {
                 )
             }
 
+            // 6: name and arity
             do {
-                let mainBody = try findKIRFunctionBody(named: "main3", in: module, interner: ctx.interner)
+                let mainBody = try findKIRFunctionBody(named: "main3", in: module, interner: interner)
                 let tagCall = mainBody.first { instruction in
                     guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                     return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
@@ -209,17 +224,19 @@ struct CallableRefTypeIdentityTests {
                 }
             }
 
+            // 7: bound callable ref
             do {
-                let mainBody = try findKIRFunctionBody(named: "main4", in: module, interner: ctx.interner)
-                let callees = extractCallees(from: mainBody, interner: ctx.interner)
+                let mainBody = try findKIRFunctionBody(named: "main4", in: module, interner: interner)
+                let callees = extractCallees(from: mainBody, interner: interner)
                 #expect(
                     callees.contains("kk_callable_ref_tag_kfunction"),
                     "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
                 )
             }
 
+            // 8: non-throwing tag call
             do {
-                let mainBody = try findKIRFunctionBody(named: "main5", in: module, interner: ctx.interner)
+                let mainBody = try findKIRFunctionBody(named: "main5", in: module, interner: interner)
                 let tagCall = mainBody.first { instruction in
                     guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                     return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
@@ -228,7 +245,7 @@ struct CallableRefTypeIdentityTests {
                     Issue.record("Expected kk_callable_ref_tag_kfunction call in main5 body.")
                     return
                 }
-                #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
+                #expect(!canThrow, "Callable ref tagging call should be non-throwing.")
             }
         }
     }
