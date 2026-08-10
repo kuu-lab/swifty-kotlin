@@ -2427,16 +2427,27 @@ extension ExprLowerer {
                 let componentName = interner.intern("component\(componentIndex)")
 
                 // Resolve componentN to externalLinkName when available (Pair, Triple, List, etc.)
-                let resolved = resolveDestructuringComponentCallee(
-                    componentName: componentName,
+                let memberCandidates = TypeCheckHelpers().collectMemberFunctionCandidates(
+                    named: componentName,
                     receiverType: nonNullRhsType,
-                    preferredSymbol: sema.bindings.destructuringComponentCallee(
-                        for: exprID,
-                        index: index
-                    ),
                     sema: sema,
                     interner: interner
                 )
+                // Sema's chosen callee wins: `componentN` is an overloaded name across
+                // Pair/Triple, user extensions and bundled stdlib extensions, so the
+                // symbol has to travel to codegen instead of being re-resolved by name.
+                let chosenCallee = sema.bindings.destructuringComponentCallee(
+                    for: exprID,
+                    index: index
+                ) ?? memberCandidates.first
+                let calleeName: InternedString = if let chosenCallee,
+                                                    let linkName = sema.symbols.externalLinkName(for: chosenCallee),
+                                                    !linkName.isEmpty
+                {
+                    interner.intern(linkName)
+                } else {
+                    componentName
+                }
 
                 // Look up the symbol defined by Sema for this variable first,
                 // so we can use its per-component type (not the expression-level Unit type)
@@ -2446,13 +2457,17 @@ extension ExprLowerer {
                 ])
                 let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
                 let componentResult = arena.appendTemporary(type: componentType)
-                emitNonThrowingCall(
-                    callee: resolved.callee,
-                    arg: rhsID,
+                let calleeSymbol: SymbolID? = chosenCallee.flatMap { callee in
+                    sema.symbols.isSourceBackedSymbol(callee) ? callee : nil
+                }
+                instructions.append(.call(
+                    symbol: calleeSymbol,
+                    callee: calleeName,
+                    arguments: [rhsID],
                     result: componentResult,
-                    symbol: resolved.symbol,
-                    into: &instructions
-                )
+                    canThrow: false,
+                    thrownResult: nil
+                ))
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {

@@ -1116,7 +1116,10 @@ extension DataFlowSemaPhase {
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
         case "__bundled_kotlin/Tuples.kt":
-            [["kotlin", "Pair"], ["kotlin", "Triple"]]
+            [
+                ["kotlin", "Pair"],
+                ["kotlin", "Triple"],
+            ]
         case "__bundled_kotlin/ranges/Ranges.kt":
             [
                 ["kotlin", "ranges", "ClosedRange"],
