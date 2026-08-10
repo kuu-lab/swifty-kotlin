@@ -12,6 +12,8 @@ package struct MetadataRecord {
     package let isSuspend: Bool
     package let isInline: Bool
     package let isOperator: Bool
+    /// Whether the member overrides a supertype member (`override` keyword).
+    package let isOverride: Bool
     let typeSignature: String?
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
@@ -91,6 +93,7 @@ package struct MetadataRecord {
         isSuspend: Bool = false,
         isInline: Bool = false,
         isOperator: Bool = false,
+        isOverride: Bool = false,
         typeSignature: String? = nil,
         valueParameterIsVararg: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -133,6 +136,7 @@ package struct MetadataRecord {
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isOperator = isOperator
+        self.isOverride = isOverride
         self.typeSignature = typeSignature
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -263,7 +267,12 @@ package final class MetadataEncoder {
                 }
                 // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
                 // These are compiler internals and are always re-injected on every compilation.
+                // Source-backed nominal types that reuse a synthetic shell carry a sourceFileID
+                // but leave declSite nil, so also filter by the tracked source file ID.
                 if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
+                    return false
+                }
+                if let sourceFileID = symbols.sourceFileID(for: symbol.id), excludeSourceFileIDs.contains(sourceFileID.rawValue) {
                     return false
                 }
                 return true
@@ -542,6 +551,7 @@ package final class MetadataEncoder {
         var isSuspend = false
         var isInline = false
         var isOperator = false
+        var isOverride = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -560,6 +570,7 @@ package final class MetadataEncoder {
             // no KIR body, and those must not try to load a missing inline-kir file.
             isInline = inlineFunctionSymbols.contains(symbol.id)
             isOperator = symbol.flags.contains(.operatorFunction)
+            isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
             valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
             canThrow = signature.canThrow
@@ -758,6 +769,7 @@ package final class MetadataEncoder {
             isSuspend: isSuspend,
             isInline: isInline,
             isOperator: isOperator,
+            isOverride: isOverride,
             typeSignature: typeSignature,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -820,6 +832,9 @@ package final class MetadataEncoder {
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
                 fields.append("inline=\(record.isInline ? 1 : 0)")
                 fields.append("operator=\(record.isOperator ? 1 : 0)")
+                if record.isOverride {
+                    fields.append("override=1")
+                }
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
@@ -1153,6 +1168,7 @@ final class MetadataDecoder {
                 isSuspend: rec.isSuspend,
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
+                isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1201,6 +1217,7 @@ final class MetadataDecoder {
         var isSuspend: Bool = false
         var isInline: Bool = false
         var isOperator: Bool = false
+        var isOverride: Bool = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -1250,6 +1267,8 @@ final class MetadataDecoder {
             record.isInline = value == "1" || value == "true"
         case "operator":
             record.isOperator = value == "1" || value == "true"
+        case "override":
+            record.isOverride = value == "1" || value == "true"
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "default":

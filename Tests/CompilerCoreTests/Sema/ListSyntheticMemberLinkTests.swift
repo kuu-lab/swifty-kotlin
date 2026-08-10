@@ -1365,7 +1365,11 @@ struct ListSyntheticMemberLinkTests {
             let abstractCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractCollectionFQName))
             let abstractCollectionInfo = try #require(sema.symbols.symbol(abstractCollectionSymbol))
             #expect(abstractCollectionInfo.kind == .class)
-            #expect(abstractCollectionInfo.flags.contains(.synthetic))
+            // KSP-633: `kotlin.collections.AbstractCollection` is source-backed by
+            // `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractCollection.kt`. The
+            // source declaration reuses the synthetic shell symbol on bundle load and
+            // clears the `.synthetic` flag.
+            #expect(!abstractCollectionInfo.flags.contains(.synthetic))
             #expect(abstractCollectionInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractCollectionSymbol) == [.out])
 
@@ -1404,6 +1408,68 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             #expect(!(ctx.diagnostics.hasError), "Expected AbstractCollection subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    /// KSP-633: the source-backed skeletal classes declare `size` / `iterator` / `add` as
+    /// abstract members, so a concrete subclass overriding them has to type-check.
+    @Test
+    func testSourceBackedAbstractCollectionsAllowConcreteSubclasses() throws {
+        let source = """
+        import kotlin.collections.AbstractCollection
+        import kotlin.collections.AbstractMutableCollection
+        import kotlin.collections.Collection
+        import kotlin.collections.Iterator
+        import kotlin.collections.MutableCollection
+        import kotlin.collections.MutableIterable
+        import kotlin.collections.MutableIterator
+
+        class EvenNumbers(private val limit: Int) : AbstractCollection<Int>() {
+            override val size: Int
+                get() = (limit + 1) / 2
+
+            override fun iterator(): Iterator<Int> = ArrayList<Int>().iterator()
+        }
+
+        class EmptyIntIterator : MutableIterator<Int> {
+            override fun hasNext(): Boolean = false
+
+            override fun next(): Int = 0
+
+            override fun remove() {}
+        }
+
+        class IntBag : AbstractMutableCollection<Int>() {
+            private val items = ArrayList<Int>()
+
+            override val size: Int
+                get() = items.size
+
+            override fun add(element: Int): Boolean = items.add(element)
+
+            override fun iterator(): MutableIterator<Int> = EmptyIntIterator()
+        }
+
+        class Countdown : MutableIterable<Int> {
+            override fun iterator(): MutableIterator<Int> = EmptyIntIterator()
+        }
+
+        fun acceptReadonly(values: Collection<Int>) {}
+        fun acceptMutable(values: MutableCollection<Int>) {}
+        fun acceptIterable(values: MutableIterable<Int>) {}
+
+        fun probe(numbers: EvenNumbers, bag: IntBag, countdown: Countdown) {
+            acceptReadonly(numbers)
+            acceptMutable(bag)
+            acceptIterable(countdown)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected concrete subclasses of the source-backed skeletal collections to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1613,7 +1679,9 @@ struct ListSyntheticMemberLinkTests {
             let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))
             let abstractMutableCollectionInfo = try #require(sema.symbols.symbol(abstractMutableCollectionSymbol))
             #expect(abstractMutableCollectionInfo.kind == .class)
-            #expect(abstractMutableCollectionInfo.flags.contains(.synthetic))
+            // KSP-633: `kotlin.collections.AbstractMutableCollection` is source-backed by
+            // `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMutableCollection.kt`.
+            #expect(!abstractMutableCollectionInfo.flags.contains(.synthetic))
             #expect(abstractMutableCollectionInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableCollectionSymbol) == [.invariant])
 
@@ -1745,7 +1813,10 @@ struct ListSyntheticMemberLinkTests {
         import kotlin.collections.Set
         import kotlin.collections.MutableSet
 
-        class ProbeMutableSet : AbstractMutableSet<Int>()
+        // KSP-633: `AbstractCollection` / `AbstractMutableCollection` are source-backed and
+        // declare `size` / `iterator` / `add` as abstract members, so (like kotlinc) a
+        // concrete subclass has to implement them — the probe stays abstract.
+        abstract class ProbeMutableSet : AbstractMutableSet<Int>()
 
         fun acceptReadonly(values: Set<Int>) {}
         fun acceptMutable(values: MutableSet<Int>) {}
@@ -1862,7 +1933,9 @@ struct ListSyntheticMemberLinkTests {
             let mutableIterableSymbol = try #require(sema.symbols.lookup(fqName: mutableIterableFQName))
             let mutableIterableInfo = try #require(sema.symbols.symbol(mutableIterableSymbol))
             #expect(mutableIterableInfo.kind == .interface)
-            #expect(mutableIterableInfo.flags.contains(.synthetic))
+            // KSP-633: `kotlin.collections.MutableIterable` is source-backed by
+            // `Sources/CompilerCore/Stdlib/kotlin/collections/MutableIterable.kt`.
+            #expect(!mutableIterableInfo.flags.contains(.synthetic))
             #expect(sema.types.nominalTypeParameterVariances(for: mutableIterableSymbol) == [.out])
             #expect(sema.symbols.directSupertypes(for: mutableIterableSymbol).contains(iterableSymbol))
             #expect(sema.types.directNominalSupertypes(for: mutableIterableSymbol).contains(iterableSymbol))
