@@ -346,7 +346,7 @@ public func kk_list_joinToString_transform(
     return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
 }
 
-@_cdecl("kk_iterable_joinTo")
+@_cdecl("__kk_iterable_joinTo")
 public func kk_iterable_joinTo(
     _ iterableRaw: Int,
     _ destinationRaw: Int,
@@ -367,7 +367,7 @@ public func kk_iterable_joinTo(
     return __kk_string_builder_append_obj(destinationRaw, Int(bitPattern: stringRaw))
 }
 
-@_cdecl("kk_iterable_joinToString")
+@_cdecl("__kk_iterable_joinToString")
 public func kk_iterable_joinToString(
     _ iterableRaw: Int,
     _ separatorRaw: Int,
@@ -386,7 +386,7 @@ public func kk_iterable_joinToString(
     }
 }
 
-@_cdecl("kk_iterable_joinToString_transform")
+@_cdecl("__kk_iterable_joinToString_transform")
 public func kk_iterable_joinToString_transform(
     _ iterableRaw: Int,
     _ separatorRaw: Int,
@@ -546,7 +546,7 @@ public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: In
     return kk_box_bool(0)
 }
 
-@_cdecl("kk_collection_toCollection")
+@_cdecl("__kk_collection_toCollection")
 public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
     guard let elements = runtimeCollectionElements(from: collRaw) else {
         invalidContainerPanic(#function, "collection")
@@ -1164,32 +1164,10 @@ public func kk_list_orEmpty(_ listRaw: Int) -> Int {
     return listRaw
 }
 
-// MARK: - STDLIB-532: Map?.orEmpty()
-
-/// Cached singleton handle for the empty map, allocated once on first use.
-private let cachedEmptyMapHandle: Int = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-
-@_cdecl("kk_map_orEmpty")
-public func kk_map_orEmpty(_ mapRaw: Int) -> Int {
-    if mapRaw == runtimeNullSentinelInt || mapRaw == 0 {
-        return cachedEmptyMapHandle
-    }
-    return mapRaw
-}
-
 // MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)
 
-/// Generic `Iterable<T>.toMutableList()` that accepts any collection handle (List, Set, etc.).
-@_cdecl("kk_iterable_toMutableList")
-public func kk_iterable_toMutableList(_ iterableRaw: Int) -> Int {
-    if let values = runtimeIterableValues(from: iterableRaw) {
-        return registerRuntimeObject(RuntimeListBox(values: values))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: []))
-}
-
 /// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).
-@_cdecl("kk_iterable_toMutableSet")
+@_cdecl("__kk_iterable_toMutableSet")
 public func kk_iterable_toMutableSet(_ iterableRaw: Int) -> Int {
     if let values = runtimeIterableValues(from: iterableRaw) {
         return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
@@ -1197,18 +1175,8 @@ public func kk_iterable_toMutableSet(_ iterableRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []))
 }
 
-/// Generic `Iterable<T>.toHashSet()` that accepts any collection handle (List, Set, etc.).
-/// Semantically equivalent to toMutableSet() at the runtime level.
-@_cdecl("kk_iterable_toHashSet")
-public func kk_iterable_toHashSet(_ iterableRaw: Int) -> Int {
-    if let values = runtimeIterableValues(from: iterableRaw) {
-        return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: []))
-}
-
 /// Generic `Iterable<T>.last()` that accepts any collection handle (List, Set, etc.).
-@_cdecl("kk_iterable_last")
+@_cdecl("__kk_iterable_last")
 public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let values = runtimeIterableValues(from: iterableRaw) ?? []
@@ -1219,46 +1187,21 @@ public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePoint
     return last.legacyRawValue
 }
 
-/// Generic `Collection<T>.toMutableList()` that accepts any collection handle (List, Set, etc.).
-@_cdecl("kk_collection_toMutableList")
+/// Generic `Collection<T>.toMutableList()` that accepts any collection handle
+/// (List, Set, Array, and the generic iterable handles such as
+/// `String.asIterable()`).
+@_cdecl("__kk_collection_toMutableList")
 public func kk_collection_toMutableList(_ collRaw: Int) -> Int {
-    if let values = runtimeCollectionOrArrayValues(from: collRaw) {
+    if let values = runtimeCollectionOrArrayValues(from: collRaw) ?? runtimeIterableValues(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(values: values))
     }
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
-@_cdecl("kk_collection_toTypedArray")
+@_cdecl("__kk_collection_toTypedArray")
 public func kk_collection_toTypedArray(_ collRaw: Int) -> Int {
-    let values = runtimeCollectionOrArrayValues(from: collRaw) ?? []
+    let values = runtimeCollectionOrArrayValues(from: collRaw) ?? runtimeIterableValues(from: collRaw) ?? []
     let box = RuntimeArrayBox(length: values.count)
     box.values = values
     return registerRuntimeObject(box)
-}
-
-/// Generic `Iterable.asSequence()` that accepts any collection handle (List, Set, etc.).
-/// Falls back to fatalError only when the handle is truly unrecognized.
-@_cdecl("kk_iterable_asSequence")
-public func kk_iterable_asSequence(_ iterableRaw: Int) -> Int {
-    if let list = runtimeListBox(from: iterableRaw) {
-        let seq = RuntimeSequenceBox(steps: [.valueSource(values: list.values)])
-        return registerRuntimeObject(seq)
-    }
-    if let set = runtimeSetBox(from: iterableRaw) {
-        let seq = RuntimeSequenceBox(steps: [.valueSource(values: set.values)])
-        return registerRuntimeObject(seq)
-    }
-    if let elements = runtimeCollectionElements(from: iterableRaw) {
-        let seq = RuntimeSequenceBox(steps: [.source(elements: elements)])
-        return registerRuntimeObject(seq)
-    }
-    if let array = runtimeArrayBox(from: iterableRaw) {
-        let seq = RuntimeSequenceBox(steps: [.valueSource(values: array.values)])
-        return registerRuntimeObject(seq)
-    }
-    if let values = runtimeIterableValues(from: iterableRaw) {
-        let seq = RuntimeSequenceBox(steps: [.valueSource(values: values)])
-        return registerRuntimeObject(seq)
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid iterable handle in kk_iterable_asSequence")
 }

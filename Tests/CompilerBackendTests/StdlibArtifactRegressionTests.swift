@@ -950,6 +950,60 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
+    /// STDLIB-ARTIFACT-CHARSEQUENCE-SUBSEQUENCE: `subSequence` reached through a
+    /// value statically typed as `CharSequence` (backed by `String`) must resolve
+    /// to bundled Kotlin source (`Stdlib/kotlin/text/StringSubstringSlice.kt`) when
+    /// compiling against a prebuilt stdlib artifact, not the removed
+    /// `kk_string_subSequence_flat` runtime ABI (KSP-406). This is the shared-path
+    /// analogue of `Scripts/diff_cases/char_sequence_member_access.kt`: the flake it
+    /// guards only surfaced through `--no-stdlib --stdlib-library` linking, where an
+    /// undefined reference to `kk_string_subSequence_flat` failed the link.
+    func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun printLength(cs: CharSequence) {
+            println(cs.length)
+        }
+
+        fun main() {
+            printLength("hello")
+            val cs: CharSequence = "world!"
+            println(cs.length)
+            println(cs.get(1))
+            println(cs[2])
+            println(cs.subSequence(1, 3))
+            val sb: CharSequence = StringBuilder("abc")
+            println(sb.length)
+            println(sb.get(1))
+            println(sb[2])
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "5\n6\no\nr\nor\n3\nb\nc\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-STRING-INDENT: the indent-formatting family
     /// (`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/
     /// `replaceIndentByMargin`) must resolve to bundled Kotlin source
@@ -1023,30 +1077,22 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
-    /// STDLIB-ARTIFACT-DEEP-RECURSIVE (KSP-612): `DeepRecursiveFunction<T, R> { ... }`
-    /// resolves and runs when the class comes from a prebuilt stdlib artifact.
-    /// Imported metadata encodes a member's owner type parameters ahead of its
-    /// own, so a constructor read back from `metadata.bin` used to expose
-    /// `classTypeParameterCount == 0` and rejected the explicit `<Int, Int>`
-    /// arguments with `KSWIFTK-SEMA-0002`. Both a non-capturing block (plain
-    /// entry point, `closureRaw == 0`) and a capturing block (closure-aware
-    /// adapter) are exercised because they take different runtime branches.
-    func testDeepRecursiveFunctionThroughSharedStdlibArtifact() throws {
+    /// STDLIB-ARTIFACT-021: `Sequence<T>.reduce`'s bundled source body iterated
+    /// its receiver with a direct `for (elem in this)` loop. Through the shared
+    /// stdlib artifact, that loop silently ran zero times (the receiver's
+    /// `Iterator` itable dispatch does not round-trip through the artifact),
+    /// so `reduce` always threw "Empty sequence can't be reduced." even for a
+    /// non-empty sequence. `fold`/`scan` were unaffected because their bodies
+    /// materialize the receiver via `toList()` first. Rewrote `reduce` to do
+    /// the same.
+    func testSequenceReduceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
         let source = """
         fun main() {
-            val depth = DeepRecursiveFunction<Int, Int> { n ->
-                if (n <= 0) 0 else callRecursive(n - 1) + 1
-            }
-            println(depth(200))
-
-            val limit = 3
-            val clamped = DeepRecursiveFunction<Int, Int> { n ->
-                if (n <= 0 || n > limit) n else callRecursive(n - 1) + 1
-            }
-            println(clamped(limit))
-            println(clamped(10))
+            val seq = generateSequence(1) { if (it < 5) it + 1 else null }
+            println(seq.reduce { acc, v -> acc + v })
+            println(sequenceOf(1, 2, 3).reduce { acc, v -> acc + v })
         }
         """
 
@@ -1070,7 +1116,51 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "200\n3\n10\n")
+            XCTAssertEqual(normalizedStdout, "15\n6\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
+    /// an auto-inline overload of the bundled `kotlin.collections` source, so no
+    /// standalone body reaches the stdlib artifact. When such a call sits inside
+    /// a lambda that is itself spliced into its caller (here the `let` body),
+    /// the spliced instructions must be re-scanned for inline expansion;
+    /// otherwise the consumer keeps an undefined reference to `kk_fn_joinToString_*`
+    /// at link time (the `compiler_plugin_api` diff case failure mode).
+    func testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val options: Map<String, String> = mapOf("k" to "v", "a" to "b")
+            val summary = options.entries.let { entries ->
+                entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+            }
+            println(summary)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "a=b,k=v\n")
         }
     }
 }

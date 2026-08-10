@@ -35,7 +35,6 @@ extension CallTypeChecker {
         }
 
         let receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
-
         if let result = tryInferMemberCallEarlyReceiverSpecials(
             request,
             receiverType: receiverType,

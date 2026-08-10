@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendRangeHOFTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenIntRangeMapIndexed() throws {
         let source = """
         fun main() {
@@ -13,28 +75,19 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntRangeMapIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeMapIndexed",
+            expected:
                 """
                 [1, 3, 5, 7]
                 [1]
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 
+    @Test
     func testCodegenIntRangeMapNotNull() throws {
         let source = """
         fun main() {
@@ -44,28 +97,19 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntRangeMapNotNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeMapNotNull",
+            expected:
                 """
                 [1, 3, 5]
                 []
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 
+    @Test
     func testCodegenIntRangeFilterIndexed() throws {
         let source = """
         fun main() {
@@ -75,28 +119,19 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntRangeFilterIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeFilterIndexed",
+            expected:
                 """
                 [1, 3]
                 [10, 12, 13]
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 
+    @Test
     func testCodegenIntRangeFindLast() throws {
         let source = """
         fun main() {
@@ -107,29 +142,20 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntRangeFindLast",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeFindLast",
+            expected:
                 """
                 6
                 null
                 null
                 3
                 """ + "\n"
-            )
-        }
+        )
     }
 
+    @Test
     func testCodegenIntRangeReduceIndexed() throws {
         // reduceIndexed starts with acc=first, then calls lambda with index starting at 1.
         // (1..4): acc=1, (idx=1,acc=1,val=2)→4, (idx=2,acc=4,val=3)→9, (idx=3,acc=9,val=4)→16
@@ -141,27 +167,18 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntRangeReduceIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeReduceIndexed",
+            expected:
                 """
                 16
                 5
                 """ + "\n"
-            )
-        }
+        )
     }
 
+    @Test
     func testCodegenIntRangeMapIndexedOnDescendingProgression() throws {
         // (5 downTo 3) = [5,4,3]; mapIndexed {index+value} = [0+5,1+4,2+3] = [5,5,5]
         let source = """
@@ -170,24 +187,14 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntRangeMapIndexedDescending",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
-                "[5, 5, 5]\n"
-            )
-        }
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeMapIndexedDescending",
+            expected: "[5, 5, 5]\n"
+        )
     }
 
+    @Test
     func testCodegenLongRangeHOFExecution() throws {
         let source = """
         fun main() {
@@ -218,19 +225,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "LongRangeHOFExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+        try assertKotlinOutput(
+            source,
+            moduleName: "LongRangeHOFExecution",
+            expected:
                 """
                 [1, 3, 5, 7]
                 [1]
@@ -252,8 +250,7 @@ extension CodegenBackendIntegrationTests {
                 [5, 5, 5]
                 2.5
                 """ + "\n"
-            )
-        }
+        )
     }
 }
-
+#endif

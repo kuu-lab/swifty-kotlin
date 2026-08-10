@@ -166,9 +166,20 @@ final class LambdaLowerer {
             }
             return types
         }()
-        let lambdaReturnType = functionType?.returnType
+        let substitutedReturnType = functionType?.returnType
             ?? sema.bindings.exprTypes[bodyExpr]
             ?? sema.types.anyType
+        // A return the callee declares as a type parameter carries a boxed value
+        // at runtime even though the body is checked against the substituted
+        // concrete type, so box on the way out.
+        let returnsErasedGeneric = !needsClosureParam && !isSamConversion
+            && driver.ctx.lambdaReturnsErasedGeneric(for: exprID, ast: ast, sema: sema)
+        let lambdaReturnType = erasedLambdaReturnType(
+            substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            interner: interner
+        )
 
         let captureSymbols = computeCaptureSymbolsForLambda(
             lambdaExprID: exprID,
@@ -186,10 +197,12 @@ final class LambdaLowerer {
                 params: params,
                 bodyExpr: bodyExpr,
                 effectiveParamCount: effectiveParamCount,
+                hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
                 lambdaReturnType: lambdaReturnType,
+                substitutedReturnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
                 functionType: functionType,
-                needsExplicitReceiver: needsExplicitReceiver,
                 isSamConversion: isSamConversion,
                 boundType: boundType,
                 effectiveFuncTypeID: effectiveFuncTypeID,
@@ -368,8 +381,10 @@ final class LambdaLowerer {
         } else {
             params
         }
-        // Value parameters follow the closure param (if any) and the explicit
-        // receiver param (if any); names must not bind to either of those slots.
+        // Value parameters start after the closure environment parameter (HOF
+        // lambdas) and after the explicit receiver parameter (receiver lambdas
+        // such as `DeepRecursiveScope<T, R>.(T) -> R`); without the receiver
+        // offset a named parameter would alias the receiver slot.
         let valueParamStart = (needsClosureParam ? 1 : 0) + (needsExplicitReceiver ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
@@ -384,7 +399,16 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        lambdaBody.append(.returnValue(loweredBody))
+        let returnedBody = boxErasedReturnValue(
+            loweredBody,
+            returnType: substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
         // The expected/contextual function type (e.g. a plain `(T) -> R)` HOF
@@ -480,7 +504,6 @@ final class LambdaLowerer {
                 lambdaSymbol: lambdaSymbol,
                 lambdaReturnType: lambdaReturnType,
                 functionType: functionType,
-                valueTypes: lambdaParameterTypes,
                 captureArguments: captureArgs,
                 sema: sema,
                 arena: arena,
@@ -498,20 +521,22 @@ final class LambdaLowerer {
         lambdaSymbol: SymbolID,
         lambdaReturnType: TypeID,
         functionType: FunctionType,
-        valueTypes: [TypeID],
         captureArguments: [KIRExprID],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // The adapter forwards the parameters the lambda actually declares:
-        // a lambda with an explicit receiver slot (`Receiver.(T) -> R` lowered
-        // without an ambient implicit receiver) takes the receiver first, while
-        // a receiver lambda that captured its receiver takes only the declared
-        // value parameters.
+        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
+        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
+        // without dropping the receiver. Keep the raw lambda instead: call sites
+        // that consume such callables adapt them through
+        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
+        guard functionType.receiver == nil else {
+            return nil
+        }
         let createCallee: InternedString
-        switch valueTypes.count {
+        switch functionType.params.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -528,7 +553,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = valueTypes.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
@@ -1431,10 +1456,12 @@ final class LambdaLowerer {
         params: [InternedString],
         bodyExpr: ExprID,
         effectiveParamCount: Int,
+        hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
         lambdaReturnType: TypeID,
+        substitutedReturnType: TypeID,
+        returnsErasedGeneric: Bool,
         functionType: FunctionType?,
-        needsExplicitReceiver: Bool,
         isSamConversion: Bool,
         boundType: TypeID?,
         effectiveFuncTypeID: TypeID?,
@@ -1470,7 +1497,7 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
 
             // Handle receiver parameter if needed
-            if paramIndex == 0, needsExplicitReceiver {
+            if paramIndex == 0, hasExplicitReceiverParam {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
         }
@@ -1481,7 +1508,8 @@ final class LambdaLowerer {
         } else {
             params
         }
-        let valueParamStart = needsExplicitReceiver ? 1 : 0
+        // Named parameters follow the explicit receiver parameter, if any.
+        let valueParamStart = hasExplicitReceiverParam ? 1 : 0
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
@@ -1496,7 +1524,16 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        lambdaBody.append(.returnValue(loweredBody))
+        let returnedBody = boxErasedReturnValue(
+            loweredBody,
+            returnType: substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
         // See the matching comment in lowerLambdaLiteralExpr: the expected/
