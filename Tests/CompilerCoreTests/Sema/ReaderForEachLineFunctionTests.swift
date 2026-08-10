@@ -16,76 +16,86 @@ struct ReaderForEachLineFunctionTests {
 
     // MARK: - Direct forEachLine call resolves without errors
 
-    @Test func testBufferedReaderForEachLineResolves() throws {
-        let source = """
-        import java.io.File
+    @Test func testMergedRunToKIR() throws {
+        let sources: [String] = [
+            """
+            package sample0
 
-        fun main() {
-            val reader = File("/dev/null").bufferedReader()
-            reader.forEachLine { line ->
-                println(line)
-            }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+                    import java.io.File
+
+                    fun sample0() {
+                        val reader = File("/dev/null").bufferedReader()
+                        reader.forEachLine { line ->
+                            println(line)
+                        }
+                    }
+
+            """,
+            """
+            package sample1
+
+                    import java.io.File
+
+                    fun sample1() {
+                        val reader = File("/tmp/test.txt").bufferedReader()
+                        reader.forEachLine { line ->
+                            val len: Int = line.length
+                            println(len)
+                        }
+                    }
+
+            """,
+            """
+            package sample2
+
+                    import java.io.File
+
+                    fun processLines(file: File): Unit {
+                        val reader = file.bufferedReader()
+                        val result: Unit = reader.forEachLine { line ->
+                            println(line)
+                        }
+                        return result
+                    }
+
+                    fun sample2() {
+                        processLines(File("/dev/null"))
+                    }
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runToKIR(ctx)
+
+            do {
+                let samplePath = paths[0]
+                let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
+
             #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "BufferedReader.forEachLine should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+                !(sampleDiagnostics.contains(where: { $0.severity == .error })),
+                Comment(rawValue: "BufferedReader.forEachLine should resolve without errors: \(sampleDiagnostics.map(\.message))")
             )
-        }
-    }
-
-    // MARK: - Lambda parameter is typed as String
-
-    @Test func testBufferedReaderForEachLineLambdaParameterIsString() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val reader = File("/tmp/test.txt").bufferedReader()
-            reader.forEachLine { line ->
-                val len: Int = line.length
-                println(len)
             }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
+            do {
+                let samplePath = paths[1]
+                let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
+
             #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "forEachLine lambda parameter should be typed as String (line.length should resolve): \(ctx.diagnostics.diagnostics.map(\.message))")
+                !(sampleDiagnostics.contains(where: { $0.severity == .error })),
+                Comment(rawValue: "forEachLine lambda parameter should be typed as String (line.length should resolve): \(sampleDiagnostics.map(\.message))")
             )
-        }
-    }
-
-    // MARK: - Call returns Unit
-
-    @Test func testBufferedReaderForEachLineReturnsUnit() throws {
-        let source = """
-        import java.io.File
-
-        fun processLines(file: File): Unit {
-            val reader = file.bufferedReader()
-            val result: Unit = reader.forEachLine { line ->
-                println(line)
             }
-            return result
-        }
+            do {
+                let samplePath = paths[2]
+                let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
 
-        fun main() {
-            processLines(File("/dev/null"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
             #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "BufferedReader.forEachLine should return Unit: \(ctx.diagnostics.diagnostics.map(\.message))")
+                !(sampleDiagnostics.contains(where: { $0.severity == .error })),
+                Comment(rawValue: "BufferedReader.forEachLine should return Unit: \(sampleDiagnostics.map(\.message))")
             )
+            }
         }
     }
 }
