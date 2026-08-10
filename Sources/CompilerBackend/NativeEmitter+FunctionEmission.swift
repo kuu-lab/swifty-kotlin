@@ -1289,43 +1289,9 @@ extension NativeEmitter {
                 ),
                 // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
                 // (StringIndexOf.kt); no flat emission spec.
-                // KSP-410: count/any/all/none/find/findLast/partition are bundled
+                // KSP-410: count/any/all/none/find/findLast/partition and
+                // map/mapIndexed/mapNotNull/firstNotNullOf(OrNull) are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
-                "kk_string_map_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_map_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_mapIndexed_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_mapIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_mapNotNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_mapNotNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_firstNotNullOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstNotNullOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_firstNotNullOfOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_firstNotNullOfOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
                 // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
                 // reduceRightIndexedOrNull/reduceRightOrNull are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
@@ -1906,7 +1872,19 @@ extension NativeEmitter {
                case let .symbolRef(targetSymbol) = resultExpr,
                let globalPointer = globalVariables[targetSymbol]
             {
-                _ = bindings.buildStore(builder, value: storedValue, pointer: globalPointer)
+                // Global slots hold the runtime's raw i64 handle.  A flat
+                // string aggregate has to be bridged back first, otherwise the
+                // 32-byte struct is written over the slot and its neighbours.
+                var globalValue = storedValue
+                if isStringAggregateType(module.arena.exprType(result)),
+                   bindings.isAggregateStructValue(storedValue)
+                {
+                    globalValue = bridgeStringAggregateToRuntimeRaw(
+                        storedValue,
+                        suffix: "store_result_global_\(result.rawValue)"
+                    ) ?? storedValue
+                }
+                _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
             }
             if let alloca = copyTargetAllocas[result.rawValue] {
                 _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)

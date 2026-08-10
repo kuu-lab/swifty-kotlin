@@ -69,13 +69,19 @@ extension KIRLoweringDriver {
         body: [KIRInstruction],
         inits: KIRLoweringEmitContext
     ) -> [KIRInstruction] {
+        // The initializers were lowered under their own function scopes, so
+        // their labels restart from the same base as `main`'s own body.
+        let relocatedInits = KIRLabelRelocation.relocatingLabels(
+            of: inits.instructions,
+            toAvoidCollisionsWith: body
+        )
         var newBody: KIRLoweringEmitContext = []
         if let first = body.first, case .beginBlock = first {
             newBody.append(first)
-            newBody.append(contentsOf: inits)
+            newBody.append(contentsOf: relocatedInits)
             newBody.append(contentsOf: body.dropFirst())
         } else {
-            newBody.append(contentsOf: inits)
+            newBody.append(contentsOf: relocatedInits)
             newBody.append(contentsOf: body)
         }
         return newBody.instructions

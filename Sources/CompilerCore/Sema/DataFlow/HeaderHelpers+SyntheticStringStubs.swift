@@ -804,10 +804,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BUG-185: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
+        // BUG-173: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
         // Regex): Boolean`. This stub previously omitted the operator flag (defaulting to plain
         // `[.synthetic]`); corrected here to match. Note `regex in "text"` still does not resolve
-        // correctly via the `in` operator even with this flag set — see BUG-185 in TODO.md for the
+        // correctly via the `in` operator even with this flag set — see BUG-173 in TODO.md for the
         // deeper (still open) candidate-discovery gap in `inferContainsCallBinding`. Direct calls
         // (`"text".contains(regex)`) are unaffected and work correctly either way.
         registerSyntheticStringExtensionFunction(
@@ -1107,190 +1107,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // KSP-410: filterIndexed/onEachIndexed and the whole reduce/fold
-        // family are bundled Kotlin source (StringHOF.kt); no synthetic
-        // stub registration.
-        // BUG-175: mapNotNull/firstNotNullOf/firstNotNullOfOrNull stay as
-        // synthetic stubs (see TODO.md BUG-175).
-        // BUG-176: map/mapIndexed also stay as synthetic stubs — a bundled
-        // `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns
-        // raw unboxed scalars instead of boxed elements whenever `R`
-        // resolves to `Char`/`Boolean` (see TODO.md BUG-176).
-        let charToNullableAnyType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: types.nullableAnyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticStringExtensionFunction(
-            named: "mapNotNull",
-            externalLinkName: "kk_string_mapNotNull",
-            receiverType: stringType,
-            parameters: [("transform", charToNullableAnyType, false, false)],
-            returnType: listAnyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let charToAnyType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticStringExtensionFunction(
-            named: "map",
-            externalLinkName: "kk_string_map",
-            receiverType: stringType,
-            parameters: [("transform", charToAnyType, false, false)],
-            returnType: types.anyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let intCharToAnyType = types.make(.functionType(FunctionType(
-            params: [intType, charType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticStringExtensionFunction(
-            named: "mapIndexed",
-            externalLinkName: "kk_string_mapIndexed",
-            receiverType: stringType,
-            parameters: [("transform", intCharToAnyType, false, false)],
-            returnType: listAnyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
-        let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
-        if !symbols.lookupAll(fqName: firstNotNullOfFQName).contains(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
-        }) {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: firstNotNullOfFQName + [rName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let transformType = types.make(.functionType(FunctionType(
-                params: [charType],
-                returnType: types.makeNullable(rType),
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("firstNotNullOf"),
-                fqName: firstNotNullOfFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
-            }
-            symbols.setExternalLinkName("kk_string_firstNotNullOf_flat", for: memberSymbol)
-
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: firstNotNullOfFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: charSequenceType,
-                    parameterTypes: [transformType],
-                    returnType: rType,
-                    valueParameterSymbols: [transformParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [rSymbol],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // --- STDLIB-TEXT-HOF-002: CharSequence.firstNotNullOfOrNull(transform) ---
-        let firstNotNullOfOrNullFQName = kotlinTextPkg + [interner.intern("firstNotNullOfOrNull")]
-        if !symbols.lookupAll(fqName: firstNotNullOfOrNullFQName).contains(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
-        }) {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: firstNotNullOfOrNullFQName + [rName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let nullableRType = types.makeNullable(rType)
-            let transformType = types.make(.functionType(FunctionType(
-                params: [charType],
-                returnType: nullableRType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("firstNotNullOfOrNull"),
-                fqName: firstNotNullOfOrNullFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
-            }
-            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull_flat", for: memberSymbol)
-
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: firstNotNullOfOrNullFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: charSequenceType,
-                    parameterTypes: [transformType],
-                    returnType: nullableRType,
-                    valueParameterSymbols: [transformParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [rSymbol],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
+        // KSP-410: map/mapIndexed/mapNotNull/firstNotNullOf(OrNull),
+        // filterIndexed/onEachIndexed and the whole reduce/fold family are
+        // bundled Kotlin source (StringHOF.kt); no synthetic stub registration.
 
         // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
         // (StringTakeDrop.kt).
