@@ -80,6 +80,62 @@ public fun String.filterNot(predicate: (Char) -> Boolean): String {
     return sb.toString()
 }
 
+public fun <R> CharSequence.map(transform: (Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = __kk_string_struct_get_length(this)
+    while (i < sz) {
+        result.add(transform(this[i]))
+        i++
+    }
+    return result
+}
+
+public fun <R> CharSequence.mapIndexed(transform: (Int, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = __kk_string_struct_get_length(this)
+    while (i < sz) {
+        result.add(transform(i, this[i]))
+        i++
+    }
+    return result
+}
+
+public fun <R : Any> CharSequence.mapNotNull(transform: (Char) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = __kk_string_struct_get_length(this)
+    while (i < sz) {
+        val transformed = transform(this[i])
+        if (transformed != null) result.add(transformed)
+        i++
+    }
+    return result
+}
+
+public fun <R : Any> CharSequence.firstNotNullOf(transform: (Char) -> R?): R {
+    var i = 0
+    val sz = __kk_string_struct_get_length(this)
+    while (i < sz) {
+        val transformed = transform(this[i])
+        if (transformed != null) return transformed
+        i++
+    }
+    throw NoSuchElementException("No element of the char sequence was transformed to a non-null value.")
+}
+
+public fun <R : Any> CharSequence.firstNotNullOfOrNull(transform: (Char) -> R?): R? {
+    var i = 0
+    val sz = __kk_string_struct_get_length(this)
+    while (i < sz) {
+        val transformed = transform(this[i])
+        if (transformed != null) return transformed
+        i++
+    }
+    return null
+}
+
 public fun CharSequence.any(predicate: (Char) -> Boolean): Boolean {
     var i = 0
     val sz = __kk_string_struct_get_length(this)

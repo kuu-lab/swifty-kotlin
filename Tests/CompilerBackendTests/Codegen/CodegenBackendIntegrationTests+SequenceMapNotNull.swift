@@ -79,8 +79,9 @@ struct CodegenBackendSequenceMapNotNullTests {
         try assertKotlinOutput(source, moduleName: "SequenceMapNotNullRuntime", expected: "[20, 40]\n")
     }
 
+    /// KSP-441: `mapNotNull` comes from the bundled Kotlin transform pipeline.
     @Test
-    func testCodegenSequenceMapNotNullUsesRuntimeHelper() throws {
+    func testCodegenSequenceMapNotNullUsesBundledSourceImplementation() throws {
         let source = """
         fun render(): Sequence<Int> {
             return sequenceOf(1, 2, 3, 4).mapNotNull {
@@ -93,15 +94,15 @@ struct CodegenBackendSequenceMapNotNullTests {
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "SequenceMapNotNullKIR",
-                emit: .kirDump,
-                includeStdlib: false
+                emit: .kirDump
             )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_sequence_mapNotNull"))
+            #expect(callees.contains("mapNotNull"))
+            #expect(!callees.contains("kk_sequence_mapNotNull"))
         }
     }
 }

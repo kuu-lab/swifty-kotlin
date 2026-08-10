@@ -4,16 +4,6 @@
 public extension RuntimeABISpec {
     static let durationFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_measureTime",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_duration_inWholeNanoseconds",
             parameters: [
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
@@ -72,16 +62,6 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_duration_infinite",
             parameters: [],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        // KSP-471: kept — CallLowerer+StdlibLoops.swift emits a direct call to this
-        // by name as the measureTime/measureTimedValue epilogue.
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_from_nanoseconds",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
             returnType: .intptr,
             section: "Duration"
         ),
@@ -176,16 +156,6 @@ public extension RuntimeABISpec {
             name: "kk_time_unit_to_duration_unit",
             parameters: [
                 RuntimeABIParameter(name: "timeUnitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_measureTimedValue",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Duration"

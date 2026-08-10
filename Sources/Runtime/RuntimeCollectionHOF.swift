@@ -242,60 +242,6 @@ public func kk_list_forEach(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
     return 0
 }
 
-@_cdecl("kk_map_getOrElse")
-public func kk_map_getOrElse(_ mapRaw: Int, _ key: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        invalidContainerPanic(#function, "map")
-    }
-    for (idx, mapKey) in map.keys.enumerated() where runtimeValuesEqual(mapKey, key) {
-        if idx < map.values.count { return map.values[idx] }
-        break
-    }
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    return result
-}
-
-@_cdecl("kk_mutable_map_getOrPut")
-public func kk_mutable_map_getOrPut(_ mapRaw: Int, _ key: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        invalidContainerPanic(#function, "map")
-    }
-    for (idx, mapKey) in map.keys.enumerated() where runtimeValuesEqual(mapKey, key) {
-        if idx < map.values.count {
-            let existing = map.values[idx]
-            if existing != runtimeNullSentinelInt {
-                return existing
-            }
-            var thrown = 0
-            let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-            if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-            map.values[idx] = result
-            return result
-        }
-        break
-    }
-
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    map.keys.append(key)
-    map.values.append(result)
-    return result
-}
-
-@_cdecl("kk_map_toList")
-public func kk_map_toList(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    var pairs: [Int] = []
-    pairs.reserveCapacity(min(map.keys.count, map.values.count))
-    for (key, value) in zip(map.keys, map.values) {
-        pairs.append(kk_pair_new(key, value))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: pairs))
-}
-
 @_cdecl("__kk_iterable_any")
 public func kk_iterable_any(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) ?? runtimeArrayBox(from: iterableRaw)?.elements else {
