@@ -75,8 +75,8 @@ struct NativeByteArraySetterSurfaceTests {
     @Test func testSignedByteArraySettersAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let expected: [(name: String, valueType: TypeID, linkName: String)] = [
-            ("setByteAt", sema.types.intType, "kk_native_byteArray_setByteAt"),
-            ("setShortAt", sema.types.intType, "kk_native_byteArray_setShortAt"),
+            ("setByteAt", sema.types.byteType, "kk_native_byteArray_setByteAt"),
+            ("setShortAt", sema.types.shortType, "kk_native_byteArray_setShortAt"),
             ("setIntAt", sema.types.intType, "kk_native_byteArray_setIntAt"),
             ("setLongAt", sema.types.longType, "kk_native_byteArray_setLongAt"),
         ]

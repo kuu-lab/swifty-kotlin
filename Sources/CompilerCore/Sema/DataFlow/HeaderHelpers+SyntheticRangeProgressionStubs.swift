@@ -63,7 +63,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Byte and Short collapse to intType internally; mixed Int/Long calls widen to Long.
+        // Byte/Short until produce Int ranges; mixed Int/Long calls widen to Long.
         registerSyntheticRangeUntilStub(
             ownerSymbol: rangesPackageSymbol,
             receiverType: types.intType,
@@ -100,6 +100,66 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticRangeUntilStub(
+            ownerSymbol: rangesPackageSymbol,
+            receiverType: types.byteType,
+            parameterType: types.byteType,
+            returnType: types.intType,
+            externalLinkName: "kk_op_rangeUntil",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticRangeUntilStub(
+            ownerSymbol: rangesPackageSymbol,
+            receiverType: types.shortType,
+            parameterType: types.shortType,
+            returnType: types.intType,
+            externalLinkName: "kk_op_rangeUntil",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Complete the signed until overload matrix: Byte/Short/Int/Long with
+        // any combination; the result is Long when either side is Long, Int
+        // otherwise. The Int/Int, Int/Long, Long/Int, Long/Long, Byte/Byte,
+        // and Short/Short cases are already registered above to keep symbol
+        // ordering stable for existing golden outputs.
+        let signedRangeUntilTypes: [TypeID] = [
+            types.byteType,
+            types.shortType,
+            types.intType,
+            types.longType,
+        ]
+        for receiverType in signedRangeUntilTypes {
+            for parameterType in signedRangeUntilTypes {
+                let alreadyRegistered: Bool
+                if receiverType == types.intType {
+                    alreadyRegistered = parameterType == types.intType || parameterType == types.longType
+                } else if receiverType == types.longType {
+                    alreadyRegistered = parameterType == types.intType || parameterType == types.longType
+                } else if receiverType == types.byteType {
+                    alreadyRegistered = parameterType == types.byteType
+                } else if receiverType == types.shortType {
+                    alreadyRegistered = parameterType == types.shortType
+                } else {
+                    alreadyRegistered = false
+                }
+                guard !alreadyRegistered else { continue }
+
+                let returnType: TypeID = (receiverType == types.longType || parameterType == types.longType)
+                    ? types.longType
+                    : types.intType
+                registerSyntheticRangeUntilStub(
+                    ownerSymbol: rangesPackageSymbol,
+                    receiverType: receiverType,
+                    parameterType: parameterType,
+                    returnType: returnType,
+                    externalLinkName: "kk_op_rangeUntil",
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
+        }
 
         registerSyntheticProgressionStub(
             named: "IntProgression",
