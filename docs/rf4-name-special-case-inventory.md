@@ -14,7 +14,7 @@ run the baseline command above to get the current value for the HEAD you are on.
 
 | 機能 | 対応スタブ / 移行先 | スタブ/ソース移行後に削除可能か |
 |---|---|---|
-| `repeat(times) {}` top-level loop special path | バンドル Kotlin ソース `Stdlib/kotlin/Standard.kt`（KSP-604） | 削除済み: 合成スタブ・`.repeatLoop` kind・TypeCheck 特例はすべて撤去し、通常のオーバーロード解決で bind される。`CallLowerer+StdlibLoops.swift` のインライン展開のみ残存（BUG-183 の非ローカル return が直るまで）で、その判定は名前ではなく解決済み callee が `kotlin.repeat` シンボルかどうかで行う。 |
+| `repeat(times) {}` top-level loop special path | バンドル Kotlin ソース `Stdlib/kotlin/Standard.kt`（KSP-604） | 削除済み: 合成スタブ・`.repeatLoop` kind・TypeCheck 特例はすべて撤去し、通常のオーバーロード解決で bind される。`CallLowerer+StdlibLoops.swift` のインライン展開のみ残存（BUG-187 の非ローカル return が直るまで）で、その判定は名前ではなく解決済み callee が `kotlin.repeat` シンボルかどうかで行う。 |
 | `measureTimeMillis {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureTimeMillis` via symbol metadata | Yes for name guard: migrated in RF-SEMA-002 slice 1. Remaining block exists because KIR lowering consumes `stdlibSpecialCallKind` and discards lambda result. |
 | `measureTimeMicros {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureTimeMicros` via symbol metadata | Yes for name guard: migrated in RF-SEMA-002 slice 1. Same remaining lowering constraint as `measureTimeMillis`. |
 | `measureNanoTime {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureNanoTime` via symbol metadata | Yes for name guard: migrated with the system timing common path. Same remaining lowering constraint as millis/micros. |
@@ -28,7 +28,7 @@ run the baseline command above to get the current value for the HEAD you are on.
 | `contract`, `implies`, `returns`, `returnsNotNull`, `callsInPlace`, `InvocationKind` | Contract DSL synthetic declarations / source DSL model | No until contract DSL is declaration-driven. Then callable IDs and enum constants can replace all string checks. |
 | `sequence`, `iterator`, `generateSequence` | Sequence builder/source stdlib stubs | Partially. Lambda expected types and sequence element binding still need semantic metadata. |
 | `delay`, coroutine launchers, flow factories, `asFlow` | Coroutine/Flow synthetic stubs | Yes after coroutine/flow factory metadata describes builder kind, receiver family, and lambda role. |
-| `DeepRecursiveFunction`, `DeepRecursiveScope.callRecursive` | `HeaderHelpers+SyntheticDeepRecursiveStubs` | Yes after receiver class and member links are queried by symbol IDs / external link names. |
+| ~~`DeepRecursiveFunction`, `DeepRecursiveScope.callRecursive`~~ | ~~`HeaderHelpers+SyntheticDeepRecursiveStubs`~~ | **Done (KSP-612).** Bundled `Stdlib/kotlin/DeepRecursive.kt` replaced the stubs; all `CallTypeChecker` name special cases were removed and the calls now go through ordinary resolution. |
 | `Worker.execute` | `HeaderHelpers+SyntheticNativeConcurrent*`; external link `kk_worker_execute` already used in one branch | Yes after the owner check uses symbol IDs or external link metadata consistently. |
 | Builder DSL `send` | Builder DSL synthetic declarations | Yes after builder receiver scope metadata replaces name probing. |
 | `length`, `code`, `OpenEndRange` | Primitive/String/Range surface declarations | Yes after these are ordinary properties/classes resolved by symbol ID, not fallback names. |

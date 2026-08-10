@@ -1,3 +1,5 @@
+import Foundation
+
 /// Virtual-call rewrite for `Array`-typed receivers
 /// (STDLIB-087/088/089).
 ///

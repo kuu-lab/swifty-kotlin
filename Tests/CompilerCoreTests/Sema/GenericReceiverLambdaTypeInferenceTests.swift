@@ -10,32 +10,7 @@ import Testing
 @Suite
 struct GenericReceiverLambdaTypeInferenceTests {
 
-    @Test func testGenericExtensionReceiverLambdaResolvesMembersWithoutReassignError() throws {
-        let source = """
-        class MutableBox<T> {
-            var myValue: T? = null
-        }
-
-        fun <T> T.apply2(block: T.() -> Unit): T {
-            block()
-            return this
-        }
-
-        fun useApply2(): MutableBox<Int> = MutableBox<Int>().apply2 { myValue = 42 }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Generic receiver lambda T.() -> Unit should resolve myValue without SEMA-0014, got: \\(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    @Test func testGenericReceiverLambdaDoesNotFallBackToLexicalScopeForProperty() throws {
-        // Regression: without substituting the receiver type parameter, the
-        // compiler would fail member lookup, fall back to the top-level `val`,
-        // and emit a false-positive SEMA-0014.
+    @Test func testGenericExtensionReceiverLambdaResolvesMembers() throws {
         let source = """
         val myValue: String = "lexical"
 
@@ -49,6 +24,8 @@ struct GenericReceiverLambdaTypeInferenceTests {
         }
 
         fun useApply2(): MutableBox<Int> = MutableBox<Int>().apply2 { myValue = 42 }
+
+        fun useApply2WithLexicalShadow(): MutableBox<Int> = MutableBox<Int>().apply2 { myValue = 42 }
         """
 
         let ctx = makeContextFromSource(source)
@@ -56,7 +33,7 @@ struct GenericReceiverLambdaTypeInferenceTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Generic receiver lambda should shadow lexical myValue with receiver member, got: \\(errors)"
+            "Generic receiver lambda should resolve members and shadow lexical myValue, got: \(errors)"
         )
     }
 
@@ -78,7 +55,7 @@ struct GenericReceiverLambdaTypeInferenceTests {
         try runSema(ctx)
         #expect(
             !ctx.diagnostics.hasError,
-            "Generic receiver lambda T.() -> R should resolve myValue and return type, got: \\(ctx.diagnostics.diagnostics)"
+            "Generic receiver lambda T.() -> R should resolve myValue and return type, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
@@ -103,7 +80,7 @@ struct GenericReceiverLambdaTypeInferenceTests {
         try runSema(ctx)
         #expect(
             !ctx.diagnostics.hasError,
-            "with(receiver, T.() -> R) should resolve receiver members, got: \\(ctx.diagnostics.diagnostics)"
+            "with(receiver, T.() -> R) should resolve receiver members, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
@@ -125,7 +102,7 @@ struct GenericReceiverLambdaTypeInferenceTests {
         try runSema(ctx)
         #expect(
             !ctx.diagnostics.hasError,
-            "Concrete receiver lambda should still resolve members, got: \\(ctx.diagnostics.diagnostics)"
+            "Concrete receiver lambda should still resolve members, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }
