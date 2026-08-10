@@ -1022,10 +1022,7 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     if let lhsString = runtimeStringFromRawValue(lhs),
        let rhsString = runtimeStringFromRawValue(rhs)
     {
-        if lhsString == rhsString {
-            return 0
-        }
-        return lhsString < rhsString ? -1 : 1
+        return runtimeCompareStrings(lhsString, rhsString)
     }
     if let lhsScalar = runtimeComparableScalarValue(from: lhs),
        let rhsScalar = runtimeComparableScalarValue(from: rhs)

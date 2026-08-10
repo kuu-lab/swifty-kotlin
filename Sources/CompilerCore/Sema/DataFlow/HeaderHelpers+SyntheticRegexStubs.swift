@@ -1,5 +1,11 @@
 
 /// Synthetic stubs for Regex, MatchResult, and related methods (STDLIB-100/101/103).
+///
+/// KSP-486: the MatchResult / MatchGroup / MatchGroupCollection / Destructured
+/// member layer is declared in Kotlin
+/// (`Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`), so only the
+/// opaque `MatchResult` / `MatchResult.Destructured` anchors and the Regex
+/// engine entry points are registered here.
 extension DataFlowSemaPhase {
     func registerSyntheticRegexStubs(
         symbols: SymbolTable,
@@ -11,6 +17,18 @@ extension DataFlowSemaPhase {
         // --- Class symbols ---
         let regexSymbol = ensureClassSymbol(named: "Regex", in: kotlinTextPkg, symbols: symbols, interner: interner)
         let matchResultSymbol = ensureClassSymbol(named: "MatchResult", in: kotlinTextPkg, symbols: symbols, interner: interner)
+
+        // --- STDLIB-TEXT-TYPE-010: MatchResult.Destructured nested class ---
+        // Members live in Kotlin; only the type anchor is needed here so that the
+        // bundled `kotlin.text.MatchResult.Destructured` extensions can resolve.
+        let matchResultFQName = symbols.symbol(matchResultSymbol)?.fqName ?? kotlinTextPkg + [interner.intern("MatchResult")]
+        _ = ensureNestedClassSymbol(
+            named: "Destructured",
+            inFQName: matchResultFQName,
+            parentSymbol: matchResultSymbol,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- Types ---
         let regexType = types.make(.classType(ClassType(
@@ -59,10 +77,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // KSP-486: Regex.pattern / options / groupNames と MatchResult / MatchGroupCollection /
-        // MatchGroup / MatchResult.Destructured のメンバは
-        // Stdlib/kotlin/text/Regex.kt ・ MatchResult.kt の Kotlin 実装に移行済み。
 
         // --- STDLIB-350: Regex.matchEntire ---
         registerRegexMemberFunction(
@@ -225,6 +239,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+    }
+
+    /// Defines a nested class symbol inside `parentFQName` if it doesn't already exist.
+    private func ensureNestedClassSymbol(
+        named name: String,
+        inFQName parentFQName: [InternedString],
+        parentSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let internedName = interner.intern(name)
+        let fqName = parentFQName + [internedName]
+        if let existing = symbols.lookup(fqName: fqName) {
+            return existing
+        }
+        let nestedSymbol = symbols.define(
+            kind: .class,
+            name: internedName,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(parentSymbol, for: nestedSymbol)
+        return nestedSymbol
     }
 
     private func ensureKotlinTextPackage(

@@ -842,16 +842,21 @@ public func kk_string_toRegex_with_options(_ strRaw: Int, _ optionsRaw: Int, _ o
     kk_regex_create_with_options(strRaw, optionsRaw, outThrown)
 }
 
-/// Internal bridge for `Regex.pattern` (kotlin/text/Regex.kt).
+// MARK: - KSP-486: raw regex / match data bridges
+//
+// The public `Regex.pattern` / `Regex.options` / `Regex.groupNames` accessors and
+// the whole MatchResult / MatchGroup / MatchGroupCollection / Destructured API
+// live in `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`. Only the raw
+// data that the Foundation match engine owns is exposed here.
+
 @_cdecl("__kk_regex_pattern")
 public func __kk_regex_pattern(_ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw("") }
     return regexMakeStringRaw(regexBox.pattern)
 }
 
-/// Internal bridge for `Regex.options` (kotlin/text/Regex.kt).
-/// Returns the RegexOption ordinals this regex was created with as a bit mask
-/// (`1 shl ordinal`); the `Set<RegexOption>` itself is built in Kotlin.
+/// Bit mask of the Kotlin `RegexOption` ordinals this regex was created with
+/// (bit `n` set means the option with ordinal `n` is present).
 @_cdecl("__kk_regex_option_mask")
 public func __kk_regex_option_mask(_ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return 0 }
@@ -862,24 +867,16 @@ public func __kk_regex_option_mask(_ regexRaw: Int) -> Int {
     return mask
 }
 
-// MARK: - KSP-486: MatchResult / MatchGroup match-data bridges
+// MARK: - STDLIB-101: MatchResult raw group data
 
-private func matchGroupBox(_ matchRaw: Int, _ index: Int) -> RuntimeMatchGroupBox? {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw),
-          index >= 0, index < matchResult.groups.count else {
-        return nil
-    }
-    return matchResult.groups[index]
-}
-
-/// Number of groups in the match (index 0 = entire match).
+/// Number of groups in the match, including group 0 (the entire match).
 @_cdecl("__kk_match_result_group_count")
 public func __kk_match_result_group_count(_ matchRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return 0 }
     return matchResult.groupValues.count
 }
 
-/// Text captured by group `index`; empty when the group did not participate.
+/// Text of group [index], or the empty string when the group is absent.
 @_cdecl("__kk_match_result_group_value")
 public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
@@ -889,32 +886,55 @@ public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int 
     return regexMakeStringRaw(matchResult.groupValues[index])
 }
 
-/// UTF-16 start offset of group `index`; -1 when the group did not participate.
+/// UTF-16 start offset of group [index], or -1 when the group did not participate.
 @_cdecl("__kk_match_result_group_start")
 public func __kk_match_result_group_start(_ matchRaw: Int, _ index: Int) -> Int {
-    matchGroupBox(matchRaw, index)?.rangeStart ?? -1
+    guard let group = matchResultGroup(matchRaw, index) else { return -1 }
+    return group.rangeStart
 }
 
-/// Inclusive UTF-16 end offset of group `index`; -1 when the group did not participate.
+/// UTF-16 end offset (inclusive) of group [index], or -1 when the group did not participate.
 @_cdecl("__kk_match_result_group_end")
 public func __kk_match_result_group_end(_ matchRaw: Int, _ index: Int) -> Int {
-    matchGroupBox(matchRaw, index)?.rangeEnd ?? -1
+    guard let group = matchResultGroup(matchRaw, index) else { return -1 }
+    return group.rangeEnd
 }
 
-/// Group index bound to the named capture group `name`; -1 when unknown.
+/// Index of the capture group named [nameRaw], or -1 when there is no such group.
 @_cdecl("__kk_match_result_group_index_of_name")
 public func __kk_match_result_group_index_of_name(_ matchRaw: Int, _ nameRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
           let name = regexStringFromRaw(nameRaw),
-          let groupIndex = matchResult.namedGroups[name] else {
+          let index = matchResult.namedGroups[name] else {
         return -1
     }
-    return groupIndex
+    return index
 }
 
-/// Internal bridge for `MatchResult.next()`: re-runs the regex engine after this match.
-@_cdecl("__kk_match_result_next_match")
-public func __kk_match_result_next_match(_ matchRaw: Int) -> Int {
+@_cdecl("__kk_match_result_group_index_of_name_flat")
+public func __kk_match_result_group_index_of_name_flat(
+    _ matchRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return -1 }
+    let name = regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return matchResult.namedGroups[name] ?? -1
+}
+
+private func matchResultGroup(_ matchRaw: Int, _ index: Int) -> RuntimeMatchGroupBox? {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw),
+          index >= 0, index < matchResult.groups.count else {
+        return nil
+    }
+    return matchResult.groups[index]
+}
+
+/// MatchResult.next() — returns the next MatchResult in the input, or null.
+@_cdecl("__kk_match_result_next")
+public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
           let inputString = matchResult.inputString,
           let regexBox = matchResult.regexBox else {
@@ -1057,19 +1077,6 @@ public func kk_string_replaceFirst_regex(_ strRaw: Int, _ regexRaw: Int, _ repla
     return regexMakeStringRaw(result)
 }
 
-// MARK: - STDLIB-REGEX-097: Regex.groupNames
-
-/// Internal bridge for `Regex.groupNames` (kotlin/text/Regex.kt).
-/// Returns the named capture group names defined in the pattern, in source order;
-/// the `Set<String>` itself is built in Kotlin.
-@_cdecl("__kk_regex_group_name_list")
-public func __kk_regex_group_name_list(_ regexRaw: Int) -> Int {
-    guard let regexBox = regexBoxFromRaw(regexRaw) else {
-        return regexMakeStringListRaw([])
-    }
-    return regexMakeStringListRaw(extractNamedGroupNames(from: regexBox.pattern))
-}
-
 // MARK: - STDLIB-REGEX-098: Regex.matches(input)
 
 /// Regex.matches(input): Boolean
@@ -1125,5 +1132,22 @@ private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int
     return kk_box_bool(matched ? 1 : 0)
 }
 
-// MatchResult.Destructured / MatchGroupCollection / MatchGroup は kotlin/text/MatchResult.kt
-// の Kotlin 実装に移行済み（KSP-486）。ランタイムはマッチ位置データのブリッジのみを提供する。
+// MARK: - STDLIB-TEXT-TYPE-010: MatchResult.Destructured
+
+// `MatchResult.Destructured` carries no state beyond the match it destructures,
+// so it is represented by the MatchResult object itself. `component1()`..
+// `component9()` are derived in Kotlin from the raw group values above.
+
+/// MatchResult.destructured: MatchResult.Destructured
+@_cdecl("__kk_match_result_destructured")
+public func __kk_match_result_destructured(_ matchRaw: Int) -> Int {
+    guard matchResultBoxFromRaw(matchRaw) != nil else { return runtimeNullSentinelInt }
+    return matchRaw
+}
+
+/// MatchResult.Destructured.match: MatchResult
+@_cdecl("__kk_match_result_destructured_match")
+public func __kk_match_result_destructured_match(_ destructuredRaw: Int) -> Int {
+    guard matchResultBoxFromRaw(destructuredRaw) != nil else { return runtimeNullSentinelInt }
+    return destructuredRaw
+}

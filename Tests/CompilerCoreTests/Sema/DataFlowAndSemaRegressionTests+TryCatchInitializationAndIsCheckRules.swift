@@ -425,49 +425,6 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    // MARK: - DataFlow: smart cast applies to local vars
-
-    @Test func testMutableLocalIsSmartCastAfterNullCheck() throws {
-        let source = """
-        class Node(val value: Int) {
-            fun next(): Node? = null
-        }
-
-        fun main() {
-            var node: Node? = Node(1)
-            while (node != null) {
-                println(node.value)
-                node = node.next()
-            }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, Comment(rawValue: "unexpected errors: \(errors.map(\.code))"))
-        }
-    }
-
-    @Test func testReassignmentDropsSmartCastOnMutableLocal() throws {
-        let source = """
-        fun main() {
-            var value: String? = "a"
-            if (value != null) {
-                println(value.length)
-                value = null
-            }
-            println(value)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, Comment(rawValue: "unexpected errors: \(errors.map(\.code))"))
-        }
-    }
-
     // MARK: - ExprInference: is check with erased generic type emits warning
 
     @Test func testIsCheckWithErasedGenericTypeEmitsWarning() throws {

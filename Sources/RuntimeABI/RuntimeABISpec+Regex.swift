@@ -143,7 +143,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
-        // KSP-486: Regex.pattern (kotlin/text/Regex.kt) 用の内部ブリッジ
+        // KSP-486: raw regex data bridges backing the Kotlin Regex accessors.
         RuntimeABIFunctionSpec(
             name: "__kk_regex_pattern",
             parameters: [
@@ -153,7 +153,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // KSP-486: Regex.options 用の内部ブリッジ（RegexOption ordinal のビットマスク）
         RuntimeABIFunctionSpec(
             name: "__kk_regex_option_mask",
             parameters: [
@@ -231,8 +230,7 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // KSP-486: MatchResult / MatchGroup（kotlin/text/MatchResult.kt）用の
-        // マッチ位置データ取得ブリッジ。
+        // KSP-486: raw match data bridges backing the Kotlin MatchResult layer.
         RuntimeABIFunctionSpec(
             name: "__kk_match_result_group_count",
             parameters: [
@@ -282,6 +280,19 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_match_result_group_index_of_name_flat",
+            parameters: [
+                RuntimeABIParameter(name: "matchRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
         // STDLIB-REGEX-094: Regex.matches(input)
         // STDLIB-REGEX-094: Regex.fromLiteral
         // First param is the Companion object receiver (ignored at runtime).
@@ -304,16 +315,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
                 RuntimeABIParameter(name: "replacement", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        // STDLIB-REGEX-097 / KSP-486: Regex.groupNames 用の内部ブリッジ
-        RuntimeABIFunctionSpec(
-            name: "__kk_regex_group_name_list",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",

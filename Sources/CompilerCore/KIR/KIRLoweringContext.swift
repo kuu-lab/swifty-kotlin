@@ -57,6 +57,10 @@ final class KIRLoweringContext {
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
+    /// Lambda literals whose contextual parameter type declares a type
+    /// parameter as its return type. `nil` until the first lookup builds it
+    /// (see `lambdaReturnsErasedGeneric(for:ast:sema:)`).
+    var erasedGenericReturnLambdaExprIDs: Set<ExprID>?
     var syntheticObjectLiteralSymbolsByExprID: [ExprID: (nominalSymbol: SymbolID, constructorSymbol: SymbolID, constructorName: InternedString)] = [:]
     var emittedObjectLiteralExprIDs: Set<ExprID> = []
     /// Caches itable ABI bridge symbols keyed by the interface/implementation pair.

@@ -679,12 +679,18 @@ public extension RuntimeABISpec {
             p("entryRaw", .intptr),
         ],
             isThrowing: false),
-        // KSP-486: MatchResult.component1/2 / next / range / Destructured は
-        // kotlin/text/MatchResult.kt の Kotlin 実装に移行済み。
-        abiParitySpec("__kk_match_result_next_match", parameters: [
+        // KSP-486: MatchResult iteration / destructuring bridges
+        abiParitySpec("__kk_match_result_next", parameters: [
             p("matchRaw", .intptr),
         ],
             isThrowing: false),
+        // STDLIB-TEXT-TYPE-010: MatchResult.Destructured
+        abiParitySpec("__kk_match_result_destructured", parameters: [
+            p("matchRaw", .intptr),
+        ]),
+        abiParitySpec("__kk_match_result_destructured_match", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
         abiParitySpec("kk_math_e"),
         abiParitySpec("kk_math_pi"),
         abiParitySpec("kk_mem_scope_alloc", parameters: [

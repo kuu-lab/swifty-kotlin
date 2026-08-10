@@ -2,122 +2,201 @@ package kotlin.text
 
 import kotlin.internal.KsSymbolName
 
-// KSP-486: MatchResult / MatchGroupCollection / MatchGroup / MatchResult.Destructured
-// を Kotlin ソース化する。移行元は Sources/Runtime/RuntimeRegex.swift の
-// kk_match_result_* / kk_match_group_* / kk_match_result_destructured_* アクセサ群。
+// KSP-486
+// MatchResult / MatchGroup / MatchGroupCollection / MatchResult.Destructured
+// public layer, migrated from Sources/Runtime/RuntimeRegex.swift.
 //
-// ネイティブに残すのはマッチ位置データの取得（グループ数・値・UTF-16 オフセット・
-// 名前付きグループの索引）と、正規表現エンジンによる次マッチ探索のみ。公開 API の
-// ロジック（IntRange の組み立て、groupValues のリスト化、コレクション境界チェック、
-// destructuring の componentN）はすべてこのファイルにある。
+// Only the raw match position data of a match (group count, per-group value and
+// UTF-16 start/end offsets, named-group index) and the engine-driven next()
+// iteration remain in Swift, as __kk_* bridges. Every derived operation --
+// value, range, groupValues, groups, componentN, destructuring, named group
+// lookup, Regex.groupNames, Regex.options -- is expressed here in Kotlin.
 
-/** マッチが持つグループ数（グループ 0 = マッチ全体を含む）。 */
+// -- bridges: raw match data --
+
 @KsSymbolName("__kk_match_result_group_count")
-private external fun __kkMatchResultGroupCount(match: MatchResult): Int
+internal external fun __kkMatchResultGroupCount(match: MatchResult): Int
 
-/** グループ [index] の文字列。存在しないグループでは空文字列。 */
 @KsSymbolName("__kk_match_result_group_value")
-private external fun __kkMatchResultGroupValue(match: MatchResult, index: Int): String
+internal external fun __kkMatchResultGroupValue(match: MatchResult, index: Int): String
 
-/** グループ [index] の開始 UTF-16 オフセット。不参加グループでは -1。 */
+/** UTF-16 offset of the group's first character, or -1 when the group did not participate. */
 @KsSymbolName("__kk_match_result_group_start")
-private external fun __kkMatchResultGroupStart(match: MatchResult, index: Int): Int
+internal external fun __kkMatchResultGroupStart(match: MatchResult, index: Int): Int
 
-/** グループ [index] の終端 UTF-16 オフセット（閉区間）。不参加グループでは -1。 */
+/** UTF-16 offset of the group's last character (inclusive), or -1 when absent. */
 @KsSymbolName("__kk_match_result_group_end")
-private external fun __kkMatchResultGroupEnd(match: MatchResult, index: Int): Int
+internal external fun __kkMatchResultGroupEnd(match: MatchResult, index: Int): Int
 
-/** 名前付きグループ [name] のグループ番号。未定義または不参加なら -1。 */
+/** Index of the capture group named [name], or -1 when the match has no such group. */
 @KsSymbolName("__kk_match_result_group_index_of_name")
-private external fun __kkMatchResultGroupIndexOfName(match: MatchResult, name: String): Int
+internal external fun __kkMatchResultGroupIndexOfName(match: MatchResult, name: String): Int
 
-/** 直前のマッチの終端以降を正規表現エンジンで再探索する。 */
-@KsSymbolName("__kk_match_result_next_match")
-private external fun __kkMatchResultNextMatch(match: MatchResult): MatchResult?
+@KsSymbolName("__kk_match_result_next")
+internal external fun __kkMatchResultNext(match: MatchResult): MatchResult?
 
-private fun matchGroupAt(match: MatchResult, index: Int): MatchGroup? {
-    if (index < 0 || index >= __kkMatchResultGroupCount(match)) {
-        return null
+@KsSymbolName("__kk_match_result_destructured")
+internal external fun __kkMatchResultDestructured(match: MatchResult): MatchResult.Destructured
+
+@KsSymbolName("__kk_match_result_destructured_match")
+internal external fun __kkDestructuredMatch(destructured: MatchResult.Destructured): MatchResult
+
+@KsSymbolName("__kk_regex_pattern")
+internal external fun __kkRegexPattern(regex: Regex): String
+
+/** Bit mask of the `RegexOption` ordinals the regex was created with. */
+@KsSymbolName("__kk_regex_option_mask")
+internal external fun __kkRegexOptionMask(regex: Regex): Int
+
+// -- Regex accessors --
+
+public val Regex.pattern: String
+    get() = __kkRegexPattern(this)
+
+public val Regex.options: Set<RegexOption>
+    get() {
+        val mask = __kkRegexOptionMask(this)
+        val result = mutableSetOf<RegexOption>()
+        if (mask and 1 != 0) result.add(RegexOption.IGNORE_CASE)
+        if (mask and 2 != 0) result.add(RegexOption.MULTILINE)
+        if (mask and 4 != 0) result.add(RegexOption.DOT_MATCHES_ALL)
+        if (mask and 8 != 0) result.add(RegexOption.LITERAL)
+        if (mask and 16 != 0) result.add(RegexOption.UNIX_LINES)
+        if (mask and 32 != 0) result.add(RegexOption.COMMENTS)
+        if (mask and 64 != 0) result.add(RegexOption.CANON_EQ)
+        return result
     }
-    val start = __kkMatchResultGroupStart(match, index)
-    if (start < 0) {
-        return null
+
+/** Names of the named capture groups declared by the pattern, in declaration order. */
+public val Regex.groupNames: Set<String>
+    get() {
+        val pattern = __kkRegexPattern(this)
+        val names = mutableSetOf<String>()
+        var index = 0
+        while (index + 3 < pattern.length) {
+            if (pattern[index] == '\\') {
+                index += 2
+                continue
+            }
+            if (pattern[index] == '(' && pattern[index + 1] == '?' && pattern[index + 2] == '<' &&
+                __kkIsGroupNameStart(pattern[index + 3])
+            ) {
+                val name = StringBuilder()
+                var cursor = index + 3
+                while (cursor < pattern.length && __kkIsGroupNamePart(pattern[cursor])) {
+                    name.append(pattern[cursor])
+                    cursor++
+                }
+                if (cursor < pattern.length && pattern[cursor] == '>') {
+                    names.add(name.toString())
+                    index = cursor
+                }
+            }
+            index++
+        }
+        return names
     }
-    return MatchGroup(__kkMatchResultGroupValue(match, index), start..__kkMatchResultGroupEnd(match, index))
-}
 
-/** 単一のキャプチャグループにマッチした文字列とその範囲。 */
-public class MatchGroup internal constructor(
-    public val value: String,
-    public val range: IntRange
-)
+private fun __kkIsGroupNameStart(c: Char): Boolean =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
 
-/** マッチのキャプチャグループ列。インデックスと名前の双方で参照できる。 */
+private fun __kkIsGroupNamePart(c: Char): Boolean =
+    __kkIsGroupNameStart(c) || (c >= '0' && c <= '9')
+
+// -- MatchGroup --
+
+/** A matched capture group: its text and the range it spans in the input. */
+public data class MatchGroup(public val value: String, public val range: IntRange)
+
+// -- MatchGroupCollection --
+
+/**
+ * The capture groups of a single match, addressable by index (0 = entire match)
+ * or by name for named capture groups. Absent (non-participating) groups read
+ * as `null`.
+ */
 public class MatchGroupCollection internal constructor(private val match: MatchResult) {
     public val size: Int
         get() = __kkMatchResultGroupCount(match)
 
-    public operator fun get(index: Int): MatchGroup? = matchGroupAt(match, index)
+    public operator fun get(index: Int): MatchGroup? {
+        if (index < 0 || index >= __kkMatchResultGroupCount(match)) return null
+        val start = __kkMatchResultGroupStart(match, index)
+        if (start < 0) return null
+        val end = __kkMatchResultGroupEnd(match, index)
+        return MatchGroup(__kkMatchResultGroupValue(match, index), start..end)
+    }
 
-    public operator fun get(name: String): MatchGroup? = matchGroupAt(match, __kkMatchResultGroupIndexOfName(match, name))
-}
-
-/** 正規表現の 1 回分のマッチ結果。 */
-public class MatchResult private constructor() {
-    /** マッチした文字列全体。 */
-    public val value: String
-        get() = __kkMatchResultGroupValue(this, 0)
-
-    /** 入力文字列中でマッチが占める範囲（閉区間）。 */
-    public val range: IntRange
-        get() = __kkMatchResultGroupStart(this, 0)..__kkMatchResultGroupEnd(this, 0)
-
-    /** グループ 0（マッチ全体）から始まる各グループの文字列。 */
-    public val groupValues: List<String>
-        get() {
-            val values = mutableListOf<String>()
-            val count = __kkMatchResultGroupCount(this)
-            var index = 0
-            while (index < count) {
-                values.add(__kkMatchResultGroupValue(this, index))
-                index += 1
-            }
-            return values
-        }
-
-    /** キャプチャグループのコレクション。 */
-    public val groups: MatchGroupCollection
-        get() = MatchGroupCollection(this)
-
-    /** キャプチャグループの分解宣言用ラッパー。 */
-    public val destructured: Destructured
-        get() = Destructured(this)
-
-    public operator fun component1(): String = __kkMatchResultGroupValue(this, 0)
-
-    public operator fun component2(): String = __kkMatchResultGroupValue(this, 1)
-
-    /** 同じ入力に対する次のマッチ。存在しなければ null。 */
-    public fun next(): MatchResult? = __kkMatchResultNextMatch(this)
-
-    /** `val (a, b) = match.destructured` 形式でキャプチャグループを取り出す。 */
-    public class Destructured internal constructor(public val match: MatchResult) {
-        public operator fun component1(): String = __kkMatchResultGroupValue(match, 1)
-
-        public operator fun component2(): String = __kkMatchResultGroupValue(match, 2)
-
-        public operator fun component3(): String = __kkMatchResultGroupValue(match, 3)
-
-        public operator fun component4(): String = __kkMatchResultGroupValue(match, 4)
-
-        public operator fun component5(): String = __kkMatchResultGroupValue(match, 5)
-
-        public operator fun component6(): String = __kkMatchResultGroupValue(match, 6)
-
-        public operator fun component7(): String = __kkMatchResultGroupValue(match, 7)
-
-        public operator fun component8(): String = __kkMatchResultGroupValue(match, 8)
-
-        public operator fun component9(): String = __kkMatchResultGroupValue(match, 9)
+    public operator fun get(name: String): MatchGroup? {
+        val index = __kkMatchResultGroupIndexOfName(match, name)
+        if (index < 0) return null
+        return get(index)
     }
 }
+
+// -- MatchResult --
+
+/** The substring of the input captured by the entire match. */
+public val MatchResult.value: String
+    get() = __kkMatchResultGroupValue(this, 0)
+
+/** The range of indices in the input covered by the entire match. */
+public val MatchResult.range: IntRange
+    get() {
+        val start = __kkMatchResultGroupStart(this, 0)
+        val end = __kkMatchResultGroupEnd(this, 0)
+        return start..end
+    }
+
+/** The values of all groups: index 0 is the entire match, 1..n the capture groups. */
+public val MatchResult.groupValues: List<String>
+    get() {
+        val count = __kkMatchResultGroupCount(this)
+        val values = mutableListOf<String>()
+        var index = 0
+        while (index < count) {
+            values.add(__kkMatchResultGroupValue(this, index))
+            index++
+        }
+        return values
+    }
+
+public val MatchResult.groups: MatchGroupCollection
+    get() = MatchGroupCollection(this)
+
+public operator fun MatchResult.component1(): String = __kkMatchResultGroupValue(this, 0)
+
+public operator fun MatchResult.component2(): String = __kkMatchResultGroupValue(this, 1)
+
+/** The next match of the same regex in the same input, or `null` when exhausted. */
+public fun MatchResult.next(): MatchResult? = __kkMatchResultNext(this)
+
+/** Capture groups of this match, packaged for destructuring declarations. */
+public val MatchResult.destructured: MatchResult.Destructured
+    get() = __kkMatchResultDestructured(this)
+
+// -- MatchResult.Destructured --
+
+public val MatchResult.Destructured.match: MatchResult
+    get() = __kkDestructuredMatch(this)
+
+private fun MatchResult.Destructured.groupValue(index: Int): String =
+    __kkMatchResultGroupValue(__kkDestructuredMatch(this), index)
+
+public operator fun MatchResult.Destructured.component1(): String = groupValue(1)
+
+public operator fun MatchResult.Destructured.component2(): String = groupValue(2)
+
+public operator fun MatchResult.Destructured.component3(): String = groupValue(3)
+
+public operator fun MatchResult.Destructured.component4(): String = groupValue(4)
+
+public operator fun MatchResult.Destructured.component5(): String = groupValue(5)
+
+public operator fun MatchResult.Destructured.component6(): String = groupValue(6)
+
+public operator fun MatchResult.Destructured.component7(): String = groupValue(7)
+
+public operator fun MatchResult.Destructured.component8(): String = groupValue(8)
+
+public operator fun MatchResult.Destructured.component9(): String = groupValue(9)

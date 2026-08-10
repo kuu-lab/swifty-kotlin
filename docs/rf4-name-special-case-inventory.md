@@ -28,7 +28,7 @@ run the baseline command above to get the current value for the HEAD you are on.
 | `contract`, `implies`, `returns`, `returnsNotNull`, `callsInPlace`, `InvocationKind` | Contract DSL synthetic declarations / source DSL model | No until contract DSL is declaration-driven. Then callable IDs and enum constants can replace all string checks. |
 | `sequence`, `iterator`, `generateSequence` | Sequence builder/source stdlib stubs | Partially. Lambda expected types and sequence element binding still need semantic metadata. |
 | `delay`, coroutine launchers, flow factories, `asFlow` | Coroutine/Flow synthetic stubs | Yes after coroutine/flow factory metadata describes builder kind, receiver family, and lambda role. |
-| `DeepRecursiveFunction`, `DeepRecursiveScope.callRecursive` | `HeaderHelpers+SyntheticDeepRecursiveStubs` | Yes after receiver class and member links are queried by symbol IDs / external link names. |
+| ~~`DeepRecursiveFunction`, `DeepRecursiveScope.callRecursive`~~ | ~~`HeaderHelpers+SyntheticDeepRecursiveStubs`~~ | **Done (KSP-612).** Bundled `Stdlib/kotlin/DeepRecursive.kt` replaced the stubs; all `CallTypeChecker` name special cases were removed and the calls now go through ordinary resolution. |
 | `Worker.execute` | `HeaderHelpers+SyntheticNativeConcurrent*`; external link `kk_worker_execute` already used in one branch | Yes after the owner check uses symbol IDs or external link metadata consistently. |
 | Builder DSL `send` | Builder DSL synthetic declarations | Yes after builder receiver scope metadata replaces name probing. |
 | `length`, `code`, `OpenEndRange` | Primitive/String/Range surface declarations | Yes after these are ordinary properties/classes resolved by symbol ID, not fallback names. |

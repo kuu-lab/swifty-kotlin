@@ -25,22 +25,10 @@ struct RuntimeRegexNamedGroupTests {
         }
     }
 
-    private func makeStringRaw(_ value: String) -> Int {
-        value.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
-            }
-        }
-    }
-
     private func groupIndex(_ matchRaw: Int, named name: String) -> Int {
-        __kk_match_result_group_index_of_name(matchRaw, makeStringRaw(name))
-    }
-
-    private func groupValue(_ matchRaw: Int, named name: String) -> String {
-        let index = groupIndex(matchRaw, named: name)
-        guard index >= 0 else { return "" }
-        return runtimeString(__kk_match_result_group_value(matchRaw, index))
+        withFlatString(name) { data, length, byteCount, hash in
+            __kk_match_result_group_index_of_name_flat(matchRaw, data, length, byteCount, hash)
+        }
     }
 
     private func runtimeString(_ raw: Int) -> String {
@@ -58,14 +46,17 @@ struct RuntimeRegexNamedGroupTests {
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
 
-        #expect(groupIndex(matchRaw, named: "lhs") == 1)
-        #expect(groupIndex(matchRaw, named: "rhs") == 2)
-        #expect(groupValue(matchRaw, named: "lhs") == "ab")
-        #expect(groupValue(matchRaw, named: "rhs") == "cd")
+        let lhsIndex = groupIndex(matchRaw, named: "lhs")
+        let rhsIndex = groupIndex(matchRaw, named: "rhs")
+
+        #expect(lhsIndex == 1)
+        #expect(rhsIndex == 2)
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, lhsIndex)) == "ab")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, rhsIndex)) == "cd")
     }
 
     @Test
-    func testMissingNamedGroupReturnsNullSentinel() {
+    func testMissingNamedGroupReturnsNegativeIndex() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
@@ -75,34 +66,26 @@ struct RuntimeRegexNamedGroupTests {
     }
 
     @Test
-    func testGroupNamesReturnsAllNamedGroups() {
+    func testNamedGroupIndicesForMultipleNames() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
-        let listRaw = __kk_regex_group_name_list(regexRaw)
+        let matchRaw = find(regexRaw: regexRaw, input: "on 2024-05-06.")
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
-              let listBox = tryCast(ptr, to: RuntimeListBox.self) else {
-            Issue.record("Expected RuntimeListBox")
-            return
-        }
-        let names = Set(listBox.elements.map { runtimeString($0) })
-        #expect(names == Set(["year", "month", "day"]))
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "year"))) == "2024")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "month"))) == "05")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "day"))) == "06")
     }
 
     @Test
-    func testGroupNamesEmptyForUnnamedPattern() {
+    func testPatternBridgeRoundTripsUnnamedPattern() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
-        let listRaw = __kk_regex_group_name_list(regexRaw)
+        let matchRaw = find(regexRaw: regexRaw, input: "12-34")
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
-              let listBox = tryCast(ptr, to: RuntimeListBox.self) else {
-            Issue.record("Expected RuntimeListBox")
-            return
-        }
-        #expect(listBox.elements.isEmpty)
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "(\\d+)-(\\d+)")
+        #expect(groupIndex(matchRaw, named: "year") == -1)
     }
 }
 #endif

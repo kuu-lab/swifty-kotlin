@@ -61,7 +61,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String.length should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -88,16 +88,16 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
     func testLLVMBackendLowersStringLengthRuntimePrimitiveToAggregateFieldExtract() throws {
         let source = """
-        import kswiftk.internal.__string_struct_get_length
+        import kswiftk.internal.__kk_string_struct_get_length
 
         fun lengthViaPrimitive(value: String): Int {
-            return __string_struct_get_length(value)
+            return __kk_string_struct_get_length(value)
         }
 
         fun main() {
@@ -120,7 +120,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String length primitive should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -147,7 +147,7 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -227,7 +227,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("@kk_string_to_flat"))
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
-            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__kk_string_struct_get_length"))
         }
     }
 
@@ -482,8 +482,14 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertFalse(ir.contains("@__kk_string_format("), "Unexpected raw String format call")
             XCTAssertFalse(ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
-            XCTAssertTrue(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
-            XCTAssertTrue(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
+            XCTAssertTrue(ir.contains("@__kk_string_format_flat"), "Missing flat String format call")
+            XCTAssertTrue(ir.contains("@__kk_string_format_locale_flat"), "Missing flat String format(locale) call")
+            // KSP-418: the public kk_ entry points are demoted to private __kk_ bridges.
+            XCTAssertFalse(ir.contains("@kk_string_format_flat"), "Undemoted flat String format call")
+            XCTAssertFalse(
+                ir.contains("@kk_string_format_locale_flat"),
+                "Undemoted flat String format(locale) call"
+            )
         }
     }
 
@@ -1020,6 +1026,7 @@ extension CodegenBackendIntegrationTests {
         let regexExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
         let optionExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let optionsSetExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let matchGroupCollectionExpr = arena.appendExpr(.intLiteral(43), type: types.intType)
 
         var nextTemp: Int32 = 200
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -1033,6 +1040,7 @@ extension CodegenBackendIntegrationTests {
             .constValue(result: regexExpr, value: .intLiteral(42)),
             .constValue(result: optionExpr, value: .intLiteral(0)),
             .constValue(result: optionsSetExpr, value: .intLiteral(0)),
+            .constValue(result: matchGroupCollectionExpr, value: .intLiteral(43)),
         ]
 
         func appendRegexCall(_ calleeName: String, arguments: [KIRExprID]) {
@@ -1060,6 +1068,7 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
+        appendRegexCall("__kk_match_result_group_index_of_name", arguments: [matchGroupCollectionExpr, patternExpr])
         appendRegexCall("kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
@@ -1102,6 +1111,7 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_matchEntire",
             "kk_regex_containsMatchIn",
             "kk_regex_from_literal",
+            "__kk_match_result_group_index_of_name",
             "kk_regex_matches",
         ]
         for rawName in rawNames {
@@ -1472,11 +1482,6 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_map_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapIndexed_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapNotNull_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_firstNotNullOf_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_firstNotNullOfOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexed_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexedOrNull_flat", resultType: types.intType)
@@ -1520,11 +1525,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_find_flat",
             "kk_string_findLast_flat",
             "kk_string_partition_flat",
-            "kk_string_map_flat",
-            "kk_string_mapIndexed_flat",
-            "kk_string_mapNotNull_flat",
-            "kk_string_firstNotNullOf_flat",
-            "kk_string_firstNotNullOfOrNull_flat",
             "kk_string_reduceOrNull_flat",
             "kk_string_reduceRightIndexed_flat",
             "kk_string_reduceRightIndexedOrNull_flat",

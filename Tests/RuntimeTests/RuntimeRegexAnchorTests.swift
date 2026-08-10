@@ -39,10 +39,6 @@ struct RuntimeRegexAnchorTests {
         return box.value
     }
 
-    private func matchValue(_ matchRaw: Int) -> String {
-        runtimeString(__kk_match_result_group_value(matchRaw, 0))
-    }
-
     @Test
     func testAnchoredMatchEntireRequiresWholeString() {
         let regexRaw = makeRegex("^abc$")
@@ -60,7 +56,7 @@ struct RuntimeRegexAnchorTests {
         let noMatch = find(regexRaw: regexRaw, input: "concatenate")
 
         #expect(match != runtimeNullSentinelInt)
-        #expect(matchValue(match) == "cat")
+        #expect(runtimeString(__kk_match_result_group_value(match, 0)) == "cat")
         #expect(noMatch == runtimeNullSentinelInt)
     }
 
@@ -71,7 +67,7 @@ struct RuntimeRegexAnchorTests {
         let noMatch = find(regexRaw: regexRaw, input: "foobaz")
 
         #expect(match != runtimeNullSentinelInt)
-        #expect(matchValue(match) == "foo")
+        #expect(runtimeString(__kk_match_result_group_value(match, 0)) == "foo")
         #expect(noMatch == runtimeNullSentinelInt)
     }
 }

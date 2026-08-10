@@ -427,32 +427,6 @@ final class CallLowerer {
             return loweredMeasureNano
         }
 
-        if let loweredMeasureTimeDuration = lowerMeasureTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimeDuration
-        }
-
-        if let loweredMeasureTimedValue = lowerMeasureTimedValueCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimedValue
-        }
-
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
             exprID,
             args: args,
@@ -975,25 +949,18 @@ final class CallLowerer {
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
-            if let chosen,
-               sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
-                sema.symbols.externalLinkName(for: chosen) == "kk_compareValuesByVararg"
-            {
-                NormalizedCallResult(arguments: loweredArgIDs, defaultMask: 0)
-            } else {
-                driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredArgIDs,
-                    callBinding: callBinding,
-                    chosenCallee: chosen,
-                    spreadFlags: args.map(\.isSpread),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
-            }
+            driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgIDs,
+                callBinding: callBinding,
+                chosenCallee: chosen,
+                spreadFlags: args.map(\.isSpread),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
         } else {
             NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(
@@ -1733,6 +1700,14 @@ final class CallLowerer {
             }
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
+        if receiverType != nonNullReceiverType {
+            candidates.append(contentsOf: extensionCandidates(
+                named: calleeName,
+                nonNullReceiverType: nonNullReceiverType,
+                argumentCount: argumentExprs.count,
+                sema: sema
+            ))
+        }
         candidates.sort(by: { $0.rawValue < $1.rawValue })
         guard !candidates.isEmpty else {
             return nil
@@ -1766,6 +1741,51 @@ final class CallLowerer {
             substitutedTypeArguments: [],
             parameterMapping: parameterMapping
         )
+    }
+
+    /// Source-level extension functions and extension-property getters declared
+    /// for `nonNullReceiverType`. Sema resolves those against the narrowed
+    /// receiver, but a receiver whose static type stays nullable (a mutable
+    /// local keeps its declared type across a null check) leaves no call
+    /// binding behind, and only the bare source name would reach codegen.
+    private func extensionCandidates(
+        named calleeName: InternedString,
+        nonNullReceiverType: TypeID,
+        argumentCount: Int,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        func receiverMatches(_ candidate: SymbolID) -> Bool {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  signature.parameterTypes.count == argumentCount
+            else {
+                return false
+            }
+            return sema.types.isSubtype(
+                nonNullReceiverType,
+                sema.types.makeNonNullable(declaredReceiver)
+            )
+        }
+
+        return sema.symbols.lookupByShortName(calleeName).compactMap { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return nil
+            }
+            switch symbol.kind {
+            case .function:
+                return receiverMatches(candidate) ? candidate : nil
+            case .property:
+                guard argumentCount == 0,
+                      let getter = sema.symbols.extensionPropertyGetterAccessor(for: candidate),
+                      receiverMatches(getter)
+                else {
+                    return nil
+                }
+                return getter
+            default:
+                return nil
+            }
+        }
     }
 
     private func normalizedParameterMapping(

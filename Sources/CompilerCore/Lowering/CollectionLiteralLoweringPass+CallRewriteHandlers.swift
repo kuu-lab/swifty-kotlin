@@ -30,23 +30,6 @@ extension CollectionLiteralConstructionLoweringPass {
 
         if call.callee == lookup.toListName, call.arguments.count == 1 {
             let receiverID = call.arguments[0]
-            if state.mapExprIDs.contains(receiverID.rawValue) {
-                let toListResult = ctx.module.arena.appendTemporary(type: nil
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkMapToListName,
-                    arguments: [receiverID],
-                    result: toListResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                state.tagListResult(call.result, temporary: toListResult)
-                if let result = call.result {
-                    instructions.append(.copy(from: toListResult, to: result))
-                }
-                return CollectionCallRewriteResult(instructions: instructions)
-            }
             if state.setExprIDs.contains(receiverID.rawValue) {
                 let toListResult = ctx.module.arena.appendTemporary(type: nil
                 )

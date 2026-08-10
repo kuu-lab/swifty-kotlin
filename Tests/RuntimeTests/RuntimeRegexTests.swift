@@ -38,26 +38,20 @@ struct RuntimeRegexTests {
         }
     }
 
-    private func makeStringRaw(_ value: String) -> Int {
-        value.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
-            }
-        }
-    }
-
     private func matchValue(_ matchRaw: Int) -> String {
         runtimeString(__kk_match_result_group_value(matchRaw, 0))
     }
 
     private func matchGroupValues(_ matchRaw: Int) -> [String] {
-        (0 ..< __kk_match_result_group_count(matchRaw)).map {
-            runtimeString(__kk_match_result_group_value(matchRaw, $0))
+        (0 ..< __kk_match_result_group_count(matchRaw)).map { index in
+            runtimeString(__kk_match_result_group_value(matchRaw, index))
         }
     }
 
-    private func namedGroupIndex(_ matchRaw: Int, _ name: String) -> Int {
-        __kk_match_result_group_index_of_name(matchRaw, makeStringRaw(name))
+    private func matchGroupIndex(_ matchRaw: Int, name: String) -> Int {
+        withFlatString(name) { data, length, byteCount, hash in
+            __kk_match_result_group_index_of_name_flat(matchRaw, data, length, byteCount, hash)
+        }
     }
 
     @Test
@@ -150,18 +144,19 @@ struct RuntimeRegexTests {
     }
 
     @Test
-    func matchGroupCollectionGetAndRange() {
+    func matchGroupLookupByNameAndRange() {
         let regexRaw = withFlatString("(?<lhs>ab)(?<rhs>cd)") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
         let matchRaw = withFlatString("zzabcdyy") { data, length, byteCount, hash in
             kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
         }
-        let lhsIndex = namedGroupIndex(matchRaw, "lhs")
-        let rhsIndex = namedGroupIndex(matchRaw, "rhs")
+        let lhsIndex = matchGroupIndex(matchRaw, name: "lhs")
+        let rhsIndex = matchGroupIndex(matchRaw, name: "rhs")
 
         #expect(lhsIndex == 1)
         #expect(rhsIndex == 2)
+        #expect(matchGroupIndex(matchRaw, name: "missing") == -1)
         #expect(runtimeString(__kk_match_result_group_value(matchRaw, lhsIndex)) == "ab")
         #expect(runtimeString(__kk_match_result_group_value(matchRaw, rhsIndex)) == "cd")
 
@@ -169,6 +164,21 @@ struct RuntimeRegexTests {
         #expect(__kk_match_result_group_end(matchRaw, lhsIndex) == 3)
         #expect(__kk_match_result_group_start(matchRaw, rhsIndex) == 4)
         #expect(__kk_match_result_group_end(matchRaw, rhsIndex) == 5)
+    }
+
+    @Test
+    func matchGroupBridgesReportAbsentAndOutOfRangeGroups() {
+        let regexRaw = withFlatString("(a)|(b)") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let matchRaw = regexFind(regexRaw, input: "a")
+
+        #expect(__kk_match_result_group_count(matchRaw) == 3)
+        #expect(__kk_match_result_group_start(matchRaw, 1) == 0)
+        // Group 2 did not participate in the match: no position data.
+        #expect(__kk_match_result_group_start(matchRaw, 2) == -1)
+        #expect(__kk_match_result_group_start(matchRaw, 7) == -1)
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, 7)) == "")
     }
 
     @Test
@@ -272,7 +282,7 @@ struct RuntimeRegexTests {
         let namedMatch = withFlatString("zzabcdyy") { data, length, byteCount, hash in
             kk_regex_find_flat(namedRegex, data, length, byteCount, hash)
         }
-        let lhsIndex = namedGroupIndex(namedMatch, "lhs")
+        let lhsIndex = matchGroupIndex(namedMatch, name: "lhs")
         #expect(lhsIndex == 1)
         #expect(runtimeString(__kk_match_result_group_value(namedMatch, lhsIndex)) == "ab")
     }

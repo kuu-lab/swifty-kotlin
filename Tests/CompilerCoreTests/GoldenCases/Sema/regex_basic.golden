@@ -4,7 +4,7 @@ symbol fq=__local_2.r kind=local vis=private flags=_ type=kotlin.text.Regex
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.MatchResult kind=class vis=public flags=_
+symbol fq=kotlin.text.MatchResult kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.Regex#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.Regex#1 kind=function vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.text.Regex
 symbol fq=kotlin.text.Regex.find kind=function vis=public flags=synthetic sig=recv=kotlin.text.Regex params=[String] ret=kotlin.text.MatchResult?
@@ -32,7 +32,7 @@ expr e@5:28 string(abc123) type=String
 expr e@5:17#1 memberCall recv=e@5:17 callee=find args=[_:e@5:28] type=kotlin.text.MatchResult? call=kotlin.text.Regex.find
 expr e@5:5 localDecl found mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_1.found
 expr e@6:13 name(found) type=kotlin.text.MatchResult? ref=__local_1.found
-expr e@6:13#1 safeMemberCall recv=e@6:13 callee=value args=[] type=String? ref=kotlin.text.MatchResult.value
+expr e@6:13#1 safeMemberCall recv=e@6:13 callee=value args=[] type=String? call=kotlin.text.value.$get
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
 expr e@7:13 string(abc123) type=String
 expr e@7:36 string([0-9]+) type=String

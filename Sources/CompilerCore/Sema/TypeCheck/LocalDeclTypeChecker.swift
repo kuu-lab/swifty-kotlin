@@ -71,6 +71,9 @@ final class LocalDeclTypeChecker {
         } else {
             var initializerType: TypeID?
             if let initializer {
+                if declaredType != nil {
+                    sema.bindings.markSourceDeclaredExpectedType(initializer)
+                }
                 initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
             }
 
@@ -169,19 +172,15 @@ final class LocalDeclTypeChecker {
                     range: range
                 )
             } else {
-                // Reassignment drops any smart cast narrowing applied to the local
-                // inside the current branch, so both the constraint and the binding
-                // use the declared type again.
-                let declaredType = ctx.sema.symbols.propertyType(for: local.symbol) ?? local.type
                 driver.emitSubtypeConstraint(
                     left: valueType,
-                    right: declaredType,
+                    right: local.type,
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                locals[name] = (declaredType, local.symbol, local.isMutable, true)
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {

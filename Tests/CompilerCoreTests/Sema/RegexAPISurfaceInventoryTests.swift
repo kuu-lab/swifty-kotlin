@@ -45,15 +45,6 @@ struct RegexAPISurfaceInventoryTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    /// True when the FQ path resolves to at least one symbol.
-    private func isRegistered(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        !sema.symbols.lookupAll(fqName: fqPath.map { interner.intern($0) }).isEmpty
-    }
-
     /// All external links registered under the given FQ path.
     private func allExternalLinks(
         fqPath: [String],
@@ -218,51 +209,16 @@ struct RegexAPISurfaceInventoryTests {
                        "Regex.replace(input, transform) must link to kk_regex_replace_lambda")
     }
 
-    // MARK: - 4. Regex properties
+    // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
 
-    // KSP-486: pattern / options / groupNames are implemented in bundled Kotlin
-    // (kotlin.text.Regex), so they must resolve without a synthetic runtime link.
-
-    @Test func testRegexPatternPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "pattern"],
-            sema: sema,
-            interner: interner
-        )
+    @Test func testRegexAccessorsAreNoLongerRuntimeLinked() throws {
+        let (sema, _) = try makeSema()
+        let removed = ["kk_regex_pattern", "kk_regex_options", "kk_regex_group_names"]
+        let present = registeredLinkNames(sema: sema).intersection(removed)
         #expect(
-            isRegistered(fqPath: ["kotlin", "text", "pattern"], sema: sema, interner: interner),
-            "Regex.pattern must be registered"
+            present.isEmpty,
+            Comment(rawValue: "Regex.pattern/options/groupNames are Kotlin source now; stale links: \(present)")
         )
-        #expect(links.isEmpty, Comment(rawValue: "Regex.pattern must be source-backed; found: \(links)"))
-    }
-
-    @Test func testRegexOptionsPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "options"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            isRegistered(fqPath: ["kotlin", "text", "options"], sema: sema, interner: interner),
-            "Regex.options must be registered"
-        )
-        #expect(links.isEmpty, Comment(rawValue: "Regex.options must be source-backed; found: \(links)"))
-    }
-
-    @Test func testRegexGroupNamesPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "groupNames"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            isRegistered(fqPath: ["kotlin", "text", "groupNames"], sema: sema, interner: interner),
-            "Regex.groupNames must be registered"
-        )
-        #expect(links.isEmpty, Comment(rawValue: "Regex.groupNames must be source-backed; found: \(links)"))
     }
 
     // MARK: - 5. Companion methods (fromLiteral)
@@ -280,79 +236,56 @@ struct RegexAPISurfaceInventoryTests {
         )
     }
 
-    // MARK: - 6. MatchResult properties and functions
+    // MARK: - 6-8. MatchResult / MatchGroup layer (KSP-486: Kotlin source)
 
-    // KSP-486: the MatchResult / MatchGroup / MatchGroupCollection members below
-    // are implemented in bundled Kotlin (kotlin.text.MatchResult); only their
-    // registration is asserted here, and they must carry no runtime link.
-
-    @Test func testMatchResultValueIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "value"], sema, interner)
-    }
-
-    @Test func testMatchResultRangeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "range"], sema, interner)
-    }
-
-    @Test func testMatchResultGroupsIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "groups"], sema, interner)
-    }
-
-    @Test func testMatchResultGroupValuesIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "groupValues"], sema, interner)
-    }
-
-    @Test func testMatchResultComponent1IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "component1"], sema, interner)
-    }
-
-    @Test func testMatchResultComponent2IsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "component2"], sema, interner)
-    }
-
-    @Test func testMatchResultNextIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchResult", "next"], sema, interner)
-    }
-
-    // MARK: - 7. MatchGroupCollection
-
-    @Test func testMatchGroupCollectionGetIsSourceBacked() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchGroupCollection", "get"], sema, interner)
-    }
-
-    @Test func testMatchGroupCollectionHasBothGetOverloads() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
+    /// The whole MatchResult / MatchGroup / MatchGroupCollection / Destructured
+    /// public layer lives in `__bundled_kotlin/text/MatchResult.kt`; only the raw
+    /// match-position `__kk_*` bridges remain in the runtime.
+    @Test func testMatchResultLayerIsNoLongerRuntimeLinked() throws {
+        let (sema, _) = try makeSema()
+        var removed: Set<String> = [
+            "kk_match_result_value",
+            "kk_match_result_range",
+            "kk_match_result_groups",
+            "kk_match_result_groupValues",
+            "kk_match_result_component1",
+            "kk_match_result_component2",
+            "kk_match_result_next",
+            "kk_match_result_destructured",
+            "kk_match_result_destructured_match",
+            "kk_match_group_collection_get",
+            "kk_match_group_collection_get_at",
+            "kk_match_group_collection_size",
+            "kk_match_group_value",
+            "kk_match_group_range",
+        ]
+        for index in 1 ... 9 {
+            removed.insert("kk_match_result_destructured_component\(index)")
+        }
+        let present = registeredLinkNames(sema: sema).intersection(removed)
         #expect(
-            syms.count >= 2,
-            "MatchGroupCollection.get must have at least 2 overloads (by-name and by-index)"
+            present.isEmpty,
+            Comment(rawValue: "MatchResult/MatchGroup layer is Kotlin source now; stale links: \(present)")
         )
     }
 
-    @Test func testMatchGroupCollectionSizeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchGroupCollection", "size"], sema, interner)
-    }
-
-    // MARK: - 8. MatchGroup properties
-
-    @Test func testMatchGroupValueIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchGroup", "value"], sema, interner)
-    }
-
-    @Test func testMatchGroupRangeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        try expectSourceBackedMember(["kotlin", "text", "MatchGroup", "range"], sema, interner)
+    /// The remaining raw bridges must stay wired, since the Kotlin layer calls them.
+    @Test func testRawMatchDataBridgesAreRegistered() throws {
+        let (sema, _) = try makeSema()
+        let bridges: Set<String> = [
+            "__kk_match_result_group_count",
+            "__kk_match_result_group_value",
+            "__kk_match_result_group_start",
+            "__kk_match_result_group_end",
+            "__kk_match_result_group_index_of_name",
+            "__kk_match_result_next",
+            "__kk_match_result_destructured",
+            "__kk_match_result_destructured_match",
+            "__kk_regex_pattern",
+            "__kk_regex_option_mask",
+        ]
+        let missing = bridges.subtracting(registeredLinkNames(sema: sema))
+        #expect(missing.isEmpty, Comment(rawValue: "Missing raw match-data bridges: \(missing)"))
     }
 
     // MARK: - 9. String extension: replaceFirst / split with Regex
@@ -710,46 +643,14 @@ struct RegexAPISurfaceInventoryTests {
                 Comment(rawValue: "Missing API: \(fqPath.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
             )
         }
-
-        // KSP-486: source-backed members — registered, but without runtime links.
-        let sourceBackedMembers: [[String]] = [
-            ["kotlin", "text", "pattern"],
-            ["kotlin", "text", "options"],
-            ["kotlin", "text", "groupNames"],
-            ["kotlin", "text", "MatchResult", "value"],
-            ["kotlin", "text", "MatchResult", "range"],
-            ["kotlin", "text", "MatchResult", "groups"],
-            ["kotlin", "text", "MatchResult", "groupValues"],
-            ["kotlin", "text", "MatchResult", "component1"],
-            ["kotlin", "text", "MatchResult", "component2"],
-            ["kotlin", "text", "MatchResult", "next"],
-            ["kotlin", "text", "MatchGroup", "value"],
-            ["kotlin", "text", "MatchGroup", "range"],
-            ["kotlin", "text", "MatchGroupCollection", "get"],
-            ["kotlin", "text", "MatchGroupCollection", "size"],
-        ]
-        for fqPath in sourceBackedMembers {
-            try expectSourceBackedMember(fqPath, sema, interner)
-        }
-    }
-
-    /// Asserts the FQ path resolves and every registration is source-backed
-    /// (i.e. carries no synthetic runtime link name).
-    private func expectSourceBackedMember(
-        _ fqPath: [String],
-        _ sema: SemaModule,
-        _ interner: StringInterner
-    ) throws {
-        let name = fqPath.joined(separator: ".")
-        #expect(
-            isRegistered(fqPath: fqPath, sema: sema, interner: interner),
-            Comment(rawValue: "\(name) must be registered")
-        )
-        let links = allExternalLinks(fqPath: fqPath, sema: sema, interner: interner)
-        #expect(links.isEmpty, Comment(rawValue: "\(name) must be source-backed; found: \(links)"))
     }
 
     // MARK: - Helpers
+
+    /// Every external link name registered in the symbol table after sema.
+    private func registeredLinkNames(sema: SemaModule) -> Set<String> {
+        Set(sema.symbols.allSymbols().compactMap { sema.symbols.externalLinkName(for: $0.id) })
+    }
 
     private func allExprIDs(
         in ast: ASTModule,
