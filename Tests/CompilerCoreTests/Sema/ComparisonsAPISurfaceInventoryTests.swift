@@ -391,23 +391,29 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 21. coerceIn range overloads (kotlin.ranges cross-inventory)
 
     @Test func testCoerceInIntOverloadIsRegistered() throws {
+        // MIGRATION-RANGE-003: Int.coerceIn(range) migrated to bundled Kotlin source
+        // (RangeCoercion.kt). The synthetic stub with kk_int_coerceIn no longer exists;
+        // verify no stale stub was left behind.
         let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        #expect(links.contains("kk_int_coerceIn"), "kotlin.ranges.coerceIn (Int) must link to kk_int_coerceIn; found: \(links)")
+        #expect(!links.contains("kk_int_coerceIn"), "Int.coerceIn(range) should not have a synthetic stub; migrated to Kotlin source")
     }
 
     @Test func testCoerceInLongOverloadIsRegistered() throws {
+        // MIGRATION-RANGE-003: Long.coerceIn(range) migrated to bundled Kotlin source
+        // (RangeCoercion.kt). The synthetic stub with kk_long_coerceIn no longer exists;
+        // verify no stale stub was left behind.
         let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        #expect(links.contains("kk_long_coerceIn"), "kotlin.ranges.coerceIn (Long) must link to kk_long_coerceIn; found: \(links)")
+        #expect(!links.contains("kk_long_coerceIn"), "Long.coerceIn(range) should not have a synthetic stub; migrated to Kotlin source")
     }
 
     @Test func testCoerceInDoubleOverloadIsRegistered() throws {
