@@ -609,6 +609,9 @@ struct RuntimeABIExternalLinkValidationTests {
         if isFlat && normalized == "String" {
             return RuntimeABICType.nullableUInt8Pointer.rawValue
         }
+        if normalized == "Nothing" {
+            return RuntimeABICType.noreturn.rawValue
+        }
         return RuntimeABICType.intptr.rawValue
     }
 

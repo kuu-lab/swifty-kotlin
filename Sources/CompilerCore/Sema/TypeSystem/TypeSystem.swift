@@ -355,6 +355,41 @@ public final class TypeSystem {
         }
     }
 
+    /// Returns `true` when `type` structurally contains any type parameter
+    /// reference, i.e. it is not fully substituted with concrete types.
+    public func typeContainsAnyTypeParam(_ type: TypeID) -> Bool {
+        switch kind(of: type) {
+        case .typeParam:
+            return true
+        case let .classType(ct):
+            return ct.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeContainsAnyTypeParam(inner)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(ft):
+            if ft.contextReceivers.contains(where: { typeContainsAnyTypeParam($0) }) {
+                return true
+            }
+            if let receiver = ft.receiver, typeContainsAnyTypeParam(receiver) {
+                return true
+            }
+            if ft.params.contains(where: { typeContainsAnyTypeParam($0) }) {
+                return true
+            }
+            return typeContainsAnyTypeParam(ft.returnType)
+        case let .kClassType(kc):
+            return typeContainsAnyTypeParam(kc.argument)
+        case let .intersection(parts):
+            return parts.contains { typeContainsAnyTypeParam($0) }
+        default:
+            return false
+        }
+    }
+
     public func setNominalSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
         nominalSupertypeTypeArgsMap[child, default: [:]][parent] = args
     }

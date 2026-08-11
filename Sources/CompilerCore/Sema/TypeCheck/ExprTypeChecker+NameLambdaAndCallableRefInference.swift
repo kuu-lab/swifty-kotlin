@@ -1301,9 +1301,29 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured.
         let isBoundReceiver = receiver != nil && unboundClassType == nil
 
+        // BUG-164: callable references must also support SAM-conversion to a
+        // functional interface expected type, the same way lambda literals do.
+        let expectedFunctionType: TypeID?
+        let expectedSamInterfaceType: TypeID?
+        if let expectedType {
+            if case .functionType = sema.types.kind(of: expectedType) {
+                expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+                expectedFunctionType = sema.types.make(.functionType(samFT))
+                expectedSamInterfaceType = expectedType
+            } else {
+                expectedFunctionType = nil
+                expectedSamInterfaceType = nil
+            }
+        } else {
+            expectedFunctionType = nil
+            expectedSamInterfaceType = nil
+        }
+
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
-            expectedType: expectedType,
+            expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             sema: sema
         )
@@ -1317,20 +1337,33 @@ extension ExprTypeChecker {
                 sema: sema
             )
             let resultType: TypeID
-            if let expectedType,
-               case .functionType = sema.types.kind(of: expectedType)
-            {
-                driver.emitSubtypeConstraint(
-                    left: inferredType,
-                    right: expectedType,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-                resultType = expectedType
+            // An expected type that still mentions type parameters belongs to a
+            // generic signature whose type arguments are inferred from this very
+            // argument (`fun <T> runCatching(block: () -> T)`). Checking against
+            // it would fail, and adopting it would hide the concrete type the
+            // caller needs for inference, so report the reference's own type.
+            if let expectedFunctionType {
+                let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
+                if !sema.types.typeContainsAnyTypeParam(concreteResult) {
+                    driver.emitSubtypeConstraint(
+                        left: inferredType,
+                        right: expectedFunctionType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: sema,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    resultType = concreteResult
+                } else {
+                    resultType = inferredType
+                }
             } else {
                 resultType = inferredType
+            }
+            if let expectedSamInterfaceType {
+                sema.bindings.markSamConversion(id)
+                sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
+                sema.bindings.bindSamUnderlyingFunctionType(id, type: inferredType)
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

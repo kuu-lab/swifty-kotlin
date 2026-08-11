@@ -244,7 +244,9 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
-        self.length = bytes.count
+        // `length` is the Unicode scalar count (the space string indices live in),
+        // `byteCount` the UTF-8 byte count; they only coincide for ASCII text.
+        self.length = value.unicodeScalars.count
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))

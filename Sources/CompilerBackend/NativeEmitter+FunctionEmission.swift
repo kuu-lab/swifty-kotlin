@@ -811,6 +811,12 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: false
                 ),
+                "__kk_string_normalize_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_normalize_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: false
+                ),
                 "kk_string_orEmpty_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_orEmpty_flat",
                     stringArgumentCount: 1,
@@ -1421,12 +1427,6 @@ extension NativeEmitter {
                 ),
                 "__kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toBigDecimal_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigInteger_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
@@ -3462,10 +3462,6 @@ extension NativeEmitter {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"
-        case "__exitProcess": "kk_system_exitProcess"
-        case "__getTimeMicros": "kk_system_getTimeMicros"
-        case "__getTimeMillis": "kk_system_getTimeMillis"
-        case "__getTimeNanos": "kk_system_getTimeNanos"
         case "__doubleToBits": "kk_double_toBits"
         case "__doubleToRawBits": "kk_double_toRawBits"
         case "__floatToBits": "kk_float_toBits"
@@ -3494,12 +3490,6 @@ extension NativeEmitter {
         case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
-        case "__testAssertEquals": "kk_test_assertEquals"
-        case "__testAssertEqualsMessage": "kk_test_assertEquals_message"
-        case "__testAssertTrue": "kk_test_assertTrue"
-        case "__testAssertTrueMessage": "kk_test_assertTrue_message"
-        case "__testAssertNull": "kk_test_assertNull"
-        case "__testAssertNullMessage": "kk_test_assertNull_message"
         default: nil
         }
     }

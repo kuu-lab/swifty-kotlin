@@ -316,9 +316,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }()
                 let effectiveCallee = rewrittenCallee ?? callee
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
-                // Stubs explicitly marked .throwingFunction (e.g. BigInteger.divide,
-                // BigInteger(String)) must always emit the outThrown channel regardless
-                // of whether their callee name appears in nonThrowingCallees.
+                // Stubs explicitly marked .throwingFunction must always emit the
+                // outThrown channel regardless of whether their callee name appears
+                // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
@@ -342,7 +342,21 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }
                 var boxedArguments: [KIRExprID]
                 if let signature, let types {
-                    let receiverOffset = signature.receiverType != nil ? 1 : 0
+                    // A constructor bridged to an allocating runtime entry
+                    // (`Pair`'s `__kk_pair_new`) is called without the allocated-object
+                    // argument that an ordinary `<init>` receives, so its value
+                    // arguments start at index 0. Using the signature's receiver
+                    // unconditionally would shift every parameter by one and box each
+                    // argument against its neighbour's declared type.
+                    let receiverOffset: Int = {
+                        guard signature.receiverType != nil else { return 0 }
+                        if symbols?.symbol(effectiveCallSymbol ?? .invalid)?.kind == .constructor,
+                           arguments.count == signature.parameterTypes.count
+                        {
+                            return 0
+                        }
+                        return 1
+                    }()
                     boxedArguments = applyArgumentBoxing(
                         arguments: arguments,
                         signature: signature,
@@ -577,7 +591,25 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let fromKind = resolveValueClassKind(rawFromKind, types: types, symbols: symbols)
         let rawToKind = types.kind(of: toType)
         let toKind = resolveValueClassKind(rawToKind, types: types, symbols: symbols)
-        if isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
+        // A non-null enum local is stored as its raw ordinal. Keep copies between
+        // values of the same enum class verbatim; otherwise resolving both sides
+        // to Int below would add an unnecessary kk_unbox_int and corrupt the
+        // ordinal before a later .name/.ordinal read.
+        let isDirectNonNullEnumCopy: Bool = {
+            guard case let .classType(sourceClass) = rawFromKind,
+                  case let .classType(targetClass) = rawToKind,
+                  sourceClass.nullability == .nonNull,
+                  targetClass.nullability == .nonNull,
+                  sourceClass.classSymbol == targetClass.classSymbol,
+                  let symbols,
+                  let sym = symbols.symbol(targetClass.classSymbol)
+            else {
+                return false
+            }
+            return sym.kind == .enumClass
+        }()
+        if !isDirectNonNullEnumCopy,
+           isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
             || isNonValueClassReference(rawToKind, symbols: symbols),
             let boxCallee = boxCalleeForPrimitive(
                 fromKind,
@@ -599,7 +631,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             )
             return instructions
         }
-        if needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
+        if !isDirectNonNullEnumCopy,
+           needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
            let unboxCallee = unboxingCallee(
                sourceKind: fromKind, targetKind: toKind,
                boxingCalleeTable: boxingCalleeTable,

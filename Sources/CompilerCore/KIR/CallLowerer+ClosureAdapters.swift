@@ -402,6 +402,10 @@ extension CallLowerer {
             createCallee = interner.intern("kk_function_create_1")
         case 2:
             createCallee = interner.intern("kk_function_create_2")
+        case 3:
+            createCallee = interner.intern("kk_function_create_3")
+        case 4:
+            createCallee = interner.intern("kk_function_create_4")
         default:
             return loweredArgID
         }
@@ -910,7 +914,7 @@ extension CallLowerer {
         // STDLIB-590 / STDLIB-KOTLIN-ROOT-CLOSE-001: Function0 runtime entry
         // points receive lambda arguments as (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [
-            "kk_auto_closeable_create",
+            "__kk_auto_closeable_create",
             "kk_runtime_result_run_catching",
         ]
         if function0RuntimeNames.contains(externalLinkName), loweredArguments.count == 1 {

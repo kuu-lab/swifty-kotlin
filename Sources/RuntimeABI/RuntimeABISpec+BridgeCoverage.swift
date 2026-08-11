@@ -159,18 +159,18 @@ private let mapBridgeFunctions = [
 }
 
 private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
-    [bridgeSpec("kk_mutable_list_sort", section: "Collection", params: ["listRaw"],
+    [bridgeSpec("__kk_mutable_list_sort", section: "Collection", params: ["listRaw"],
             isThrowing: false)]
     + [
-        "kk_mutable_list_sort_primitive",
-        "kk_mutable_list_sortWith",
-        "kk_mutable_list_sortBy",
-        "kk_mutable_list_sortBy_primitive",
-        "kk_mutable_list_sortByDescending",
-        "kk_mutable_list_sortByDescending_primitive",
+        "__kk_mutable_list_sort_primitive",
+        "__kk_mutable_list_sortWith",
+        "__kk_mutable_list_sortBy",
+        "__kk_mutable_list_sortBy_primitive",
+        "__kk_mutable_list_sortByDescending",
+        "__kk_mutable_list_sortByDescending_primitive",
     ].map {
         switch $0 {
-        case "kk_mutable_list_sort_primitive":
+        case "__kk_mutable_list_sort_primitive":
             return bridgeSpec(
                 $0,
                 section: "Collection",
@@ -179,7 +179,7 @@ private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
                     ("kindRaw", .int32),
                 ]
             )
-        case "kk_mutable_list_sortBy_primitive", "kk_mutable_list_sortByDescending_primitive":
+        case "__kk_mutable_list_sortBy_primitive", "__kk_mutable_list_sortByDescending_primitive":
             return bridgeSpec(
                 $0,
                 section: "Collection",
@@ -214,16 +214,8 @@ private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
             isThrowing: false),
     bridgeSpec("kk_sequence_asIterable", section: "Sequence", params: ["seqRaw"]),
     bridgeSpec("kk_sequence_asSequence", section: "Sequence", params: ["seqRaw"]),
-    bridgeSpec("kk_sequence_dropWhile", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"]),
     bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"]),
-    bridgeSpec("kk_sequence_takeWhile", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"]),
-    bridgeSpec("kk_set_containsAll", section: "Collection", params: ["setRaw", "collectionRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
-            isThrowing: false),
-    bridgeSpec("kk_set_sorted", section: "Collection", params: ["setRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_set_sortedDescending", section: "Collection", params: ["setRaw"],
+    bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
             isThrowing: false),
 ]
 

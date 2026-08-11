@@ -14,7 +14,7 @@ public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)))
 }
 
-@_cdecl("kk_set_of_not_null")
+@_cdecl("__kk_set_of_not_null")
 public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
@@ -32,7 +32,7 @@ public func kk_emptySet() -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []))
 }
 
-@_cdecl("kk_set_size")
+@_cdecl("__kk_set_size")
 public func kk_set_size(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return 0
@@ -40,7 +40,7 @@ public func kk_set_size(_ setRaw: Int) -> Int {
     return set.elements.count
 }
 
-@_cdecl("kk_set_contains")
+@_cdecl("__kk_set_contains")
 public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -48,7 +48,7 @@ public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
     return kk_box_bool(set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0)
 }
 
-@_cdecl("kk_set_is_empty")
+@_cdecl("__kk_set_is_empty")
 public func kk_set_is_empty(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(1)
@@ -56,29 +56,7 @@ public func kk_set_is_empty(_ setRaw: Int) -> Int {
     return kk_box_bool(set.elements.isEmpty ? 1 : 0)
 }
 
-@_cdecl("kk_set_containsAll")
-public func kk_set_containsAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(0)
-    }
-    let otherElements: [Int]
-    if let otherList = runtimeListBox(from: collectionRaw) {
-        otherElements = otherList.elements
-    } else if let otherSet = runtimeSetBox(from: collectionRaw) {
-        otherElements = otherSet.elements
-    } else {
-        return kk_box_bool(0)
-    }
-    for element in otherElements {
-        // swiftlint:disable:next for_where
-        if !set.elements.contains(where: { runtimeValuesEqual($0, element) }) {
-            return kk_box_bool(0)
-        }
-    }
-    return kk_box_bool(1)
-}
-
-@_cdecl("kk_set_to_string")
+@_cdecl("__kk_set_to_string")
 public func kk_set_to_string(_ setRaw: Int) -> UnsafeMutableRawPointer {
     guard let set = runtimeSetBox(from: setRaw) else {
         let str = "[]"
@@ -95,68 +73,6 @@ public func kk_set_to_string(_ setRaw: Int) -> UnsafeMutableRawPointer {
     }
 }
 
-@_cdecl("kk_set_toList")
-public func kk_set_toList(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: set.elements))
-}
-
-@_cdecl("kk_set_first")
-public func kk_set_first(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw),
-          let first = set.elements.first
-    else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
-        return 0
-    }
-    return first
-}
-
-@_cdecl("kk_set_firstOrNull")
-public func kk_set_firstOrNull(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw),
-          let first = set.elements.first
-    else {
-        return runtimeNullSentinelInt
-    }
-    return first
-}
-
-@_cdecl("kk_set_last")
-public func kk_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw),
-          let last = set.elements.last
-    else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
-        return 0
-    }
-    return last
-}
-
-@_cdecl("kk_set_lastOrNull")
-public func kk_set_lastOrNull(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw),
-          let last = set.elements.last
-    else {
-        return runtimeNullSentinelInt
-    }
-    return last
-}
-
-@_cdecl("kk_set_singleOrNull")
-public func kk_set_singleOrNull(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw),
-          set.elements.count == 1
-    else {
-        return runtimeNullSentinelInt
-    }
-    return set.elements[0]
-}
-
 @_cdecl("__kk_collection_toList")
 public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
@@ -168,14 +84,11 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
     }
-    // Delegate to kk_sequence_to_list when the handle is a sequence box.
-    // This can happen when Collection.toList() is resolved on a sequence
-    // receiver via the synthetic Collection stub.
-    if let ptr = UnsafeMutableRawPointer(bitPattern: collRaw) {
-        let isObj = runtimeStorage.withGCLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
-        if isObj, tryCast(ptr, to: RuntimeSequenceBox.self) != nil {
-            return kk_sequence_to_list(collRaw, nil)
-        }
+    // Delegate to sequence collection when the handle is a runtime-backed or
+    // source-implemented Sequence box. This can happen when Collection.toList()
+    // is resolved on a sequence receiver via the synthetic Collection stub.
+    if let elements = runtimeSequenceSourceElements(from: collRaw) {
+        return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
@@ -202,47 +115,9 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     return 1
 }
 
-// MARK: - Set Operations (STDLIB-266)
+// MARK: - Mutable Set Operations
 
-@_cdecl("kk_set_intersect")
-public func kk_set_intersect(_ setRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeSetBox(from: setRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-    let result = selfElements.filter { elem in
-        otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
-@_cdecl("kk_set_union")
-public func kk_set_union(_ setRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeSetBox(from: setRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    let combined = selfElements + otherElements
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(combined)))
-}
-
-@_cdecl("kk_set_subtract")
-public func kk_set_subtract(_ setRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeSetBox(from: setRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-    let result = selfElements.filter { elem in
-        !otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
-@_cdecl("kk_mutable_set_add")
+@_cdecl("__kk_mutable_set_add")
 public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -254,7 +129,7 @@ public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
     return kk_box_bool(1)
 }
 
-@_cdecl("kk_mutable_set_remove")
+@_cdecl("__kk_mutable_set_remove")
 public func kk_mutable_set_remove(_ setRaw: Int, _ elem: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
           let index = set.elements.firstIndex(where: { runtimeValuesEqual($0, elem) })
@@ -265,7 +140,7 @@ public func kk_mutable_set_remove(_ setRaw: Int, _ elem: Int) -> Int {
     return kk_box_bool(1)
 }
 
-@_cdecl("kk_mutable_set_clear")
+@_cdecl("__kk_mutable_set_clear")
 public func kk_mutable_set_clear(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return 0
@@ -274,22 +149,22 @@ public func kk_mutable_set_clear(_ setRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_set_addAll")
+@_cdecl("__kk_mutable_set_addAll")
 public func kk_mutable_set_addAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     kk_mutable_collection_addAll(setRaw, collectionRaw)
 }
 
-@_cdecl("kk_mutable_set_addAll_sequence")
+@_cdecl("__kk_mutable_set_addAll_sequence")
 public func kk_mutable_set_addAll_sequence(_ setRaw: Int, _ sequenceRaw: Int) -> Int {
     return runtimeMutableSetAddAllSequence(setRaw: setRaw, sequenceRaw: sequenceRaw)
 }
 
-@_cdecl("kk_mutable_set_addAll_iterable")
+@_cdecl("__kk_mutable_set_addAll_iterable")
 public func kk_mutable_set_addAll_iterable(_ setRaw: Int, _ iterableRaw: Int) -> Int {
     kk_mutable_collection_addAll_iterable(setRaw, iterableRaw)
 }
 
-@_cdecl("kk_mutable_set_removeAll")
+@_cdecl("__kk_mutable_set_removeAll")
 public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -309,7 +184,7 @@ public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
     return kk_box_bool(set.elements.count != originalCount ? 1 : 0)
 }
 
-@_cdecl("kk_mutable_set_retainAll")
+@_cdecl("__kk_mutable_set_retainAll")
 public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -353,7 +228,7 @@ public func kk_emptyMap() -> Int {
     return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 }
 
-@_cdecl("kk_mutable_map_put")
+@_cdecl("__kk_mutable_map_put")
 public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
@@ -372,7 +247,7 @@ public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-@_cdecl("kk_mutable_map_remove")
+@_cdecl("__kk_mutable_map_remove")
 public func kk_mutable_map_remove(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
           let index = map.keys.firstIndex(where: { runtimeValuesEqual($0, key) })
@@ -386,7 +261,7 @@ public func kk_mutable_map_remove(_ mapRaw: Int, _ key: Int) -> Int {
     return map.values.remove(at: index)
 }
 
-@_cdecl("kk_mutable_map_clear")
+@_cdecl("__kk_mutable_map_clear")
 public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
     if let map = runtimeMapBox(from: mapRaw) {
         map.keys.removeAll()
@@ -395,7 +270,7 @@ public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_map_putAll")
+@_cdecl("__kk_mutable_map_putAll")
 public func kk_mutable_map_putAll(_ mapRaw: Int, _ otherMapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
           let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
@@ -419,7 +294,7 @@ public func kk_mutable_map_putAll(_ mapRaw: Int, _ otherMapRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_map_plusAssign_pair")
+@_cdecl("__kk_mutable_map_plusAssign_pair")
 public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: pairRaw),
           let pairBox = tryCast(pointer, to: RuntimePairBox.self)

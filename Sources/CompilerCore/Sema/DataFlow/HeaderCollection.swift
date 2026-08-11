@@ -1078,6 +1078,9 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The fully-qualified names a bundled source file is allowed to claim from
+    /// an earlier synthetic registration. A file may declare more than one such
+    /// nominal (`Tuples.kt` declares both `Pair` and `Triple`).
     private func reusableSyntheticSourceDeclarationKeys(
         for file: ASTFile,
         sourceManager: SourceManager,
@@ -1086,6 +1089,8 @@ extension DataFlowSemaPhase {
         let names: [[String]] = switch sourceManager.path(of: file.fileID) {
         case "__bundled_kotlin/Comparable.kt":
             [["kotlin", "Comparable"]]
+        case "__bundled_kotlin/io/Closeable.kt":
+            [["kotlin", "io", "Closeable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
             [["kotlin", "collections", "RandomAccess"]]
         case "__bundled_kotlin/collections/MutableIterable.kt":
@@ -1102,8 +1107,6 @@ extension DataFlowSemaPhase {
             [["kotlin", "uuid", "Uuid"]]
         case "__bundled_java/math/BigDecimal.kt":
             [["java", "math", "BigDecimal"]]
-        case "__bundled_java/math/BigInteger.kt":
-            [["java", "math", "BigInteger"]]
         case "__bundled_kotlin/random/Random.kt":
             [["kotlin", "random", "Random"]]
         case "__bundled_kotlin/random/JavaUtilRandom.kt":
@@ -1114,6 +1117,11 @@ extension DataFlowSemaPhase {
             [["kotlin", "Throwable"]]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
+        case "__bundled_kotlin/Tuples.kt":
+            [
+                ["kotlin", "Pair"],
+                ["kotlin", "Triple"],
+            ]
         case "__bundled_kotlin/ranges/Ranges.kt":
             [
                 ["kotlin", "ranges", "ClosedRange"],

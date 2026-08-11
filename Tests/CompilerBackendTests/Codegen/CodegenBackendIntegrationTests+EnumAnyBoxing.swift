@@ -105,6 +105,47 @@ struct CodegenBackendEnumAnyBoxingTests {
         )
     }
 
+    /// BUG-182: an enum constant widened to `Any` must still answer
+    /// `is`/`as`/`as?`/`KClass.isInstance` for its declared enum class.
+    /// Previously `kk_enum_box_ordinal` produced a `RuntimeIntBox` with no
+    /// nominal type tag, so `kk_op_is` treated every boxed enum as an
+    /// unrelated object and `as`/`as?` threw or returned `null`.
+    @Test
+    func testCodegenEnumWidenedToAnyIsAsAndKClassIsInstance() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+
+        fun main() {
+            val boxed: Any = Direction.WEST
+            println(boxed is Direction)
+            val unboxed = boxed as Direction
+            println(unboxed)
+            val safe = boxed as? Direction
+            if (safe != null) println(safe) else println("null")
+            println(Direction::class.isInstance(boxed))
+            println(Direction::class.isInstance("not an enum"))
+            val wrong: Any = 42
+            val wrongSafe = wrong as? Direction
+            if (wrongSafe != null) println(wrongSafe) else println("null")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumAnyWideningIsAs",
+            expected:
+                """
+                true
+                WEST
+                WEST
+                true
+                false
+                null
+                """
+                + "\n"
+        )
+    }
+
     /// Broader coverage across every Any-erased boundary an enum value can
     /// flow through: local var widening, function argument/return widening,
     /// data class field widening (constructor argument boxing), mixed enum

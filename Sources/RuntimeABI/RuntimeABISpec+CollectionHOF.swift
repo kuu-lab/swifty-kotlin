@@ -961,156 +961,16 @@ public extension RuntimeABISpec {
                     section: "Collection",
                     isThrowing: false
                 ),
-                // Grouping (STDLIB-285/286)
+                // STDLIB-250: Closeable.use {}
                 RuntimeABIFunctionSpec(
-                    name: "kk_list_groupingBy",
+                    name: "__kk_auto_closeable_create",
                     parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
                         RuntimeABIParameter(name: "fnPtr", type: .intptr),
                         RuntimeABIParameter(name: "closureRaw", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_eachCount",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_eachCountTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_aggregate",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_aggregateTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_fold",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initial", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_fold_initialValueSelector",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "operationFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "operationClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_foldTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initial", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_foldTo_selector",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_reduce",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_reduceTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                // STDLIB-250: Closeable.use {}
-                RuntimeABIFunctionSpec(
-                    name: "kk_use",
-                    parameters: [
-                        RuntimeABIParameter(name: "resourceRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                // STDLIB-KOTLIN-ROOT-CLOSE-001: AutoCloseable { closeAction }
-                RuntimeABIFunctionSpec(
-                    name: "kk_auto_closeable_create",
-                    parameters: [
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
+                    isThrowing: false
                 ),
                 // STDLIB-533: List?.orEmpty()
                 RuntimeABIFunctionSpec(

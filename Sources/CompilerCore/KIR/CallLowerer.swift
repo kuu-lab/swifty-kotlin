@@ -148,8 +148,7 @@ final class CallLowerer {
     }
 
     /// True for synthetic runtime-backed factory constructors that allocate
-    /// their own object (atomic scalar boxes, java.math.BigInteger, and
-    /// built-in exception classes).
+    /// their own object (atomic scalar boxes and built-in exception classes).
     private func isAtomicScalarConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -163,7 +162,6 @@ final class CallLowerer {
             return false
         }
         return knownNames.isAtomicScalarFactorySymbol(ownerInfo)
-            || knownNames.isBoxedRuntimeFactorySymbol(ownerInfo)
             || isRuntimeFactoryConstructor(symbolID, sema: sema)
     }
 
@@ -252,7 +250,7 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let result = arena.appendTemporary(type: resultType)
-        // The runtime factory (e.g. `kk_atomic_int_create` or `kk_biginteger_fromString`)
+        // The runtime factory (e.g. `kk_atomic_int_create`)
         // allocates the box itself; we must not precede it with `kk_object_new`
         // and an implicit `this` argument.
         let callee = sema.symbols.externalLinkName(for: constructorSymbol)
@@ -328,10 +326,12 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         // SAM constructor calls: `Transformer { ... }` — the single lambda
-        // argument is already marked as a SAM conversion.  Lower the lambda
-        // directly; the SAM wrapper is produced by LambdaLowerer.
+        // argument is already marked as a SAM conversion and no call binding
+        // exists for the constructor.  Lower the lambda directly; the SAM
+        // wrapper is produced by LambdaLowerer.
         if args.count == 1,
-           sema.bindings.isSamConversion(args[0].expr)
+           sema.bindings.isSamConversion(args[0].expr),
+           sema.bindings.callBinding(for: exprID) == nil
         {
             return driver.lowerExpr(
                 args[0].expr,
@@ -386,45 +386,6 @@ final class CallLowerer {
             instructions: &instructions
         ) {
             return loweredRepeat
-        }
-
-        if let loweredMeasureTime = lowerMeasureTimeMillisCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTime
-        }
-
-        if let loweredMeasureMicros = lowerMeasureTimeMicrosCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureMicros
-        }
-
-        if let loweredMeasureNano = lowerMeasureNanoTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureNano
         }
 
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
@@ -734,7 +695,6 @@ final class CallLowerer {
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 1,
-           !isSourceBacked(chosen, sema: sema),
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
@@ -765,7 +725,6 @@ final class CallLowerer {
         }
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema),
            let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
            case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
            functionType.params.isEmpty,
@@ -826,8 +785,7 @@ final class CallLowerer {
         // silently dropped and its returned elements never boxed. Handle it
         // directly, same as the other two generateSequence overloads above.
         if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema)
+           loweredArgIDs.count == 2
         {
             let expandedNextFunction = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArgIDs[1],
@@ -1375,10 +1333,10 @@ final class CallLowerer {
                 instructions.append(.rethrow(value: thrownResult))
                 instructions.append(.label(continueLabel))
             }
-            if loweredCalleeName == interner.intern("kk_auto_closeable_create"),
+            if loweredCalleeName == interner.intern("__kk_auto_closeable_create"),
                let closeableSymbol = sema.types.closeableInterfaceSymbol
             {
-                // kk_auto_closeable_create wraps the close-action lambda in a
+                // __kk_auto_closeable_create wraps the close-action lambda in a
                 // lightweight object and hardcodes its close() method at
                 // itable slot 0 (see the kk_object_register_itable_method
                 // call inside it), but never registers that slot against the
@@ -1444,6 +1402,8 @@ final class CallLowerer {
             return interner.intern("kk_function_invoke_2")
         case 3:
             return interner.intern("kk_function_invoke_3")
+        case 4:
+            return interner.intern("kk_function_invoke_4")
         default:
             return nil
         }

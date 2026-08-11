@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-/// BUG-187: Byte/Short overloads must be distinct and resolve to the correct overload.
+/// BUG-186: Byte/Short overloads must be distinct and resolve to the correct overload.
 @Suite
 struct ByteShortOverloadResolutionTests {
     @Test func testByteAndShortOverloadsAccepted() throws {
