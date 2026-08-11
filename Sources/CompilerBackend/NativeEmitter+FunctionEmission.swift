@@ -811,6 +811,12 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: false
                 ),
+                "__kk_string_normalize_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_normalize_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: false
+                ),
                 "kk_string_orEmpty_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_orEmpty_flat",
                     stringArgumentCount: 1,
@@ -1421,12 +1427,6 @@ extension NativeEmitter {
                 ),
                 "__kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toBigDecimal_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigInteger_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true

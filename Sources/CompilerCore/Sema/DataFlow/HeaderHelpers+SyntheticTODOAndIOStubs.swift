@@ -111,13 +111,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- Grouping type (STDLIB-285/286) ---
-        registerSyntheticGroupingStub(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         registerSyntheticGenericSequenceVarargFunction(
             named: "sequenceOf",
             packageFQName: kotlinSequencesPkg,
@@ -1922,15 +1915,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // File.walk() returns FileTreeWalk (lazy walk); registered after FileTreeWalk stub
-        let fileTreeWalkType = resolveFileTreeWalkType(symbols: symbols, types: types, interner: interner) ?? listOfFileType
         registerFileMemberFunction(
             named: "walk",
             externalLinkName: "kk_file_walk",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
-            returnType: fileTreeWalkType,
+            returnType: listOfFileType,
             symbols: symbols,
             interner: interner
         )

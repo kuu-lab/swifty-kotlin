@@ -3,7 +3,6 @@ extension CollectionLiteralLoweringSupport {
         var listExprIDs: Set<Int32> = []
         var setExprIDs: Set<Int32> = []
         var mapExprIDs: Set<Int32> = []
-        var fileTreeWalkExprIDs: Set<Int32> = []
         var arrayExprIDs: Set<Int32> = []
         var sequenceExprIDs: Set<Int32> = []
         var rangeExprIDs: Set<Int32> = []
@@ -79,9 +78,6 @@ extension CollectionLiteralLoweringSupport {
             }
             if pathExprIDs.contains(from.rawValue) {
                 pathExprIDs.insert(to.rawValue)
-            }
-            if fileTreeWalkExprIDs.contains(from.rawValue) {
-                fileTreeWalkExprIDs.insert(to.rawValue)
             }
             if iteratorBuilderExprIDs.contains(from.rawValue) {
                 iteratorBuilderExprIDs.insert(to.rawValue)

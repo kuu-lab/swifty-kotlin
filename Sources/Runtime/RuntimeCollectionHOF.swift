@@ -1416,22 +1416,6 @@ public func kk_list_binarySearchBy_range(
     )
 }
 
-// MARK: - Set sorted (STDLIB-115)
-
-@_cdecl("kk_set_sortedDescending")
-public func kk_set_sortedDescending(_ setRaw: Int) -> Int {
-    guard let setBox = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
-    let elements = setBox.elements
-    let sorted = elements.enumerated().sorted { lhs, rhs in
-        let comparison = runtimeCompareValues(lhs.element, rhs.element)
-        if comparison != 0 {
-            return comparison > 0
-        }
-        return lhs.offset < rhs.offset
-    }.map(\.element)
-    return registerRuntimeObject(RuntimeListBox(elements: sorted))
-}
-
 // MARK: - Sorting variants (STDLIB-115)
 
 @_cdecl("kk_list_sortedDescending")
@@ -1634,7 +1618,7 @@ public func kk_list_partition(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _
 
 // MARK: - MutableList in-place sort (STDLIB-205)
 
-@_cdecl("kk_mutable_list_sort")
+@_cdecl("__kk_mutable_list_sort")
 public func kk_mutable_list_sort(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let indexed = list.elements.enumerated().sorted { lhs, rhs in
@@ -1648,7 +1632,7 @@ public func kk_mutable_list_sort(_ listRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_list_sort_primitive")
+@_cdecl("__kk_mutable_list_sort_primitive")
 public func kk_mutable_list_sort_primitive(_ listRaw: Int, _ kindRaw: Int32) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let sorted = runtimeSortElements(list.elements, descending: false, primitiveKind: runtimePrimitiveCompareKindFromRaw(kindRaw))
@@ -1658,7 +1642,7 @@ public func kk_mutable_list_sort_primitive(_ listRaw: Int, _ kindRaw: Int32) -> 
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortWith")
+@_cdecl("__kk_mutable_list_sortWith")
 public func kk_mutable_list_sortWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
@@ -1682,7 +1666,7 @@ public func kk_mutable_list_sortWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw:
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortBy")
+@_cdecl("__kk_mutable_list_sortBy")
 public func kk_mutable_list_sortBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1701,7 +1685,7 @@ public func kk_mutable_list_sortBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: I
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortBy_primitive")
+@_cdecl("__kk_mutable_list_sortBy_primitive")
 public func kk_mutable_list_sortBy_primitive(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ kindRaw: Int32, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1720,7 +1704,7 @@ public func kk_mutable_list_sortBy_primitive(_ listRaw: Int, _ fnPtr: Int, _ clo
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortByDescending")
+@_cdecl("__kk_mutable_list_sortByDescending")
 public func kk_mutable_list_sortByDescending(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1739,7 +1723,7 @@ public func kk_mutable_list_sortByDescending(_ listRaw: Int, _ fnPtr: Int, _ clo
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortByDescending_primitive")
+@_cdecl("__kk_mutable_list_sortByDescending_primitive")
 public func kk_mutable_list_sortByDescending_primitive(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ kindRaw: Int32, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1758,7 +1742,7 @@ public func kk_mutable_list_sortByDescending_primitive(_ listRaw: Int, _ fnPtr: 
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortDescending")
+@_cdecl("__kk_mutable_list_sortDescending")
 public func kk_mutable_list_sortDescending(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let indexed = list.elements.enumerated().sorted { lhs, rhs in
@@ -1772,7 +1756,7 @@ public func kk_mutable_list_sortDescending(_ listRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortDescending_primitive")
+@_cdecl("__kk_mutable_list_sortDescending_primitive")
 public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: Int32) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let sorted = runtimeSortElements(list.elements, descending: true, primitiveKind: runtimePrimitiveCompareKindFromRaw(kindRaw))
@@ -1780,170 +1764,4 @@ public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: 
         list.elements[i] = sorted[i]
     }
     return 0
-}
-
-// MARK: - Set higher-order functions (STDLIB-268)
-// (a) RF-DEAD-002: 配線予定 → TEST-COL-012 (Set HOF Codegen 統合テスト追加)
-// 以下 kk_set_map / filterNot / flatMap / forEach / mapNotNull / count_predicate は全て同タスクに紐付く。
-
-@_cdecl("kk_set_map")
-public func kk_set_map(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    let mapped = applyMapStep(set.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-    return registerRuntimeObject(RuntimeListBox(elements: mapped))
-}
-
-@_cdecl("kk_set_filter")
-public func kk_set_filter(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    let filtered = applyFilterStep(set.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-    return registerRuntimeObject(RuntimeListBox(elements: filtered))
-}
-
-@_cdecl("kk_set_forEach")
-public func kk_set_forEach(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for elem in set.elements {
-        var thrown = 0
-        _ = lambda(closureRaw, elem, &thrown)
-        if thrown != 0 { outThrown?.pointee = thrown; return 0 }
-    }
-    return 0
-}
-
-@_cdecl("kk_set_filterNot")
-public func kk_set_filterNot(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    let filtered = applyFilterNotStep(set.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-    return registerRuntimeObject(RuntimeListBox(elements: filtered))
-}
-
-@_cdecl("kk_set_mapNotNull")
-public func kk_set_mapNotNull(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    var thrown = 0
-    let mapped = applyMapNotNullStep(set.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    return registerRuntimeObject(RuntimeListBox(elements: mapped))
-}
-
-@_cdecl("kk_set_flatMap")
-public func kk_set_flatMap(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var result: [Int] = []
-    for elem in set.elements {
-        var thrown = 0
-        let subCollRaw = lambda(closureRaw, elem, &thrown)
-        if thrown != 0 { outThrown?.pointee = thrown; return registerRuntimeObject(RuntimeListBox(elements: [])) }
-        if let subList = runtimeListBox(from: subCollRaw) {
-            result.append(contentsOf: subList.elements)
-        } else if let subSet = runtimeSetBox(from: subCollRaw) {
-            result.append(contentsOf: subSet.elements)
-        } else if let subArray = runtimeArrayBox(from: subCollRaw) {
-            result.append(contentsOf: subArray.elements)
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
-}
-
-@_cdecl("kk_set_maxOrNull")
-public func kk_set_maxOrNull(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    guard let first = set.elements.first else {
-        return runtimeNullSentinelInt
-    }
-    var best = first
-    for elem in set.elements.dropFirst() where runtimeCompareValues(elem, best) > 0 {
-        best = elem
-    }
-    return best
-}
-
-@_cdecl("kk_set_minOrNull")
-public func kk_set_minOrNull(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        invalidContainerPanic(#function, "set")
-    }
-    guard let first = set.elements.first else {
-        return runtimeNullSentinelInt
-    }
-    var best = first
-    for elem in set.elements.dropFirst() where runtimeCompareValues(elem, best) < 0 {
-        best = elem
-    }
-    return best
-}
-
-// MARK: - Set predicate higher-order functions (STDLIB-SET-PRED)
-
-@_cdecl("kk_set_any")
-public func kk_set_any(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
-    if fnPtr == 0 {
-        return set.elements.isEmpty ? 0 : 1
-    }
-    for elem in set.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return 1 }
-    }
-    return 0
-}
-
-@_cdecl("kk_set_none")
-public func kk_set_none(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
-    if fnPtr == 0 {
-        return set.elements.isEmpty ? 1 : 0
-    }
-    for elem in set.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return 0 }
-    }
-    return 1
-}
-
-@_cdecl("kk_set_all")
-public func kk_set_all(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
-    for elem in set.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) == 0 { return 0 }
-    }
-    return 1
-}
-
-@_cdecl("kk_set_count_predicate")
-public func kk_set_count_predicate(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
-    if fnPtr == 0 {
-        return set.elements.count
-    }
-    var count = 0
-    for elem in set.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { count += 1 }
-    }
-    return count
 }
