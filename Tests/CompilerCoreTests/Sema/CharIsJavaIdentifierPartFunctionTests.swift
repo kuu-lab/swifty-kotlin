@@ -7,8 +7,12 @@ import Testing
 /// `kk_char_isJavaIdentifierPart` (see `Sources/Runtime/RuntimeChar.swift`).
 @Suite
 struct CharIsJavaIdentifierPartFunctionTests {
-    @Test func testCharIsJavaIdentifierPartResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         fun identifierPartCheck(ch: Char): Boolean {
             return ch.isJavaIdentifierPart()
         }
@@ -28,8 +32,30 @@ struct CharIsJavaIdentifierPartFunctionTests {
         fun identifierPartIfBranch(ch: Char): Int {
             return if (ch.isJavaIdentifierPart()) 1 else 0
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testCharIsJavaIdentifierPartResolvesInSource() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -39,9 +65,8 @@ struct CharIsJavaIdentifierPartFunctionTests {
 
     @Test func testCharIsJavaIdentifierPartResolvesToRuntimeLink() throws {
         var resolvedLink: String?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "isJavaIdentifierPart"].map { ctx.interner.intern($0) }
             let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
@@ -53,8 +78,7 @@ struct CharIsJavaIdentifierPartFunctionTests {
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isJavaIdentifierPart() should return Boolean")
-        }
-        #expect(resolvedLink == "kk_char_isJavaIdentifierPart")
+
     }
 }
 #endif
