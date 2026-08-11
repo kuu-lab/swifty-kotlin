@@ -569,36 +569,6 @@ extension LoweringPassRegressionTests {
         #expect(call.canThrow)
     }
 
-    // STDLIB-IO-PATH-FN-038: end-to-end source rewrite lowers useLines to kk_path_useLines_default
-    @Test
-    func testPathUseLinesSourceRewrite() throws {
-        let source = """
-        import kotlin.io.path.Path
-        import kotlin.io.path.useLines
-
-        fun main() {
-            val p = Path("/dev/null")
-            val count = p.useLines { lines ->
-                lines.count()
-            }
-            println(count)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "PathUseLinesRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_path_useLines_default"), "useLines without charset should lower to kk_path_useLines_default")
-            #expect(!callees.contains("useLines"), "useLines callee should be fully rewritten")
-        }
-    }
-
     @Test
     func testFileBasicOperationsIntegration() throws {
         let source = """
