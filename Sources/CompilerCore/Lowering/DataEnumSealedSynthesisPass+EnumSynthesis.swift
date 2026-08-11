@@ -24,6 +24,7 @@ extension DataEnumSealedSynthesisPass {
 
         var body: [KIRInstruction] = []
         let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
+            enumClassSymbol: owner.id,
             entries: entries,
             intType: intType,
             body: &body,
@@ -112,6 +113,7 @@ extension DataEnumSealedSynthesisPass {
 
         var body: [KIRInstruction] = []
         let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
+            enumClassSymbol: enumSymbol.id,
             entries: entries,
             intType: intType,
             body: &body,
@@ -147,6 +149,7 @@ extension DataEnumSealedSynthesisPass {
     }
 
     private func appendEnumOrdinalArrayCreation(
+        enumClassSymbol: SymbolID,
         entries: [SemanticSymbol],
         intType: TypeID,
         body: inout [KIRInstruction],
@@ -171,6 +174,14 @@ extension DataEnumSealedSynthesisPass {
 
         let stringType = sema.types.stringType
         let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: enumClassSymbol,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
+        body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+
         for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendTemporary(type: intType
             )
@@ -179,19 +190,19 @@ extension DataEnumSealedSynthesisPass {
             let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
             body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
 
-            // Box the ordinal (tagged with its declared name, see
-            // kk_enum_box_ordinal) instead of storing a pre-baked name
-            // string. Every other enum value is a raw ordinal Int, so an
-            // element read back out of values()/entries must round-trip
-            // through the same boxing/unboxing pair to behave correctly for
-            // println, equality, and `when` -- storing the name string
-            // outright broke all three (it only happened to look right when
-            // the whole collection was printed generically).
+            // Box the ordinal (tagged with its declared name and the enum
+            // class's stable nominal type ID, see kk_enum_box_ordinal) instead
+            // of storing a pre-baked name string. Every other enum value is a
+            // raw ordinal Int, so an element read back out of values()/entries
+            // must round-trip through the same boxing/unboxing pair to behave
+            // correctly for println, equality, and `when` -- storing the name
+            // string outright broke all three (it only happened to look right
+            // when the whole collection was printed generically).
             let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
                 callee: boxOrdinalCallee,
-                arguments: [indexExpr, nameExpr],
+                arguments: [indexExpr, nameExpr, classIDExpr],
                 result: boxedEntry,
                 canThrow: false,
                 thrownResult: nil
@@ -565,6 +576,45 @@ extension DataEnumSealedSynthesisPass {
 
             // Store ordinal into the global slot.
             body.append(.copy(from: ordinalExpr, to: entryRef))
+        }
+
+        // Register supertype edges so boxed enum values can answer `is`/`as`
+        // against kotlin.Enum and implemented interfaces (e.g. Comparable).
+        let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: owner.id, sema: sema, interner: interner
+        )
+        let classIDExpr = module.arena.appendExpr(.intLiteral(classIDValue), type: intType)
+        body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
+        let kotlinPkg = [interner.intern("kotlin")]
+        var extraEnumSupers: [SymbolID] = []
+        if let enumBaseSymbol = sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("Enum")]) {
+            extraEnumSupers.append(enumBaseSymbol)
+        }
+        if let comparableSymbol = sema.types.comparableInterfaceSymbol {
+            extraEnumSupers.append(comparableSymbol)
+        }
+        for superSymbol in sema.symbols.directSupertypes(for: owner.id) + extraEnumSupers {
+            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: superSymbol, sema: sema, interner: interner
+            )
+            guard parentTypeID != 0 else { continue }
+            let parentExpr = module.arena.appendExpr(.intLiteral(parentTypeID), type: intType)
+            body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
+            let registerResult = module.arena.appendTemporary(type: intType)
+            let superKind = sema.symbols.symbol(superSymbol)?.kind
+            let registerCallee: InternedString = if superKind == .interface {
+                interner.intern("kk_type_register_iface")
+            } else {
+                interner.intern("kk_type_register_super")
+            }
+            body.append(.call(
+                symbol: nil,
+                callee: registerCallee,
+                arguments: [classIDExpr, parentExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
         }
 
         body.append(.returnUnit)

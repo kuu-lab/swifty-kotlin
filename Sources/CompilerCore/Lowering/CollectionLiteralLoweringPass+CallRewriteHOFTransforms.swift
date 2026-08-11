@@ -1,3 +1,5 @@
+import RuntimeABI
+
 /// Destination, association, zip, and indexed higher-order collection rewrites.
 extension CollectionLiteralLoweringSupport {
     func makeWindowedTransformBridgeArguments(
@@ -277,17 +279,9 @@ extension CollectionLiteralLoweringSupport {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let isSequenceReceiver = state.sequenceExprIDs.contains(receiverID.rawValue)
-            let kkName: InternedString = switch callee {
-            case lookup.mapToName: lookup.kkListMapToName
-            case lookup.flatMapToName: lookup.kkListFlatMapToName
-            case lookup.mapNotNullToName: lookup.kkListMapNotNullToName
-            case lookup.mapIndexedToName: lookup.kkListMapIndexedToName
-            case lookup.mapIndexedNotNullToName: lookup.kkListMapIndexedNotNullToName
-            case lookup.flatMapIndexedToName: lookup.kkListFlatMapIndexedToName
-            case lookup.associateToName:
-                isSequenceReceiver ? lookup.kkSequenceAssociateToName : lookup.kkListAssociateToName
-            default: callee
+            let ownerKind: StdlibSurfaceOwnerKind = state.sequenceExprIDs.contains(receiverID.rawValue) ? .sequence : .list
+            guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: ownerKind, callee: callee, arity: 2) else {
+                return false
             }
             let hofResult = module.arena.appendTemporary(type: nil
             )
@@ -570,15 +564,8 @@ extension CollectionLiteralLoweringSupport {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]
-            if state.listExprIDs.contains(receiverID.rawValue) {
-                let kkName: InternedString
-                if callee == lookup.onEachIndexedName {
-                    kkName = lookup.kkListOnEachIndexedName
-                } else if callee == lookup.mapIndexedNotNullName {
-                    kkName = lookup.kkListMapIndexedNotNullName
-                } else {
-                    kkName = lookup.kkListMapIndexedName
-                }
+            if state.listExprIDs.contains(receiverID.rawValue),
+               let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) {
                 let closureRawID: KIRExprID
                 if arguments.count == 3 {
                     closureRawID = arguments[2]

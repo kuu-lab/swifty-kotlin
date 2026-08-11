@@ -66,16 +66,45 @@ func emitNonThrowingCall(
     callee: InternedString,
     arg: KIRExprID,
     result: KIRExprID,
+    symbol: SymbolID? = nil,
     into instructions: inout [KIRInstruction]
 ) {
     instructions.append(.call(
-        symbol: nil,
+        symbol: symbol,
         callee: callee,
         arguments: [arg],
         result: result,
         canThrow: false,
         thrownResult: nil
     ))
+}
+
+/// Resolve `componentN` for destructuring against `receiverType`.
+///
+/// External members lower to their runtime link name; the resolved symbol is
+/// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
+/// dispatch to the compiled function instead of a same-named runtime export,
+/// and so that ABI lowering can unbox generic component results.
+func resolveDestructuringComponentCallee(
+    componentName: InternedString,
+    receiverType: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> (symbol: SymbolID?, callee: InternedString) {
+    let chosen = TypeCheckHelpers().collectMemberFunctionCandidates(
+        named: componentName,
+        receiverType: receiverType,
+        sema: sema,
+        interner: interner
+    ).first
+    guard let chosen else {
+        return (nil, componentName)
+    }
+    let symbol = sema.symbols.isSourceBackedSymbol(chosen) ? chosen : nil
+    if let linkName = sema.symbols.externalLinkName(for: chosen), !linkName.isEmpty {
+        return (symbol, interner.intern(linkName))
+    }
+    return (symbol, componentName)
 }
 
 /// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete
@@ -176,6 +205,7 @@ func emitBoxCallWithValueClassTag(
             result: result,
             resultType: resultType,
             types: types,
+            symbols: symbols,
             interner: interner,
             arena: arena,
             into: &instructions
@@ -208,11 +238,11 @@ func emitBoxCallWithValueClassTag(
     ))
 }
 
-/// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name)` (BUG-177),
-/// resolving `name` at runtime through the enum class's
-/// `$enumOrdinalToName$<id>` helper — DataEnumSealedSynthesisPass
-/// synthesizes one for every enum class unconditionally, regardless of
-/// whether `values()`/`entries`/`.name` are actually used.
+/// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name, classID)`
+/// (BUG-177 / BUG-182), resolving `name` at runtime through the enum class's
+/// `$enumOrdinalToName$<id>` helper and tagging the box with the enum class's
+/// stable nominal type ID so `is`/`as`/`as?`/`KClass.isInstance` work after
+/// widening to `Any`.
 ///
 /// The helper is called by bare name (`symbol: nil`) rather than by its
 /// `SymbolID` because boxing can be lowered *before*
@@ -231,6 +261,7 @@ private func emitEnumOrdinalBoxCall(
     result: KIRExprID,
     resultType: TypeID?,
     types: TypeSystem,
+    symbols: SymbolTable?,
     interner: StringInterner,
     arena: KIRArena,
     into instructions: inout [KIRInstruction]
@@ -241,9 +272,17 @@ private func emitEnumOrdinalBoxCall(
         symbol: nil, callee: nameHelperCallee, arguments: [ordinal],
         result: nameResult, canThrow: false, thrownResult: nil
     ))
+
+    let classID = symbols.map {
+        RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner)
+    } ?? 0
+    let intType = types.make(.primitive(.int, .nonNull))
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+
     let boxCallee = interner.intern("kk_enum_box_ordinal")
     instructions.append(.call(
-        symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult],
+        symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
 }

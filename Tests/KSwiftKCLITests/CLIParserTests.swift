@@ -125,6 +125,13 @@ struct CLIParserTests {
 
     @Test
     func parsesStdlibFlags() throws {
+        // Isolate from test-process state that may have set a shared
+        // prebuilt stdlib library path; CLI flag parsing should determine
+        // includeStdlib on its own.
+        let savedDefaultStdlibLibraryPath = CompilerOptions.defaultStdlibLibraryPath
+        defer { CompilerOptions.defaultStdlibLibraryPath = savedDefaultStdlibLibraryPath }
+        CompilerOptions.defaultStdlibLibraryPath = nil
+
         let noStdlib = try CLIParser.parse(args: ["--no-stdlib", "main.kt"])
         #expect(noStdlib.includeStdlib == false)
 
@@ -133,6 +140,51 @@ struct CLIParserTests {
 
         let defaultOptions = try CLIParser.parse(args: ["main.kt"])
         #expect(defaultOptions.includeStdlib == true)
+    }
+
+    @Test
+    func parsesStdlibOnly() throws {
+        let options = try CLIParser.parse(args: ["--stdlib-only"])
+
+        #expect(options.inputs.isEmpty)
+        #expect(options.emit == .library)
+        #expect(options.moduleName == "KSwiftKStdlib")
+        #expect(options.stdlibOnly)
+        #expect(options.stdlibLibraryPath == nil)
+        #expect(options.includeStdlib)
+    }
+
+    @Test
+    func parsesStdlibLibraryAndDisablesSourceInjection() throws {
+        let options = try CLIParser.parse(args: ["--stdlib-library", "/tmp/KSwiftKStdlib.kklib", "main.kt"])
+
+        #expect(options.stdlibLibraryPath == "/tmp/KSwiftKStdlib.kklib")
+        #expect(!options.includeStdlib)
+        #expect(!options.stdlibOnly)
+    }
+
+    @Test
+    func rejectsStdlibOnlyWithInput() {
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with input files")) {
+            try CLIParser.parse(args: ["--stdlib-only", "main.kt"])
+        }
+    }
+
+    @Test
+    func rejectsStdlibOnlyWithNonLibraryEmit() {
+        #expect(throws: CLIParseError.stdlibOnlyRequiresLibraryEmit) {
+            try CLIParser.parse(args: ["--stdlib-only", "--emit", "object"])
+        }
+        #expect(throws: CLIParseError.stdlibOnlyRequiresLibraryEmit) {
+            try CLIParser.parse(args: ["--emit", "object", "--stdlib-only"])
+        }
+    }
+
+    @Test
+    func rejectsStdlibLibraryWithExplicitStdlib() {
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("--stdlib-library cannot be combined with --stdlib")) {
+            try CLIParser.parse(args: ["--stdlib-library", "/tmp/KSwiftKStdlib.kklib", "--stdlib", "main.kt"])
+        }
     }
 
     @Test

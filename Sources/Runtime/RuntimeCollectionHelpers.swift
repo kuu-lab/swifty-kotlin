@@ -646,6 +646,26 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return true
     }
+    // Only boxes tagged as kotlin.Pair/kotlin.Triple compare structurally:
+    // RuntimePairBox also backs untyped internal 2-tuples (see kk_pair_new),
+    // which keep reference equality.
+    if runtimeObjectTypeID(rawValue: lhs) == runtimePairNominalTypeID,
+       runtimeObjectTypeID(rawValue: rhs) == runtimePairNominalTypeID,
+       let lhsPair = tryCast(lhsPtr, to: RuntimePairBox.self),
+       let rhsPair = tryCast(rhsPtr, to: RuntimePairBox.self)
+    {
+        return runtimeValuesEqual(lhsPair.firstValue, rhsPair.firstValue)
+            && runtimeValuesEqual(lhsPair.secondValue, rhsPair.secondValue)
+    }
+    if runtimeObjectTypeID(rawValue: lhs) == runtimeTripleNominalTypeID,
+       runtimeObjectTypeID(rawValue: rhs) == runtimeTripleNominalTypeID,
+       let lhsTriple = tryCast(lhsPtr, to: RuntimeTripleBox.self),
+       let rhsTriple = tryCast(rhsPtr, to: RuntimeTripleBox.self)
+    {
+        return runtimeValuesEqual(lhsTriple.first, rhsTriple.first)
+            && runtimeValuesEqual(lhsTriple.second, rhsTriple.second)
+            && runtimeValuesEqual(lhsTriple.third, rhsTriple.third)
+    }
     if let lhsLocale = tryCast(lhsPtr, to: RuntimeLocaleBox.self),
        let rhsLocale = tryCast(rhsPtr, to: RuntimeLocaleBox.self)
     {
@@ -1150,8 +1170,13 @@ func runtimeBinarySearch(
 func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
-          lhsTypeID == rhsTypeID,
-          runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: comparableRuntimeTypeID)
+          runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: comparableRuntimeTypeID),
+          runtimeIsAssignable(sourceTypeID: rhsTypeID, targetTypeID: comparableRuntimeTypeID),
+          runtimeComparableOperandsAreCompatible(
+              lhsTypeID: lhsTypeID,
+              rhsTypeID: rhsTypeID,
+              comparableTypeID: comparableRuntimeTypeID
+          )
     else {
         return nil
     }

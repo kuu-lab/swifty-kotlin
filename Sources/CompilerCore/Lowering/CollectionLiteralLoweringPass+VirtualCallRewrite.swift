@@ -565,9 +565,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.takeWhileName || callee == lookup.dropWhileName
             || callee == lookup.takeLastWhileName || callee == lookup.dropLastWhileName
         else { return false }
-        guard arguments.count == 1, listExprIDs.contains(receiver.rawValue) else { return false }
-
-        let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) ?? callee
+        guard arguments.count == 1, listExprIDs.contains(receiver.rawValue),
+              let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1)
+        else { return false }
         let needsListTag = callee == lookup.mapName
             || callee == lookup.mapNotNullName
             || callee == lookup.flatMapName
@@ -778,17 +778,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             closureRawExpr = zeroExpr
         }
 
-        let isSequenceReceiver = sequenceExprIDs.contains(receiver.rawValue)
-        let kkName: InternedString = switch callee {
-        case lookup.mapToName: lookup.kkListMapToName
-        case lookup.flatMapToName: lookup.kkListFlatMapToName
-        case lookup.mapNotNullToName: lookup.kkListMapNotNullToName
-        case lookup.mapIndexedToName: lookup.kkListMapIndexedToName
-        case lookup.mapIndexedNotNullToName: lookup.kkListMapIndexedNotNullToName
-        case lookup.flatMapIndexedToName: lookup.kkListFlatMapIndexedToName
-        case lookup.associateToName:
-            isSequenceReceiver ? lookup.kkSequenceAssociateToName : lookup.kkListAssociateToName
-        default: callee
+        let ownerKind: StdlibSurfaceOwnerKind = sequenceExprIDs.contains(receiver.rawValue) ? .sequence : .list
+        guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: ownerKind, callee: callee, arity: 2) else {
+            return false
         }
 
         let hofResult = emitHOFCall(
@@ -984,17 +976,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.mapIndexedName
             || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName
             || callee == lookup.flatMapIndexedName,
-            arguments.count == 1 {
-            let kkName: InternedString
-            if callee == lookup.onEachIndexedName {
-                kkName = lookup.kkListOnEachIndexedName
-            } else if callee == lookup.mapIndexedNotNullName {
-                kkName = lookup.kkListMapIndexedNotNullName
-            } else if callee == lookup.flatMapIndexedName {
-                kkName = lookup.kkListFlatMapIndexedName
-            } else {
-                kkName = lookup.kkListMapIndexedName
-            }
+            arguments.count == 1,
+            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(

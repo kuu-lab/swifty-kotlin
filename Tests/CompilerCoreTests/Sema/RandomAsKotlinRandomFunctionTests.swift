@@ -13,7 +13,9 @@ import Testing
 
 @Suite
 struct RandomAsKotlinRandomFunctionTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -21,13 +23,15 @@ struct RandomAsKotlinRandomFunctionTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     /// `asKotlinRandom` lives at `kotlin.random.asKotlinRandom` (top-level
     /// extension), not as a member of `java.util.Random`.
     @Test func testAsKotlinRandomIsRegisteredAsTopLevelExtension() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fq = ["kotlin", "random", "asKotlinRandom"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
@@ -40,7 +44,7 @@ struct RandomAsKotlinRandomFunctionTests {
     /// native bridge — a raw pointer passthrough stopped being safe once
     /// kotlin.random.Random became a genuine compiled object.
     @Test func testAsKotlinRandomLinksToRuntimeStub() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fq = ["kotlin", "random", "asKotlinRandom"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
@@ -57,7 +61,7 @@ struct RandomAsKotlinRandomFunctionTests {
     /// The receiver type must be `java.util.Random` so that
     /// `JavaRandom(42).asKotlinRandom()` resolves through the extension.
     @Test func testAsKotlinRandomReceiverIsJavaUtilRandom() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let javaRandomFQ = ["java", "util", "Random"].map { interner.intern($0) }
         let javaRandomSymbol = try #require(sema.symbols.lookup(fqName: javaRandomFQ),
@@ -80,7 +84,7 @@ struct RandomAsKotlinRandomFunctionTests {
     /// The return type must be `kotlin.random.Random` (the standard library
     /// Random type, not the synthetic `java.util.Random` shim).
     @Test func testAsKotlinRandomReturnsKotlinRandom() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
         let randomSymbol = try #require(sema.symbols.lookup(fqName: randomFQ),
@@ -103,7 +107,7 @@ struct RandomAsKotlinRandomFunctionTests {
     /// The synthetic `java.util.Random` shim must expose a seeded constructor that
     /// allows user code such as `JavaRandom(42).asKotlinRandom()` to resolve.
     @Test func testJavaUtilRandomShimHasConstructorsForAsKotlinRandomCallSites() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let initFQ = ["java", "util", "Random", "<init>"].map { interner.intern($0) }
         let ctors = sema.symbols.lookupAll(fqName: initFQ)

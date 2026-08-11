@@ -5,17 +5,16 @@ import java.io.File
 // MIGRATION-IO-003
 // File 走査・操作関数を Kotlin source に移行する
 // 移行元: Sources/Runtime/RuntimeFileIO.swift
-//   kk_file_walk, kk_file_walkTopDown, kk_file_walkBottomUp,
-//   kk_file_walk_with_direction, kk_file_tree_walk_*,
-//   kk_file_copyTo, kk_file_copyRecursively,
+//   kk_file_walk, kk_file_copyTo, kk_file_copyRecursively,
 //   kk_file_forEachLine, kk_file_useLines
 //
 // NOTE: Not yet wired into the compiler pipeline.
-// Sema stubs in HeaderHelpers+SyntheticFileTreeWalkStubs.swift and
-// HeaderHelpers+SyntheticFileIOStubs.swift dispatch directly to the
-// kk_file_* ABI functions. This file is the migration target; wiring
-// (and removal of the corresponding synthetic stubs and ABI entries)
-// happens in a follow-up task.
+// The synthetic FileTreeWalk Sema stub and the kk_file_tree_walk_* ABI
+// functions have been removed (CLEANUP-STUB-108); `File.walk()` is now a
+// synthetic stub in HeaderHelpers+SyntheticTODOAndIOStubs.swift returning an
+// eagerly materialised List<File> via kk_file_walk. This file is the
+// migration target for the lazy traversal API; wiring happens in a
+// follow-up task.
 //
 // Dependencies when wiring:
 //   - File.exists(), isDirectory(), isFile(), listFiles(), delete(), mkdirs()

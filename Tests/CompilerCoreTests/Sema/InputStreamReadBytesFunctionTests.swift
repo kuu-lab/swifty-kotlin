@@ -6,7 +6,7 @@ import Testing
 /// STDLIB-IO-FN-029: Validates that `InputStream.readBytes()` resolves through
 /// Sema for the `java.io.InputStream` receiver and produces a `ByteArray`
 /// value (modelled in the runtime as `List<Int>`).  The synthetic stub is
-/// registered in `HeaderHelpers+SyntheticFileIOStubs.swift` and binds to the
+/// registered in `HeaderHelpers+SyntheticTODOAndIOStubs.swift` and binds to the
 /// runtime helper `kk_input_stream_readAllBytes` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 ///

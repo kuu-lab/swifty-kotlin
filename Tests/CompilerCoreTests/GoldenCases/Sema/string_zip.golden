@@ -2,7 +2,7 @@ symbol fq=charSequenceZip kind=function vis=public flags=_ sig=recv=_ params=[ko
 symbol fq=charSequenceZip.$0.cs kind=valueParameter vis=private flags=_
 symbol fq=charSequenceZip.$0.other kind=valueParameter vis=private flags=_
 symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
-symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
+symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.text.zip#0 kind=function vis=public flags=synthetic sig=recv=String params=[kotlin.CharSequence] ret=kotlin.collections.List<out kotlin.Pair<out Char, out Char>>
 symbol fq=kotlin.text.zip#1 kind=function vis=public flags=inlineFunction|synthetic sig=recv=String params=[kotlin.CharSequence,(Char, Char) -> kotlin.text.zip.R] ret=kotlin.collections.List<out kotlin.text.zip.R>

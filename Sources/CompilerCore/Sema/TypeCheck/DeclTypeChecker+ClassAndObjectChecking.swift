@@ -80,6 +80,7 @@ extension DeclTypeChecker {
 
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
@@ -441,6 +442,21 @@ extension DeclTypeChecker {
                     continue
                 }
                 classScope.insert(memberSymbol)
+            }
+        }
+
+        // Enum entries are not in memberFunctions/memberProperties/nested*,
+        // but they must be visible without qualification inside the enum class
+        // and inside its companion object (e.g. `A` in `companion object { fun pick(): D = A }`).
+        if let owner = sema.symbols.symbol(ownerSymbol),
+           owner.kind == .enumClass
+        {
+            for childSymbol in sema.symbols.children(ofFQName: owner.fqName) {
+                if let child = sema.symbols.symbol(childSymbol),
+                   child.kind == .field
+                {
+                    classScope.insert(childSymbol)
+                }
             }
         }
 

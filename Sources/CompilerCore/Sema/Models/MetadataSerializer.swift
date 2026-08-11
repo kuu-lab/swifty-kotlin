@@ -84,6 +84,10 @@ package struct MetadataRecord {
     let propertyGetterAbiReturnTypeSignature: String?
     /// True for `var` properties/fields.
     package let isMutable: Bool
+    /// Encoded compile-time constant value of a `const val` property, so
+    /// consumers can inline it instead of reading an uninitialized global slot
+    /// (a precompiled library has no `main` to run top-level initializers).
+    let constValueLiteral: String?
     /// Declaration-order type parameters of a nominal type, encoded as
     /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`), so consumers can
     /// restore the generic arity used by constructor/member resolution.
@@ -132,6 +136,7 @@ package struct MetadataRecord {
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
         isMutable: Bool = false,
+        constValueLiteral: String? = nil,
         nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
@@ -176,6 +181,7 @@ package struct MetadataRecord {
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
+        self.constValueLiteral = constValueLiteral
         self.nominalTypeParameters = nominalTypeParameters
     }
 }
@@ -546,9 +552,30 @@ package final class MetadataEncoder {
         }()
 
         if metadataAnchorOnly {
-            // Synthetic nominal anchors need kind/mangledName/fqName/flags plus
-            // supertype edges to round-trip. Layout is omitted because the
-            // consumer already reconstructs the nominal layout for these anchors.
+            // Synthetic nominal anchors need their declared layout sizes as
+            // consumer-side synthesis hints. Do not serialize partial slot maps:
+            // their synthetic members are intentionally not exported and are
+            // re-registered by the consumer. Keeping only an inherited itable
+            // entry would install an incomplete layout and prevent synthesis from
+            // assigning slots to those re-registered members.
+            if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
+                return MetadataRecord(
+                    kind: symbol.kind,
+                    mangledName: mangled,
+                    fqName: fqName,
+                    declaredFieldCount: layout.instanceFieldCount,
+                    declaredInstanceSizeWords: layout.instanceSizeWords,
+                    declaredVtableSize: layout.vtableSize,
+                    declaredItableSize: layout.itableSize,
+                    superFQName: computedSuperFQName,
+                    isDataClass: symbol.flags.contains(.dataType),
+                    isSealedClass: symbol.flags.contains(.sealedType),
+                    isFunInterface: symbol.flags.contains(.funInterface),
+                    isValueClass: symbol.flags.contains(.valueType),
+                    isExpect: symbol.flags.contains(.expectDeclaration),
+                    isActual: symbol.flags.contains(.actualDeclaration)
+                )
+            }
             return MetadataRecord(
                 kind: symbol.kind,
                 mangledName: mangled,
@@ -631,6 +658,7 @@ package final class MetadataEncoder {
         var propertyGetterExternalLinkName: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable = false
+        var constValueLiteral: String?
         if symbol.kind == .property || symbol.kind == .field,
            symbols.propertyType(for: symbol.id) != nil
         {
@@ -674,6 +702,9 @@ package final class MetadataEncoder {
                 }
             }
             isMutable = symbol.flags.contains(.mutable)
+            if !isMutable, let constValue = symbols.constValueExprKind(for: symbol.id) {
+                constValueLiteral = MetadataConstValueCoder.encode(constValue) { interner.resolve($0) }
+            }
         }
 
         if symbol.kind == .typeAlias,
@@ -828,6 +859,7 @@ package final class MetadataEncoder {
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
             isMutable: isMutable,
+            constValueLiteral: constValueLiteral,
             nominalTypeParameters: nominalTypeParameters
         )
     }
@@ -966,6 +998,9 @@ package final class MetadataEncoder {
                 }
                 if record.isMutable {
                     fields.append("mutable=1")
+                }
+                if let constValue = record.constValueLiteral, !constValue.isEmpty {
+                    fields.append("const=\(constValue)")
                 }
             }
             if record.kind == .typeAlias {
@@ -1120,6 +1155,9 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -1172,6 +1210,9 @@ package final class MetadataEncoder {
             }
             // ITable slot layout is part of the nominal type shape and must round-trip
             // completely, even for synthetic or non-public interface supertypes.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -1291,6 +1332,7 @@ final class MetadataDecoder {
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
                 isMutable: rec.isMutable,
+                constValueLiteral: rec.constValueLiteral,
                 nominalTypeParameters: rec.nominalTypeParameters
             ))
         }
@@ -1341,6 +1383,7 @@ final class MetadataDecoder {
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
+        var constValueLiteral: String?
         var nominalTypeParameters: String?
         var schemaVersion: String?
     }
@@ -1429,6 +1472,8 @@ final class MetadataDecoder {
             record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
         case "mutable":
             record.isMutable = value == "1" || value == "true"
+        case "const":
+            record.constValueLiteral = value.isEmpty ? nil : value
         case "abiSig":
             record.abiReturnTypeSignature = value.isEmpty ? nil : value
         case "schema":

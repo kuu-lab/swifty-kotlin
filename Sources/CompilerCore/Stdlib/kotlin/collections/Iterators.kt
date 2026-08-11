@@ -13,9 +13,8 @@ package kotlin.collections
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
 //   (kk_list_forEachIndexed, kk_list_withIndex)
 //
-// `withIndex` materialises eagerly instead of returning the upstream lazy
-// `IndexingIterable`: for-in over a value whose static type is an interface
-// (`Iterable<T>`) does not bind the real `iterator()` yet (BUG-167).
+// `withIndex` materialises eagerly to preserve the existing KSwiftK bridge
+// behavior while this surface moves to bundled source.
 
 public data class IndexedValue<out T>(public val index: Int, public val value: T)
 
@@ -37,4 +36,35 @@ public fun <T> Iterable<T>.withIndex(): List<IndexedValue<T>> {
         index += 1
     }
     return result
+}
+
+// KSP-630
+// Iterator terminal HOFs migrated to bundled Kotlin source.
+
+/**
+ * Performs the given [operation] on each element of the iterator.
+ */
+public fun <T> Iterator<T>.forEach(operation: (T) -> Unit): Unit {
+    while (hasNext()) {
+        operation(next())
+    }
+}
+
+/**
+ * Wraps this iterator into an [Iterator] of [IndexedValue], so every consumed
+ * element is accompanied by its index starting at 0.
+ */
+public fun <T> Iterator<T>.withIndex(): Iterator<IndexedValue<T>> {
+    val source = this
+    return object : Iterator<IndexedValue<T>> {
+        var index = 0
+
+        override fun hasNext(): Boolean = source.hasNext()
+
+        override fun next(): IndexedValue<T> {
+            val currentIndex = index
+            index += 1
+            return IndexedValue(currentIndex, source.next())
+        }
+    }
 }

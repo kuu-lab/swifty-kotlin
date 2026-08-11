@@ -32,6 +32,22 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
     return ""
 }
 
+/// Raw stack-frame strings for a single throwable. The runtime only provides
+/// the class-specific header line here; Kotlin-side formatting walks cause and
+/// suppressed chains and adds prefixes (KSP-655).
+private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
+    if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
+        return []
+    }
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
+        return []
+    }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        return [throwable.renderedMessage]
+    }
+    return []
+}
+
 private func runtimeAllocateArrayBox(length: Int) -> Int {
     let arrayBox = RuntimeArrayBox(length: length)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
@@ -116,21 +132,23 @@ public func __kk_throwable_cause(_ throwableRaw: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-@_cdecl("kk_throwable_stackTraceToString")
-public func kk_throwable_stackTraceToString(_ throwableRaw: Int) -> Int {
-    let message = runtimeThrowableStackTraceText(from: throwableRaw)
-    let box = RuntimeStringBox(message)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+@_cdecl("__kk_throwable_rawStackFrames")
+public func __kk_throwable_rawStackFrames(_ throwableRaw: Int) -> Int {
+    let frameStrings = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
+    let arrayRaw = kk_array_new(frameStrings.count)
+    guard let arrayBox = runtimeArrayBox(from: arrayRaw) else {
+        runtimeStructuredPanic("__kk_throwable_rawStackFrames: array allocation failed")
     }
-    return Int(bitPattern: opaque)
+    for (i, frame) in frameStrings.enumerated() {
+        arrayBox.elements[i] = registerRuntimeObject(RuntimeStringBox(frame))
+    }
+    return arrayRaw
 }
 
-@_cdecl("kk_throwable_printStackTrace")
-public func kk_throwable_printStackTrace(_ throwableRaw: Int) -> Int {
-    let message = runtimeThrowableStackTraceText(from: throwableRaw)
-    FileHandle.standardError.write(Data((message + "\n").utf8))
+@_cdecl("__kk_printStderr")
+public func __kk_printStderr(_ messageRaw: Int) -> Int {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
+    FileHandle.standardError.write(Data(message.utf8))
     return 0
 }
 
@@ -242,7 +260,9 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
-        self.length = bytes.count
+        // `length` is the Unicode scalar count (the space string indices live in),
+        // `byteCount` the UTF-8 byte count; they only coincide for ASCII text.
+        self.length = value.unicodeScalars.count
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))

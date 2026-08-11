@@ -109,6 +109,21 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
+    /// Result type of an arithmetic compound assignment whose operator function could
+    /// not be resolved: numeric targets keep their own type, everything else falls back
+    /// to `Int` (BUG-015).
+    private func numericCompoundAssignResultType(_ targetType: TypeID, ctx: TypeInferenceContext) -> TypeID {
+        guard case let .primitive(primitive, .nonNull) = ctx.sema.types.kind(of: targetType) else {
+            return ctx.sema.types.intType
+        }
+        switch primitive {
+        case .boolean, .char:
+            return ctx.sema.types.intType
+        case .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
+            return targetType
+        }
+    }
+
     func inferCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -199,6 +214,10 @@ extension ExprTypeChecker {
                 )
             }
             let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+            // Arithmetic compound assignment keeps the target's own numeric type
+            // (BUG-015): demoting `Long`/`Double`/unsigned locals to `Int` here broke
+            // later member resolution such as `longVar and 0xFFL`.
+            let arithmeticResultType = numericCompoundAssignResultType(local.type, ctx: ctx)
             let resultType: TypeID = switch underlyingOp {
             case .add:
                 if local.type == stringType || valueType == stringType {
@@ -206,16 +225,16 @@ extension ExprTypeChecker {
                 } else if local.type == charType, valueType == intType {
                     charType
                 } else {
-                    intType
+                    arithmeticResultType
                 }
             case .subtract:
                 if local.type == charType, valueType == intType {
                     charType
                 } else {
-                    intType
+                    arithmeticResultType
                 }
             case .multiply, .divide, .modulo:
-                intType
+                arithmeticResultType
             default:
                 local.type
             }
@@ -1301,9 +1320,29 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured.
         let isBoundReceiver = receiver != nil && unboundClassType == nil
 
+        // BUG-164: callable references must also support SAM-conversion to a
+        // functional interface expected type, the same way lambda literals do.
+        let expectedFunctionType: TypeID?
+        let expectedSamInterfaceType: TypeID?
+        if let expectedType {
+            if case .functionType = sema.types.kind(of: expectedType) {
+                expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+                expectedFunctionType = sema.types.make(.functionType(samFT))
+                expectedSamInterfaceType = expectedType
+            } else {
+                expectedFunctionType = nil
+                expectedSamInterfaceType = nil
+            }
+        } else {
+            expectedFunctionType = nil
+            expectedSamInterfaceType = nil
+        }
+
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
-            expectedType: expectedType,
+            expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             sema: sema
         )
@@ -1317,20 +1356,33 @@ extension ExprTypeChecker {
                 sema: sema
             )
             let resultType: TypeID
-            if let expectedType,
-               case .functionType = sema.types.kind(of: expectedType)
-            {
-                driver.emitSubtypeConstraint(
-                    left: inferredType,
-                    right: expectedType,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-                resultType = expectedType
+            // An expected type that still mentions type parameters belongs to a
+            // generic signature whose type arguments are inferred from this very
+            // argument (`fun <T> runCatching(block: () -> T)`). Checking against
+            // it would fail, and adopting it would hide the concrete type the
+            // caller needs for inference, so report the reference's own type.
+            if let expectedFunctionType {
+                let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
+                if !sema.types.typeContainsAnyTypeParam(concreteResult) {
+                    driver.emitSubtypeConstraint(
+                        left: inferredType,
+                        right: expectedFunctionType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: sema,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    resultType = concreteResult
+                } else {
+                    resultType = inferredType
+                }
             } else {
                 resultType = inferredType
+            }
+            if let expectedSamInterfaceType {
+                sema.bindings.markSamConversion(id)
+                sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
+                sema.bindings.bindSamUnderlyingFunctionType(id, type: inferredType)
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

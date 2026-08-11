@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct ExceptionSyntheticStubTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -15,7 +24,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testNoWhenBranchMatchedExceptionSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let noWhenFQName = ["kotlin", "NoWhenBranchMatchedException"].map { interner.intern($0) }
         let noWhenSymbol = try #require(sema.symbols.lookup(fqName: noWhenFQName))
@@ -71,7 +80,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testCharacterCodingExceptionSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let exceptionFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -120,7 +129,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testConcurrentModificationExceptionSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let exceptionFQName = ["kotlin", "ConcurrentModificationException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -176,7 +185,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testArrayIndexOutOfBoundsExceptionSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let exceptionFQName = ["kotlin", "ArrayIndexOutOfBoundsException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -220,7 +229,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testNegativeArraySizeExceptionSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let exceptionFQName = ["kotlin", "NegativeArraySizeException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))

@@ -27,18 +27,8 @@ struct ListLookupNames {
     let kkListToStringName: InternedString
     let kkCollectionToMutableListName: InternedString
     // Higher-order collection function ABI names (FUNC-003)
-    let kkListMapName: InternedString
-    let kkListMapNotNullName: InternedString
-    let kkListMapToName: InternedString
-    let kkListFlatMapToName: InternedString
-    let kkListMapNotNullToName: InternedString
-    let kkListMapIndexedToName: InternedString
-    let kkListMapIndexedNotNullToName: InternedString
-    let kkListFlatMapIndexedToName: InternedString
-    let kkListFlatMapIndexedName: InternedString
     let kkListAssociateToName: InternedString
     let kkListForEachName: InternedString
-    let kkListFlatMapName: InternedString
     let kkCollectionToCollectionName: InternedString
     // Additional higher-order collection function ABI names (STDLIB-005)
     let kkListFoldName: InternedString
@@ -73,8 +63,6 @@ struct ListLookupNames {
     let kkIndexingIterableNextName: InternedString
     let kkListOnEachName: InternedString
     let kkListOnEachIndexedName: InternedString
-    let kkListMapIndexedName: InternedString
-    let kkListMapIndexedNotNullName: InternedString
     let kkListFoldIndexedName: InternedString
     let kkListFoldRightIndexedName: InternedString
     let kkListReduceIndexedName: InternedString
@@ -118,7 +106,6 @@ struct ListLookupNames {
     let kkListPlusCollectionName: InternedString
     let kkListMinusElementName: InternedString
     let kkListMinusCollectionName: InternedString
-    let kkListFlattenName: InternedString
     let kkListChunkedBridgeName: InternedString
     let kkListChunkedTransformBridgeName: InternedString
     let kkListWindowedBridgeName: InternedString
@@ -156,18 +143,8 @@ struct ListLookupNames {
         kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
         kkListToStringName = interner.intern("kk_list_to_string")
         kkCollectionToMutableListName = interner.intern("__kk_collection_toMutableList")
-        kkListMapName = interner.intern("kk_list_map")
-        kkListMapNotNullName = interner.intern("kk_list_mapNotNull")
-        kkListMapToName = interner.intern("kk_list_mapTo")
-        kkListFlatMapToName = interner.intern("kk_list_flatMapTo")
-        kkListMapNotNullToName = interner.intern("kk_list_mapNotNullTo")
-        kkListMapIndexedToName = interner.intern("kk_list_mapIndexedTo")
-        kkListMapIndexedNotNullToName = interner.intern("kk_list_mapIndexedNotNullTo")
-        kkListFlatMapIndexedToName = interner.intern("kk_list_flatMapIndexedTo")
-        kkListFlatMapIndexedName = interner.intern("kk_list_flatMapIndexed")
         kkListAssociateToName = interner.intern("kk_list_associateTo")
         kkListForEachName = interner.intern("kk_list_forEach")
-        kkListFlatMapName = interner.intern("kk_list_flatMap")
         kkCollectionToCollectionName = interner.intern("__kk_collection_toCollection")
         kkListFoldName = interner.intern("kk_list_fold")
         kkListFoldRightName = interner.intern("kk_list_foldRight")
@@ -201,8 +178,6 @@ struct ListLookupNames {
         kkIndexingIterableNextName = interner.intern("kk_indexing_iterable_next")
         kkListOnEachName = interner.intern("kk_list_onEach")
         kkListOnEachIndexedName = interner.intern("kk_list_onEachIndexed")
-        kkListMapIndexedName = interner.intern("kk_list_mapIndexed")
-        kkListMapIndexedNotNullName = interner.intern("kk_list_mapIndexedNotNull")
         kkListFoldIndexedName = interner.intern("kk_list_foldIndexed")
         kkListFoldRightIndexedName = interner.intern("kk_list_foldRightIndexed")
         kkListReduceIndexedName = interner.intern("kk_list_reduceIndexed")
@@ -246,7 +221,6 @@ struct ListLookupNames {
         kkListPlusCollectionName = interner.intern("kk_list_plus_collection")
         kkListMinusElementName = interner.intern("kk_list_minus_element")
         kkListMinusCollectionName = interner.intern("kk_list_minus_collection")
-        kkListFlattenName = interner.intern("kk_list_flatten")
         kkListChunkedBridgeName = interner.intern("__kk_list_chunked")
         kkListChunkedTransformBridgeName = interner.intern("__kk_list_chunked_transform")
         kkListWindowedBridgeName = interner.intern("__kk_list_windowed")

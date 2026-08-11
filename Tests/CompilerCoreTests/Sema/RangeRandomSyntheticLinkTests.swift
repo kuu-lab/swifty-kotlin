@@ -5,7 +5,9 @@ import Testing
 
 @Suite
 struct RangeRandomSyntheticLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -13,7 +15,9 @@ struct RangeRandomSyntheticLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func assertRandomOrNullOverloads(
@@ -109,7 +113,7 @@ struct RangeRandomSyntheticLinkTests {
     }
 
     @Test func testRangeRandomOrNullOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
         let randomSymbol = try #require(
@@ -165,7 +169,7 @@ struct RangeRandomSyntheticLinkTests {
     }
 
     @Test func testRangeRandomOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
         let randomSymbol = try #require(

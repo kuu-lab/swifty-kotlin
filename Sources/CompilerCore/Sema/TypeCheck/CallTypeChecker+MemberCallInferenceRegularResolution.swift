@@ -1,3 +1,5 @@
+import Foundation
+
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
@@ -578,6 +580,27 @@ extension CallTypeChecker {
                         )
                     }
                 }
+                if companionCandidates.isEmpty {
+                    // Precompiled library extensions are not inserted into
+                    // file scopes, because their receiver is resolved during
+                    // member-call inference. Recover those synthetic
+                    // declarations by short name for class-name receivers.
+                    companionCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              symbol.flags.contains(.synthetic),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let recv = signature.receiverType
+                        else {
+                            return false
+                        }
+                        return extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionTypeForExtensionLookup,
+                            declaredReceiver: recv,
+                            sema: sema
+                        )
+                    }
+                }
                 if !companionCandidates.isEmpty {
                     companionReceiverType = companionTypeForExtensionLookup
                     // Re-bind receiver expression to companion type so KIR
@@ -748,22 +771,6 @@ extension CallTypeChecker {
                     allCandidates = scopeCandidates
                 }
             }
-        }
-        if allCandidates.isEmpty,
-           let boundType = tryBindSyntheticBigIntegerMemberFallback(
-               id,
-               calleeName: calleeName,
-               receiverType: memberLookupType,
-               args: args,
-               argTypes: argTypes,
-               range: range,
-               ctx: ctx,
-               expectedType: expectedType,
-               explicitTypeArgs: explicitTypeArgs,
-               safeCall: safeCall
-           )
-        {
-            return boundType
         }
         let isNullLiteralReceiver = if case let .nameRef(name, _) = ast.arena.expr(receiverID) {
             name == KnownCompilerNames(interner: interner).null

@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct InstantDistantPropertiesSyntheticTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -22,7 +31,7 @@ struct InstantDistantPropertiesSyntheticTests {
     // that delegate to __kk_instant_* bridge methods registered on the Instant class
     // itself.
     @Test func testInstantBridgeMethodsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let instantFQName = kotlinTime + [interner.intern("Instant")]
         let instantSymbol = try #require(sema.symbols.lookup(fqName: instantFQName))
@@ -72,7 +81,7 @@ struct InstantDistantPropertiesSyntheticTests {
     // KSP-472: verify the public API is resolved via Kotlin source
     // (Stdlib/kotlin/time/Instant.kt), not via direct synthetic stubs.
     @Test func testInstantKotlinSourceExtensionsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let instantFQName = kotlinTime + [interner.intern("Instant")]
         let instantSymbol = try #require(sema.symbols.lookup(fqName: instantFQName))
@@ -152,7 +161,7 @@ struct InstantDistantPropertiesSyntheticTests {
     // They resolve via Instant.now() shorthand and delegate to the
     // kk_instant_now / kk_instant_from_epoch_millis ABI bridges.
     @Test func testInstantCompanionFactoriesAreKotlinSourceExtensions() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let instantFQName = kotlinTime + [interner.intern("Instant")]
         let instantSymbol = try #require(sema.symbols.lookup(fqName: instantFQName))
@@ -188,7 +197,7 @@ struct InstantDistantPropertiesSyntheticTests {
     // KSP-472: Clock.System.now() is a Kotlin-source extension on the
     // Clock.System nested object in Stdlib/kotlin/time/Clock.kt.
     @Test func testClockSystemNowIsKotlinSourceExtension() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let instantFQName = kotlinTime + [interner.intern("Instant")]
         let instantSymbol = try #require(sema.symbols.lookup(fqName: instantFQName))

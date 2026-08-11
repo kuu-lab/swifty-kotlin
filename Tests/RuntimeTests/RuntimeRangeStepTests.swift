@@ -375,18 +375,14 @@ struct RuntimeRangeStepTests {
 
     @Test func testRangeStartEnd() {
         let range = kk_op_rangeTo(2, 8)
-        #expect(kk_range_start(range) == 2)
-        #expect(kk_range_end(range) == 8)
-        #expect(kk_range_start(range) == kk_range_first(range))
-        #expect(kk_range_end(range) == kk_range_last(range))
+        #expect(kk_range_first(range) == 2)
+        #expect(kk_range_last(range) == 8)
     }
 
     @Test func testRangeStartEndWithDownTo() {
         let range = kk_op_downTo(8, 2)
-        #expect(kk_range_start(range) == 8)
-        #expect(kk_range_end(range) == 2)
-        #expect(kk_range_start(range) == kk_range_first(range))
-        #expect(kk_range_end(range) == kk_range_last(range))
+        #expect(kk_range_first(range) == 8)
+        #expect(kk_range_last(range) == 2)
     }
 
     @Test func testRangeReversedWithStep() {
