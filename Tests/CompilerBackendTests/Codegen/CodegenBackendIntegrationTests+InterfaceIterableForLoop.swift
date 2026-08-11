@@ -276,7 +276,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
-    func testIntRangeForLoopStillUsesRangeIntrinsics() throws {
+    func testIntRangeForLoopUsesBundledIteratorOperator() throws {
         let source = """
         fun main() {
             for (i in 0..2) {
@@ -290,8 +290,8 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("kk_op_rangeTo") || callees.contains("kk_range_next") || callees.isEmpty,
-            "range for-loop should keep its range lowering, got: \(callees)"
+            callees.contains("kk_iterator_hasNext") && callees.contains("kk_iterator_next"),
+            "range for-in is routed through the bundled iterator() operator (KSP-452, ce502b0e9); expected kk_iterator_hasNext/kk_iterator_next, got: \(callees)"
         )
     }
 }

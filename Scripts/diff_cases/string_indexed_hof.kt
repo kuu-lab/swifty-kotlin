@@ -15,7 +15,7 @@ fun main() {
     println(sb.toString())
     println(result === s)
 
-    // BUG-171 regression guard: map/mapIndexed must box Char-preserving
+    // BUG-176 regression guard: map/mapIndexed must box Char-preserving
     // transform results, not leak raw scalar codes.
     println("abc".map { it })
     println("abc".map { c -> c.uppercaseChar() })
