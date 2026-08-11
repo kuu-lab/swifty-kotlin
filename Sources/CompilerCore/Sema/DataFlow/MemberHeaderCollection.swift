@@ -520,24 +520,47 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         bindings: BindingTable,
-        scope: Scope
+        scope: Scope,
+        ast: ASTModule,
+        interner: StringInterner
     ) -> SymbolID {
-        checkAndReportDuplicateDeclaration(
-            newKind: kind,
-            fqName: fqName,
-            range: declSite,
-            symbols: symbols,
-            diagnostics: diagnostics,
-            newFlags: duplicateCheckFlags
-        )
-        let nestedSymbol = symbols.define(
-            kind: kind,
-            name: name,
-            fqName: fqName,
-            declSite: declSite,
-            visibility: visibility,
-            flags: flags
-        )
+        let reusableSyntheticSymbol: SymbolID? = {
+            guard let file = ast.files.first(where: { $0.fileID == sourceFileID }) else {
+                return nil
+            }
+            return reusableSyntheticDeclarationSymbol(
+                kind: kind,
+                fqName: fqName,
+                file: file,
+                sourceManager: sourceManager,
+                symbols: symbols,
+                interner: interner
+            )
+        }()
+        if reusableSyntheticSymbol == nil {
+            checkAndReportDuplicateDeclaration(
+                newKind: kind,
+                fqName: fqName,
+                range: declSite,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                newFlags: duplicateCheckFlags
+            )
+        }
+        let nestedSymbol: SymbolID
+        if let reusableSyntheticSymbol {
+            nestedSymbol = reusableSyntheticSymbol
+            symbols.removeFlags(.synthetic, for: nestedSymbol)
+        } else {
+            nestedSymbol = symbols.define(
+                kind: kind,
+                name: name,
+                fqName: fqName,
+                declSite: declSite,
+                visibility: visibility,
+                flags: flags
+            )
+        }
         symbols.setSourceFileID(sourceFileID, for: nestedSymbol)
         registerAnnotations(
             for: decl,
@@ -597,7 +620,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 diagnostics: diagnostics,
                 bindings: bindings,
-                scope: scope
+                scope: scope,
+                ast: ast,
+                interner: interner
             )
 
             if !nestedClass.typeParams.isEmpty {
@@ -710,6 +735,40 @@ extension DataFlowSemaPhase {
                     ),
                     for: secCtorSymbol
                 )
+            }
+
+            // Value class validation: must have exactly one primary constructor parameter
+            if isValueClassDeclaration(nestedClass) {
+                symbols.insertFlags(.valueType, for: nestedSymbol)
+                let valParams = nestedClass.primaryConstructorParams
+                if valParams.count != 1 {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0070",
+                        "Value class must have exactly one primary constructor parameter.",
+                        range: nestedClass.range
+                    )
+                } else {
+                    let singleParam = valParams[0]
+                    let underlyingType = resolveTypeRef(
+                        singleParam.type,
+                        ast: ast,
+                        symbols: symbols,
+                        types: types,
+                        interner: interner,
+                        localTypeParameters: nestedLocalTypeParameters,
+                        currentPackageFQName: sourcePackageFQName,
+                        imports: sourceImports,
+                        diagnostics: diagnostics
+                    ) ?? anyType
+                    symbols.setValueClassUnderlyingType(underlyingType, for: nestedSymbol)
+                }
+                if !nestedClass.secondaryConstructors.isEmpty {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0071",
+                        "Value class cannot have secondary constructors.",
+                        range: nestedClass.range
+                    )
+                }
             }
 
             if classSymbolKind(for: nestedClass) == .enumClass {
@@ -882,7 +941,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 diagnostics: diagnostics,
                 bindings: bindings,
-                scope: scope
+                scope: scope,
+                ast: ast,
+                interner: interner
             )
 
             let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: [], nullability: .nonNull)))
@@ -986,7 +1047,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             diagnostics: diagnostics,
             bindings: bindings,
-            scope: scope
+            scope: scope,
+            ast: ast,
+            interner: interner
         )
 
         let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: [], nullability: .nonNull)))

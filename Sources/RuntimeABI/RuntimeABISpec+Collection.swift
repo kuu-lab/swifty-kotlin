@@ -1557,7 +1557,7 @@ public extension RuntimeABISpec {
         ),
         // Pair (FUNC-002)
         RuntimeABIFunctionSpec(
-            name: "kk_pair_new",
+            name: "__kk_pair_new",
             parameters: [
                 RuntimeABIParameter(name: "first", type: .intptr),
                 RuntimeABIParameter(name: "second", type: .intptr),
@@ -1577,7 +1577,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_pair_first",
+            name: "__kk_pair_first",
             parameters: [
                 RuntimeABIParameter(name: "pairRaw", type: .intptr),
             ],
@@ -1586,24 +1586,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_pair_second",
-            parameters: [
-                RuntimeABIParameter(name: "pairRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_pair_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "pairRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_pair_toList",
+            name: "__kk_pair_second",
             parameters: [
                 RuntimeABIParameter(name: "pairRaw", type: .intptr),
             ],
@@ -1613,7 +1596,7 @@ public extension RuntimeABISpec {
         ),
         // Triple (STDLIB-120)
         RuntimeABIFunctionSpec(
-            name: "kk_triple_new",
+            name: "__kk_triple_new",
             parameters: [
                 RuntimeABIParameter(name: "first", type: .intptr),
                 RuntimeABIParameter(name: "second", type: .intptr),
@@ -1624,7 +1607,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_triple_first",
+            name: "__kk_triple_first",
             parameters: [
                 RuntimeABIParameter(name: "tripleRaw", type: .intptr),
             ],
@@ -1633,7 +1616,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_triple_second",
+            name: "__kk_triple_second",
             parameters: [
                 RuntimeABIParameter(name: "tripleRaw", type: .intptr),
             ],
@@ -1642,24 +1625,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_triple_third",
-            parameters: [
-                RuntimeABIParameter(name: "tripleRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_triple_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "tripleRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_triple_toList",
+            name: "__kk_triple_third",
             parameters: [
                 RuntimeABIParameter(name: "tripleRaw", type: .intptr),
             ],

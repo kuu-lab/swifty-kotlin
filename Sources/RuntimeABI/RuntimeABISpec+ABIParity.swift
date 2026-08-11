@@ -710,9 +710,6 @@ public extension RuntimeABISpec {
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_range_end", parameters: [
-            p("rangeRaw", .intptr),
-        ]),
         abiParitySpec("kk_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -742,16 +739,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_sequence_input_stream_read", parameters: [
             p("streamRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_sequence_zipWithNext", parameters: [
-            p("seqRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_sequence_zipWithNextTransform", parameters: [
-            p("seqRaw", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_shared_flow_collect", parameters: [

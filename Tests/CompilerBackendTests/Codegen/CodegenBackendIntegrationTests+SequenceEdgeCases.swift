@@ -1,9 +1,48 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendSequenceEdgeCasesTests {
+    @Test
     func testCodegenCompilesSequenceEdgeCases() throws {
         let source = """
         fun main() {
@@ -32,6 +71,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequencePartitionSplitsElements() throws {
         let source = """
         fun main() {
@@ -48,6 +88,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequencePartition", expected: "[2, 4]\n[1, 3, 5]\n0\n0\n")
     }
 
+    @Test
     func testCodegenSequenceNoneOverloads() throws {
         let source = """
         fun main() {
@@ -61,6 +102,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceNoneOverloads", expected: "true\nfalse\ntrue\nfalse\n")
     }
 
+    @Test
     func testCodegenSequencePlusConcatenatesSequences() throws {
         let source = """
         fun main() {
@@ -75,6 +117,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequencePlus", expected: "[1, 2, 3, 4]\n[5, 6, 7, 8]\n")
     }
 
+    @Test
     func testCodegenSequenceReduceIndexedOrNull() throws {
         let source = """
         fun main() {
@@ -94,6 +137,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceIndexedOrNull", expected: "21\nnull\n42\n")
     }
 
+    @Test
     func testCodegenSequenceContainsUsesRuntime() throws {
         let source = """
         fun main() {
@@ -106,6 +150,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceContains", expected: "true\nfalse\n")
     }
 
+    @Test
     func testCodegenSequenceReduceRightIndexedReturnsRightFoldedValueOrThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -128,6 +173,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexed", expected: "364\n42\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceReduceRightIndexedOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -147,6 +193,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexedOrNull", expected: "364\n42\n-1\n")
     }
 
+    @Test
     func testCodegenSequenceReduceRightOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -166,6 +213,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceRightOrNull", expected: "64\n42\n-1\n")
     }
 
+    @Test
     func testCodegenSequenceReduceOrNullReturnsAccumulatedValueOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -182,6 +230,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceOrNull", expected: "10\nnull\n42\n")
     }
 
+    @Test
     func testCodegenSequenceReduceRightReturnsRightFoldedValueOrThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -205,6 +254,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceRight", expected: "64\n42\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceReduceReturnsAccumulatedValueOrThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -223,6 +273,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduce", expected: "10\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceReduceIndexedReturnsAccumulatedValueOrThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -246,6 +297,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReduceIndexed", expected: "21\n42\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceFlatMapIndexedUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -272,6 +324,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequenceFirstNotNullOfUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -296,6 +349,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequenceFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -320,6 +374,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequenceMinusElementUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -345,6 +400,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequenceMinusRemovesSingleElement() throws {
         let source = """
         fun main() {
@@ -356,6 +412,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinus", expected: "[1, 3, 2]\n[1, 2, 3]\n")
     }
 
+    @Test
     func testCodegenSequenceSumByUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -380,6 +437,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequenceSumByDoubleUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -404,6 +462,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSourceSequenceObjectTerminalHofTraversesIterator() throws {
         let source = """
         fun main() {
@@ -424,6 +483,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSequenceRunningReduceIndexedAccumulatesWithIndex() throws {
         let source = """
         fun main() {
@@ -440,6 +500,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceRunningReduceIndexed", expected: "[1, 3, 9, 21]\n[]\n")
     }
 
+    @Test
     func testCodegenSequenceShuffledUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -468,6 +529,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSequenceToCollectionAppendsIntoDestination() throws {
         let source = """
         fun main() {
@@ -497,6 +559,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSequenceFlatMapIndexedSupportsIterableAndSequenceTransforms() throws {
         let source = """
         fun main() {
@@ -525,6 +588,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesSequenceWindowedTransformOverload() throws {
         let source = """
         fun main() {
@@ -552,6 +616,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesSequenceChunked() throws {
         let source = """
         fun main() {
@@ -572,6 +637,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesSequenceChunkedTransformOverload() throws {
         let source = """
         fun main() {
@@ -599,6 +665,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesSequenceOrEmpty() throws {
         let source = """
         fun main() {
@@ -622,6 +689,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesSequenceShuffledOverloads() throws {
         let source = """
         import kotlin.random.Random
@@ -644,6 +712,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesSequenceRequireNoNulls() throws {
         let source = """
         fun main() {
@@ -658,6 +727,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceRequireNoNullsEdgeCases", expected: "[1, 2, 3]\n")
     }
 
+    @Test
     func testCodegenSequenceReversedReturnsElementsInReverseOrder() throws {
         let source = """
         fun main() {
@@ -669,6 +739,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceReversedEdgeCases", expected: "[4, 3, 2, 1]\n[]\n")
     }
 
+    @Test
     func testCodegenSequenceRunningFoldIncludesInitialAccumulator() throws {
         let source = """
         fun main() {
@@ -687,6 +758,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceRunningFoldEdgeCases", expected: "[10, 11, 13, 16]\n[7]\n")
     }
 
+    @Test
     func testCodegenSequenceRequireNoNullsThrowsOnNullElement() throws {
         let source = """
         fun main() {
@@ -702,6 +774,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceRequireNoNullsThrows", expected: "null\n")
     }
 
+    @Test
     func testCodegenCompilesSequenceFirstNotNullOfOrNull() throws {
         let source = """
         fun main() {
@@ -727,6 +800,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSequenceFirstNotNullOfReturnsFirstValueOrThrows() throws {
         let source = """
         fun main() {
@@ -747,6 +821,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceFirstNotNullOf", expected: "hit\nmissing\n")
     }
 
+    @Test
     func testSequenceRandomReturnsOnlyElementOrThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -762,6 +837,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceRandom", expected: "42\nempty\n")
     }
 
+    @Test
     func testSequenceRandomOrNullReturnsOnlyElementOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -773,15 +849,19 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceRandomOrNull", expected: "42\ntrue\n")
     }
 
+    @Test
     func testSequenceZipWithNextTransformReturnsAdjacentResults() throws {
         let source = """
         fun main() {
             val transformed = sequenceOf(1, 2, 4, 8)
                 .zipWithNext { left, right -> right - left }
+                .toList()
             val empty = emptySequence<Int>()
                 .zipWithNext { left, right -> right - left }
+                .toList()
             val single = sequenceOf(42)
                 .zipWithNext { left, right -> right - left }
+                .toList()
 
             println(transformed)
             println(empty)
@@ -792,6 +872,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceZipWithNextTransform", expected: "[1, 2, 4]\n[]\n[]\n")
     }
 
+    @Test
     func testSequenceOnEachIndexedPreservesElementsAndLaziness() throws {
         let source = """
         fun main() {
@@ -818,6 +899,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSequenceOnEachPreservesElementsAndLaziness() throws {
         let source = """
         fun main() {
@@ -844,6 +926,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenSequenceRequireNoNullsUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -869,6 +952,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testSequencePlusOperatorAndPlusElementAppendElements() throws {
         let source = """
         fun main() {
@@ -884,6 +968,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequencePlusElement", expected: "[1, 2, 3, 4]\n")
     }
 
+    @Test
     func testCodegenSequenceMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -900,6 +985,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinOf", expected: "20\ncaught\n")
     }
 
+    @Test
     func testCodegenSequenceMinReturnsSmallestElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -916,6 +1002,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMin", expected: "1\ncaught\n")
     }
 
+    @Test
     func testCodegenSequenceMaxOfReturnsLargestSelectorValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -932,6 +1019,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxOfRuntime", expected: "-1\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceMinOfOrNullReturnsSmallestSelectedValueAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -943,6 +1031,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinOfOrNull", expected: "20\ntrue\n")
     }
 
+    @Test
     func testCodegenSequenceMaxReturnsLargestValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -959,6 +1048,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxRuntime", expected: "4\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceMinByReturnsSmallestSelectedElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -975,6 +1065,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinBy", expected: "3\ncaught\n")
     }
 
+    @Test
     func testCodegenSequenceMaxOfOrNullReturnsLargestSelectorValueOrNull() throws {
         let source = """
         fun main() {
@@ -986,6 +1077,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxOfOrNull", expected: "-1\ntrue\n")
     }
 
+    @Test
     func testCodegenSequenceMinOrNullReturnsSmallestElementAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -997,6 +1089,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinOrNull", expected: "2\ntrue\n")
     }
 
+    @Test
     func testCodegenSequenceMaxWithReturnsLargestElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -1013,6 +1106,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxWith", expected: "4\ncaught\n")
     }
 
+    @Test
     func testCodegenSequenceMaxByOrNullReturnsLargestSelectorValueOrNull() throws {
         let source = """
         fun main() {
@@ -1024,6 +1118,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxByOrNullRuntime", expected: "1\ntrue\n")
     }
 
+    @Test
     func testCodegenSequenceMinWithOrNullReturnsComparatorMinimumAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -1035,6 +1130,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinWithOrNull", expected: "5\ntrue\n")
     }
 
+    @Test
     func testCodegenSequenceMaxByReturnsLargestSelectorValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -1051,6 +1147,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxByRuntime", expected: "1\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceMinWithReturnsComparatorMinimumAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -1066,6 +1163,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinWith", expected: "5\nempty\n")
     }
 
+    @Test
     func testCodegenSequenceMaxOrNullReturnsLargestElementOrNull() throws {
         let source = """
         fun main() {
@@ -1077,6 +1175,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMaxOrNull", expected: "4\ntrue\n")
     }
 
+    @Test
     func testCodegenSequenceMinByOrNullReturnsSmallestSelectedElementAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -1090,6 +1189,7 @@ extension CodegenBackendIntegrationTests {
 
     // KSP-441 / BUG-155 regression: object-expression Sequence/Iterator pipelines must
     // support for-in iteration and virtual dispatch of the overridden iterator().
+    @Test
     func testCodegenSequenceObjectExpressionIteratorSupportsForIn() throws {
         let source = """
         interface MySeq<out T> {
@@ -1118,6 +1218,7 @@ extension CodegenBackendIntegrationTests {
 
     // KSP-441 regression: flatMap/flatMapIndexed on source Sequence objects must
     // traverse nested source Iterators and accept Iterable sub-collections.
+    @Test
     func testCodegenSequenceFlatMapAndFlatMapIndexedOverSourceSequence() throws {
         let source = """
         fun main() {
@@ -1133,5 +1234,27 @@ extension CodegenBackendIntegrationTests {
             expected: "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[]\n"
         )
     }
-}
 
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+}
+#endif

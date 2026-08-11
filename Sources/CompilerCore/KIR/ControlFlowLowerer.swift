@@ -1906,7 +1906,7 @@ final class ControlFlowLowerer {
         }
 
         // Destructure: call componentN on the element
-        // Determine the element type so we can resolve external link names (e.g. kk_pair_first)
+        // Determine the element type so we can resolve external link names (e.g. __kk_pair_first)
         let isRangeExpr = ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast)
         let elementType: TypeID = TypeCheckHelpers().iterableElementType(
             for: iterableType, isRangeExpr: isRangeExpr, sema: sema, interner: interner
@@ -1955,23 +1955,15 @@ final class ControlFlowLowerer {
                 ))
             } else {
                 // Resolve componentN to externalLinkName when available (Pair, Triple, etc.)
-                let memberCandidates = TypeCheckHelpers().collectMemberFunctionCandidates(
-                    named: componentName,
+                let resolved = resolveDestructuringComponentCallee(
+                    componentName: componentName,
                     receiverType: nonNullElementType,
                     sema: sema,
                     interner: interner
                 )
-                let resolvedCallee: InternedString = if let chosen = memberCandidates.first,
-                                                        let linkName = sema.symbols.externalLinkName(for: chosen),
-                                                        !linkName.isEmpty
-                {
-                    interner.intern(linkName)
-                } else {
-                    componentName
-                }
                 instructions.append(.call(
-                    symbol: nil,
-                    callee: resolvedCallee,
+                    symbol: resolved.symbol,
+                    callee: resolved.callee,
                     arguments: [nextValueID],
                     result: componentResult,
                     canThrow: false,
@@ -2105,24 +2097,17 @@ final class ControlFlowLowerer {
             let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
 
-            let memberCandidates = TypeCheckHelpers().collectMemberFunctionCandidates(
-                named: componentName,
+            let resolved = resolveDestructuringComponentCallee(
+                componentName: componentName,
                 receiverType: nonNullElementType,
                 sema: sema,
                 interner: interner
             )
-            let resolvedCallee: InternedString = if let chosen = memberCandidates.first,
-                                                    let linkName = sema.symbols.externalLinkName(for: chosen),
-                                                    !linkName.isEmpty
-            {
-                interner.intern(linkName)
-            } else {
-                componentName
-            }
             emitNonThrowingCall(
-                callee: resolvedCallee,
+                callee: resolved.callee,
                 arg: nextValueID,
                 result: componentResult,
+                symbol: resolved.symbol,
                 into: &instructions
             )
 

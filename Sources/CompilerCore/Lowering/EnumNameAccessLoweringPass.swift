@@ -19,8 +19,10 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         module.ensureFeaturesScanned()
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
+        let kkAnyMemberToStringCallee = ctx.interner.intern("kk_any_member_to_string")
         return module.usedCallees.contains(nameCallee)
             || module.usedCallees.contains(ordinalCallee)
+            || module.usedCallees.contains(kkAnyMemberToStringCallee)
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -30,12 +32,24 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         }
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
+        let kkAnyMemberToStringCallee = ctx.interner.intern("kk_any_member_to_string")
         let stringType = sema.types.stringType
         let intType = sema.types.intType
 
         module.arena.transformFunctions { function in
             var newBody: [KIRInstruction] = []
             for instruction in function.body {
+                if let rewritten = rewriteEnumStringConversionCall(
+                    instruction: instruction,
+                    sema: sema,
+                    arena: module.arena,
+                    interner: ctx.interner,
+                    precedingInstructions: newBody,
+                    kkAnyMemberToStringCallee: kkAnyMemberToStringCallee
+                ) {
+                    newBody.append(contentsOf: rewritten)
+                    continue
+                }
                 let accessorAndReceiverAndResult: (InternedString, KIRExprID, KIRExprID?)? = switch instruction {
                 case let .call(_, callee, arguments, result, _, _, _, _):
                     if callee == nameCallee || callee == ordinalCallee, arguments.count == 1 {
@@ -136,6 +150,51 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return updated
         }
         module.recordLowering(Self.name)
+    }
+
+    /// `enumValue.toString()` binds to `kotlin.Any.toString` (enum classes
+    /// declare no `toString` of their own) and would otherwise render the bare
+    /// ordinal as a number, so the conversion is replaced by the
+    /// `$enumOrdinalToName` helper, which already produces the entry name.
+    private func rewriteEnumStringConversionCall(
+        instruction: KIRInstruction,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        precedingInstructions: [KIRInstruction],
+        kkAnyMemberToStringCallee: InternedString
+    ) -> [KIRInstruction]? {
+        guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
+              callee == kkAnyMemberToStringCallee,
+              arguments.count == 1,
+              let classSymbol = enumClassSymbol(
+                  for: arguments[0],
+                  sema: sema,
+                  arena: arena,
+                  instructions: precedingInstructions
+              ),
+              let classSym = sema.symbols.symbol(classSymbol)
+        else {
+            return nil
+        }
+
+        let helperName = interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
+        let fqName = classSym.fqName + [helperName]
+        guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }) else {
+            return nil
+        }
+
+        return [.call(
+            symbol: helperSymbol,
+            callee: helperName,
+            arguments: [arguments[0]],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            isSuperCall: false
+        )]
     }
 
     private func enumClassSymbol(

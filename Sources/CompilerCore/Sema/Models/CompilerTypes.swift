@@ -111,6 +111,8 @@ public struct CompilerOptions: Equatable {
     /// Optional path to a prebuilt stdlib `.kklib` used as a fallback when a
     /// compilation requests bundled stdlib. Test support sets this once per
     /// process to share a single compiled stdlib artifact across many tests.
+    /// Compilations that must exercise the bundled-source injection path opt out
+    /// with `allowDefaultStdlibLibrary: false`.
     nonisolated(unsafe) public static var defaultStdlibLibraryPath: String? = nil
 
     public init(
@@ -132,7 +134,8 @@ public struct CompilerOptions: Equatable {
         incrementalCachePath: String? = nil,
         diagnosticsFormat: DiagnosticsFormat = .text,
         stdlibOnly: Bool = false,
-        stdlibLibraryPath: String? = nil
+        stdlibLibraryPath: String? = nil,
+        allowDefaultStdlibLibrary: Bool = true
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -149,7 +152,8 @@ public struct CompilerOptions: Equatable {
         self.runtimeFlags = runtimeFlags
         self.stdlibSearchPaths = stdlibSearchPaths
 
-        let shouldUseDefaultStdlib = includeStdlib && !stdlibOnly && stdlibLibraryPath == nil && emit == .executable
+        let shouldUseDefaultStdlib = allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
+            && stdlibLibraryPath == nil && emit == .executable
         let resolvedStdlibLibraryPath = stdlibLibraryPath ?? (shouldUseDefaultStdlib ? Self.defaultStdlibLibraryPath : nil)
         self.stdlibLibraryPath = resolvedStdlibLibraryPath
         self.includeStdlib = includeStdlib && resolvedStdlibLibraryPath == nil

@@ -22,7 +22,7 @@ import kotlin.internal.KsSymbolName
 // constant-time field reads with no pure-Kotlin expression available (would
 // require introducing new native bridge plumbing for zero behavioral change).
 // `count()`, `sum()`, and `reversed()` are now included and wired to the shared
-// `kk_range_*` ABI surface.
+// `__kk_range_*` ABI surface.
 //
 // `count(predicate)` is intentionally NOT included: CallTypeChecker+RangeMemberFallback.swift's
 // isValidRangeMemberArity() only accepts a 0-arg `count` for range-like receivers, and (as noted
@@ -68,7 +68,7 @@ public fun IntRange.toList(): List<Int> {
     return result
 }
 
-@KsSymbolName("kk_range_count")
+@KsSymbolName("__kk_range_count")
 public fun IntRange.count(): Int {
     return if (step > 0) {
         if (first > last) 0 else (last - first) / step + 1
@@ -79,7 +79,7 @@ public fun IntRange.count(): Int {
     }
 }
 
-@KsSymbolName("kk_range_sum")
+@KsSymbolName("__kk_range_sum")
 public fun IntRange.sum(): Int {
     var sum = 0
     for (element in this) {
@@ -88,7 +88,7 @@ public fun IntRange.sum(): Int {
     return sum
 }
 
-@KsSymbolName("kk_range_reversed")
+@KsSymbolName("__kk_range_reversed")
 public external fun IntRange.reversed(): IntRange
 
 // MARK: - IntProgression
@@ -129,7 +129,7 @@ public fun IntProgression.toList(): List<Int> {
     return result
 }
 
-@KsSymbolName("kk_range_count")
+@KsSymbolName("__kk_range_count")
 public fun IntProgression.count(): Int {
     return if (step > 0) {
         if (first > last) 0 else (last - first) / step + 1
@@ -140,7 +140,7 @@ public fun IntProgression.count(): Int {
     }
 }
 
-@KsSymbolName("kk_range_sum")
+@KsSymbolName("__kk_range_sum")
 public fun IntProgression.sum(): Int {
     var sum = 0
     for (element in this) {
@@ -149,7 +149,7 @@ public fun IntProgression.sum(): Int {
     return sum
 }
 
-@KsSymbolName("kk_range_reversed")
+@KsSymbolName("__kk_range_reversed")
 public external fun IntProgression.reversed(): IntProgression
 
 // MARK: - LongRange
@@ -190,7 +190,7 @@ public fun LongRange.toList(): List<Long> {
     return result
 }
 
-@KsSymbolName("kk_range_count")
+@KsSymbolName("__kk_range_count")
 public fun LongRange.count(): Int {
     val first = first.toLong()
     val last = last.toLong()
@@ -205,7 +205,7 @@ public fun LongRange.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("kk_range_sum")
+@KsSymbolName("__kk_range_sum")
 public fun LongRange.sum(): Long {
     var sum = 0L
     for (element in this) {
@@ -214,7 +214,7 @@ public fun LongRange.sum(): Long {
     return sum
 }
 
-@KsSymbolName("kk_range_reversed")
+@KsSymbolName("__kk_range_reversed")
 public external fun LongRange.reversed(): LongProgression
 
 // MARK: - LongProgression
@@ -255,7 +255,7 @@ public fun LongProgression.toList(): List<Long> {
     return result
 }
 
-@KsSymbolName("kk_range_count")
+@KsSymbolName("__kk_range_count")
 public fun LongProgression.count(): Int {
     val first = first.toLong()
     val last = last.toLong()
@@ -270,7 +270,7 @@ public fun LongProgression.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("kk_range_sum")
+@KsSymbolName("__kk_range_sum")
 public fun LongProgression.sum(): Long {
     var sum = 0L
     for (element in this) {
@@ -279,7 +279,7 @@ public fun LongProgression.sum(): Long {
     return sum
 }
 
-@KsSymbolName("kk_range_reversed")
+@KsSymbolName("__kk_range_reversed")
 public external fun LongProgression.reversed(): LongProgression
 
 // MARK: - CharRange
@@ -320,7 +320,7 @@ public fun CharRange.toList(): List<Char> {
     return result
 }
 
-@KsSymbolName("kk_range_count")
+@KsSymbolName("__kk_range_count")
 public fun CharRange.count(): Int {
     return if (step > 0) {
         if (first > last) 0 else (last - first) / step + 1
@@ -331,7 +331,7 @@ public fun CharRange.count(): Int {
     }
 }
 
-@KsSymbolName("kk_range_sum")
+@KsSymbolName("__kk_range_sum")
 public fun CharRange.sum(): Int {
     var sum = 0
     for (element in this) {
@@ -340,7 +340,7 @@ public fun CharRange.sum(): Int {
     return sum
 }
 
-@KsSymbolName("kk_range_reversed")
+@KsSymbolName("__kk_range_reversed")
 public external fun CharRange.reversed(): CharRange
 
 // MARK: - CharProgression
@@ -381,7 +381,7 @@ public fun CharProgression.toList(): List<Char> {
     return result
 }
 
-@KsSymbolName("kk_range_count")
+@KsSymbolName("__kk_range_count")
 public fun CharProgression.count(): Int {
     return if (step > 0) {
         if (first > last) 0 else (last - first) / step + 1
@@ -392,7 +392,7 @@ public fun CharProgression.count(): Int {
     }
 }
 
-@KsSymbolName("kk_range_sum")
+@KsSymbolName("__kk_range_sum")
 public fun CharProgression.sum(): Int {
     var sum = 0
     for (element in this) {
@@ -401,5 +401,5 @@ public fun CharProgression.sum(): Int {
     return sum
 }
 
-@KsSymbolName("kk_range_reversed")
+@KsSymbolName("__kk_range_reversed")
 public external fun CharProgression.reversed(): CharProgression

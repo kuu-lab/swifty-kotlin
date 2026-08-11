@@ -51,7 +51,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                 ctx.interner.intern("kk_uint_downTo"),
                 ctx.interner.intern("kk_op_step"),
                 ctx.interner.intern("kk_uint_step"),
-                ctx.interner.intern("kk_range_reversed"),
+                ctx.interner.intern("__kk_range_reversed"),
                 ctx.interner.intern("kk_uint_range_reversed"),
             ]
         )
@@ -388,7 +388,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     }
 
     /// Returns true when the expression is the result of a range-producing call
-    /// (kk_op_rangeTo, kk_op_rangeUntil, kk_op_downTo, kk_op_step, kk_range_reversed).
+    /// (kk_op_rangeTo, kk_op_rangeUntil, kk_op_downTo, kk_op_step, __kk_range_reversed).
     /// Follows .copy chains so that intermediate variable assignments are transparent.
     private func isArgumentProducedByRangeCall(
         exprID: KIRExprID,

@@ -136,7 +136,7 @@ expr e@67:18 call callee=e@67:18#1 args=[] type=MyList call=MyList.<init>
 expr e@67:5 localDecl myList mutable=0 type=_ init=e@67:18 type=Unit ref=__local_8.myList
 expr e@68:5 name(myList) type=MyList ref=__local_8.myList
 expr e@68:16 string(inherited) type=String
-expr e@68:5#1 memberCall recv=e@68:5 callee=add args=[_:e@68:16] type=<error>
+expr e@68:5#1 memberCall recv=e@68:5 callee=add args=[_:e@68:16] type=Boolean call=kotlin.collections.MutableList.add#1 targs=[String]
 expr e@69:13 name(myList) type=MyList ref=__local_8.myList
 expr e@69:13#1 memberCall recv=e@69:13 callee=customOp args=[] type=String call=MyList.customOp
 expr e@69:5 call callee=e@69:5#1 args=[_:e@69:13#1] type=Unit call=kotlin.io.println#1

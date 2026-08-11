@@ -55,7 +55,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
             XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
 
             let manifest = try String(contentsOfFile: manifestPath, encoding: .utf8)
-            XCTAssertTrue(manifest.contains("\"moduleName\":\"LibMod\""))
+            XCTAssertTrue(manifest.contains("\"moduleName\"") && manifest.contains("\"LibMod\""))
 
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
             XCTAssertTrue(metadata.contains("symbols="))

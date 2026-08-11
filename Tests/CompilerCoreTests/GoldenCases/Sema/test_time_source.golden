@@ -1,7 +1,7 @@
 symbol fq=__local_0.source kind=local vis=private flags=_ type=kotlin.time.TestTimeSource
 symbol fq=__local_1.mark1 kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
 symbol fq=__local_2.mark2 kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
-symbol fq=kotlin.time.ComparableTimeMark kind=class vis=public flags=synthetic
+symbol fq=kotlin.time.ComparableTimeMark kind=interface vis=public flags=synthetic
 symbol fq=kotlin.time.Duration kind=class vis=public flags=synthetic type=kotlin.time.Duration
 symbol fq=kotlin.time.TestTimeSource kind=class vis=public flags=synthetic
 symbol fq=kotlin.time.TestTimeSource.<init> kind=constructor vis=public flags=synthetic sig=recv=kotlin.time.TestTimeSource params=[] ret=kotlin.time.TestTimeSource

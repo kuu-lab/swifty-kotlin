@@ -8,7 +8,7 @@ import Testing
 ///
 /// Verifies that the synthetic `resolveSibling` overloads registered on the
 /// `java.io.File` synthetic class (see
-/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`)
+/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift`)
 /// resolve through Sema for plain File receivers and bind to the runtime
 /// helpers `kk_file_resolveSibling_file` / `kk_file_resolveSibling_string` listed
 /// in `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
