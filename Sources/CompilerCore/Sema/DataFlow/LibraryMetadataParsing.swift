@@ -122,6 +122,8 @@ extension DataFlowSemaPhase {
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
                 isMutable: metadataRecord.isMutable,
+                nominalTypeParametersSignature: metadataRecord.nominalTypeParametersSignature,
+                nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
                 constValueLiteral: metadataRecord.constValueLiteral,
                 nominalTypeParameters: metadataRecord.nominalTypeParameters
             ))

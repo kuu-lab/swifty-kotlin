@@ -575,6 +575,28 @@ extension OverloadResolver {
                 }
                 return result
             }
+            // Generic subtype against a concrete supertype instantiation
+            // (e.g. `MutableSharedFlow<T> <: SharedFlow<Int>`): lift the
+            // subtype to the supertype's nominal symbol so the type variables
+            // inside its arguments stay inferable.
+            if case let .classType(superClass) = supertypeKind,
+               subClass.classSymbol != superClass.classSymbol,
+               let liftedSubtype = liftClassType(
+                   subClass,
+                   to: superClass.classSymbol,
+                   typeSystem: typeSystem
+               ),
+               liftedSubtype != subtype
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: liftedSubtype,
+                    supertype: supertype,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: blameRange,
+                    depth: depth + 1
+                )
+            }
         }
 
         if case let .kClassType(subKClass) = subtypeKind,
