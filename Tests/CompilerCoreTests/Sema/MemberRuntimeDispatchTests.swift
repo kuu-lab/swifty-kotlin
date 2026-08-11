@@ -47,7 +47,7 @@ struct MemberRuntimeDispatchTests {
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),
-            (.set, "map", 1, "kk_list_map"),
+            (.list, "forEach", 1, "kk_list_forEach"),
             (.sequence, "firstNotNullOf", 1, "kk_sequence_firstNotNullOf"),
         ]
 
@@ -73,6 +73,31 @@ struct MemberRuntimeDispatchTests {
             #expect(
                 MemberRuntimeDispatch.collectionRuntimeLinkName(for: key) == nil,
                 "\(receiverKind.rawValue).\(memberName)/\(arity)"
+            )
+        }
+    }
+
+    @Test func testCollectionRuntimeDispatchDoesNotOverrideSourceBackedListTransformHOFMembers() {
+        // KSP-421: List transform higher-order functions are now bundled Kotlin source.
+        for (memberName, arity) in [
+            ("map", 1),
+            ("mapNotNull", 1),
+            ("mapIndexed", 1),
+            ("mapIndexedNotNull", 1),
+            ("flatMap", 1),
+            ("flatMapIndexed", 1),
+            ("flatten", 0),
+            ("mapTo", 2),
+            ("mapNotNullTo", 2),
+            ("mapIndexedTo", 2),
+            ("mapIndexedNotNullTo", 2),
+            ("flatMapTo", 2),
+            ("flatMapIndexedTo", 2),
+        ] {
+            let key = MemberDispatchKey(receiverKind: .list, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.collectionRuntimeLinkName(for: key) == nil,
+                "List.\(memberName)/\(arity) should be source-backed after KSP-421"
             )
         }
     }
