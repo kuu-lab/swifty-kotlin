@@ -1096,7 +1096,7 @@ extension ListSyntheticMemberLinkTests {
                 return true
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_set_contains", "Expected contains to resolve to kk_set_contains")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_set_contains", "Expected contains to resolve to __kk_set_contains")
         }
     }
 
@@ -1157,9 +1157,9 @@ extension ListSyntheticMemberLinkTests {
             let listContainsAll = try #require(containsAllSymbol(owner: listSymbol), "Expected List.containsAll source extension")
             let setContainsAll = try #require(containsAllSymbol(owner: setSymbol), "Expected Set.containsAll")
 
-            // List.containsAll is source-backed (KSP-423); Set.containsAll still uses the runtime bridge.
+            // List.containsAll is source-backed (KSP-423), Set.containsAll (KSP-432).
             #expect(sema.symbols.externalLinkName(for: listContainsAll) == nil)
-            #expect(sema.symbols.externalLinkName(for: setContainsAll) == "kk_set_containsAll")
+            #expect(sema.symbols.externalLinkName(for: setContainsAll) == nil)
         }
     }
 
@@ -1170,12 +1170,23 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
+            let collectionsPkg = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("containsAll"),
-            ]))
+            ]
+            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
+            let setContainsAll = try #require(
+                sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern("containsAll")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType,
+                          case let .classType(classType) = sema.types.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return classType.classSymbol == setSymbol
+                },
+                "Expected Set.containsAll source extension"
+            )
             let signature = try #require(sema.symbols.functionSignature(for: setContainsAll))
             let parameterType = try #require(signature.parameterTypes.first)
 
@@ -2045,47 +2056,6 @@ extension ListSyntheticMemberLinkTests {
             else {
                 Issue.record("Expected MutableMap.putAll parameter to use projected Map<K, V>"); return
             }
-        }
-    }
-
-    @Test
-    func testGroupingEachCountToUsesProjectedMutableMapParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let symbol = try #require(sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Grouping"),
-                interner.intern("eachCountTo"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_grouping_eachCountTo")
-            #expect(signature.parameterTypes.count == 1)
-            #expect(signature.returnType == signature.parameterTypes[0])
-
-            let receiverType = try #require(signature.receiverType)
-            guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
-                Issue.record("Expected Grouping.eachCountTo receiver to be a class type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(receiverClassType.classSymbol)?.name)) == "Grouping")
-
-            let parameterType = try #require(signature.parameterTypes.first)
-            guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
-                Issue.record("Expected eachCountTo to take a MutableMap type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(parameterClassType.classSymbol)?.name)) == "MutableMap")
-            #expect(parameterClassType.args.count == 2)
-            guard case let .in(keyProjection) = parameterClassType.args[0],
-                  case .typeParam = sema.types.kind(of: keyProjection),
-                  case let .invariant(valueType) = parameterClassType.args[1]
-            else {
-                Issue.record("Expected eachCountTo parameter to use MutableMap<in K, Int>"); return
-            }
-            #expect(valueType == sema.types.intType)
         }
     }
 

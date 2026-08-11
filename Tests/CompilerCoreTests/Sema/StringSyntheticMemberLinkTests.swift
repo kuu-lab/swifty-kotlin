@@ -210,6 +210,23 @@ struct StringSyntheticMemberLinkTests {
         }
 
         do {
+            // KSP-417: String.random overloads use private runtime bridge symbols.
+                    let links = externalLinks(for: "random", sema: sema, interner: interner)
+                    #expect(
+                        links.contains("__kk_string_random"),
+                        "String.random() should link to __kk_string_random, got \(links.sorted())"
+                    )
+                    #expect(
+                        links.contains("__kk_string_random_random"),
+                        "String.random(Random) should link to __kk_string_random_random, got \(links.sorted())"
+                    )
+                    #expect(
+                        !links.contains("kk_string_random") && !links.contains("kk_string_random_random"),
+                        "String.random overloads should no longer expose public kk_ symbols (KSP-417)"
+                    )
+        }
+
+        do {
             // Originally testChunkedSequenceStubsHaveCorrectExternalLinks
                     let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
                     #expect(
@@ -297,12 +314,6 @@ struct StringSyntheticMemberLinkTests {
                     )
                     #expect(
                         externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
                     )
         }
 

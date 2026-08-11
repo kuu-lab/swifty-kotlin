@@ -236,6 +236,15 @@ extension CallLowerer {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation, chosenCallee != .invalid else {
                 return true
             }
+            // `Result.fold(onSuccess, onFailure)` takes two callbacks, but the
+            // (fnPtr, closureRaw) pairs produced here are still subject to
+            // parameter-mapping normalization, which keeps one argument per
+            // declared parameter and therefore drops the onFailure pair.
+            // emitMemberCallInstruction expands both callbacks after
+            // normalization, so leave the lambdas untouched here.
+            if sema.symbols.externalLinkName(for: chosenCallee) == "kk_runtime_result_fold" {
+                return false
+            }
             if !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosenCallee)) {
                 return true
             }
@@ -382,16 +391,12 @@ extension CallLowerer {
             case "any":
                 if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_array_any")
-                } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_set_any")
                 } else {
                     nil
                 }
             case "none":
                 if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_array_none")
-                } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_set_none")
                 } else {
                     nil
                 }

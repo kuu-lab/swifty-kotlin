@@ -136,6 +136,107 @@ struct ResultSourceMigrationTests {
         }
     }
 
+    // KSP-613: `runCatching` no longer has a compiler name special case, so
+    // every call shape has to go through ordinary overload resolution against
+    // the bundled `kotlin.runCatching` declaration.
+    @Test func testRunCatchingCallShapesResolveThroughOrdinaryResolution() throws {
+        let source = """
+        fun answer(): Int = 42
+
+        fun useRunCatching(): Int {
+            val block: Result<Int> = runCatching { answer() }
+            val callableRef: Result<Int> = runCatching(::answer)
+            val explicit: Result<String> = runCatching<String> { "explicit" }
+            val nested: Result<Result<Int>> = runCatching { runCatching { 7 } }
+            return block.getOrDefault(0) + callableRef.getOrDefault(0) +
+                explicit.getOrDefault("").length + nested.getOrNull()?.getOrDefault(0)!!
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Expected every runCatching call shape to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            // Re-inferred lambda bodies leave duplicate call exprs in the
+            // arena, so group by source range and require one bound callee
+            // per written call site.
+            var runCatchingCallSites: [SourceRange: [ExprID]] = [:]
+            for index in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      case let .call(callee, _, _, range) = expr,
+                      let calleeExpr = ast.arena.expr(callee),
+                      case let .nameRef(name, _) = calleeExpr,
+                      ctx.interner.resolve(name) == "runCatching"
+                else { continue }
+                runCatchingCallSites[range, default: []].append(exprID)
+            }
+            #expect(runCatchingCallSites.count == 5)
+            for (range, exprIDs) in runCatchingCallSites {
+                let boundCall = exprIDs.first { sema.bindings.callBinding(for: $0) != nil }
+                let call = try #require(
+                    boundCall,
+                    "runCatching call at offset \(range.start.offset) must resolve through ordinary call resolution"
+                )
+                try expectCallUsesBundledResultSource(
+                    call,
+                    expectedExternalLink: "kk_runtime_result_run_catching",
+                    sema: sema,
+                    ctx: ctx
+                )
+            }
+        }
+    }
+
+    // KSP-613: `Result.fold` passes both callbacks as (fnPtr, closureRaw)
+    // pairs. Expanding them before parameter-mapping normalization dropped the
+    // onFailure pair, so the runtime received a null onFailure function
+    // pointer and crashed as soon as the folded Result was a failure.
+    @Test func testResultFoldLowersBothCallbackPairs() throws {
+        let source = """
+        fun boom(): Int = throw IllegalStateException("boom")
+
+        fun foldFailure(): String {
+            return runCatching { boom() }.fold({ value -> "v" + value }, { error -> "e" + error.message })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try #require(ctx.kir)
+
+            let foldCallArguments = try #require(findAllKIRFunctions(in: module)
+                .flatMap(\.body)
+                .compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_runtime_result_fold"
+                    else { return nil }
+                    return arguments
+                }
+                .first)
+
+            // (resultRaw, successFnPtr, successClosureRaw, failureFnPtr, failureClosureRaw)
+            #expect(foldCallArguments.count == 5)
+            for (label, index) in [("onSuccess", 1), ("onFailure", 3)] {
+                let callbackKind = module.arena.expr(foldCallArguments[index])
+                guard case .symbolRef = callbackKind else {
+                    Issue.record("\(label) callback must be lowered to a function pointer, got \(String(describing: callbackKind))")
+                    continue
+                }
+            }
+        }
+    }
+
     @Test func testResultBooleanPropertyReadsResolveToBundledKotlinSourceSymbols() throws {
         let source = """
         fun probe(success: Result<Int>, failure: Result<Int>): Boolean {

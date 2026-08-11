@@ -1114,10 +1114,6 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_reentrant_read_write_lock_read"),
-            interner.intern("kk_biginteger_divide"),
-            interner.intern("kk_biginteger_pow"),
-            interner.intern("kk_biginteger_modInverse"),
-            interner.intern("kk_biginteger_modPow"),
         ])
     }
 

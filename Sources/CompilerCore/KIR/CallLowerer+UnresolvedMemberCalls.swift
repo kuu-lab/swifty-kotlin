@@ -44,8 +44,8 @@ extension CallLowerer {
            // and .iterable all map to .list inside stdlibSurfaceOwnerKind, so
            // collectionRuntimeLinkName would return a *List* runtime function for
            // those receivers when hofArity==1 (SOURCE count), bypassing the
-           // isSetLikeType block and the CollectionLiteralLoweringPass Set-HOF
-           // rewrite that correctly routes them to kk_set_filter etc.
+           // isSetLikeType block and the bundled Kotlin Set declarations that
+           // correctly implement them.
            collectionKind == .list || collectionKind == .map || collectionKind == .sequence,
            let runtimeLinkName = MemberRuntimeDispatch.collectionRuntimeLinkName(for: MemberDispatchKey(
                receiverKind: collectionKind,
@@ -369,37 +369,14 @@ extension CallLowerer {
             }
         }
 
-        // Set receivers: sorted/toList/contains route to set-specific runtime
+        // Set receivers keep only the element-storage bridge; everything else is
+        // declared in the bundled Kotlin stdlib (Stdlib/kotlin/collections/SetHOF.kt).
         if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "sorted":
-                return interner.intern("kk_set_sorted")
-            case "sortedDescending":
-                return interner.intern("kk_set_sortedDescending")
-            case "toList":
-                return interner.intern("kk_set_toList")
             case "toTypedArray":
                 return interner.intern("__kk_collection_toTypedArray")
             case "contains":
-                return interner.intern("kk_set_contains")
-            case "containsAll":
-                return interner.intern("kk_set_containsAll")
-            case "first":
-                return interner.intern("kk_set_first")
-            case "firstOrNull":
-                return interner.intern("kk_set_firstOrNull")
-            case "last":
-                return interner.intern("kk_set_last")
-            case "lastOrNull":
-                return interner.intern("kk_set_lastOrNull")
-            case "singleOrNull":
-                return interner.intern("kk_set_singleOrNull")
-            case "any":
-                return interner.intern("kk_set_any")
-            case "all":
-                return interner.intern("kk_set_all")
-            case "none":
-                return interner.intern("kk_set_none")
+                return interner.intern("__kk_set_contains")
             default:
                 break
             }
@@ -464,39 +441,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_binarySearch_comparator")
             }
             return interner.intern("kk_list_binarySearch")
-        case "groupingBy" where isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            || isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            || sema.bindings.isCollectionExpr(receiverExpr):
-            return interner.intern("kk_list_groupingBy")
         default:
             break
-        }
-
-        if isGroupingLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            case "eachCount":
-                return interner.intern("kk_grouping_eachCount")
-            case "eachCountTo":
-                return interner.intern("kk_grouping_eachCountTo")
-            case "aggregate":
-                return interner.intern("kk_grouping_aggregate")
-            case "aggregateTo":
-                return interner.intern("kk_grouping_aggregateTo")
-            case "fold":
-                return interner.intern(argumentCount >= 4
-                    ? "kk_grouping_fold_initialValueSelector"
-                    : "kk_grouping_fold")
-            case "foldTo":
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_grouping_foldTo_selector"
-                    : "kk_grouping_foldTo")
-            case "reduce":
-                return interner.intern("kk_grouping_reduce")
-            case "reduceTo":
-                return interner.intern("kk_grouping_reduceTo")
-            default:
-                break
-            }
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
@@ -505,11 +451,10 @@ extension CallLowerer {
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
         // Bare Iterable/Collection/Set interfaces are also matched by
         // isConcreteCollectionLikeType, so the gate above excludes them. That is
-        // intentional for general HOF routing: Set must fall through to the
-        // isSetLikeType block / CollectionLiteral Set-HOF rewrite (kk_set_*), not
-        // kk_sequence_* (mapNotNull/flatMap/count on a set handle would return empty
-        // or 0). joinTo/joinToString used to need a bare-interface special case
-        // here; they now resolve to the bundled Kotlin source (KSP-435).
+        // intentional for general HOF routing: Set members resolve through the
+        // bundled Kotlin declarations instead of kk_sequence_* (mapNotNull/flatMap/
+        // count on a set handle would return empty or 0). joinTo/joinToString also
+        // resolve to bundled Kotlin source (KSP-435).
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
@@ -820,7 +765,7 @@ extension CallLowerer {
             case .map?:
                 return interner.intern("kk_map_size")
             case .set?:
-                return interner.intern("kk_set_size")
+                return interner.intern("__kk_set_size")
             case .array?:
                 return interner.intern("kk_array_size")
             case .list?:
@@ -837,7 +782,7 @@ extension CallLowerer {
             case .map?:
                 return interner.intern("kk_map_is_empty")
             case .set?:
-                return interner.intern("kk_set_is_empty")
+                return interner.intern("__kk_set_is_empty")
             case .array?:
                 return interner.intern("kk_array_is_empty")
             case .list?, .collection?:
@@ -1017,7 +962,7 @@ extension CallLowerer {
         case .map?:
             return interner.intern("kk_map_is_empty")
         case .set?:
-            return interner.intern("kk_set_is_empty")
+            return interner.intern("__kk_set_is_empty")
         case .array?:
             return interner.intern("kk_array_is_empty")
         case .list?, .collection?:
