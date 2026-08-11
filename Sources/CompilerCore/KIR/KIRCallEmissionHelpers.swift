@@ -170,9 +170,13 @@ func emitBoxCallWithValueClassTag(
     // enum awareness — rather than emitting a call to a helper that will
     // never exist.
     if sym.kind == .enumClass, !sym.flags.contains(.synthetic) {
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: classType.classSymbol, symbols: symbols, interner: interner
+        )
         emitEnumOrdinalBoxCall(
             ordinal: value,
             classSymbol: classType.classSymbol,
+            classID: classID,
             result: result,
             resultType: resultType,
             types: types,
@@ -228,6 +232,7 @@ func emitBoxCallWithValueClassTag(
 private func emitEnumOrdinalBoxCall(
     ordinal: KIRExprID,
     classSymbol: SymbolID,
+    classID: Int64,
     result: KIRExprID,
     resultType: TypeID?,
     types: TypeSystem,
@@ -242,8 +247,21 @@ private func emitEnumOrdinalBoxCall(
         result: nameResult, canThrow: false, thrownResult: nil
     ))
     let boxCallee = interner.intern("kk_enum_box_ordinal")
+    let boxedResult = arena.appendTemporary(type: resultType ?? types.anyType)
     instructions.append(.call(
         symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult],
+        result: boxedResult, canThrow: false, thrownResult: nil
+    ))
+    guard classID != 0 else {
+        instructions.append(.copy(from: boxedResult, to: result))
+        return
+    }
+    let intType = types.make(.primitive(.int, .nonNull))
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+    let tagCallee = interner.intern("kk_tag_value_class_box")
+    instructions.append(.call(
+        symbol: nil, callee: tagCallee, arguments: [boxedResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
 }
