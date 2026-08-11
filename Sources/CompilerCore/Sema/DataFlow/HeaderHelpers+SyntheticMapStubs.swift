@@ -897,13 +897,13 @@ extension DataFlowSemaPhase {
         }
 
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
-            ("set", [keyType, valueType], types.unitType, "kk_mutable_map_put", [.synthetic, .operatorFunction]),
-            ("put", [keyType, valueType], types.makeNullable(valueType), "kk_mutable_map_put", [.synthetic]),
-            ("remove", [keyType], types.makeNullable(valueType), "kk_mutable_map_remove", [.synthetic]),
-            ("clear", [], types.unitType, "kk_mutable_map_clear", [.synthetic]),
-            ("putAll", [mapParamType], types.unitType, "kk_mutable_map_putAll", [.synthetic]),
-            ("plusAssign", [pairType], types.unitType, "kk_mutable_map_plusAssign_pair", [.synthetic, .operatorFunction]),
-            ("plusAssign", [mapParamType], types.unitType, "kk_mutable_map_putAll", [.synthetic, .operatorFunction]),
+            ("set", [keyType, valueType], types.unitType, "__kk_mutable_map_put", [.synthetic, .operatorFunction]),
+            ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic]),
+            ("remove", [keyType], types.makeNullable(valueType), "__kk_mutable_map_remove", [.synthetic]),
+            ("clear", [], types.unitType, "__kk_mutable_map_clear", [.synthetic]),
+            ("putAll", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic]),
+            ("plusAssign", [pairType], types.unitType, "__kk_mutable_map_plusAssign_pair", [.synthetic, .operatorFunction]),
+            ("plusAssign", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic, .operatorFunction]),
         ]
 
         for member in members {

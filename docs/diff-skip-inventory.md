@@ -195,7 +195,7 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 
 | 領域 | cases | 判定 | 次アクション |
 | --- | --- | --- | --- |
-| `java.math.BigInteger` | `big_integer.kt` | Java interop surface gap | BigInteger を対象に残すなら Java interop task、対象外なら target-out backlog |
+| `java.math.BigInteger` | （削除済み） | target-out 判定（CLEANUP-STUB-104） | BigInteger surface と `big_integer.kt` を削除済み。対応不要 |
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
 | Sequence source/runtime interop | `flatten_sequence_edge_cases.kt`, `sequence_lazy_eval.kt` | source Sequence object-expression は runtime List/Sequence/RuntimeSequenceBox ハンドルに対する `.iterator()` 仮想ディスパッチが未整備（`sequence {}` builder 含む KSP-447 残留） | KSP-441 後続 / KSP-447 で itable ブリッジを整備後に `--force-run-skipped` で再判定 |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |

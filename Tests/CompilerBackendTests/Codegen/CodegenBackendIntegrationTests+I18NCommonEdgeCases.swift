@@ -58,8 +58,8 @@ struct CodegenBackendI18NCommonEdgeCasesTests {
             println("i".uppercase(Locale("tr")))
 
             val locale = Locale("en", "US")
-            println(locale.language)
-            println(locale.country)
+            println("HELLO".lowercase(locale))
+            println("hello".uppercase(locale))
         }
         """
 
@@ -74,8 +74,8 @@ struct CodegenBackendI18NCommonEdgeCasesTests {
                 hello
                 \u{131}
                 \u{130}
-                en
-                US
+                hello
+                HELLO
                 """ + "\n"
         )
     }

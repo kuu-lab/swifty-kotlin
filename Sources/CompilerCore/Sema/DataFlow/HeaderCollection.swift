@@ -525,7 +525,7 @@ extension DataFlowSemaPhase {
                     )
                     symbols.setParentSymbol(symbol, for: entrySymbol)
                     symbols.setPropertyType(classType, for: entrySymbol)
-                    scope.insert(entrySymbol)
+                    classScope.insert(entrySymbol)
                 }
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: symbol,
@@ -1109,8 +1109,6 @@ extension DataFlowSemaPhase {
             [["kotlin", "uuid", "Uuid"]]
         case "__bundled_java/math/BigDecimal.kt":
             [["java", "math", "BigDecimal"]]
-        case "__bundled_java/math/BigInteger.kt":
-            [["java", "math", "BigInteger"]]
         case "__bundled_kotlin/random/Random.kt":
             [["kotlin", "random", "Random"]]
         case "__bundled_kotlin/random/JavaUtilRandom.kt":

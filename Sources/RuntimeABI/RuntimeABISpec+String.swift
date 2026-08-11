@@ -547,80 +547,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_locale_language",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_country",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_variant",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_displayLanguage",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_getDefault",
-            parameters: [
-                RuntimeABIParameter(name: "companionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_setDefault",
-            parameters: [
-                RuntimeABIParameter(name: "companionRaw", type: .intptr),
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_getAvailableLocales",
-            parameters: [
-                RuntimeABIParameter(name: "companionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_hashCode",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_locale_equals",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_lowercase_locale_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -1286,12 +1212,15 @@ public extension RuntimeABISpec {
         ),
         // BUG-172: boxes a values()/entries element as a genuine ordinal Int
         // (tagged with its declared name for generic Any-printing) instead of
-        // a pre-baked name string.
+        // a pre-baked name string. BUG-182: also carries the enum class's
+        // stable nominal type ID so `is`/`as`/`KClass.isInstance` work after
+        // widening to `Any`.
         RuntimeABIFunctionSpec(
             name: "kk_enum_box_ordinal",
             parameters: [
                 RuntimeABIParameter(name: "ordinal", type: .intptr),
                 RuntimeABIParameter(name: "namePtr", type: .intptr),
+                RuntimeABIParameter(name: "classID", type: .intptr),
             ],
             returnType: .intptr,
             section: "Enum",
@@ -1823,27 +1752,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_string_toBigInteger",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_toBigInteger_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_bignum_toString",
             parameters: [
                 RuntimeABIParameter(name: "numRaw", type: .intptr),
@@ -2193,15 +2101,6 @@ public extension RuntimeABISpec {
         ),
         // KSP-406: replaceRange_indices/slice_iterable/slice_range removed;
         // now bundled Kotlin source (StringSubstringSlice.kt).
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_toBigIntegerOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_zipTransform",
             parameters: [
