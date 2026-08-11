@@ -176,6 +176,7 @@ func emitBoxCallWithValueClassTag(
             result: result,
             resultType: resultType,
             types: types,
+            symbols: symbols,
             interner: interner,
             arena: arena,
             into: &instructions
@@ -208,11 +209,11 @@ func emitBoxCallWithValueClassTag(
     ))
 }
 
-/// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name)` (BUG-177),
-/// resolving `name` at runtime through the enum class's
-/// `$enumOrdinalToName$<id>` helper — DataEnumSealedSynthesisPass
-/// synthesizes one for every enum class unconditionally, regardless of
-/// whether `values()`/`entries`/`.name` are actually used.
+/// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name, classID)`
+/// (BUG-177 / BUG-182), resolving `name` at runtime through the enum class's
+/// `$enumOrdinalToName$<id>` helper and tagging the box with the enum class's
+/// stable nominal type ID so `is`/`as`/`as?`/`KClass.isInstance` work after
+/// widening to `Any`.
 ///
 /// The helper is called by bare name (`symbol: nil`) rather than by its
 /// `SymbolID` because boxing can be lowered *before*
@@ -231,6 +232,7 @@ private func emitEnumOrdinalBoxCall(
     result: KIRExprID,
     resultType: TypeID?,
     types: TypeSystem,
+    symbols: SymbolTable?,
     interner: StringInterner,
     arena: KIRArena,
     into instructions: inout [KIRInstruction]
@@ -241,9 +243,15 @@ private func emitEnumOrdinalBoxCall(
         symbol: nil, callee: nameHelperCallee, arguments: [ordinal],
         result: nameResult, canThrow: false, thrownResult: nil
     ))
+
+    let classID = symbols.map { RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner) } ?? 0
+    let intType = types.make(.primitive(.int, .nonNull))
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+
     let boxCallee = interner.intern("kk_enum_box_ordinal")
     instructions.append(.call(
-        symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult],
+        symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
 }

@@ -384,21 +384,11 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathFileAttributesViewOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-116 removed fileAttributesView; keep this slot to preserve path indices.
             """
             package sample21
 
-                    import java.nio.file.LinkOption
-                    import java.nio.file.attribute.FileAttributeView
-                    import kotlin.io.path.Path
-                    import kotlin.io.path.fileAttributesView
-
-                    fun <V : FileAttributeView> attributesView(path: Path, option: LinkOption): V {
-                        val first: V = path.fileAttributesView<V>()
-                        val second: V = path.fileAttributesView<V>(option)
-                        return second
-                    }
-
+            fun cleanupStub116RemovedCase21() {}
             """,
             // testPathGetLastModifiedTimeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
@@ -517,15 +507,11 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathUseLinesRegisteredAsClassMemberOfPath
+            // CLEANUP-STUB-116 removed Path.useLines; keep this slot to preserve path indices.
             """
             package sample30
 
-                    import kotlin.io.path.Path
-                    import kotlin.io.path.useLines
-
-                    fun collect(path: Path) {}
-
+            fun cleanupStub116RemovedCase30() {}
             """,
             // testPathReadAttributesStringOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
@@ -542,31 +528,17 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathUseDirectoryEntriesExtensionFunctionInIOPathPackageSurfaceIsRegistered
+            // CLEANUP-STUB-116 removed useDirectoryEntries; keep this slot to preserve path indices.
             """
             package sample32
 
-                    import kotlin.io.path.Path
-                    import kotlin.io.path.useDirectoryEntries
-
-                    fun collect(path: Path) {}
-
+            fun cleanupStub116RemovedCase32() {}
             """,
-            // testPathReadAttributesGenericOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-116 removed generic readAttributes; keep this slot to preserve path indices.
             """
             package sample33
 
-                    import java.nio.file.LinkOption
-                    import java.nio.file.attribute.BasicFileAttributes
-                    import kotlin.io.path.Path
-                    import kotlin.io.path.readAttributes
-
-                    fun attributes(path: Path, option: LinkOption): BasicFileAttributes {
-                        val first: BasicFileAttributes = path.readAttributes<BasicFileAttributes>()
-                        val second: BasicFileAttributes = path.readAttributes<BasicFileAttributes>(option)
-                        return second
-                    }
-
+            fun cleanupStub116RemovedCase33() {}
             """,
             // testPathTopLevelPathStringFactoryShapeInIOPathPackageSurfaceIsResolved
             """
@@ -609,21 +581,11 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathFileAttributesViewOrNullOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-116 removed fileAttributesViewOrNull; keep this slot to preserve path indices.
             """
             package sample37
 
-                    import java.nio.file.LinkOption
-                    import java.nio.file.attribute.FileAttributeView
-                    import kotlin.io.path.Path
-                    import kotlin.io.path.fileAttributesViewOrNull
-
-                    fun <V : FileAttributeView> attributesView(path: Path, option: LinkOption): V? {
-                        val first: V? = path.fileAttributesViewOrNull<V>()
-                        val second: V? = path.fileAttributesViewOrNull<V>(option)
-                        return second
-                    }
-
+            fun cleanupStub116RemovedCase37() {}
             """,
             // testPathGetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
@@ -1474,51 +1436,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                 }
             }
 
-            // testPathFileAttributesViewOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[21]
-                _ = samplePath
-                let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-                #expect(!(ctx.diagnostics.hasError), "Path.fileAttributesView<V>(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
-
-                let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-                let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-                let fileAttributeViewSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttributeView"].map(interner.intern)))
-                let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
-                let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
-                let fileAttributeViewType = types.make(.classType(ClassType(classSymbol: fileAttributeViewSymbol, args: [], nullability: .nonNull)))
-                let fileAttributesViewSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "fileAttributesView"].map(interner.intern))
-                let fileAttributesView = try #require(fileAttributesViewSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          let typeParameterSymbol = signature.typeParameterSymbols.first
-                    else {
-                        return false
-                    }
-                    let returnType = types.make(.typeParam(TypeParamType(
-                        symbol: typeParameterSymbol,
-                        nullability: .nonNull
-                    )))
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [linkOptionType]
-                        && signature.returnType == returnType
-                })
-                #expect(symbols.externalLinkName(for: fileAttributesView) == "kk_path_fileAttributesView")
-
-                let signature = try #require(symbols.functionSignature(for: fileAttributesView))
-                #expect(signature.valueParameterHasDefaultValues == [false])
-                #expect(signature.valueParameterIsVararg == [true])
-                #expect(signature.typeParameterSymbols.count == 1)
-                #expect(signature.typeParameterUpperBoundsList == [[fileAttributeViewType]])
-                #expect(symbols.typeParameterUpperBounds(for: try #require(signature.typeParameterSymbols.first)) == [fileAttributeViewType])
-
-                let callExprs = memberCallExprIDsInPath(named: "fileAttributesView", in: ast, path: samplePath, ctx: ctx, interner: interner)
-                #expect(callExprs.count == 2)
-                for callExpr in callExprs {
-                    #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == fileAttributesView)
-                    #expect(sema.bindings.exprTypes[callExpr] != nil)
-                }
-            }
-
             // testPathGetLastModifiedTimeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             do {
                 let samplePath = paths[22]
@@ -1822,57 +1739,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                 }
             }
 
-            // testPathUseLinesRegisteredAsClassMemberOfPath
-            do {
-                let samplePath = paths[30]
-                _ = samplePath
-                let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-                #expect(!(ctx.diagnostics.hasError), "Path.useLines class member stubs should register without errors: \(diagnostics)")
-
-                let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-                let sequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
-                let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-                let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
-                let sequenceOfStringType = types.make(.classType(ClassType(
-                    classSymbol: sequenceSymbol,
-                    args: [.out(types.stringType)],
-                    nullability: .nonNull
-                )))
-                let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
-                let blockType = types.make(.functionType(FunctionType(
-                    params: [sequenceOfStringType],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                // useLines is registered as a class member of Path (non-generic, Any return)
-                // so Sema can set chosenCallee directly, like File.useLines.
-                let useLinesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "Path", "useLines"].map(interner.intern))
-                let fullUseLines = try #require(useLinesSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [charsetType, blockType]
-                        && signature.returnType == types.anyType
-                        && signature.typeParameterSymbols.isEmpty
-                })
-                let defaultUseLines = try #require(useLinesSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [blockType]
-                        && signature.returnType == types.anyType
-                        && signature.typeParameterSymbols.isEmpty
-                })
-                #expect(symbols.externalLinkName(for: fullUseLines) == "kk_path_useLines")
-                #expect(symbols.externalLinkName(for: defaultUseLines) == "kk_path_useLines_default")
-
-                let fullSignature = try #require(symbols.functionSignature(for: fullUseLines))
-                #expect(fullSignature.valueParameterHasDefaultValues == [true, false])
-                #expect(fullSignature.valueParameterIsVararg == [false, false])
-                let defaultSignature = try #require(symbols.functionSignature(for: defaultUseLines))
-                #expect(defaultSignature.valueParameterHasDefaultValues == [false])
-                #expect(defaultSignature.valueParameterIsVararg == [false])
-            }
-
             // testPathReadAttributesStringOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             do {
                 let samplePath = paths[31]
@@ -1910,118 +1776,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                 for callExpr in callExprs {
                     #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == readAttributes)
                     #expect(sema.bindings.exprTypes[callExpr] == mapOfStringToNullableAnyType)
-                }
-            }
-
-            // testPathUseDirectoryEntriesExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            do {
-                let samplePath = paths[32]
-                _ = samplePath
-                let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-                #expect(!(ctx.diagnostics.hasError), "Path.useDirectoryEntries(glob, block) extension function in kotlin.io.path should register: \(diagnostics)")
-
-                let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-                let sequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
-                let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
-                let sequenceOfPathType = types.make(.classType(ClassType(
-                    classSymbol: sequenceSymbol,
-                    args: [.out(pathType)],
-                    nullability: .nonNull
-                )))
-                let useDirectoryEntriesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "useDirectoryEntries"].map(interner.intern))
-                let fullUseDirectoryEntries = try #require(useDirectoryEntriesSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          let typeParameterSymbol = signature.typeParameterSymbols.first
-                    else {
-                        return false
-                    }
-                    let typeParameterType = types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol, nullability: .nonNull)))
-                    let blockType = types.make(.functionType(FunctionType(
-                        params: [sequenceOfPathType],
-                        returnType: typeParameterType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [types.stringType, blockType]
-                        && signature.returnType == typeParameterType
-                })
-                let defaultUseDirectoryEntries = try #require(useDirectoryEntriesSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          let typeParameterSymbol = signature.typeParameterSymbols.first
-                    else {
-                        return false
-                    }
-                    let typeParameterType = types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol, nullability: .nonNull)))
-                    let blockType = types.make(.functionType(FunctionType(
-                        params: [sequenceOfPathType],
-                        returnType: typeParameterType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [blockType]
-                        && signature.returnType == typeParameterType
-                })
-                #expect(symbols.externalLinkName(for: fullUseDirectoryEntries) == "kk_path_useDirectoryEntries")
-                #expect(symbols.externalLinkName(for: defaultUseDirectoryEntries) == "kk_path_useDirectoryEntries_default")
-
-                let fullSignature = try #require(symbols.functionSignature(for: fullUseDirectoryEntries))
-                #expect(fullSignature.valueParameterHasDefaultValues == [true, false])
-                #expect(fullSignature.valueParameterIsVararg == [false, false])
-                let defaultSignature = try #require(symbols.functionSignature(for: defaultUseDirectoryEntries))
-                #expect(defaultSignature.valueParameterHasDefaultValues == [false])
-                #expect(defaultSignature.valueParameterIsVararg == [false])
-
-                #expect(fullSignature.typeParameterSymbols.count == 1)
-                #expect(defaultSignature.typeParameterSymbols.count == 1)
-            }
-
-            // testPathReadAttributesGenericOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[33]
-                _ = samplePath
-                let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-                #expect(!(ctx.diagnostics.hasError), "Path.readAttributes<A>(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
-
-                let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-                let basicFileAttributesSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "BasicFileAttributes"].map(interner.intern)))
-                let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-                let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
-                let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
-                let basicFileAttributesType = types.make(.classType(ClassType(classSymbol: basicFileAttributesSymbol, args: [], nullability: .nonNull)))
-                let readAttributesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "readAttributes"].map(interner.intern))
-                let readAttributes = try #require(readAttributesSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          let typeParameterSymbol = signature.typeParameterSymbols.first
-                    else {
-                        return false
-                    }
-                    let returnType = types.make(.typeParam(TypeParamType(
-                        symbol: typeParameterSymbol,
-                        nullability: .nonNull
-                    )))
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [linkOptionType]
-                        && signature.returnType == returnType
-                })
-                #expect(symbols.externalLinkName(for: readAttributes) == "kk_path_readAttributes")
-
-                let signature = try #require(symbols.functionSignature(for: readAttributes))
-                #expect(signature.valueParameterHasDefaultValues == [false])
-                #expect(signature.valueParameterIsVararg == [true])
-                #expect(signature.typeParameterSymbols.count == 1)
-                #expect(signature.reifiedTypeParameterIndices == [0])
-                #expect(signature.typeParameterUpperBoundsList == [[basicFileAttributesType]])
-                let typeParameterSymbol = try #require(signature.typeParameterSymbols.first)
-                #expect(symbols.symbol(typeParameterSymbol)?.flags.contains(.reifiedTypeParameter) == true)
-                #expect(symbols.typeParameterUpperBounds(for: typeParameterSymbol) == [basicFileAttributesType])
-
-                let callExprs = memberCallExprIDsInPath(named: "readAttributes", in: ast, path: samplePath, ctx: ctx, interner: interner)
-                #expect(callExprs.count == 2)
-                for callExpr in callExprs {
-                    #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == readAttributes)
-                    #expect(sema.bindings.exprTypes[callExpr] == basicFileAttributesType)
                 }
             }
 
@@ -2139,51 +1893,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                 let signature = try #require(symbols.functionSignature(for: setAttribute))
                 #expect(signature.valueParameterHasDefaultValues == [false, false, false])
                 #expect(signature.valueParameterIsVararg == [false, false, true])
-            }
-
-            // testPathFileAttributesViewOrNullOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[37]
-                _ = samplePath
-                let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-                #expect(!(ctx.diagnostics.hasError), "Path.fileAttributesViewOrNull<V>(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
-
-                let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-                let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-                let fileAttributeViewSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttributeView"].map(interner.intern)))
-                let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
-                let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
-                let fileAttributeViewType = types.make(.classType(ClassType(classSymbol: fileAttributeViewSymbol, args: [], nullability: .nonNull)))
-                let fileAttributesViewOrNullSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "fileAttributesViewOrNull"].map(interner.intern))
-                let fileAttributesViewOrNull = try #require(fileAttributesViewOrNullSymbols.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          let typeParameterSymbol = signature.typeParameterSymbols.first
-                    else {
-                        return false
-                    }
-                    let returnType = types.makeNullable(types.make(.typeParam(TypeParamType(
-                        symbol: typeParameterSymbol,
-                        nullability: .nonNull
-                    ))))
-                    return signature.receiverType == pathType
-                        && signature.parameterTypes == [linkOptionType]
-                        && signature.returnType == returnType
-                })
-                #expect(symbols.externalLinkName(for: fileAttributesViewOrNull) == "kk_path_fileAttributesViewOrNull")
-
-                let signature = try #require(symbols.functionSignature(for: fileAttributesViewOrNull))
-                #expect(signature.valueParameterHasDefaultValues == [false])
-                #expect(signature.valueParameterIsVararg == [true])
-                #expect(signature.typeParameterSymbols.count == 1)
-                #expect(signature.typeParameterUpperBoundsList == [[fileAttributeViewType]])
-                #expect(symbols.typeParameterUpperBounds(for: try #require(signature.typeParameterSymbols.first)) == [fileAttributeViewType])
-
-                let callExprs = memberCallExprIDsInPath(named: "fileAttributesViewOrNull", in: ast, path: samplePath, ctx: ctx, interner: interner)
-                #expect(callExprs.count == 2)
-                for callExpr in callExprs {
-                    #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == fileAttributesViewOrNull)
-                    #expect(sema.bindings.exprTypes[callExpr] != nil)
-                }
             }
 
             // testPathGetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved

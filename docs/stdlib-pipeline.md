@@ -274,7 +274,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift` | 690 | (b) | M3 `IndexedValue` / `ArrayDeque` source migration. |
 | `HeaderHelpers+SyntheticListStubs.swift` | 1967 | (b) | M3 list shell and member migration. |
 | `HeaderHelpers+SyntheticListTransformMembers.swift` | 797 | (b) | M3 list transform/source migration. |
-| `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` | 401 | (a) | `java.util.Locale`/locale interop; cleanup candidate unless retained behind private bridge. |
+| `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` | 401 | (a) | ~~`java.util.Locale`/locale interop~~ **完了・ファイル削除済み**（CLEANUP-STUB-112）。`Locale` コンストラクタのみ `+SyntheticStringStubs.swift` に残し、locale 付き String/Char 演算のハンドルとして使う。 |
 | `HeaderHelpers+SyntheticMapStubs.swift` | 1255 | (b) | M3 map shell and HOF source migration. |
 | `HeaderHelpers+SyntheticMathStubs.swift` | 953 | (b) | Math stdlib source migration, with numeric primitive hooks. |
 | `HeaderHelpers+SyntheticMetadataAnnotations.swift` | 15 | (c) | Metadata helper surface. |
