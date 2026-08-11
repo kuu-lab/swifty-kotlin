@@ -352,6 +352,18 @@ struct NativeEmitter {
         }
     }
 
+    /// Residual synthetic objects (for example `kotlin.system.System`) have no
+    /// object initializer in the precompiled stdlib artifact. Their singleton
+    /// receiver is only an ABI handle, so a consumer may keep an unresolved
+    /// weak root slot instead of requiring a definition that the artifact
+    /// intentionally does not export.
+    private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
+        guard let sym = symbols?.symbol(symbol), sym.kind == .object else {
+            return false
+        }
+        return symbols?.objectInitializerSymbol(for: symbol) == nil
+    }
+
     /// Ensures that any imported-library global referenced by `loadGlobal`,
     /// `storeGlobal`, or `symbolRef` has an LLVM global declaration in the
     /// current module. Without this, the backend silently emits zero for
@@ -393,7 +405,14 @@ struct NativeEmitter {
             }
             let slotName = stableGlobalSlotName(for: symbol)
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
-                bindings.setExternalLinkage(llvmGlobal)
+                if shouldUseWeakImportedGlobalReference(for: symbol) {
+                    bindings.setWeakAnyLinkage(llvmGlobal)
+                    if let zero = bindings.constInt(int64Type, value: 0) {
+                        bindings.setInitializer(llvmGlobal, value: zero)
+                    }
+                } else {
+                    bindings.setExternalLinkage(llvmGlobal)
+                }
                 globalVariables[symbol] = llvmGlobal
             }
         }
@@ -460,7 +479,14 @@ struct NativeEmitter {
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
                     // Imported globals are defined in another object file.
-                    bindings.setExternalLinkage(llvmGlobal)
+                    if shouldUseWeakImportedGlobalReference(for: global.symbol) {
+                        bindings.setWeakAnyLinkage(llvmGlobal)
+                        if let zero = bindings.constInt(int64Type, value: 0) {
+                            bindings.setInitializer(llvmGlobal, value: zero)
+                        }
+                    } else {
+                        bindings.setExternalLinkage(llvmGlobal)
+                    }
                 } else {
                     // Use linkonce_odr so multiple compilation units (e.g. a
                     // precompiled stdlib .kklib and a consuming module) can each

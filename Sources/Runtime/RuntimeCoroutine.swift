@@ -2957,7 +2957,7 @@ public func kk_coroutine_yield() -> Int {
 /// Runs a `withTimeout`/`withTimeoutOrNull` block on a deadline, reporting whether
 /// the deadline expired first.
 ///
-/// BUG-181: the block runs on its own *child* continuation seeded from the caller,
+/// BUG-190: the block runs on its own *child* continuation seeded from the caller,
 /// never on the caller's continuation. When the deadline expires the block's entry
 /// loop is abandoned while still suspended (e.g. inside `delay()`); sharing the
 /// caller's continuation state meant that loop's pending timer later fired a

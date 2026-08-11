@@ -4,18 +4,22 @@ import Testing
 
 @Suite
 struct PropertyDelegateSyntheticStubTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     @Test func testObservablePropertySurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
         let observableFQName = propertiesFQName + [interner.intern("ObservableProperty")]
         let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
@@ -122,7 +126,7 @@ struct PropertyDelegateSyntheticStubTests {
     }
 
     @Test func testDelegatesObservableAndVetoableStayBackedByReadWriteProperty() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
         let delegatesFQName = propertiesFQName + [interner.intern("Delegates")]
         let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
@@ -171,7 +175,7 @@ struct PropertyDelegateSyntheticStubTests {
     }
 
     @Test func testRootLazyAndLazyOfSurfaceAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinFQName = ["kotlin"].map { interner.intern($0) }
         let lazyFQName = kotlinFQName + [interner.intern("Lazy")]
         let lazySymbol = try #require(sema.symbols.lookup(fqName: lazyFQName))

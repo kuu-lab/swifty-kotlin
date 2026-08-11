@@ -1546,8 +1546,13 @@ public func kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> 
 // emptyFlow / Iterable.asFlow are now Kotlin source (kotlinx.coroutines.flow)
 // composed from `flow { }` (kk_flow_create) + `emit` (kk_flow_emit).
 
-// MARK: - SharedFlow / StateFlow Runtime (STDLIB-FLOW-177)
+// MARK: - StateFlow Runtime (STDLIB-FLOW-177)
 
+// KSP-675: MutableSharedFlow is Kotlin source now
+// (Stdlib/kotlinx/coroutines/flow/SharedFlow.kt), so
+// kk_mutable_shared_flow_create/emit/try_emit and kk_flow_share_in are gone.
+// The replay-buffer handle below is retained only as the StateFlow base until
+// KSP-676 migrates the StateFlow family.
 private class RuntimeSharedFlowHandle: @unchecked Sendable {
     private let lock = NSLock()
     fileprivate let replay: Int
@@ -1650,29 +1655,6 @@ private func runtimeSharedFlowCollectSnapshot(
     return 0
 }
 
-@_cdecl("kk_mutable_shared_flow_create")
-public func kk_mutable_shared_flow_create(_ replay: Int) -> Int {
-    runtimeRegisterObject(RuntimeSharedFlowHandle(replay: replay))
-}
-
-@_cdecl("kk_mutable_shared_flow_emit")
-public func kk_mutable_shared_flow_emit(_ handle: Int, _ value: Int) -> Int {
-    guard let flow = runtimeSharedFlowHandle(from: handle) else {
-        return 0
-    }
-    flow.emit(value)
-    return 0
-}
-
-@_cdecl("kk_mutable_shared_flow_try_emit")
-public func kk_mutable_shared_flow_try_emit(_ handle: Int, _ value: Int) -> Int {
-    guard let flow = runtimeSharedFlowHandle(from: handle) else {
-        return 0
-    }
-    flow.emit(value)
-    return 1
-}
-
 @_cdecl("kk_shared_flow_collect")
 public func kk_shared_flow_collect(
     _ handle: Int,
@@ -1729,18 +1711,6 @@ public func kk_state_flow_value(_ handle: Int) -> Int {
         return 0
     }
     return flow.valueSnapshot()
-}
-
-@_cdecl("kk_flow_share_in")
-public func kk_flow_share_in(_ flowHandle: Int, _ replay: Int) -> Int {
-    guard let flow = runtimeFlowHandle(from: flowHandle) else {
-        return runtimeRegisterObject(RuntimeSharedFlowHandle(replay: replay))
-    }
-    let shared = RuntimeSharedFlowHandle(replay: replay)
-    for value in runtimeFlowEvaluate(flow: flow).values {
-        shared.emit(value)
-    }
-    return runtimeRegisterObject(shared)
 }
 
 @_cdecl("kk_flow_state_in")

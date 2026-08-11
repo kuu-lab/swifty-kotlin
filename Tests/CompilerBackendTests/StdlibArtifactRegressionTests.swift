@@ -1031,6 +1031,78 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
+    /// KSP-675: `SharedFlow`/`MutableSharedFlow` are bundled Kotlin source, so
+    /// their members must keep working when the consumer only sees them through
+    /// a prebuilt stdlib artifact. Reading `replayCache` through the interface
+    /// needs the imported nominal's generic shape plus its itable property
+    /// getter slot; calling `collect` needs the imported member to stay
+    /// virtually dispatched and to keep the Kotlin (not runtime-bridge)
+    /// argument shape, whose failure modes were an undefined reference to
+    /// `replayCache`, a silently skipped `collect`, and a segfault in the HOF
+    /// adapter.
+    func testSharedFlowThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlinx.coroutines.runBlocking
+        import kotlinx.coroutines.flow.MutableSharedFlow
+        import kotlinx.coroutines.flow.SharedFlow
+        import kotlinx.coroutines.flow.flowOf
+        import kotlinx.coroutines.flow.shareIn
+
+        fun main() = runBlocking {
+            val shared = MutableSharedFlow<Int>(2)
+            println(shared.tryEmit(1))
+            shared.emit(2)
+            shared.emit(3)
+            println(shared.replayCache)
+            shared.collect { value -> println("class=$value") }
+
+            val view: SharedFlow<Int> = shared
+            println(view.replayCache)
+            view.collect { value -> println("iface=$value") }
+
+            println(flowOf(4, 5, 6).shareIn(2).replayCache)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                true
+                [2, 3]
+                class=2
+                class=3
+                [2, 3]
+                iface=2
+                iface=3
+                [5, 6]
+
+                """
+            )
+        }
+    }
+
     /// STDLIB-ARTIFACT-003: an inline stdlib function whose body reads a
     /// property of a bundled Kotlin class (`Map.plus` reading `pair.first` /
     /// `pair.second`) links through the shared artifact.

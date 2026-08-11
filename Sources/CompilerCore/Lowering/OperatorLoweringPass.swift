@@ -85,7 +85,14 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     newBody.append(.call(symbol: nil, callee: callee, arguments: [operand], result: result, canThrow: false, thrownResult: nil))
                 case let .nullAssert(operand, result):
-                    newBody.append(.call(symbol: nil, callee: ctx.interner.intern("kk_op_notnull"), arguments: [operand], result: result, canThrow: true, thrownResult: nil))
+                    lowerNullAssertInstruction(
+                        operand: operand,
+                        result: result,
+                        arena: module.arena,
+                        interner: ctx.interner,
+                        types: ctx.sema?.types,
+                        newBody: &newBody
+                    )
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
                     if printlnCallees.contains(callee),
                        arguments.count == 1,
@@ -120,6 +127,70 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             }
         }
         return maxLabel
+    }
+
+    private func lowerNullAssertInstruction(
+        operand: KIRExprID,
+        result: KIRExprID,
+        arena: KIRArena,
+        interner: StringInterner,
+        types: TypeSystem?,
+        newBody: inout [KIRInstruction]
+    ) {
+        let notNullResult = arena.appendTemporary(type: arena.exprType(result))
+        newBody.append(
+            .call(
+                symbol: nil,
+                callee: interner.intern("kk_op_notnull"),
+                arguments: [operand],
+                result: notNullResult,
+                canThrow: true,
+                thrownResult: nil
+            )
+        )
+
+        guard let types, let resultType = arena.exprType(result) else {
+            // No type information available; keep the raw not-null result.
+            newBody.append(.copy(from: notNullResult, to: result))
+            return
+        }
+
+        if let unboxCallee = unboxCallee(for: types.kind(of: resultType), interner: interner) {
+            newBody.append(
+                .call(
+                    symbol: nil,
+                    callee: unboxCallee,
+                    arguments: [notNullResult],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        } else {
+            newBody.append(.copy(from: notNullResult, to: result))
+        }
+    }
+
+    private func unboxCallee(for typeKind: TypeKind, interner: StringInterner) -> InternedString? {
+        guard case let .primitive(primitiveType, .nonNull) = typeKind else {
+            return nil
+        }
+        switch primitiveType {
+        case .int, .ubyte, .ushort, .uint:
+            return interner.intern("kk_unbox_int")
+        case .long:
+            return interner.intern("kk_unbox_long")
+        case .ulong:
+            return interner.intern("kk_unbox_ulong")
+        case .boolean:
+            return interner.intern("kk_unbox_bool")
+        case .char:
+            return interner.intern("kk_unbox_char")
+        case .float:
+            return interner.intern("kk_unbox_float")
+        case .double:
+            return interner.intern("kk_unbox_double")
+        }
     }
 
     private func lowerBinaryInstruction(

@@ -346,6 +346,59 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-662: Char conversions are bundled in kotlin.text.CharConversions.
+    // Only Unicode case mapping and digit-table lookup cross the __kk_char_* bridges.
+    @Test
+    func testCharConversionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println('a'.uppercaseChar())
+                println('A'.lowercaseChar())
+                println('\\u00DF'.uppercaseChar())
+                println('\\u01C6'.titlecaseChar())
+                println('a'.uppercase())
+                println('\\u00DF'.uppercase())
+                println('\\u01C6'.titlecase())
+                println('7'.digitToInt())
+                println('f'.digitToInt(16))
+                println('z'.digitToIntOrNull())
+                println('g'.digitToIntOrNull(16))
+                println(7.digitToChar())
+                println(10.digitToChar(16))
+                try {
+                    '!'.digitToInt()
+                } catch (e: IllegalArgumentException) {
+                    println("invalid-digit")
+                }
+                try {
+                    1.digitToChar(1)
+                } catch (e: IllegalArgumentException) {
+                    println("invalid-radix")
+                }
+            }
+            """,
+            expectedOutput: """
+            A
+            a
+            \u{00DF}
+            \u{01C5}
+            A
+            SS
+            \u{01C5}
+            7
+            15
+            null
+            null
+            7
+            A
+            invalid-digit
+            invalid-radix
+
+            """
+        )
+    }
+
     /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
     /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
     @Test
@@ -573,6 +626,65 @@ struct BundledStdlibExecutionTests {
             3
             via local
             caught
+
+            """
+        )
+    }
+
+    // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
+    // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
+    // Verify signed zero, subnormal values, computed NaNs, and payload NaNs
+    // end to end.
+    @Test
+    func testFloatingPointPredicatesExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(Double.NaN.isNaN())
+                println((0.0 / 0.0).isNaN())
+                println(Double.fromBits(0x7FF0000000000001L).isNaN())
+                println(1.0.isNaN())
+                println(Double.POSITIVE_INFINITY.isNaN())
+                println(Double.POSITIVE_INFINITY.isInfinite())
+                println(Double.NEGATIVE_INFINITY.isInfinite())
+                println(Double.MAX_VALUE.isInfinite())
+                println(Double.NaN.isInfinite())
+                println((-0.0).isFinite())
+                println(Double.MIN_VALUE.isFinite())
+                println(Double.POSITIVE_INFINITY.isFinite())
+                println(Double.NaN.isFinite())
+                println(Float.NaN.isNaN())
+                println(Float.fromBits(0x7F800001).isNaN())
+                println(1.0f.isNaN())
+                println(Float.POSITIVE_INFINITY.isInfinite())
+                println(Float.MAX_VALUE.isInfinite())
+                println((-0.0f).isFinite())
+                println(Float.MIN_VALUE.isFinite())
+                println(Float.NEGATIVE_INFINITY.isFinite())
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            true
+            false
+            true
+            true
+            false
 
             """
         )
