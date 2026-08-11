@@ -7,14 +7,14 @@ package kotlin.collections
 // ─── buildList ────────────────────────────────────────────────────────────────
 
 @kotlin.experimental.ExperimentalTypeInference
-public fun <E> buildList(builderAction: MutableList<E>.() -> Unit): List<E> {
+public fun <E> buildList(builderAction: MutableList<E>.() -> Unit): List<out E> {
     val result = mutableListOf<E>()
     result.builderAction()
     return result
 }
 
 @kotlin.experimental.ExperimentalTypeInference
-public fun <E> buildList(capacity: Int, builderAction: MutableList<E>.() -> Unit): List<E> {
+public fun <E> buildList(capacity: Int, builderAction: MutableList<E>.() -> Unit): List<out E> {
     val result = mutableListOf<E>()
     result.builderAction()
     return result
