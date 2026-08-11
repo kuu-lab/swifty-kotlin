@@ -15,7 +15,6 @@ struct ListWindowChunkSourceMigrationTests {
             "windowed": [3, 4],
             "zip": [1, 2],
             "zipWithNext": [0, 1],
-            "withIndex": [0],
         ]
 
         for (name, arities) in expectedArities {

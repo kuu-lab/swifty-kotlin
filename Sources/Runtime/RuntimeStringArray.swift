@@ -1831,6 +1831,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let ktypeBox = tryCast(raw, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
+    if let rendered = runtimeRenderIndexedValueObject(value, render: runtimeRenderAnyForPrint) {
+        return rendered
+    }
     return "<object \(raw)>"
 }
 

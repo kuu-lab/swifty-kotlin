@@ -311,27 +311,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         )
-        let withIndexSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_withIndex",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let forEachIndexedSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("forEachIndexed", arity: 1, fallback: "kk_list_forEachIndexed"),
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-
         let sumOfSpec = RuntimeABIFunctionSpec(
             name: "kk_list_sumOf",
             parameters: [
@@ -612,7 +591,7 @@ public extension RuntimeABISpec {
             + [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                unzipSpec, withIndexSpec, forEachIndexedSpec,
+                unzipSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,

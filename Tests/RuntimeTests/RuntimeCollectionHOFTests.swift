@@ -203,11 +203,6 @@ private let forEachCapture: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
     return 0
 }
 
-private let forEachIndexedChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
-    gHOFState.addSum(index * 10 + value)
-    return 0
-}
-
 private let anyGtTwoCounting: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     gHOFState.addCall()
     return value > 2 ? 1 : 0
@@ -351,10 +346,6 @@ struct RuntimeCollectionHOFTests {
 
         _ = kk_list_forEach(source, unsafeBitCast(forEachCapture, to: Int.self), closure, nil as UnsafeMutablePointer<Int>?)
         #expect(gHOFState.sumSnapshot() == 21)
-
-        gHOFState.reset()
-        _ = kk_list_forEachIndexed(source, unsafeBitCast(forEachIndexedChecksum, to: Int.self), 0, nil)
-        #expect(gHOFState.sumSnapshot() == 36)
     }
 
     @Test

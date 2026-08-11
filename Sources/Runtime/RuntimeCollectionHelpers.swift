@@ -868,6 +868,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let ktypeBox = tryCast(ptr, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
+    if let rendered = runtimeRenderIndexedValueObject(elem, render: runtimeElementToString) {
+        return rendered
+    }
     // Registered object of a type this renderer does not know: keep it
     // recognisable as an object instead of leaking its address as a number,
     // matching `runtimeRenderAnyForPrint`.  Non-object handles already
