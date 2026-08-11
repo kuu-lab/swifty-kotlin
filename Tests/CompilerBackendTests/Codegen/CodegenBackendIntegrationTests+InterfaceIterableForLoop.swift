@@ -288,7 +288,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_iterator_hasNext") && callees.contains("kk_iterator_next"),
             "range for-in is routed through the bundled iterator() operator (KSP-452, ce502b0e9); expected kk_iterator_hasNext/kk_iterator_next, got: \(callees)"
         )
