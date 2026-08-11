@@ -218,9 +218,11 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
+            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
                 let nonNullLabel = driver.ctx.makeLoopLabel()
                 let endLabel = driver.ctx.makeLoopLabel()
                 instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
@@ -383,9 +385,11 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
+            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
                 let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                 let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
                 let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
@@ -621,6 +625,8 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.ubyteType
             let ushortType = sema.types.ushortType
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let charType = sema.types.charType
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
@@ -638,12 +644,16 @@ extension CallLowerer {
             case ("toInt", floatType, intType): interner.intern("kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
             case ("toInt", charType, intType): interner.intern("kk_char_to_int")
+            case ("toInt", byteType, intType): nil // identity
+            case ("toInt", shortType, intType): nil // identity
             case ("toInt", intType, intType): nil // identity
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", charType, uintType): interner.intern("kk_char_to_uint")
+            case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
+            case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
@@ -652,12 +662,16 @@ extension CallLowerer {
             case ("toLong", doubleType, longType): interner.intern("kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("kk_float_to_long")
             case ("toLong", charType, longType): interner.intern("kk_char_to_long")
+            case ("toLong", byteType, longType): nil // identity
+            case ("toLong", shortType, longType): nil // identity
             case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
             case ("toULong", intType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", longType, ulongType): interner.intern("kk_long_to_ulong")
             case ("toULong", ubyteType, ulongType): interner.intern("kk_ubyte_to_ulong")
             case ("toULong", ushortType, ulongType): interner.intern("kk_ushort_to_ulong")
             case ("toULong", charType, ulongType): interner.intern("kk_char_to_ulong")
+            case ("toULong", byteType, ulongType): interner.intern("kk_int_to_ulong")
+            case ("toULong", shortType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
             case ("toULong", ulongType, ulongType): nil // identity
             case ("toFloat", intType, floatType): interner.intern("kk_int_to_float")
@@ -666,6 +680,8 @@ extension CallLowerer {
             case ("toFloat", floatType, floatType): nil // identity
             case ("toFloat", uintType, floatType): interner.intern("kk_uint_to_float")
             case ("toFloat", ulongType, floatType): interner.intern("kk_ulong_to_float")
+            case ("toFloat", byteType, floatType): interner.intern("kk_int_to_float")
+            case ("toFloat", shortType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", ubyteType, floatType): interner.intern("kk_ubyte_to_float")
             case ("toFloat", ushortType, floatType): interner.intern("kk_ushort_to_float")
             case ("toDouble", intType, doubleType): interner.intern("kk_int_to_double_bits")
@@ -674,20 +690,26 @@ extension CallLowerer {
             case ("toDouble", doubleType, doubleType): nil // identity
             case ("toDouble", uintType, doubleType): interner.intern("kk_uint_to_double")
             case ("toDouble", ulongType, doubleType): interner.intern("kk_ulong_to_double")
+            case ("toDouble", byteType, doubleType): interner.intern("kk_int_to_double_bits")
+            case ("toDouble", shortType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", ubyteType, doubleType): interner.intern("kk_ubyte_to_double")
             case ("toDouble", ushortType, doubleType): interner.intern("kk_ushort_to_double")
-            case ("toByte", intType, intType): interner.intern("kk_int_to_byte")
-            case ("toByte", longType, intType): interner.intern("kk_long_to_byte")
-            case ("toByte", uintType, intType): interner.intern("kk_uint_to_byte")
-            case ("toByte", ulongType, intType): interner.intern("kk_ulong_to_byte")
-            case ("toByte", ubyteType, intType): interner.intern("kk_ubyte_to_byte")
-            case ("toByte", ushortType, intType): interner.intern("kk_ushort_to_byte")
-            case ("toShort", intType, intType): interner.intern("kk_int_to_short")
-            case ("toShort", longType, intType): interner.intern("kk_long_to_short")
-            case ("toShort", uintType, intType): interner.intern("kk_uint_to_short")
-            case ("toShort", ulongType, intType): interner.intern("kk_ulong_to_short")
-            case ("toShort", ubyteType, intType): interner.intern("kk_ubyte_to_short")
-            case ("toShort", ushortType, intType): interner.intern("kk_ushort_to_short")
+            case ("toByte", intType, byteType): interner.intern("kk_int_to_byte")
+            case ("toByte", longType, byteType): interner.intern("kk_long_to_byte")
+            case ("toByte", uintType, byteType): interner.intern("kk_uint_to_byte")
+            case ("toByte", ulongType, byteType): interner.intern("kk_ulong_to_byte")
+            case ("toByte", ubyteType, byteType): interner.intern("kk_ubyte_to_byte")
+            case ("toByte", ushortType, byteType): interner.intern("kk_ushort_to_byte")
+            case ("toByte", byteType, byteType): nil // identity
+            case ("toByte", shortType, byteType): interner.intern("kk_int_to_byte")
+            case ("toShort", intType, shortType): interner.intern("kk_int_to_short")
+            case ("toShort", longType, shortType): interner.intern("kk_long_to_short")
+            case ("toShort", uintType, shortType): interner.intern("kk_uint_to_short")
+            case ("toShort", ulongType, shortType): interner.intern("kk_ulong_to_short")
+            case ("toShort", ubyteType, shortType): interner.intern("kk_ubyte_to_short")
+            case ("toShort", ushortType, shortType): interner.intern("kk_ushort_to_short")
+            case ("toShort", byteType, shortType): nil // identity
+            case ("toShort", shortType, shortType): nil // identity
             case ("toUByte", intType, ubyteType): interner.intern("kk_int_to_ubyte")
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
@@ -724,9 +746,11 @@ extension CallLowerer {
                 (calleeStr == "toLong" && nonNullReceiverType == ulongType && nonNullResultType == longType)
                     || (calleeStr == "toUInt" && nonNullReceiverType == ulongType && nonNullResultType == uintType)
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
+                    || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
+                    || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
             if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
-               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
+               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
             {
                 instructions.append(.copy(from: loweredReceiverID, to: result))
                 return result

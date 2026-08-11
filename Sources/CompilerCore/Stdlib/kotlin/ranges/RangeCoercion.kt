@@ -2,7 +2,7 @@ package kotlin.ranges
 
 // MIGRATION-RANGE-003
 // coerceIn / coerceAtLeast / coerceAtMost migrated to Kotlin source for
-// Int, Long, Double, Float.
+// Int, Long, Double, Float, Byte, Short.
 
 public fun Int.coerceIn(minimumValue: Int, maximumValue: Int): Int {
     if (minimumValue > maximumValue) {
@@ -61,3 +61,25 @@ public fun Float.coerceIn(minimumValue: Float, maximumValue: Float): Float {
 public fun Float.coerceAtLeast(minimumValue: Float): Float = if (this < minimumValue) minimumValue else this
 
 public fun Float.coerceAtMost(maximumValue: Float): Float = if (this > maximumValue) maximumValue else this
+
+public fun Byte.coerceIn(minimumValue: Byte, maximumValue: Byte): Byte {
+    if (minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    return if (this < minimumValue) minimumValue else if (this > maximumValue) maximumValue else this
+}
+
+public fun Byte.coerceAtLeast(minimumValue: Byte): Byte = if (this < minimumValue) minimumValue else this
+
+public fun Byte.coerceAtMost(maximumValue: Byte): Byte = if (this > maximumValue) maximumValue else this
+
+public fun Short.coerceIn(minimumValue: Short, maximumValue: Short): Short {
+    if (minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    return if (this < minimumValue) minimumValue else if (this > maximumValue) maximumValue else this
+}
+
+public fun Short.coerceAtLeast(minimumValue: Short): Short = if (this < minimumValue) minimumValue else this
+
+public fun Short.coerceAtMost(maximumValue: Short): Short = if (this > maximumValue) maximumValue else this

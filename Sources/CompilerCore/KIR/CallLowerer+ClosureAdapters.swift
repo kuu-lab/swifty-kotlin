@@ -699,14 +699,14 @@ extension CallLowerer {
             : nil
         if let originalCallableInfo = callableInfo,
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
-           case let .functionType(nextFT) = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType)),
+           case let .functionType(nextFT) = sema.types.kind(of: nextFunctionType),
            let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
                for: resolveValueClassKind(
-                   sema.types.kind(of: sema.types.makeNonNullable(nextFT.returnType)),
+                   sema.types.kind(of: nextFT.returnType),
                    types: sema.types,
                    symbols: sema.symbols
                ),
-               requireNonNull: true
+               requireNonNull: false
            )
         {
             let adapterInfo = makeGenerateSequenceBoxingAdapter(

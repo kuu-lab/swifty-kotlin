@@ -10,8 +10,9 @@ import Testing
 ///   runtime symbol `kk_string_toByteOrNull` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+StringParsing.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
-///   diagnostics for a call returning `Int?` (Byte is widened to Int in ABI).
-/// - An elvis fallback on the nullable result type-checks correctly.
+///   diagnostics for a call returning `Byte?`.
+/// - An elvis fallback on the nullable result type-checks correctly, narrowing
+///   the fallback integer literal to `Byte`.
 @Suite
 struct StringToByteOrNullFunctionTests {
     @Test
@@ -21,7 +22,7 @@ struct StringToByteOrNullFunctionTests {
             return raw.toByteOrNull()
         }
 
-        fun probe(): Int {
+        fun probe(): Byte {
             val parsed = "127".toByteOrNull()
             return parsed ?: 0
         }

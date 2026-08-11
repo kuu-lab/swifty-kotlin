@@ -1,11 +1,22 @@
 package kotlin
 
 /**
- * Kotlin standard scope functions and conditional wrappers.
+ * Kotlin standard scope functions, conditional wrappers, and stdlib utilities.
  *
  * These are implemented as bundled Kotlin source and are inline-expanded at
  * call sites; they have no runtime entry points.
  */
+
+// KSP-604: `repeat` migrated from the synthetic stdlib loop stub. It stays
+// `inline` so that suspend calls inside `action` remain in the enclosing suspend
+// function and can be coroutine-lowered.
+public inline fun repeat(times: Int, action: (Int) -> Unit) {
+    var index = 0
+    while (index < times) {
+        action(index)
+        index += 1
+    }
+}
 
 public inline fun <T, R> T.let(block: (T) -> R): R = block(this)
 

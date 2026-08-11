@@ -4,15 +4,12 @@ import Testing
 
 /// KSP-645: `kotlin.experimental` の Byte/Short 版 `and`/`or`/`xor`/`inv`。
 ///
-/// KSwiftK の型システムには byte/short プリミティブが存在せず、`Byte`/`Short`
-/// の型注釈は `Int` へ解決される（`PrimitiveType` に byte/short が無く、
-/// `toByte()`/`toShort()` の戻り型も `intType`）。そのため本家の
-/// `Byte.and(Byte): Byte` 等は独立した宣言としては表現できず、これらの呼び出しは
-/// `CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift` の Int 特例で
-/// 解決される。値としては kotlinc と一致する（`Scripts/diff_cases/byte_short_bitwise_basic.kt`）。
+/// `Byte`/`Short` は独立したプリミティブ型として解決される。
+/// これらの呼び出しは `CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift`
+/// の数値特例で解決され、受信型を保つ。値としては kotlinc と一致する
+/// （`Scripts/diff_cases/byte_short_bitwise_basic.kt`）。
 ///
-/// このテストは、その解決経路と「Int 幅を保つ」性質を固定する。Byte/Short を
-/// 独立プリミティブ化する際は、ここが最初に落ちる。
+/// このテストは、Byte/Short のビット演算が受信型を保つことを固定する。
 @Suite
 struct ExperimentalBitwiseFunctionTests {
     private static let bitwiseImports = """
@@ -80,8 +77,12 @@ struct ExperimentalBitwiseFunctionTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        // Byte/Short are modeled as Int, so the receiver type is the result type.
-        let receiverType = sema.types.intType
+        // Byte/Short are distinct primitives; bitwise operations keep the receiver type.
+        let receiverType: TypeID = switch receiverTypeName {
+        case "Byte": sema.types.byteType
+        case "Short": sema.types.shortType
+        default: sema.types.errorType
+        }
 
         for name in ["and", "inv"] {
             let callExpr = try #require(firstExprID(in: ast) { _, expr in
