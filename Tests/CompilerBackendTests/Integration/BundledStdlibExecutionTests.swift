@@ -310,6 +310,55 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-625: The public ArrayDeque surface is bundled Kotlin. Empty and bounds checks
+    // and toString stay in Kotlin; only ring-buffer mutation crosses the __kk_arraydeque_* bridges.
+    @Test
+    func testArrayDequeMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val deque = ArrayDeque<Int>()
+                println(deque.isEmpty())
+                deque.addLast(2)
+                deque.addFirst(1)
+                deque.addLast(3)
+                println(deque.size)
+                println(deque.first())
+                println(deque.last())
+                println(deque[1])
+                println(deque)
+                println(deque.removeFirst())
+                println(deque.removeLast())
+                println(deque)
+                try {
+                    ArrayDeque<Int>().first()
+                } catch (e: NoSuchElementException) {
+                    println(e.message)
+                }
+                try {
+                    deque[5]
+                } catch (e: IndexOutOfBoundsException) {
+                    println(e.message)
+                }
+            }
+            """,
+            expectedOutput: """
+            true
+            3
+            1
+            3
+            2
+            [1, 2, 3]
+            1
+            3
+            [2]
+            ArrayDeque is empty.
+            index: 5, size: 1
+
+            """
+        )
+    }
+
     // KSP-662: Char conversions are bundled in kotlin.text.CharConversions.
     // Only Unicode case mapping and digit-table lookup cross the __kk_char_* bridges.
     @Test
@@ -506,6 +555,31 @@ struct BundledStdlibExecutionTests {
             boom
 
             """
+        )
+    }
+
+    // KSP-625 regression: implicit size/isEmpty reads on user classes must use their
+    // declared properties rather than collection runtime shortcuts.
+    @Test
+    func testImplicitReceiverSizeReadsUserDefinedProperty() throws {
+        try compileAndRunKotlin(
+            """
+            class Box {
+                val size: Int
+                    get() = 5
+                val isEmpty: Boolean
+                    get() = false
+                fun readSize(): Int = size
+                fun readIsEmpty(): Boolean = isEmpty
+            }
+            fun main() {
+                val box = Box()
+                println(box.readSize())
+                println(box.size)
+                println(box.readIsEmpty())
+            }
+            """,
+            expectedOutput: "5\n5\nfalse\n"
         )
     }
 

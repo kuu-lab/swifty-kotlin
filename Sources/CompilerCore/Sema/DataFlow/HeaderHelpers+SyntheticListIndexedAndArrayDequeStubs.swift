@@ -1,6 +1,6 @@
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
-/// List indexed members, IndexedValue<T>, and ArrayDeque<T>.
+/// List indexed members and IndexedValue<T>.
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.
