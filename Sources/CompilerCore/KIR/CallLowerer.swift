@@ -229,11 +229,19 @@ final class CallLowerer {
         guard dataParam.type == .nullableConstUInt8Pointer,
               lengthParam.type == .intptr,
               byteCountParam.type == .intptr,
-              hashParam.type == .intptr,
-              dataParam.name.hasSuffix("Data")
+              hashParam.type == .intptr
         else {
             return false
         }
+        // Unprefixed flat-string quartet used by many single-string entry points.
+        if dataParam.name == "data"
+            && lengthParam.name == "length"
+            && byteCountParam.name == "byteCount"
+            && hashParam.name == "hash"
+        {
+            return true
+        }
+        guard dataParam.name.hasSuffix("Data") else { return false }
         let prefix = String(dataParam.name.dropLast(4))
         return lengthParam.name == "\(prefix)Length"
             && byteCountParam.name == "\(prefix)ByteCount"
@@ -292,13 +300,13 @@ final class CallLowerer {
         let firstExpr = arena.appendTemporary(type: boundType)
         let lastExpr = arena.appendTemporary(type: boundType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_first"),
+            callee: interner.intern("__kk_range_first"),
             arg: loweredRangeArgID,
             result: firstExpr,
             into: &instructions
         )
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_last"),
+            callee: interner.intern("__kk_range_last"),
             arg: loweredRangeArgID,
             result: lastExpr,
             into: &instructions
@@ -326,10 +334,12 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         // SAM constructor calls: `Transformer { ... }` — the single lambda
-        // argument is already marked as a SAM conversion.  Lower the lambda
-        // directly; the SAM wrapper is produced by LambdaLowerer.
+        // argument is already marked as a SAM conversion and no call binding
+        // exists for the constructor.  Lower the lambda directly; the SAM
+        // wrapper is produced by LambdaLowerer.
         if args.count == 1,
-           sema.bindings.isSamConversion(args[0].expr)
+           sema.bindings.isSamConversion(args[0].expr),
+           sema.bindings.callBinding(for: exprID) == nil
         {
             return driver.lowerExpr(
                 args[0].expr,
@@ -693,7 +703,6 @@ final class CallLowerer {
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 1,
-           !isSourceBacked(chosen, sema: sema),
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
@@ -724,7 +733,6 @@ final class CallLowerer {
         }
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema),
            let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
            case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
            functionType.params.isEmpty,
@@ -785,8 +793,7 @@ final class CallLowerer {
         // silently dropped and its returned elements never boxed. Handle it
         // directly, same as the other two generateSequence overloads above.
         if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema)
+           loweredArgIDs.count == 2
         {
             let expandedNextFunction = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArgIDs[1],

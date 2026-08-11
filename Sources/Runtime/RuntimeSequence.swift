@@ -1668,7 +1668,6 @@ public func kk_sequence_filter(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_take")
 public func kk_sequence_take(_ seqRaw: Int, _ count: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1705,7 +1704,6 @@ public func kk_sequence_takeLast(_ seqRaw: Int, _ count: Int, _ outThrown: Unsaf
     return registerRuntimeObject(RuntimeListBox(elements: Array(elements.suffix(clamped))))
 }
 
-@_cdecl("kk_sequence_drop")
 public func kk_sequence_drop(_ seqRaw: Int, _ count: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1721,7 +1719,6 @@ public func kk_sequence_drop(_ seqRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_distinct")
 public func kk_sequence_distinct(_ seqRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1737,7 +1734,6 @@ public func kk_sequence_distinct(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_distinctBy")
 public func kk_sequence_distinctBy(
     _ seqRaw: Int,
     _ fnPtr: Int,
@@ -1758,7 +1754,6 @@ public func kk_sequence_distinctBy(
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_zip")
 public func kk_sequence_zip(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     let otherElements = runtimeSequenceSourceElementsOrPanic(from: otherRaw, caller: #function)
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
@@ -1775,7 +1770,6 @@ public func kk_sequence_zip(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_zip_transform")
 public func kk_sequence_zip_transform(
     _ seqRaw: Int,
     _ otherRaw: Int,
@@ -1813,7 +1807,6 @@ public func kk_sequence_zip_transform(
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
 }
 
-@_cdecl("kk_sequence_takeWhile")
 public func kk_sequence_takeWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1874,7 +1867,6 @@ public func kk_sequence_filterNot(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_dropWhile")
 public func kk_sequence_dropWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -2197,7 +2189,6 @@ public func kk_sequence_forEachIndexed(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw
 
 // MARK: - kk_sequence_zipWithNext (STDLIB: Sequence.zipWithNext)
 
-@_cdecl("kk_sequence_zipWithNext")
 public func kk_sequence_zipWithNext(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
     guard values.count >= 2 else {
@@ -2211,7 +2202,6 @@ public func kk_sequence_zipWithNext(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: pairs))
 }
 
-@_cdecl("kk_sequence_zipWithNextTransform")
 public func kk_sequence_zipWithNextTransform(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let elements: [Int]
     if let seq = runtimeSequenceBox(from: seqRaw) {
@@ -3428,7 +3418,6 @@ public func kk_sequence_reduceRightIndexed(
 
 // MARK: - Sequence Operations: chunked/windowed/onEach (STDLIB-276)
 
-@_cdecl("kk_sequence_chunked")
 public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     let chunkSize = max(1, size)
     // Lazily traverse upstream to build chunks on the fly
@@ -3463,7 +3452,6 @@ public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     return registerRuntimeObject(resultSeq)
 }
 
-@_cdecl("kk_sequence_chunked_transform")
 public func kk_sequence_chunked_transform(
     _ seqRaw: Int,
     _ size: Int,
@@ -3484,7 +3472,6 @@ public func kk_sequence_chunked_transform(
     return registerRuntimeObject(resultSeq)
 }
 
-@_cdecl("kk_sequence_windowed")
 public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
@@ -3532,7 +3519,6 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
     return registerRuntimeObject(resultSeq)
 }
 
-@_cdecl("kk_sequence_windowed_transform")
 public func kk_sequence_windowed_transform(
     _ seqRaw: Int,
     _ size: Int,

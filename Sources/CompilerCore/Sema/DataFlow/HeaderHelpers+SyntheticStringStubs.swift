@@ -781,59 +781,7 @@ extension DataFlowSemaPhase {
         // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
         // (StringSearchReplace.kt).
 
-        // --- STDLIB-100/102/103: Regex-related String extensions ---
-
-        let regexSymbol = ensureClassSymbol(
-            named: "Regex", in: kotlinTextPkg,
-            symbols: symbols, interner: interner
-        )
-        let regexType = types.make(.classType(ClassType(
-            classSymbol: regexSymbol, args: [], nullability: .nonNull
-        )))
-
-        registerSyntheticStringExtensionFunction(
-            named: "matches",
-            externalLinkName: "kk_string_matches_regex_flat",
-            receiverType: stringType,
-            parameters: [
-                ("regex", regexType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // BUG-185: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
-        // Regex): Boolean`. This stub previously omitted the operator flag (defaulting to plain
-        // `[.synthetic]`); corrected here to match. `regex in "text"` resolution via the `in`
-        // operator was a deeper candidate-discovery gap in `inferContainsCallBinding` — fixed by
-        // origin/master 74629bf56, see BUG-185 in TODO.md. Direct calls (`"text".contains(regex)`)
-        // were unaffected either way.
-        registerSyntheticStringExtensionFunction(
-            named: "contains",
-            externalLinkName: "kk_string_contains_regex_flat",
-            receiverType: stringType,
-            parameters: [
-                ("regex", regexType, false, false),
-            ],
-            returnType: boolType,
-            flags: [.synthetic, .operatorFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toRegex",
-            externalLinkName: "kk_string_toRegex_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: regexType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-487: String.matches / contains / toRegex are bundled Kotlin source (StringSearchReplace.kt).
 
         // --- STDLIB-140: String.get(Int): Char ---
 

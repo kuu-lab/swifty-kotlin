@@ -5,7 +5,9 @@ import Testing
 
 @Suite
 struct RangeSyntheticMemberLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -13,7 +15,9 @@ struct RangeSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func externalLink(
@@ -46,7 +50,7 @@ struct RangeSyntheticMemberLinkTests {
     }
 
     @Test func testCharProgressionSyntheticSurface() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let charProgressionFQName = ["kotlin", "ranges", "CharProgression"].map { interner.intern($0) }
         let charProgressionSymbol = try #require(sema.symbols.lookup(fqName: charProgressionFQName))
         let charProgressionType = sema.types.make(.classType(ClassType(
@@ -112,7 +116,7 @@ struct RangeSyntheticMemberLinkTests {
     }
 
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let expected: [(owner: String, link: String)] = [
             ("IntRange", "kk_range_random"),

@@ -1167,8 +1167,13 @@ func runtimeBinarySearch(
 func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
-          lhsTypeID == rhsTypeID,
-          runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: comparableRuntimeTypeID)
+          runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: comparableRuntimeTypeID),
+          runtimeIsAssignable(sourceTypeID: rhsTypeID, targetTypeID: comparableRuntimeTypeID),
+          runtimeComparableOperandsAreCompatible(
+              lhsTypeID: lhsTypeID,
+              rhsTypeID: rhsTypeID,
+              comparableTypeID: comparableRuntimeTypeID
+          )
     else {
         return nil
     }

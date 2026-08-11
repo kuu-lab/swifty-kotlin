@@ -6,14 +6,18 @@ private struct TestAbortError: Error {}
 
 @Suite
 struct NativeUnsignedByteArraySetterSurfaceTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -69,7 +73,7 @@ struct NativeUnsignedByteArraySetterSurfaceTests {
 
     @Test
     func testUnsignedByteArraySettersAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let expected: [(name: String, valueType: TypeID, linkName: String)] = [
             ("setUByteAt", sema.types.ubyteType, "kk_native_byteArray_setUByteAt"),
             ("setUShortAt", sema.types.ushortType, "kk_native_byteArray_setUShortAt"),

@@ -4,13 +4,13 @@ import Testing
 
 // MARK: - STDLIB-TEXT-TYPE-012: kotlin.text.RegexOption enum
 //
-// Focused coverage for the synthetic `kotlin.text.RegexOption` enum class.
-// The enum is registered as a synthetic symbol by
-// `HeaderHelpers+SyntheticRegexStubs.swift` via `ensureRegexOptionEnumClass`,
-// and its entries (IGNORE_CASE, MULTILINE, LITERAL, UNIX_LINES, COMMENTS,
-// DOT_MATCHES_ALL, CANON_EQ) are exposed as fields whose static `propertyType`
-// is the enum class type itself so that `RegexOption.IGNORE_CASE`-style
-// member references resolve through `resolveClassNameMemberValue`.
+// Focused coverage for the `kotlin.text.RegexOption` enum class.
+// KSP-487 migrated the enum to bundled Kotlin source
+// (`Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`), and its entries
+// (IGNORE_CASE, MULTILINE, LITERAL, UNIX_LINES, COMMENTS, DOT_MATCHES_ALL,
+// CANON_EQ) are exposed as fields whose static `propertyType` is the enum
+// class type itself so that `RegexOption.IGNORE_CASE`-style member references
+// resolve through `resolveClassNameMemberValue`.
 //
 // Wider Regex API surface (constructors, members, properties) is covered by
 // `RegexAPISurfaceInventoryTests`. This file focuses purely on the enum
@@ -21,14 +21,18 @@ struct RegexOptionEnumTests {
 
     // MARK: Helpers
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -41,9 +45,7 @@ struct RegexOptionEnumTests {
         return ctx
     }
 
-    /// Canonical entry list matching the Kotlin stdlib `RegexOption` enum
-    /// (mirrors `ensureRegexOptionEnumClass` in
-    /// `HeaderHelpers+SyntheticRegexStubs.swift`).
+    /// Canonical entry list matching the Kotlin stdlib `RegexOption` enum.
     private static let allEntries = [
         "IGNORE_CASE",
         "MULTILINE",
@@ -57,11 +59,11 @@ struct RegexOptionEnumTests {
     // MARK: - Enum class declaration shape
 
     @Test func testRegexOptionIsRegisteredAsEnumClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "kotlin.text.RegexOption must be registered as a synthetic symbol"
+            "kotlin.text.RegexOption must be registered"
         )
         #expect(
             sema.symbols.symbol(symbol)?.kind == .enumClass,
@@ -70,26 +72,36 @@ struct RegexOptionEnumTests {
     }
 
     @Test func testRegexOptionIsParentedToKotlinTextPackage() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let symbolInfo = try #require(sema.symbols.symbol(symbol))
 
-        let parent = try #require(
-            sema.symbols.parentSymbol(for: symbol),
-            "RegexOption must be parented to the kotlin.text package symbol"
-        )
-        let parentInfo = try #require(sema.symbols.symbol(parent))
-        #expect(parentInfo.kind == .package)
-        #expect(
-            parentInfo.fqName.map { interner.resolve($0) } == ["kotlin", "text"],
-            "RegexOption's parent must be the kotlin.text package"
-        )
+        if symbolInfo.flags.contains(.synthetic) {
+            let parent = try #require(
+                sema.symbols.parentSymbol(for: symbol),
+                "Synthetic RegexOption must be parented to the kotlin.text package symbol"
+            )
+            let parentInfo = try #require(sema.symbols.symbol(parent))
+            #expect(parentInfo.kind == .package)
+            #expect(
+                parentInfo.fqName.map { interner.resolve($0) } == ["kotlin", "text"],
+                "RegexOption's parent must be the kotlin.text package"
+            )
+        } else {
+            // Source-backed RegexOption lives under kotlin.text by FQ name even
+            // when the symbol table does not store an explicit package parent.
+            #expect(
+                Array(symbolInfo.fqName.dropLast()).map { interner.resolve($0) } == ["kotlin", "text"],
+                "RegexOption must be declared under the kotlin.text package"
+            )
+        }
     }
 
     // MARK: - Enum entries
 
     @Test func testAllSevenRegexOptionEntriesAreRegisteredAsFields() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         for entry in Self.allEntries {
             let fqName = ["kotlin", "text", "RegexOption", entry].map { interner.intern($0) }
             let symbol = try #require(
@@ -104,7 +116,7 @@ struct RegexOptionEnumTests {
     }
 
     @Test func testRegexOptionEntryPropertyTypesAreEnumType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let enumFQName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
@@ -128,7 +140,7 @@ struct RegexOptionEnumTests {
     }
 
     @Test func testRegexOptionEntriesAreParentedToEnumClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let enumFQName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
@@ -144,7 +156,7 @@ struct RegexOptionEnumTests {
     }
 
     @Test func testRegexOptionDoesNotRegisterUnexpectedEntries() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let enumFQName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let children = sema.symbols.children(ofFQName: enumFQName)
         let fieldNames: Set<String> = Set(

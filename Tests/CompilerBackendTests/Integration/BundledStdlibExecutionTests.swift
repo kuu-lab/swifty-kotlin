@@ -310,6 +310,45 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
+    /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
+    @Test
+    func testBitCountFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(255.countOneBits())
+                println((-1).countOneBits())
+                println(Int.MIN_VALUE.countLeadingZeroBits())
+                println(1.countLeadingZeroBits())
+                println(0.countTrailingZeroBits())
+                println(1024.countTrailingZeroBits())
+                println(255L.countOneBits())
+                println(Long.MAX_VALUE.countOneBits())
+                println(255L.countLeadingZeroBits())
+                println(0L.countLeadingZeroBits())
+                println(0L.countTrailingZeroBits())
+                println(1024L.countTrailingZeroBits())
+            }
+            """,
+            expectedOutput: """
+            8
+            32
+            0
+            31
+            32
+            10
+            8
+            63
+            56
+            64
+            64
+            10
+
+            """
+        )
+    }
+
     /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
     /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
@@ -503,6 +542,65 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
+    // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
+    // Verify signed zero, subnormal values, computed NaNs, and payload NaNs
+    // end to end.
+    @Test
+    func testFloatingPointPredicatesExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(Double.NaN.isNaN())
+                println((0.0 / 0.0).isNaN())
+                println(Double.fromBits(0x7FF0000000000001L).isNaN())
+                println(1.0.isNaN())
+                println(Double.POSITIVE_INFINITY.isNaN())
+                println(Double.POSITIVE_INFINITY.isInfinite())
+                println(Double.NEGATIVE_INFINITY.isInfinite())
+                println(Double.MAX_VALUE.isInfinite())
+                println(Double.NaN.isInfinite())
+                println((-0.0).isFinite())
+                println(Double.MIN_VALUE.isFinite())
+                println(Double.POSITIVE_INFINITY.isFinite())
+                println(Double.NaN.isFinite())
+                println(Float.NaN.isNaN())
+                println(Float.fromBits(0x7F800001).isNaN())
+                println(1.0f.isNaN())
+                println(Float.POSITIVE_INFINITY.isInfinite())
+                println(Float.MAX_VALUE.isInfinite())
+                println((-0.0f).isFinite())
+                println(Float.MIN_VALUE.isFinite())
+                println(Float.NEGATIVE_INFINITY.isFinite())
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            true
+            false
+            true
+            true
+            false
+
+            """
+        )
+    }
+
     // KSP-417: These APIs use private runtime bridges. This also guards the
     // flat-string return ABI for __kk_string_normalize_flat.
     @Test
@@ -561,6 +659,28 @@ struct BundledStdlibExecutionTests {
             2
 
             """
+        )
+    }
+
+    // Regression for a lambda-capture lowering bug: `let` / `?.let` blocks that
+    // capture an outer variable must forward the lambda parameter (`it`)
+    // correctly instead of shadowing it with the capture.
+    @Test
+    func testLetLambdaForwardsItWhenCapturingOuterVariable() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val outer = 10
+                val s: String = "hi"
+                val r = s.let { it + ":" + outer.toString() }
+                println(r)
+
+                val n: String? = "hello"
+                val q = n?.let { it + ":" + outer.toString() }
+                println(q ?: "null")
+            }
+            """,
+            expectedOutput: "hi:10\nhello:10\n"
         )
     }
 }

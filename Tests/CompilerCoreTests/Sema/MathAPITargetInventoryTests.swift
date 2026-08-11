@@ -97,6 +97,18 @@ struct MathAPITargetInventoryTests {
         "fun min(ULong, ULong): ULong",
         "fun sign(Double): Double",
         "fun sign(Float): Float",
+        "fun ceil(Double): Double",
+        "fun ceil(Float): Float",
+        "fun floor(Double): Double",
+        "fun floor(Float): Float",
+        "fun round(Double): Double",
+        "fun round(Float): Float",
+        "fun truncate(Double): Double",
+        "fun truncate(Float): Float",
+        "fun Double.withSign(Double): Double",
+        "fun Double.withSign(Int): Double",
+        "fun Float.withSign(Float): Float",
+        "fun Float.withSign(Int): Float",
     ]
 
     private static let implementedLinksBySignature: [String: String] = {
@@ -123,10 +135,6 @@ struct MathAPITargetInventoryTests {
             "fun Float.roundToInt(): Int": "kk_float_roundToInt",
             "fun Double.roundToLong(): Long": "kk_double_roundToLong",
             "fun Float.roundToLong(): Long": "kk_float_roundToLong",
-            "fun Double.withSign(Double): Double": "kk_math_withSign",
-            "fun Double.withSign(Int): Double": "kk_math_withSign_int",
-            "fun Float.withSign(Float): Float": "kk_math_withSign_float",
-            "fun Float.withSign(Int): Float": "kk_math_withSign_float_int",
         ]
         for (name, doubleLink, floatLink) in unaryFloatingLinks([
             ("acos", "kk_math_acos", "kk_math_acos_float"),
@@ -136,21 +144,17 @@ struct MathAPITargetInventoryTests {
             ("atan", "kk_math_atan", "kk_math_atan_float"),
             ("atanh", "kk_math_atanh", "kk_math_atanh_float"),
             ("cbrt", "kk_math_cbrt", "kk_math_cbrt_float"),
-            ("ceil", "kk_math_ceil", "kk_math_ceil_float"),
             ("cos", "kk_math_cos", "kk_math_cos_float"),
             ("cosh", "kk_math_cosh", "kk_math_cosh_float"),
             ("exp", "kk_math_exp", "kk_math_exp_float"),
-            ("floor", "kk_math_floor", "kk_math_floor_float"),
             ("ln", "kk_math_ln", "kk_math_ln_float"),
             ("log10", "kk_math_log10", "kk_math_log10_float"),
             ("log2", "kk_math_log2", "kk_math_log2_float"),
-            ("round", "kk_math_round", "kk_math_round_float"),
             ("sin", "kk_math_sin", "kk_math_sin_float"),
             ("sinh", "kk_math_sinh", "kk_math_sinh_float"),
             ("sqrt", "kk_math_sqrt", "kk_math_sqrt_float"),
             ("tan", "kk_math_tan", "kk_math_tan_float"),
             ("tanh", "kk_math_tanh", "kk_math_tanh_float"),
-            ("truncate", "kk_math_truncate", "kk_math_truncate_float"),
         ]) {
             result["fun \(name)(Double): Double"] = doubleLink
             result["fun \(name)(Float): Float"] = floatLink
@@ -180,7 +184,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testCurrentSyntheticMathNamesAreOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
             guard symbol.kind == .function || symbol.kind == .property,
@@ -192,11 +196,25 @@ struct MathAPITargetInventoryTests {
             return interner.resolve(symbol.name)
         })
 
-        #expect(currentNames.subtracting(Self.targetNames).sorted() == [])
+        let publicNames = currentNames.filter { symbolName in
+            // Internal stdlib bridge helpers (e.g. __kkMathCeil) are not part
+            // of the public kotlin.math surface and should not be counted.
+            guard let symbol = Self.symbol(forName: symbolName, sema: sema, interner: interner) else { return true }
+            return symbol.visibility == .public
+        }
+        #expect(publicNames.subtracting(Self.targetNames).sorted() == [])
+    }
+
+    private static func symbol(forName name: String, sema: SemaModule, interner: StringInterner) -> SemanticSymbol? {
+        let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
+        let symbolName = interner.intern(name)
+        return sema.symbols.allSymbols().first { symbol in
+            symbol.fqName == mathPrefix + [symbolName]
+        }
     }
 
     @Test func testUnofficialRoundingHelpersAreNotPublished() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for name in Self.unofficialRoundingHelperNames.sorted() {
             let fqName = mathPrefix + [interner.intern(name)]
@@ -208,7 +226,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testImplementedInventoryEntriesResolveToSyntheticLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for (signature, expectedLink) in Self.implementedLinksBySignature {
             let name = Self.declarationName(signature)
@@ -222,7 +240,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testSourceBackedInventoryEntriesHaveNoRuntimeMathLink() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for signature in Self.sourceBackedSignatures.sorted() {
             let name = Self.declarationName(signature)
@@ -284,14 +302,18 @@ struct MathAPITargetInventoryTests {
         return signature
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 }
 #endif

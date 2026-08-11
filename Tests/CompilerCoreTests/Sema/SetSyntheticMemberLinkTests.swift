@@ -8,7 +8,9 @@ import Testing
 struct SetSyntheticMemberLinkTests {
     private static let binaryMembers = ["intersect", "union", "subtract"]
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -16,7 +18,9 @@ struct SetSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func setReceiverFunctions(
@@ -41,7 +45,7 @@ struct SetSyntheticMemberLinkTests {
     }
 
     @Test func testSetBinaryMembersAreSourceBacked() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         for member in Self.binaryMembers {
             let candidates = setReceiverFunctions(named: member, sema: sema, interner: interner)

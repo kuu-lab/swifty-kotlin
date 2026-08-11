@@ -65,7 +65,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: classSymbol,
             classFQName: classFQName,
             propertyType: types.intType,
-            externalLinkName: "kk_range_first",
+            externalLinkName: "__kk_range_first",
             symbols: symbols,
             interner: interner
         )
@@ -74,7 +74,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: classSymbol,
             classFQName: classFQName,
             propertyType: types.intType,
-            externalLinkName: "kk_range_last",
+            externalLinkName: "__kk_range_last",
             symbols: symbols,
             interner: interner
         )
@@ -83,7 +83,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: classSymbol,
             classFQName: classFQName,
             propertyType: types.intType,
-            externalLinkName: "kk_range_first",
+            externalLinkName: "__kk_range_first",
             symbols: symbols,
             interner: interner
         )
@@ -92,7 +92,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: classSymbol,
             classFQName: classFQName,
             propertyType: types.intType,
-            externalLinkName: "kk_range_last",
+            externalLinkName: "__kk_range_last",
             symbols: symbols,
             interner: interner
         )
@@ -101,7 +101,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: classSymbol,
             classFQName: classFQName,
             propertyType: types.intType,
-            externalLinkName: "kk_range_endExclusive",
+            externalLinkName: "__kk_range_endExclusive",
             symbols: symbols,
             interner: interner
         )
@@ -122,7 +122,7 @@ extension DataFlowSemaPhase {
             receiverType: intRangeType,
             parameterTypes: [types.intType],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_contains",
+            externalLinkName: "__kk_range_contains",
             flags: [.synthetic, .operatorFunction],
             symbols: symbols,
             interner: interner
@@ -134,7 +134,7 @@ extension DataFlowSemaPhase {
             receiverType: intRangeType,
             parameterTypes: [],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_isEmpty",
+            externalLinkName: "__kk_range_isEmpty",
             symbols: symbols,
             interner: interner
         )
@@ -167,7 +167,7 @@ extension DataFlowSemaPhase {
             receiverType: intRangeType,
             parameterTypes: [],
             returnType: intRangeType,
-            externalLinkName: "kk_range_reversed",
+            externalLinkName: "__kk_range_reversed",
             symbols: symbols,
             interner: interner
         )
@@ -644,11 +644,11 @@ extension DataFlowSemaPhase {
 
         // Properties: start, end, first, last, step
         for property in [
-            ("start", "kk_long_range_first"),
-            ("endInclusive", "kk_long_range_last"),
-            ("first", "kk_long_range_first"),
-            ("last", "kk_long_range_last"),
-            ("endExclusive", "kk_range_endExclusive"),
+            ("start", "__kk_range_first"),
+            ("endInclusive", "__kk_range_last"),
+            ("first", "__kk_range_first"),
+            ("last", "__kk_range_last"),
+            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -675,7 +675,7 @@ extension DataFlowSemaPhase {
             receiverType: longRangeType,
             parameterTypes: [types.longType],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_contains",
+            externalLinkName: "__kk_range_contains",
             symbols: symbols,
             interner: interner
         )
@@ -685,7 +685,7 @@ extension DataFlowSemaPhase {
             receiverType: longRangeType,
             parameterTypes: [],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_isEmpty",
+            externalLinkName: "__kk_range_isEmpty",
             symbols: symbols,
             interner: interner
         )
@@ -705,7 +705,7 @@ extension DataFlowSemaPhase {
             receiverType: longRangeType,
             parameterTypes: [],
             returnType: progressionType,
-            externalLinkName: "kk_range_reversed",
+            externalLinkName: "__kk_range_reversed",
             symbols: symbols,
             interner: interner
         )
@@ -903,12 +903,12 @@ extension DataFlowSemaPhase {
         )
 
         for property in [
-            ("start", "kk_range_first"),
-            ("end", "kk_range_last"),
-            ("endInclusive", "kk_range_last"),
-            ("first", "kk_range_first"),
-            ("last", "kk_range_last"),
-            ("endExclusive", "kk_range_endExclusive"),
+            ("start", "__kk_range_first"),
+            ("end", "__kk_range_last"),
+            ("endInclusive", "__kk_range_last"),
+            ("first", "__kk_range_first"),
+            ("last", "__kk_range_last"),
+            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -934,7 +934,7 @@ extension DataFlowSemaPhase {
             receiverType: charRangeType,
             parameterTypes: [types.charType],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_contains",
+            externalLinkName: "__kk_range_contains",
             flags: [.synthetic, .operatorFunction],
             symbols: symbols,
             interner: interner
@@ -945,7 +945,7 @@ extension DataFlowSemaPhase {
             receiverType: charRangeType,
             parameterTypes: [],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_isEmpty",
+            externalLinkName: "__kk_range_isEmpty",
             symbols: symbols,
             interner: interner
         )
@@ -1005,7 +1005,7 @@ extension DataFlowSemaPhase {
             receiverType: charRangeType,
             parameterTypes: [],
             returnType: charRangeType,
-            externalLinkName: "kk_range_reversed",
+            externalLinkName: "__kk_range_reversed",
             symbols: symbols,
             interner: interner
         )
