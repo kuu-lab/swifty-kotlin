@@ -10,12 +10,12 @@ import Testing
 /// ): BufferedWriter`
 @Suite
 struct OutputStreamBufferedWriterFunctionTests {
-    /// `OutputStream.bufferedWriter(charset)` should resolve to the
-    /// synthetic extension function in `kotlin.io` and return a
-    /// `java.io.BufferedWriter`.
-    @Test
-    func testOutputStreamBufferedWriterWithExplicitCharsetResolves() throws {
-        let source = """
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.BufferedWriter
         import java.io.File
         import java.io.OutputStream
@@ -26,11 +26,65 @@ struct OutputStreamBufferedWriterFunctionTests {
             val stream: OutputStream = file.outputStream()
             return stream.bufferedWriter(Charsets.UTF_8)
         }
+        """,
         """
+        package sample1
+        import java.io.BufferedWriter
+        import java.io.File
+        import java.io.OutputStream
+        import kotlin.io.bufferedWriter
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        fun openWriter(file: File): BufferedWriter {
+            val stream: OutputStream = file.outputStream()
+            return stream.bufferedWriter()
+        }
+        """,
+        """
+        package sample2
+        import java.io.File
+        import java.io.OutputStream
+        import kotlin.io.bufferedWriter
+        import kotlin.text.Charsets
+
+        fun writeAndClose(file: File) {
+            val stream: OutputStream = file.outputStream()
+            val writer = stream.bufferedWriter(Charsets.UTF_8)
+            writer.write("hello")
+            writer.flush()
+            writer.close()
+        }
+        """,
+        """
+        package sample3
+        import java.io.BufferedWriter
+        import java.io.OutputStream
+        import kotlin.io.bufferedWriter
+        import kotlin.text.Charsets
+
+        fun stub(stream: OutputStream): BufferedWriter = stream.bufferedWriter(Charsets.UTF_8)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    /// `OutputStream.bufferedWriter(charset)` should resolve to the
+    /// synthetic extension function in `kotlin.io` and return a
+    /// `java.io.BufferedWriter`.
+    @Test func testOutputStreamBufferedWriterWithExplicitCharsetResolves() throws {
+
+        let ctx = try sharedCtx()
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             #expect(
                 !(ctx.diagnostics.hasError),
@@ -81,84 +135,41 @@ struct OutputStreamBufferedWriterFunctionTests {
             let signature = try #require(symbols.functionSignature(for: bufferedWriter))
             #expect(signature.valueParameterHasDefaultValues == [true])
             #expect(signature.valueParameterIsVararg == [false])
-        }
+
     }
 
     /// `OutputStream.bufferedWriter()` with no arguments should resolve via
     /// the `charset` parameter's default value (`Charsets.UTF_8`).
-    @Test
-    func testOutputStreamBufferedWriterWithDefaultCharsetResolves() throws {
-        let source = """
-        import java.io.BufferedWriter
-        import java.io.File
-        import java.io.OutputStream
-        import kotlin.io.bufferedWriter
+    @Test func testOutputStreamBufferedWriterWithDefaultCharsetResolves() throws {
 
-        fun openWriter(file: File): BufferedWriter {
-            val stream: OutputStream = file.outputStream()
-            return stream.bufferedWriter()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             #expect(
                 !(ctx.diagnostics.hasError),
                 "OutputStream.bufferedWriter() with default charset should resolve: \(diagnostics)"
             )
-        }
+
     }
 
     /// The returned `BufferedWriter` should be usable for `.write`, `.flush`,
     /// and `.close` member calls — confirming the type chain stays intact.
-    @Test
-    func testOutputStreamBufferedWriterChainedMemberCallsResolve() throws {
-        let source = """
-        import java.io.File
-        import java.io.OutputStream
-        import kotlin.io.bufferedWriter
-        import kotlin.text.Charsets
+    @Test func testOutputStreamBufferedWriterChainedMemberCallsResolve() throws {
 
-        fun writeAndClose(file: File) {
-            val stream: OutputStream = file.outputStream()
-            val writer = stream.bufferedWriter(Charsets.UTF_8)
-            writer.write("hello")
-            writer.flush()
-            writer.close()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             #expect(
                 !(ctx.diagnostics.hasError),
                 "Chained BufferedWriter member calls after OutputStream.bufferedWriter should resolve: \(diagnostics)"
             )
-        }
+
     }
 
     /// The Sema layer should record the external link name on the symbol so
     /// codegen can resolve it to `kk_output_stream_bufferedWriter` later in
     /// the pipeline.
-    @Test
-    func testOutputStreamBufferedWriterExternalLinkNameIsRegisteredOnSymbol() throws {
-        let source = """
-        import java.io.BufferedWriter
-        import java.io.OutputStream
-        import kotlin.io.bufferedWriter
-        import kotlin.text.Charsets
+    @Test func testOutputStreamBufferedWriterExternalLinkNameIsRegisteredOnSymbol() throws {
 
-        fun stub(stream: OutputStream): BufferedWriter = stream.bufferedWriter(Charsets.UTF_8)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
+        let ctx = try sharedCtx()
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
@@ -189,7 +200,7 @@ struct OutputStreamBufferedWriterFunctionTests {
             #expect(
                 symbols.externalLinkName(for: bufferedWriter) == "kk_output_stream_bufferedWriter"
             )
-        }
+
     }
 }
 #endif
