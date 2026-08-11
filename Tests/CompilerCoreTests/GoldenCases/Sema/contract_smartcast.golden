@@ -11,8 +11,6 @@ symbol fq=kotlin.check.condition kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.contracts.ContractBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.contracts.ContractBuilder.returns#0 kind=function vis=public flags=synthetic sig=recv=kotlin.contracts.ContractBuilder params=[] ret=kotlin.contracts.Returns
 symbol fq=kotlin.contracts.Returns kind=interface vis=public flags=synthetic type=kotlin.contracts.Returns
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.require#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Boolean] ret=Unit
 symbol fq=kotlin.require#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Boolean,() -> Any] ret=Unit
 symbol fq=kotlin.require.condition kind=valueParameter vis=private flags=synthetic

@@ -29,8 +29,6 @@ symbol fq=__local_27.ubId kind=local vis=private flags=_ type=UByte
 symbol fq=__local_28.usId kind=local vis=private flags=_ type=UShort
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.ULongArray kind=class vis=public flags=synthetic
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file funsigned_integers package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:19 uint(42) type=UInt

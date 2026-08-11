@@ -56,7 +56,7 @@ struct LocalDelegatePropertyKIRTests {
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_any)
+            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_long)
             // rather than literally "println", so identify it positionally instead:
             // main is `val x by IntProp(); println(x)`, so the getValue call must be
             // followed by exactly one more call — println — that consumes its result.
@@ -411,7 +411,9 @@ struct LocalDelegatePropertyKIRTests {
             // StdlibDelegateLoweringPass, which runs after this stage.
             let createIndex = try #require(callees.firstIndex(of: "lazy"))
             let getValueIndex = try #require(callees.firstIndex(of: "kk_lazy_get_value"))
-            let printIndices = callees.indices.filter { callees[$0].hasPrefix("kk_println") }
+            let printIndices = callees.indices.filter {
+                callees[$0] == "println" || callees[$0].hasPrefix("kk_println")
+            }
             let firstPrintIndex = try #require(printIndices.first)
 
             #expect(createIndex < firstPrintIndex, "the delegate must be created at the declaration")

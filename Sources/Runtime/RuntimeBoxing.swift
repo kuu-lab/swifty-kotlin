@@ -103,7 +103,7 @@ public func kk_box_long(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo for LongRange), pass it through without
-    // double-boxing so that kk_println_any / runtimeElementToString can
+    // double-boxing so that __kk_print_raw / runtimeElementToString can
     // recognise the original object type.
     if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in
