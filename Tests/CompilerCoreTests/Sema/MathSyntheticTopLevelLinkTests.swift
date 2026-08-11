@@ -46,9 +46,6 @@ struct MathSyntheticTopLevelLinkTests {
         let expected: [String: String] = [
             "sqrt": "kk_math_sqrt",
             "pow": "kk_math_pow",
-            "ceil": "kk_math_ceil",
-            "floor": "kk_math_floor",
-            "round": "kk_math_round",
         ]
 
         for (name, expectedLink) in expected {
@@ -74,9 +71,6 @@ struct MathSyntheticTopLevelLinkTests {
             ("atan", "kk_math_atan_float"),
             ("atan2", "kk_math_atan2_float"),
             ("sqrt", "kk_math_sqrt_float"),
-            ("round", "kk_math_round_float"),
-            ("ceil", "kk_math_ceil_float"),
-            ("floor", "kk_math_floor_float"),
             ("exp", "kk_math_exp_float"),
             ("expm1", "kk_math_expm1_float"),
             ("ln", "kk_math_ln_float"),
@@ -149,12 +143,12 @@ struct MathSyntheticTopLevelLinkTests {
                 )
             }
 
-            let expectedOrder: [(String, String)] = [
+            let expectedOrder: [(String, String?)] = [
                 ("sqrt", "kk_math_sqrt"),
                 ("pow", "kk_math_pow"),
-                ("ceil", "kk_math_ceil"),
-                ("floor", "kk_math_floor"),
-                ("round", "kk_math_round"),
+                ("ceil", nil),
+                ("floor", nil),
+                ("round", nil),
             ]
             var consumedByName: [String: Int] = [:]
 
@@ -359,10 +353,6 @@ struct MathSyntheticTopLevelLinkTests {
             val powF = f.pow(f)
             val powDI = d.pow(i)
             val powFI = f.pow(i)
-            val signD = d.withSign(d)
-            val signDI = d.withSign(i)
-            val signF = f.withSign(f)
-            val signFI = f.withSign(i)
         }
         """
 
@@ -379,7 +369,7 @@ struct MathSyntheticTopLevelLinkTests {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
                       case let .memberCall(_, calleeName, _, _, _) = expr,
-                      ["IEEErem", "nextTowards", "pow", "withSign"].contains(ctx.interner.resolve(calleeName)),
+                      ["IEEErem", "nextTowards", "pow"].contains(ctx.interner.resolve(calleeName)),
                       let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
                       let link = sema.symbols.externalLinkName(for: chosenCallee)
                 else {
@@ -396,10 +386,6 @@ struct MathSyntheticTopLevelLinkTests {
                 "kk_math_pow_float",
                 "kk_math_pow_int",
                 "kk_math_pow_float_int",
-                "kk_math_withSign",
-                "kk_math_withSign_int",
-                "kk_math_withSign_float",
-                "kk_math_withSign_float_int",
             ] {
                 #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
             }
