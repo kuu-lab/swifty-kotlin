@@ -73,7 +73,15 @@ extension TypeCheckHelpers {
         guard let expectedType else {
             return sorted.first
         }
-        guard case .functionType = sema.types.kind(of: expectedType) else {
+
+        let expectedFunctionType: TypeID? = if case .functionType = sema.types.kind(of: expectedType) {
+            expectedType
+        } else if let samFT = samFunctionType(for: expectedType, sema: sema) {
+            sema.types.make(.functionType(samFT))
+        } else {
+            nil
+        }
+        guard let expectedFunctionType else {
             return sorted.first
         }
         if let matched = sorted.first(where: { symbolID in
@@ -85,7 +93,7 @@ extension TypeCheckHelpers {
                 bindReceiver: bindReceiver,
                 sema: sema
             )
-            return sema.types.isSubtype(inferredType, expectedType)
+            return sema.types.isSubtype(inferredType, expectedFunctionType)
         }) {
             return matched
         }

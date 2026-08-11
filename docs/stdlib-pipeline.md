@@ -272,7 +272,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticKotlinVersionStubs.swift` | 372 | (b) | Public stdlib value surface; source migration owner. |
 | `HeaderHelpers+SyntheticListAggregateMembers.swift` | 1288 | (b) | M3 list aggregate/source migration. |
 | `HeaderHelpers+SyntheticListConversionMembers.swift` | 434 | (b) | M3 list conversion/source migration. |
-| `HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift` | 690 | (b) | M3 `IndexedValue` / `ArrayDeque` source migration. |
+| `HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift` | 623 | (b) | M3 `IndexedValue` source migration（`ArrayDeque` は KSP-625 で `.kt` 化済み）。 |
 | `HeaderHelpers+SyntheticListStubs.swift` | 1967 | (b) | M3 list shell and member migration. |
 | `HeaderHelpers+SyntheticListTransformMembers.swift` | 797 | (b) | M3 list transform/source migration. |
 | `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` | 401 | (a) | ~~`java.util.Locale`/locale interop~~ **完了・ファイル削除済み**（CLEANUP-STUB-112）。`Locale` コンストラクタのみ `+SyntheticStringStubs.swift` に残し、locale 付き String/Char 演算のハンドルとして使う。 |
@@ -314,7 +314,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | 3452 | (b) | M4 sequence terminal/HOF source migration. |
 | `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | ~~`kotlinx.serialization` compatibility~~ **完了・ファイル削除済み**（CLEANUP-STUB-121, 2026-08-06）。target-out として Runtime/ABI ともに除去。 |
 | `HeaderHelpers+SyntheticSetStubs.swift` | 1068 | (b) | M3 set shell and HOF source migration. |
-| `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | `repeat` source migration. |
+| `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | ~~`repeat` source migration~~ **完了・ファイル削除済み**（KSP-604、`Stdlib/kotlin/Standard.kt`）。 |
 | `HeaderHelpers+SyntheticStringBuilderStubs.swift` | 629 | (b) | M2 StringBuilder source migration; source exists. |
 | `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 475 | (b) | M1 string helper registration. |
 | `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
