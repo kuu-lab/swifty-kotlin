@@ -217,24 +217,20 @@ extension CallTypeChecker {
         // link name into codegen; the old early-return bound only the result type, so
         // the linker saw raw "_isNaN"/"_nextUp" symbols.
 
-        // Int/Long/Byte/Short/UByte/UShort/UInt/ULong.coerceIn(min, max) (STDLIB-150, STDLIB-500)
-        if interner.resolve(calleeName) == "coerceIn", args.count == 2 {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let doubleType = sema.types.make(.primitive(.double, .nonNull))
-            let floatType = sema.types.make(.primitive(.float, .nonNull))
-            let ubyteType = sema.types.ubyteType
-            let ushortType = sema.types.ushortType
-            let uintType = sema.types.uintType
-            let ulongType = sema.types.ulongType
+        // Unsigned coercion: UByte/UShort/UInt/ULong.coerceIn(min, max) (STDLIB-500).
+        // Int/Long/Double/Float are handled by bundled Kotlin source (RangeCoercion.kt);
+        // Byte/Short normalize to Int and use the same source overloads.
+        if args.count == 2, interner.resolve(calleeName) == "coerceIn" {
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            if receiverForCheck == intType || receiverForCheck == longType
-                || receiverForCheck == doubleType || receiverForCheck == floatType
-                || receiverForCheck == ubyteType || receiverForCheck == ushortType
-                || receiverForCheck == uintType || receiverForCheck == ulongType
-            {
+            let unsignedTypes = [
+                sema.types.ubyteType,
+                sema.types.ushortType,
+                sema.types.uintType,
+                sema.types.ulongType,
+            ]
+            if unsignedTypes.contains(receiverForCheck) {
                 _ = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck) }
                 let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                 sema.bindings.bindExprType(id, type: finalType)
@@ -242,29 +238,20 @@ extension CallTypeChecker {
             }
         }
 
-        // Int/Long/UInt/ULong.coerceIn(range) (STDLIB-525)
-        if interner.resolve(calleeName) == "coerceIn", args.count == 1 {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let uintType = sema.types.uintType
-            let ulongType = sema.types.ulongType
+        // Unsigned range coercion: UInt/ULong.coerceIn(range).
+        if args.count == 1, interner.resolve(calleeName) == "coerceIn" {
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            let supportsRangeCoercion = receiverForCheck == intType || receiverForCheck == longType
-                || receiverForCheck == uintType || receiverForCheck == ulongType
-            if supportsRangeCoercion {
-                let inferredArgType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-                let nominalRangeElementType = nominalRangeElementType(
-                    for: inferredArgType,
+            if receiverForCheck == sema.types.uintType || receiverForCheck == sema.types.ulongType {
+                let argExprID = args[0].expr
+                let rangeElementType = unsignedCoerceInRangeElementType(
+                    for: argExprID,
                     sema: sema,
                     interner: interner
                 )
-                let isRangeArg = sema.bindings.isRangeExpr(args[0].expr)
-                if isRangeArg || nominalRangeElementType == receiverForCheck {
-                    if isRangeArg {
-                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck)
-                    }
+                if rangeElementType == receiverForCheck {
+                    _ = driver.inferExpr(argExprID, ctx: ctx, locals: &locals, expectedType: receiverForCheck)
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
@@ -272,28 +259,20 @@ extension CallTypeChecker {
             }
         }
 
-        // Int/Long/Byte/Short/UByte/UShort/UInt/ULong.coerceAtLeast(min) / coerceAtMost(max) (STDLIB-150, STDLIB-500)
+        // Unsigned coercion: UByte/UShort/UInt/ULong.coerceAtLeast(min) / coerceAtMost(max).
         if args.count == 1 {
             let calleeStr = interner.resolve(calleeName)
             if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
-                let intType = sema.types.make(.primitive(.int, .nonNull))
-                let longType = sema.types.make(.primitive(.long, .nonNull))
-                let doubleType = sema.types.make(.primitive(.double, .nonNull))
-                let floatType = sema.types.make(.primitive(.float, .nonNull))
-                let ubyteType = sema.types.ubyteType
-                let ushortType = sema.types.ushortType
-                let uintType = sema.types.uintType
-                let ulongType = sema.types.ulongType
                 let receiverForCheck = safeCall
                     ? sema.types.makeNonNullable(lookupReceiverType)
                     : lookupReceiverType
-                let isRangeArg = sema.bindings.isRangeExpr(args[0].expr)
-                let supportsRangeCoercion = receiverForCheck == intType || receiverForCheck == longType
-                    || receiverForCheck == doubleType || receiverForCheck == floatType
-                let supportsValueCoercion = supportsRangeCoercion
-                    || receiverForCheck == ubyteType || receiverForCheck == ushortType
-                    || receiverForCheck == uintType || receiverForCheck == ulongType
-                if (!isRangeArg && supportsValueCoercion) || (isRangeArg && supportsRangeCoercion) {
+                let unsignedTypes = [
+                    sema.types.ubyteType,
+                    sema.types.ushortType,
+                    sema.types.uintType,
+                    sema.types.ulongType,
+                ]
+                if unsignedTypes.contains(receiverForCheck) {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck)
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)

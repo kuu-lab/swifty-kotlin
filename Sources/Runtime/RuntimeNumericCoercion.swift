@@ -1,70 +1,9 @@
 
-// Range-based coercion functions (STDLIB-CONV-006) plus UByte / UShort /
-// Char conversions (STDLIB-PRIM-002).
+// UByte / UShort / Char conversions (STDLIB-PRIM-002).
 //
 // Split out from `RuntimeNumericCompat.swift`.
 
-// MARK: - Range-based coercion functions (STDLIB-CONV-006)
 
-/// Double.coerceIn(range) — range object argument
-@_cdecl("kk_double_coerceIn_range")
-public func kk_double_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_double_coerceIn_range")
-    }
-    let minimum = kk_double_to_bits(Double(range.first))
-    let maximum = kk_double_to_bits(Double(range.last))
-    return kk_double_coerceIn(value, minimum, maximum)
-}
-
-/// Float.coerceIn(range) — range object argument
-@_cdecl("kk_float_coerceIn_range")
-public func kk_float_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_float_coerceIn_range")
-    }
-    let minimum = kk_float_to_bits(Float(range.first))
-    let maximum = kk_float_to_bits(Float(range.last))
-    return kk_float_coerceIn(value, minimum, maximum)
-}
-
-/// Int.coerceIn(range) — range object argument
-@_cdecl("kk_int_coerceIn_range")
-public func kk_int_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceIn_range")
-    }
-    return kk_int_coerceIn(value, range.first, range.last)
-}
-
-/// Long.coerceIn(range) — range object argument
-@_cdecl("kk_long_coerceIn_range")
-public func kk_long_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_coerceIn_range")
-    }
-    return kk_long_coerceIn(value, range.first, range.last)
-}
-
-// MARK: - Range-based coerceAtLeast/coerceAtMost functions (STDLIB-CONV-006)
-
-/// Int.coerceAtLeast(range) — use range first as minimum
-@_cdecl("kk_int_coerceAtLeast_range")
-public func kk_int_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceAtLeast_range")
-    }
-    return kk_int_coerceAtLeast(value, range.first)
-}
-
-/// Int.coerceAtMost(range) — use range last as maximum
-@_cdecl("kk_int_coerceAtMost_range")
-public func kk_int_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceAtMost_range")
-    }
-    return kk_int_coerceAtMost(value, range.last)
-}
 
 @_cdecl("kk_uint_to_int")
 public func kk_uint_to_int(_ value: Int) -> Int {
@@ -78,7 +17,7 @@ public func kk_ulong_to_int(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_uint")
 public func kk_int_to_uint(_ value: Int) -> Int {
-    Int(UInt32(truncatingIfNeeded: value))
+    Int(UInt32(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_long_to_uint")
@@ -88,7 +27,10 @@ public func kk_long_to_uint(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_long")
 public func kk_int_to_long(_ value: Int) -> Int {
-    value
+    // value may be a boxed Int (RuntimeIntBox) when converting from a nullable
+    // Int expression (e.g. `digitToIntOrNull(radix)!!.toLong()`), so unbox first
+    // before reinterpreting the raw bits as a Long.
+    kk_unbox_int(value)
 }
 
 @_cdecl("kk_uint_to_long")
@@ -98,7 +40,7 @@ public func kk_uint_to_long(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_ulong")
 public func kk_int_to_ulong(_ value: Int) -> Int {
-    value
+    kk_unbox_int(value)
 }
 
 @_cdecl("kk_long_to_ulong")
@@ -200,12 +142,12 @@ public func kk_ushort_to_double(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_ubyte")
 public func kk_int_to_ubyte(_ value: Int) -> Int {
-    Int(UInt8(truncatingIfNeeded: value))
+    Int(UInt8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_ushort")
 public func kk_int_to_ushort(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: value))
+    Int(UInt16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_long_to_ubyte")
@@ -301,7 +243,7 @@ public func kk_ushort_to_ulong(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_char")
 public func kk_int_to_char(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: value))
+    Int(UInt16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_long_to_char")

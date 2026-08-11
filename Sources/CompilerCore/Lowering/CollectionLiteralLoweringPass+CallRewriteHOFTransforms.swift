@@ -559,29 +559,8 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    if callee == lookup.withIndexName || callee == lookup.kkListWithIndexName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWithIndexName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.indexingIterableExprIDs.insert(result.rawValue)
-                state.indexingIterableExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
-    if callee == lookup.forEachIndexedName || callee == lookup.mapIndexedName || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName {
+    // KSP-626: withIndex / forEachIndexed are bundled Kotlin source, not bridges.
+    if callee == lookup.mapIndexedName || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]

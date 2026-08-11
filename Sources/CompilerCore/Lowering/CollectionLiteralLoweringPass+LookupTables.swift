@@ -102,11 +102,9 @@ struct CollectionLiteralLookupTables {
     var kkListZipWithNextBridgeName: InternedString { listLookup.kkListZipWithNextBridgeName }
     var kkListZipWithNextTransformBridgeName: InternedString { listLookup.kkListZipWithNextTransformBridgeName }
     var kkListUnzipName: InternedString { listLookup.kkListUnzipName }
-    var kkListWithIndexName: InternedString { listLookup.kkListWithIndexName }
     var kkIndexingIterableIteratorName: InternedString { listLookup.kkIndexingIterableIteratorName }
     var kkIndexingIterableHasNextName: InternedString { listLookup.kkIndexingIterableHasNextName }
     var kkIndexingIterableNextName: InternedString { listLookup.kkIndexingIterableNextName }
-    var kkListForEachIndexedName: InternedString { listLookup.kkListForEachIndexedName }
     var kkListOnEachName: InternedString { listLookup.kkListOnEachName }
     var kkListOnEachIndexedName: InternedString { listLookup.kkListOnEachIndexedName }
     var kkListFoldIndexedName: InternedString { listLookup.kkListFoldIndexedName }

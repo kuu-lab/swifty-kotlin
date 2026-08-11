@@ -459,7 +459,7 @@ struct StringSyntheticMemberLinkTests {
                     // onEach/partition/sumBy/sumByDouble/filterIndexed/onEachIndexed/
                     // reduce family/fold family are bundled Kotlin source
                     // (StringHOF.kt) and carry no runtime link. map/mapIndexed are
-                    // excluded (BUG-171 keeps them Swift-backed).
+                    // excluded (BUG-176 keeps them Swift-backed).
                     for member in [
                         "filter", "filterNot", "any", "all", "none", "count",
                         "find", "findLast", "onEach", "partition", "sumBy", "sumByDouble",
