@@ -932,11 +932,22 @@ Foo.kklib/
   "target": "arm64-apple-macosx",
   "objects": ["objects/Foo_0.o"],
   "metadata": "metadata.bin",
-  "inlineKIRDir": "inline-kir",
+  "inlineKIRDir": "inline-kir"
+}
+```
+
+`--stdlib-only --emit library` artifacts add the following required fields:
+
+```json
+{
   "libraryKind": "stdlib",
   "stdlibManifestHash": "<hash>"
 }
 ```
+
+The stdlib artifact's `target`, metadata file, object list, and inline-KIR
+directory are validated before import. A missing or mismatched field is a
+hard error; the compiler does not fall back to injecting bundled sources.
 
 ## J14.3 `metadata.bin`（最小要件）
 

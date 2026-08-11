@@ -339,77 +339,8 @@ extension DataFlowSemaPhase {
         // STDLIB-BIT-007: Additional bit manipulation functions
         // Use if-let instead of guard-return so future registrations below are not skipped.
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            let boolType = types.make(.primitive(.boolean, .nonNull))
-
-            // Double.isNaN() / isInfinite() / isFinite()
-            registerSyntheticCoercionFunction(
-                named: "isNaN",
-                externalLinkName: "kk_double_isNaN",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isInfinite",
-                externalLinkName: "kk_double_isInfinite",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isFinite",
-                externalLinkName: "kk_double_isFinite",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            // Float.isNaN() / isInfinite() / isFinite()
-            registerSyntheticCoercionFunction(
-                named: "isNaN",
-                externalLinkName: "kk_float_isNaN",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isInfinite",
-                externalLinkName: "kk_float_isInfinite",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isFinite",
-                externalLinkName: "kk_float_isFinite",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
+            // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use
+            // IEEE 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
 
             // Double.toBits(): Long / Double.toRawBits(): Long
             registerSyntheticCoercionFunction(
