@@ -1078,6 +1078,9 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The fully-qualified names a bundled source file is allowed to claim from
+    /// an earlier synthetic registration. A file may declare more than one such
+    /// nominal (`Tuples.kt` declares both `Pair` and `Triple`).
     private func reusableSyntheticSourceDeclarationKeys(
         for file: ASTFile,
         sourceManager: SourceManager,
@@ -1114,6 +1117,11 @@ extension DataFlowSemaPhase {
             [["kotlin", "Throwable"]]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
+        case "__bundled_kotlin/Tuples.kt":
+            [
+                ["kotlin", "Pair"],
+                ["kotlin", "Triple"],
+            ]
         case "__bundled_kotlin/ranges/Ranges.kt":
             [
                 ["kotlin", "ranges", "ClosedRange"],
