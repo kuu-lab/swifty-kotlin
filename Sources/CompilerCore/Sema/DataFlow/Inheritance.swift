@@ -228,7 +228,9 @@ extension DataFlowSemaPhase {
         }
 
         var candidatePaths: [[InternedString]] = [path]
-        if path.count == 1, !currentPackage.isEmpty {
+        if !currentPackage.isEmpty {
+            // Allow nested/package-relative supertypes such as
+            // `TimeSource.WithComparableMarks` inside `kotlin.time`.
             candidatePaths.append(currentPackage + path)
         }
         // Also try matching against imports: if the simple name matches

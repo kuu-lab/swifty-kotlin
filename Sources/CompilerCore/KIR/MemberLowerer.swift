@@ -290,6 +290,7 @@ final class MemberLowerer {
                     arena: arena,
                     interner: interner,
                     propertyConstantInitializers: propertyConstantInitializers,
+                    compilationCtx: compilationCtx,
                     isInterfaceContext: true
                 )
                 let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
@@ -317,7 +318,8 @@ final class MemberLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers
+                propertyConstantInitializers: propertyConstantInitializers,
+                compilationCtx: compilationCtx
             )
             let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
             directMembers.append(kirID)
