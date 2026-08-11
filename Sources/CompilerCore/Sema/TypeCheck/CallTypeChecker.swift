@@ -2560,7 +2560,7 @@ final class CallTypeChecker {
             }
             if args.count == 2,
                let externalLinkName = sema.symbols.externalLinkName(for: chosen),
-               ["kk_require_lazy", "kk_check_lazy", "kk_precondition_assert_lazy"].contains(externalLinkName)
+               ["kk_precondition_assert_lazy"].contains(externalLinkName)
             {
                 sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
