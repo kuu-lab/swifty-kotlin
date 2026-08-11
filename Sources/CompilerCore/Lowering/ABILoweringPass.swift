@@ -316,9 +316,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }()
                 let effectiveCallee = rewrittenCallee ?? callee
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
-                // Stubs explicitly marked .throwingFunction (e.g. BigInteger.divide,
-                // BigInteger(String)) must always emit the outThrown channel regardless
-                // of whether their callee name appears in nonThrowingCallees.
+                // Stubs explicitly marked .throwingFunction must always emit the
+                // outThrown channel regardless of whether their callee name appears
+                // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)

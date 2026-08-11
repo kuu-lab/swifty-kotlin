@@ -310,6 +310,67 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
+    /// implementations across overflow, NaN, and signed-zero edge cases.
+    @Test
+    func testMathAbsSignMinMaxExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.math.*
+
+            fun main() {
+                println(abs(-4.5))
+                println(abs(-3.5f))
+                println(abs(-7))
+                println(abs(Int.MIN_VALUE))
+                println(abs(Long.MIN_VALUE))
+                println((-4.5).absoluteValue)
+                println(1.0 / abs(-0.0))
+                println(abs(Double.NaN).isNaN())
+                println(sign(-2.5))
+                println(sign(0.0f))
+                println((-9L).sign)
+                println(sign(Double.NaN).isNaN())
+                println(max(2, 3))
+                println(min(-2L, 3L))
+                println(max(1.5f, 2.5f))
+                println(min(1u, 2u))
+                println(max(1uL, 2uL))
+                println(max(Double.NaN, 1.0).isNaN())
+                println(1.0 / max(-0.0, 0.0))
+                println(1.0 / min(-0.0, 0.0))
+                println(PI)
+                println(E)
+            }
+            """,
+            expectedOutput: """
+            4.5
+            3.5
+            7
+            -2147483648
+            -9223372036854775808
+            4.5
+            Infinity
+            true
+            -1.0
+            0.0
+            -1
+            true
+            3
+            -2
+            2.5
+            1
+            2
+            true
+            Infinity
+            -Infinity
+            3.141592653589793
+            2.718281828459045
+
+            """
+        )
+    }
+
     // KSP-472: measureTime / measureTimedValue が bundled Kotlin の inline 関数として
     // 展開され、ラムダ・関数参照・例外伝播のいずれでも正しく動くことを検証する。
     @Test
@@ -442,10 +503,10 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-646: Double/Float の isNaN / isInfinite / isFinite は bundled Kotlin
-    // (kotlin/util/Numbers.kt) の IEEE 754 ビットパターン判定で実装される。
-    // 符号付きゼロ・非正規数・演算由来 NaN・ペイロード付き NaN まで含めて
-    // end-to-end で検証する。
+    // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
+    // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
+    // Verify signed zero, subnormal values, computed NaNs, and payload NaNs
+    // end to end.
     @Test
     func testFloatingPointPredicatesExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -496,6 +557,67 @@ struct BundledStdlibExecutionTests {
             true
             true
             false
+
+            """
+        )
+    }
+
+    // KSP-417: These APIs use private runtime bridges. This also guards the
+    // flat-string return ABI for __kk_string_normalize_flat.
+    @Test
+    func testUnicodeNormalizationAndCodePointBridgesExecute() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val decomposed = "e\\u0301"
+                val composed = decomposed.normalize(NormalizationForms.NFC)
+                println(composed.length)
+                println(composed == "\\u00e9")
+                println(composed.normalize(NormalizationForms.NFD).length)
+                println("\\ufb01".normalize(NormalizationForms.NFKC))
+                println("\\ufb01".normalize(NormalizationForms.NFKD))
+                println(composed.isNormalized(NormalizationForms.NFC))
+                println(decomposed.isNormalized(NormalizationForms.NFC))
+                println("abc".codePointCount())
+                println("e\\u0301x".codePointCount(1))
+                println("e\\u0301x".codePointCount(0, 2))
+                val picked = "abc".random()
+                println(picked == 'a' || picked == 'b' || picked == 'c')
+            }
+            """,
+            expectedOutput: """
+            1
+            true
+            2
+            fi
+            fi
+            true
+            false
+            3
+            2
+            2
+            true
+
+            """
+        )
+    }
+
+    // Runtime-produced flat strings store a Unicode scalar count in `length`
+    // and the UTF-8 byte count separately in `byteCount`.
+    @Test
+    func testRuntimeProducedFlatStringsReportScalarLength() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println("\\u00c9".length)
+                println("\\u00c9".lowercase().length)
+                println("  \\u00e9\\u00e9  ".trim().length)
+            }
+            """,
+            expectedOutput: """
+            1
+            1
+            2
 
             """
         )

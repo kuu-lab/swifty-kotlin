@@ -988,23 +988,25 @@ public func kk_double_fromBits(_ bits: Int) -> Int {
 
 /// Float.toBits(): Int — returns IEEE 754 bit representation as Int.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
+/// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
+/// sign-extended back into the Int domain Kotlin expects.
 @_cdecl("kk_float_toBits")
 public func kk_float_toBits(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
-    if f.isNaN { return Int(bitPattern: UInt(0x7FC0_0000 as UInt32)) }
-    return kk_float_to_bits(f)
+    if f.isNaN { return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32)) }
+    return Int(Int32(bitPattern: f.bitPattern))
 }
 
 /// Float.toRawBits(): Int — actual bit pattern without canonicalizing NaN.
 @_cdecl("kk_float_toRawBits")
 public func kk_float_toRawBits(_ value: Int) -> Int {
-    value  // bit pattern is already canonical in our ABI
+    Int(Int32(truncatingIfNeeded: value))
 }
 
 /// Float.Companion.fromBits(bits: Int): Float
 @_cdecl("kk_float_fromBits")
 public func kk_float_fromBits(_ bits: Int) -> Int {
-    bits  // already Float bit representation in ABI
+    Int(UInt32(truncatingIfNeeded: bits))  // re-widen to the zero-extended ABI form
 }
 
 // MARK: - STDLIB-514: truncate, IEEErem, withSign, nextTowards

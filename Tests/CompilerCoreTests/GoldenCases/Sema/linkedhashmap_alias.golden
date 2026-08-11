@@ -77,7 +77,7 @@ expr e@22:44 name(it) type=kotlin.collections.Map.Entry<String, Int> ref=s-0
 expr e@22:44#1 memberCall recv=e@22:44 callee=value args=[] type=Int call=kotlin.collections.Map.Entry.value targs=[String,Int]
 expr e@22:31 stringTemplate[expr(e@22:34#1),lit(=),expr(e@22:44#1)] type=String
 expr e@22:29 lambda params=[] body=e@22:31 label=map type=(kotlin.collections.Map.Entry<String, Int>) -> Any
-expr e@22:13#2 memberCall recv=e@22:13#1 callee=map args=[_:e@22:29] type=kotlin.collections.List<String>
+expr e@22:13#2 memberCall recv=e@22:13#1 callee=map args=[_:e@22:29] type=kotlin.collections.List<String> call=kotlin.collections.map#3 targs=[kotlin.collections.Map.Entry<String, Int>,String]
 expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#2] type=Unit call=kotlin.io.println#1
 expr e@23:5 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@23:9 string(z) type=String

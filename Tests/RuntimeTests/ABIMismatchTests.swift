@@ -819,7 +819,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListAddAtSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_add_at")
+        let spec = try requireSpec("__kk_mutable_list_add_at")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "listRaw")
@@ -834,7 +834,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSetSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_set")
+        let spec = try requireSpec("__kk_mutable_list_set")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "listRaw")
@@ -993,7 +993,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sort")
+        let spec = try requireSpec("__kk_mutable_list_sort")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -1001,7 +1001,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sort_primitive")
+        let spec = try requireSpec("__kk_mutable_list_sort_primitive")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].type == .intptr)
@@ -1010,7 +1010,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortBySignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sortBy")
+        let spec = try requireSpec("__kk_mutable_list_sortBy")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].type == .intptr)
@@ -1021,7 +1021,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortWithSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sortWith")
+        let spec = try requireSpec("__kk_mutable_list_sortWith")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].type == .intptr)
@@ -1032,7 +1032,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortByPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sortBy_primitive")
+        let spec = try requireSpec("__kk_mutable_list_sortBy_primitive")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 5)
         #expect(spec.parameters[0].type == .intptr)
@@ -1044,7 +1044,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortByDescendingSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sortByDescending")
+        let spec = try requireSpec("__kk_mutable_list_sortByDescending")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].type == .intptr)
@@ -1055,7 +1055,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSortByDescendingPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_mutable_list_sortByDescending_primitive")
+        let spec = try requireSpec("__kk_mutable_list_sortByDescending_primitive")
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 5)
         #expect(spec.parameters[0].type == .intptr)

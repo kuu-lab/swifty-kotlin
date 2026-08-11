@@ -339,8 +339,8 @@ extension DataFlowSemaPhase {
         // STDLIB-BIT-007: Additional bit manipulation functions
         // Use if-let instead of guard-return so future registrations below are not skipped.
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            // KSP-646: Double/Float の isNaN / isInfinite / isFinite は bundled Kotlin
-            // (Stdlib/kotlin/util/Numbers.kt) の IEEE 754 ビットパターン判定へ移行済み。
+            // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use
+            // IEEE 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
 
             // Double.toBits(): Long / Double.toRawBits(): Long
             registerSyntheticCoercionFunction(
