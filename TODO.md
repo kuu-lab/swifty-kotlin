@@ -585,7 +585,7 @@
   - 存置: `kotlin.concurrent.Volatile`（本家 Native の実在アノテーション）は `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` へ移設
   - 連動削除: `Sources/Runtime/RuntimeThread.swift`（`kk_thread_create` は Sema 登録削除で到達不能）、`Sources/RuntimeABI/RuntimeABISpec+Thread.swift` と `RuntimeABISpec.swift` の `threadFunctions`。Timer/Executor と `java.util.concurrent` 互換の登録は元から不在のため Atomic 系（CLEANUP-STUB-100/096）と重複なし
   - テスト: `ConcurrencySyntheticStubTests.swift` → `VolatileAnnotationSyntheticStubTests.swift` へ縮小、`Tests/RuntimeTests/RuntimeThreadTests.swift` 削除、`ABIMismatchTests.kkThreadCreateSignature` 削除
-- [ ] CLEANUP-STUB-106: Dynamic 用 `HeaderHelpers+SyntheticDynamicStubs.swift` は削除済みのため追跡のみ
+- [x] CLEANUP-STUB-106: Dynamic 用 `HeaderHelpers+SyntheticDynamicStubs.swift` は削除済みのため追跡のみ
   - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticDynamicStubs.swift`（DEADCODE-CORE-009/010 で削除済み）
   - 削除内容: `registerSyntheticDynamicStubs` および `registerDynamicIterator` は既に削除されている
   - テスト影響: なし（`HeaderHelpers+SyntheticBucketedStubRegistry` 等からの残り呼び出しがないか確認）
