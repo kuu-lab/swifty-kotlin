@@ -48,6 +48,7 @@ typealias KKClosureThunkEntryPoint = @convention(c) (Int, UnsafeMutablePointer<I
 typealias KKFunctionEntryPoint1 = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKFunctionEntryPoint2 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKFunctionEntryPoint3 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint4 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint1 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
@@ -1441,20 +1442,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             box.producerGate.wait()
             box.invokeBuilderLambda()
         }
-    }
-}
-
-/// Runtime box for `Grouping<T, K>` returned by `groupingBy`.
-/// Stores the source elements and key selector function pointer/closure.
-final class RuntimeGroupingBox {
-    let sourceElements: [Int]
-    let keyFnPtr: Int
-    let keyClosureRaw: Int
-
-    init(sourceElements: [Int], keyFnPtr: Int, keyClosureRaw: Int) {
-        self.sourceElements = sourceElements
-        self.keyFnPtr = keyFnPtr
-        self.keyClosureRaw = keyClosureRaw
     }
 }
 

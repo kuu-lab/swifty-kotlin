@@ -50,25 +50,17 @@ final class CodegenPhase: CompilerPhase {
 
             case .executable:
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                // Object emission is serialized per-process on Linux because
-                // LLVM target state is not thread-safe; cross-process locking is
-                // unnecessary because each `kswiftc` process has its own LLVM
-                // context and output path. The link step uses a per-`LinkPhase`
-                // unique autolink stub path and a separate cross-process toolchain
-                // lock to protect concurrent Linux `swiftc` invocations.
-                try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
-                    try backend.emitObject(
-                        module: kir,
-                        outputObjectPath: path,
-                        interner: ctx.interner,
-                        typeSystem: ctx.sema?.types,
-                        symbols: ctx.sema?.symbols,
-                        sourceManager: ctx.sourceManager,
-                        fileFacadeNamesByFileID: fileFacadeNamesByFileID,
-                        reflectionMetadataRecords: reflectionRecords,
-                        reflectionMetadataSymbolPrefix: ctx.options.moduleName
-                    )
-                }
+                try backend.emitObject(
+                    module: kir,
+                    outputObjectPath: path,
+                    interner: ctx.interner,
+                    typeSystem: ctx.sema?.types,
+                    symbols: ctx.sema?.symbols,
+                    sourceManager: ctx.sourceManager,
+                    fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                    reflectionMetadataRecords: reflectionRecords,
+                    reflectionMetadataSymbolPrefix: ctx.options.moduleName
+                )
                 ctx.storeGeneratedObjectPath(path)
 
             case .library:

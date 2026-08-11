@@ -21,6 +21,13 @@ func topLevelFunction(
     return nil
 }
 
+/// Bundled stdlib sources share the AST arena with the test input, so expression
+/// scans must skip expressions that originate from bundled `.kt` files.
+func isUserSourceExpr(_ id: ExprID, in ctx: CompilationContext) -> Bool {
+    guard let ast = ctx.ast, let range = ast.arena.exprRange(id) else { return false }
+    return ctx.sourceManager.origin(of: range.start.file)?.isBundledStdlib != true
+}
+
 /// Search for a top-level property declaration by name in the given AST module.
 func topLevelProperty(
     named name: String,

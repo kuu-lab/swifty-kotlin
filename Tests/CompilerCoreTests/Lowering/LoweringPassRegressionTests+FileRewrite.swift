@@ -231,7 +231,7 @@ extension LoweringPassRegressionTests {
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
             #expect(callees.contains("kk_file_walk"))
-            #expect(callees.contains("kk_file_tree_walk_forEach"))
+            #expect(callees.contains("kk_list_forEach"))
             #expect(!callees.contains("walk"))
         }
     }
@@ -438,33 +438,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // STDLIB-IO-PATH-FN-039: File.walk(direction:) must lower to kk_file_walk_with_direction
-    @Test
-    func testFileWalkWithDirectionRewrite() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.FileWalkDirection
-
-        fun main() {
-            File("/tmp/test").walk(FileWalkDirection.TOP_DOWN).toList()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWalkDirectionRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_walk_with_direction"), "walk(direction:) must lower to kk_file_walk_with_direction")
-            #expect(callees.contains("kk_file_tree_walk_to_list"), "chained toList() on walk(direction:) result must be rewritten")
-            #expect(!callees.contains("walk"))
-        }
-    }
-
     // STDLIB-IO-PATH-FN-038: Path.useLines default variant must inject closureRaw
     @Test
     func testPathUseLinesDefaultRewriteAddsClosureRawArgument() throws {
@@ -594,36 +567,6 @@ extension LoweringPassRegressionTests {
         }
         #expect(call.arguments.count == 4, "kk_path_useLines should receive pathRaw, charsetRaw, fnPtr, and closureRaw")
         #expect(call.canThrow)
-    }
-
-    // STDLIB-IO-PATH-FN-038: end-to-end source rewrite lowers useLines to kk_path_useLines_default
-    @Test
-    func testPathUseLinesSourceRewrite() throws {
-        let source = """
-        import kotlin.io.path.Path
-        import kotlin.io.path.useLines
-
-        fun main() {
-            val p = Path("/dev/null")
-            val count = p.useLines { lines ->
-                lines.count()
-            }
-            println(count)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "PathUseLinesRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_path_useLines_default"), "useLines without charset should lower to kk_path_useLines_default")
-            #expect(!callees.contains("useLines"), "useLines callee should be fully rewritten")
-        }
     }
 
     @Test

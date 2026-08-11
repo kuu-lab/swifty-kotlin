@@ -21,7 +21,7 @@ extension CallLowerer {
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy", "reduceIndexed", "reduceIndexedOrNull", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed",
             "sortedByDescending", "sortedWith", "partition", "zip", "zipWithNext",
-            "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "filterNot", "findLast", "replaceAll", "removeIf",
+            "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "filterNot", "findLast",
             "trim", "trimStart", "trimEnd",
             "sortWith", "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",
@@ -173,7 +173,7 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
-            interner.intern("kk_mutable_list_sortWith"),
+            interner.intern("__kk_mutable_list_sortWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
            finalArguments.count == 2
