@@ -359,6 +359,20 @@ enum ParserBoundaryPolicy {
         .rParen, .rBracket, .rBrace,
     ]
 
+    /// Symbols that cannot end an expression, so a newline right after one is a
+    /// line continuation rather than a statement/declaration boundary
+    /// (`fun f(): Int = 1 +\n    2`). `<`, `>`, `?` and postfix operators are
+    /// excluded because they legitimately end a type or an expression.
+    private static let danglingContinuationSymbols: Set<Symbol> = [
+        .plus, .minus, .star, .slash, .percent,
+        .ampAmp, .barBar,
+        .equalEqual, .bangEqual, .tripleEqual, .notTripleEqual,
+        .lessOrEqual, .greaterOrEqual,
+        .assign, .plusAssign, .minusAssign, .starAssign, .slashAssign, .percentAssign,
+        .dotDot, .dotDotLt, .questionQuestion, .questionColon,
+        .comma, .dot, .questionDot, .colon, .arrow, .doubleColon,
+    ]
+
     static func shouldStopStatementBefore(
         _ token: Token,
         inBlock: Bool,
@@ -405,6 +419,15 @@ enum ParserBoundaryPolicy {
                     return true
                 }
             }
+        }
+        return false
+    }
+
+    /// Whether a newline following the just-consumed token continues the current
+    /// expression instead of ending the declaration.
+    static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
+        if case let .symbol(symbol) = kind {
+            return danglingContinuationSymbols.contains(symbol)
         }
         return false
     }

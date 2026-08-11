@@ -1013,7 +1013,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localDecl(_, _, _, initializer, isDelegated, _):
+        case let .localDecl(_, isMutable, _, initializer, isDelegated, _):
             if let initializer {
                 let initializerID = lowerExpr(
                     initializer,
@@ -1121,8 +1121,26 @@ extension ExprLowerer {
                         default:
                             false
                         }
-                        if !isDelegated, let initializerType, initializerType != declaredType,
-                           declaredTypeIsReferenceLike
+                        // A mutable local initialized directly from a bare symbol
+                        // reference (an enum entry or object singleton, e.g. `var d:
+                        // Direction = Direction.NORTH`) must not alias its storage to
+                        // that exact expression. `arena.expr` never changes once
+                        // recorded, so a later reassignment (`d = Direction.SOUTH`)
+                        // only patches the runtime bits in place via `.copy` — any
+                        // fold that pattern-matches the storage's static `.symbolRef`
+                        // shape (e.g. enum `.name`/`.ordinal` constant-folding in
+                        // tryLowerEnumEntryPropertyRead) would keep resolving to the
+                        // *initial* entry forever, regardless of the reassignment.
+                        let initializerIsBareSymbolRef: Bool = {
+                            if case .symbolRef = arena.expr(initializerID) { return true }
+                            return false
+                        }()
+                        let requiresFreshSlotForMutableAlias = isMutable
+                            && declaredTypeIsReferenceLike
+                            && initializerIsBareSymbolRef
+                        if !isDelegated, declaredTypeIsReferenceLike,
+                           (initializerType != nil && initializerType != declaredType)
+                           || requiresFreshSlotForMutableAlias
                         {
                             let localSlot = arena.appendTemporary(type: declaredType)
                             instructions.append(.copy(from: initializerID, to: localSlot))
