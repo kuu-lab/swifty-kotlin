@@ -99,131 +99,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // mapIndexed(transform: (Int, E) -> R): List<R>
-        let mapIndexedName = interner.intern("mapIndexed")
-        let mapIndexedFQName = listFQName + [mapIndexedName]
-        if let types = BundledSyntheticStubRegistration.types,
-           !BundledSyntheticStubRegistration.shouldSkipRegistration(
-               declaredOwnerFQName: listFQName,
-               receiverType: receiverType,
-               name: mapIndexedName,
-               arity: 1,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           ),
-           symbols.lookup(fqName: mapIndexedFQName) == nil
-        {
-            // mapIndexed is tricky because of the generic R.
-            // For synthetic stub, we might simplify to List<Any?> or just have it resolve via fallback if generic R is hard to define here.
-            // But let's try to define a local type parameter R for the function.
-            let rName = interner.intern("R")
-            let rFQName = mapIndexedFQName + [rName]
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: rFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-
-            let transformType = types.make(.functionType(FunctionType(
-                params: [types.intType, listTypeParamType],
-                returnType: rType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let listRType = types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: mapIndexedName,
-                fqName: mapIndexedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_mapIndexed", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [transformType],
-                    returnType: listRType,
-                    typeParameterSymbols: [listTypeParamSymbol, rSymbol],
-                    classTypeParameterCount: 1 // Only List's E is class-level
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // mapIndexedNotNull(transform: (Int, E) -> R?): List<R>
-        let mapIndexedNotNullName = interner.intern("mapIndexedNotNull")
-        let mapIndexedNotNullFQName = listFQName + [mapIndexedNotNullName]
-        if let types = BundledSyntheticStubRegistration.types,
-           !BundledSyntheticStubRegistration.shouldSkipRegistration(
-               declaredOwnerFQName: listFQName,
-               receiverType: receiverType,
-               name: mapIndexedNotNullName,
-               arity: 1,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           ),
-           symbols.lookup(fqName: mapIndexedNotNullFQName) == nil {
-            let rName = interner.intern("R")
-            let rFQName = mapIndexedNotNullFQName + [rName]
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: rFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let nullableRType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nullable)))
-
-            let transformType = types.make(.functionType(FunctionType(
-                params: [types.intType, listTypeParamType],
-                returnType: nullableRType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let listRType = types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: mapIndexedNotNullName,
-                fqName: mapIndexedNotNullFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_mapIndexedNotNull", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [transformType],
-                    returnType: listRType,
-                    typeParameterSymbols: [listTypeParamSymbol, rSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
         // foldIndexed(initial: R, operation: (Int, R, T) -> R): R
         let foldIndexedName = interner.intern("foldIndexed")
         let foldIndexedFQName = listFQName + [foldIndexedName]
@@ -578,10 +453,10 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(ret, for: mSymbol)
         }
 
-        registerComponent(name: "component1", ret: types.intType, externalLinkName: "kk_pair_first")
-        registerComponent(name: "component2", ret: tType, externalLinkName: "kk_pair_second")
-        registerPropertyGetter(name: "index", ret: types.intType, externalLinkName: "kk_pair_first")
-        registerPropertyGetter(name: "value", ret: tType, externalLinkName: "kk_pair_second")
+        registerComponent(name: "component1", ret: types.intType, externalLinkName: "__kk_pair_first")
+        registerComponent(name: "component2", ret: tType, externalLinkName: "__kk_pair_second")
+        registerPropertyGetter(name: "index", ret: types.intType, externalLinkName: "__kk_pair_first")
+        registerPropertyGetter(name: "value", ret: tType, externalLinkName: "__kk_pair_second")
 
         // Constructor: IndexedValue(index, value) → kk_indexed_value_new (STDLIB-563)
         let initName = interner.intern("<init>")

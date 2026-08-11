@@ -310,6 +310,106 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
+    /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
+    @Test
+    func testBitCountFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(255.countOneBits())
+                println((-1).countOneBits())
+                println(Int.MIN_VALUE.countLeadingZeroBits())
+                println(1.countLeadingZeroBits())
+                println(0.countTrailingZeroBits())
+                println(1024.countTrailingZeroBits())
+                println(255L.countOneBits())
+                println(Long.MAX_VALUE.countOneBits())
+                println(255L.countLeadingZeroBits())
+                println(0L.countLeadingZeroBits())
+                println(0L.countTrailingZeroBits())
+                println(1024L.countTrailingZeroBits())
+            }
+            """,
+            expectedOutput: """
+            8
+            32
+            0
+            31
+            32
+            10
+            8
+            63
+            56
+            64
+            64
+            10
+
+            """
+        )
+    }
+
+    /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
+    /// implementations across overflow, NaN, and signed-zero edge cases.
+    @Test
+    func testMathAbsSignMinMaxExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.math.*
+
+            fun main() {
+                println(abs(-4.5))
+                println(abs(-3.5f))
+                println(abs(-7))
+                println(abs(Int.MIN_VALUE))
+                println(abs(Long.MIN_VALUE))
+                println((-4.5).absoluteValue)
+                println(1.0 / abs(-0.0))
+                println(abs(Double.NaN).isNaN())
+                println(sign(-2.5))
+                println(sign(0.0f))
+                println((-9L).sign)
+                println(sign(Double.NaN).isNaN())
+                println(max(2, 3))
+                println(min(-2L, 3L))
+                println(max(1.5f, 2.5f))
+                println(min(1u, 2u))
+                println(max(1uL, 2uL))
+                println(max(Double.NaN, 1.0).isNaN())
+                println(1.0 / max(-0.0, 0.0))
+                println(1.0 / min(-0.0, 0.0))
+                println(PI)
+                println(E)
+            }
+            """,
+            expectedOutput: """
+            4.5
+            3.5
+            7
+            -2147483648
+            -9223372036854775808
+            4.5
+            Infinity
+            true
+            -1.0
+            0.0
+            -1
+            true
+            3
+            -2
+            2.5
+            1
+            2
+            true
+            Infinity
+            -Infinity
+            3.141592653589793
+            2.718281828459045
+
+            """
+        )
+    }
+
     // KSP-472: measureTime / measureTimedValue が bundled Kotlin の inline 関数として
     // 展開され、ラムダ・関数参照・例外伝播のいずれでも正しく動くことを検証する。
     @Test
@@ -500,6 +600,28 @@ struct BundledStdlibExecutionTests {
             2
 
             """
+        )
+    }
+
+    // Regression for a lambda-capture lowering bug: `let` / `?.let` blocks that
+    // capture an outer variable must forward the lambda parameter (`it`)
+    // correctly instead of shadowing it with the capture.
+    @Test
+    func testLetLambdaForwardsItWhenCapturingOuterVariable() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val outer = 10
+                val s: String = "hi"
+                val r = s.let { it + ":" + outer.toString() }
+                println(r)
+
+                val n: String? = "hello"
+                val q = n?.let { it + ":" + outer.toString() }
+                println(q ?: "null")
+            }
+            """,
+            expectedOutput: "hi:10\nhello:10\n"
         )
     }
 }

@@ -717,26 +717,26 @@ private func runtimeObjectIteratorMethodCall(_ iterRaw: Int, methodSlot: Int) ->
 
 // MARK: - IntRange properties (STDLIB-092)
 
-@_cdecl("kk_range_first")
+@_cdecl("__kk_range_first")
 public func kk_range_first(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_first")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_first")
     }
     return range.first
 }
 
-@_cdecl("kk_range_last")
+@_cdecl("__kk_range_last")
 public func kk_range_last(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_last")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_last")
     }
     return range.last
 }
 
-@_cdecl("kk_range_count")
+@_cdecl("__kk_range_count")
 public func kk_range_count(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_count")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_count")
     }
     if range.step > 0 {
         guard range.first <= range.last else { return 0 }
@@ -750,10 +750,10 @@ public func kk_range_count(_ rangeRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_range_isEmpty")
+@_cdecl("__kk_range_isEmpty")
 public func kk_range_isEmpty(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_isEmpty")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_isEmpty")
     }
     if range.step > 0 {
         return range.first > range.last ? 1 : 0
@@ -763,10 +763,10 @@ public func kk_range_isEmpty(_ rangeRaw: Int) -> Int {
     return 1
 }
 
-@_cdecl("kk_range_sum")
+@_cdecl("__kk_range_sum")
 public func kk_range_sum(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_sum")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_sum")
     }
     var sum = 0
     var current = range.first
@@ -784,10 +784,10 @@ public func kk_range_sum(_ rangeRaw: Int) -> Int {
     return sum
 }
 
-@_cdecl("kk_range_contains")
+@_cdecl("__kk_range_contains")
 public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_contains")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_contains")
     }
     if range.step == 0 {
         return 0
@@ -852,26 +852,10 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     }
 }
 
-@_cdecl("kk_range_start")
-public func kk_range_start(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_start")
-    }
-    return range.first
-}
-
-@_cdecl("kk_range_end")
-public func kk_range_end(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_end")
-    }
-    return range.last
-}
-
-@_cdecl("kk_range_endExclusive")
+@_cdecl("__kk_range_endExclusive")
 public func kk_range_endExclusive(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_endExclusive")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_endExclusive")
     }
     return range.last &+ 1
 }

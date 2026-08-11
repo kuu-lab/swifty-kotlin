@@ -914,7 +914,7 @@ extension CallLowerer {
         // STDLIB-590 / STDLIB-KOTLIN-ROOT-CLOSE-001: Function0 runtime entry
         // points receive lambda arguments as (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [
-            "kk_auto_closeable_create",
+            "__kk_auto_closeable_create",
             "kk_runtime_result_run_catching",
         ]
         if function0RuntimeNames.contains(externalLinkName), loweredArguments.count == 1 {

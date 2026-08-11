@@ -1031,6 +1031,54 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
+    /// STDLIB-ARTIFACT-003: an inline stdlib function whose body reads a
+    /// property of a bundled Kotlin class (`Map.plus` reading `pair.first` /
+    /// `pair.second`) links through the shared artifact.
+    ///
+    /// The inline body is serialized as KIR text and re-lowered in the consumer.
+    /// Its getter call is recorded with the pre-mangling callee spelling
+    /// (`get`) plus the library's link name for it (`kk_fn_get_<id>`). Only the
+    /// latter names anything the consumer can call: the accessor is compiled
+    /// into the library's own object and the consumer owns no symbol for it, so
+    /// dropping the link name left an `undefined reference to 'get'` at link
+    /// time. This only became reachable once `Pair`/`Triple` moved from
+    /// synthetic runtime stubs (whose accessors were external `kk_pair_*`
+    /// bridges, named identically in both modules) to bundled Kotlin source.
+    func testInlineStdlibFunctionReadingBundledClassPropertySharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val base: Map<String, Int> = mapOf("a" to 1)
+            println(base.plus("b" to 2))
+            println(emptyMap<String, Int>().plus("c" to 3))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n{c=3}\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-021: `Sequence<T>.reduce`'s bundled source body iterated
     /// its receiver with a direct `for (elem in this)` loop. Through the shared
     /// stdlib artifact, that loop silently ran zero times (the receiver's

@@ -4,7 +4,7 @@
 public extension RuntimeABISpec {
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_system_exitProcess",
+            name: "__kk_system_exitProcess",
             parameters: [
                 RuntimeABIParameter(name: "status", type: .intptr),
             ],
@@ -13,76 +13,46 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_currentTimeMillis",
+            name: "__kk_system_currentTimeMillis",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_nanoTime",
+            name: "__kk_system_nanoTime",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_getTimeMicros",
+            name: "__kk_system_getTimeMicros",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_getTimeMillis",
+            name: "__kk_system_getTimeMillis",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_getTimeNanos",
+            name: "__kk_system_getTimeNanos",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_process_start_nanos",
+            name: "__kk_system_process_start_nanos",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_system_measureTimeMillis",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_system_measureTimeMicros",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_system_measureNanoTime",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_platform_canAccessUnaligned",
