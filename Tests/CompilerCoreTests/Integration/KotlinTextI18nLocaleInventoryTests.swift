@@ -28,6 +28,9 @@ import Testing
 // Gaps (absent in common scope):
 //   - String.format(locale, vararg args)  — locale-parameterised receiver overload absent
 //   - NumberFormat (java.text) is JVM/platform only, not common multiplatform
+//   - java.util.Locale members (language/country/variant/displayLanguage, getDefault/
+//     setDefault/getAvailableLocales) — removed with CLEANUP-STUB-112; Locale is only a
+//     construction handle for locale-parameterised String/Char operations
 
 @Suite struct KotlinTextI18nLocaleInventoryTests {
 
@@ -332,8 +335,7 @@ import Testing
 
         fun main() {
             val locale = Locale("en_US")
-            println(locale.language)
-            println(locale.country)
+            println("Hello".lowercase(locale))
         }
         """)
     }
@@ -344,43 +346,7 @@ import Testing
 
         fun main() {
             val locale = Locale("de", "DE")
-            println(locale.language)
-            println(locale.country)
-        }
-        """)
-    }
-
-    @Test func testLocaleGetDefault() throws {
-        try assertKotlinCompilesToKIR("""
-        import java.util.Locale
-
-        fun main() {
-            val def = Locale.getDefault()
-            println(def.language)
-        }
-        """)
-    }
-
-    @Test func testLocaleSetDefault() throws {
-        try assertKotlinCompilesToKIR("""
-        import java.util.Locale
-
-        fun main() {
-            val fr = Locale("fr", "FR")
-            Locale.setDefault(fr)
-            val def = Locale.getDefault()
-            println(def.language)
-        }
-        """)
-    }
-
-    @Test func testLocaleDisplayLanguage() throws {
-        try assertKotlinCompilesToKIR("""
-        import java.util.Locale
-
-        fun main() {
-            val locale = Locale("en", "US")
-            println(locale.displayLanguage)
+            println("Hello".uppercase(locale))
         }
         """)
     }

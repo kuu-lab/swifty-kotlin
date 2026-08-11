@@ -92,6 +92,27 @@ public func kk_function_invoke_3(
     return function(arg1, arg2, arg3, outThrown)
 }
 
+@_cdecl("kk_function_invoke_4")
+public func kk_function_invoke_4(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let box = runtimeFunctionValueBox(from: functionRaw) {
+        guard box.arity == 4 else {
+            outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: 4, actual: box.arity)
+            return 0
+        }
+        let function = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint4.self)
+        return function(box.closureRaw, arg1, arg2, arg3, arg4, outThrown)
+    }
+    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint4.self)
+    return function(arg1, arg2, arg3, arg4, outThrown)
+}
+
 @_cdecl("kk_function_create_0")
 public func kk_function_create_0(
     _ bodyRaw: Int,
@@ -162,4 +183,17 @@ public func kk_function_create_3(
         return 0
     }
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 3))
+}
+
+@_cdecl("kk_function_create_4")
+public func kk_function_create_4(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard bodyRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 4))
 }

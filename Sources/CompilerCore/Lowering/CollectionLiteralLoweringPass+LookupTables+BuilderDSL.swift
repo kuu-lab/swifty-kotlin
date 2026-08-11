@@ -39,8 +39,8 @@ struct BuilderDSLLookupNames {
         kkBuilderSetAddName = interner.intern("kk_builder_set_add")
         kkBuilderSetAddAllName = interner.intern("kk_builder_set_addAll")
         kkBuilderMapPutName = interner.intern("kk_builder_map_put")
-        kkMutableSetAddName = interner.intern("kk_mutable_set_add")
-        kkMutableSetRemoveName = interner.intern("kk_mutable_set_remove")
+        kkMutableSetAddName = interner.intern("__kk_mutable_set_add")
+        kkMutableSetRemoveName = interner.intern("__kk_mutable_set_remove")
         builderDSLNames = [
             buildListName,
             buildSetName,

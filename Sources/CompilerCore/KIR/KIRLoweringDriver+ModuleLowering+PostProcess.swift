@@ -600,6 +600,7 @@ extension KIRLoweringDriver {
         case 1: interner.intern("kk_function_create_1")
         case 2: interner.intern("kk_function_create_2")
         case 3: interner.intern("kk_function_create_3")
+        case 4: interner.intern("kk_function_create_4")
         default: preconditionFailure("Unsupported delegate callback arity: \(valueParams.count)")
         }
         instructions.append(.call(

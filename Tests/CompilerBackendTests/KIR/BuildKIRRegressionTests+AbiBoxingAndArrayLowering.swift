@@ -41,10 +41,8 @@ struct BuildKIRCodegenRegressionTests {
         #expect(callees.contains(interner.intern("kk_list_intersect")))
         #expect(callees.contains(interner.intern("kk_list_union")))
         #expect(callees.contains(interner.intern("kk_list_subtract")))
-        #expect(callees.contains(interner.intern("kk_set_toList")))
-        #expect(callees.contains(interner.intern("kk_set_intersect")))
-        #expect(callees.contains(interner.intern("kk_set_union")))
-        #expect(callees.contains(interner.intern("kk_set_subtract")))
+        #expect(callees.contains(interner.intern("__kk_set_contains")))
+        #expect(callees.contains(interner.intern("__kk_set_size")))
     }
 
     @Test
@@ -69,7 +67,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersSetBinaryMembersToCollectionRuntimeCalls() throws {
+    func testBuildKIRLowersSetBinaryMembersToBundledSourceCalls() throws {
         let source = """
         fun main(values: Set<Int>, other: List<Int>) {
             values.intersect(other)
@@ -86,12 +84,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_set_intersect"))
-            #expect(callNames.contains("kk_set_union"))
-            #expect(callNames.contains("kk_set_subtract"))
-            #expect(!(callNames.contains("intersect")))
-            #expect(!(callNames.contains("union")))
-            #expect(!(callNames.contains("subtract")))
+            #expect(callNames.contains("intersect"))
+            #expect(callNames.contains("union"))
+            #expect(callNames.contains("subtract"))
+            #expect(!(callNames.contains("kk_set_intersect")))
+            #expect(!(callNames.contains("kk_set_union")))
+            #expect(!(callNames.contains("kk_set_subtract")))
         }
     }
 
@@ -790,12 +788,12 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_mutable_list_add_at"))
-            #expect(callNames.contains("kk_mutable_list_set"))
+            #expect(callNames.contains("__kk_mutable_list_add_at"))
+            #expect(callNames.contains("__kk_mutable_list_set"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
         }
     }
 
