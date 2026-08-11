@@ -614,53 +614,42 @@ struct TailrecLoweringTests {
         #expect(hasJumpBack, "Expected jump back to loop head (slow-path zero-mask test)")
     }
 
-    // MARK: - Sema warning test
+    // MARK: - Sema warning + E2E integration
 
-    /// Verify that KSWIFTK-SEMA-TAILREC warning is emitted when the last
-    /// expression is not a self-recursive call.
+    /// Verify that a non-recursive `tailrec` function emits KSWIFTK-SEMA-TAILREC,
+    /// and that a recursive `tailrec` factorial is lowered to a loop in KIR.
     @Test
-    func testSemaTailrecWarningOnNonRecursiveBody() throws {
-        let source = """
-        tailrec fun notRecursive(n: Int): Int {
-            return n + 1
-        }
-        fun main() = notRecursive(5)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SemaTailrecWarn")
-            try runSema(ctx)
-
-            let hasTailrecWarning = ctx.diagnostics.diagnostics.contains { diag in
-                diag.code == "KSWIFTK-SEMA-TAILREC" && diag.severity == .warning
+    func testTailrecSemaAndLowering() throws {
+        let sources = [
+            """
+            package sample0
+            tailrec fun notRecursive(n: Int): Int {
+                return n + 1
             }
-            #expect(hasTailrecWarning, "Expected KSWIFTK-SEMA-TAILREC warning for non-recursive tailrec function")
-        }
-    }
+            fun main() = notRecursive(5)
+            """,
+            """
+            package sample1
+            tailrec fun fact(n: Int, acc: Int = 1): Int {
+                if (n == 0) return acc
+                return fact(n - 1, n * acc)
+            }
+            fun main(): Int = fact(100000)
+            """,
+        ]
 
-    // MARK: - E2E integration test
-
-    /// Compile a tailrec factorial function and verify that tailrec lowering
-    /// transforms the recursion into a loop in KIR (no self-recursive calls
-    /// remain and control flow uses a loop-head label with jump).
-    @Test
-    func testTailrecFactorialLoweredToLoop() throws {
-        let source = """
-        tailrec fun fact(n: Int, acc: Int = 1): Int {
-            if (n == 0) return acc
-            return fact(n - 1, n * acc)
-        }
-        fun main(): Int = fact(100000)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "TailrecE2E", emit: .kirDump)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, moduleName: "TailrecCombined", emit: .kirDump)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try #require(ctx.kir)
+            let sample0Diags = diagnosticsForPath(paths[0], in: ctx)
+            let hasTailrecWarning = sample0Diags.contains { diag in
+                diag.code == "KSWIFTK-SEMA-TAILREC" && diag.severity == .warning
+            }
+            #expect(hasTailrecWarning, "Expected KSWIFTK-SEMA-TAILREC warning for non-recursive tailrec function")
 
-            // Find the fact function and verify it was optimized.
+            let module = try #require(ctx.kir)
             let factFunction = try findKIRFunction(
                 named: "fact", in: module, interner: ctx.interner
             )
