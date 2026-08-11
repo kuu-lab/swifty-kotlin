@@ -10,10 +10,10 @@ import Testing
 /// supertype edges, `is`/`as`/`as?`/`!is`/`KClass.isInstance` against the
 /// enum class (or `kotlin.Enum`/`kotlin.Comparable`) failed or panicked.
 ///
-/// Fixed by teaching `emitBoxCallWithValueClassTag` to tag enum boxes with
-/// `kk_tag_value_class_box` and by having `__enum_static_init_*` register the
-/// enum class's supertype edges (`kotlin.Enum` and `kotlin.Comparable`) so the
-/// runtime assignability walk can answer checks correctly.
+/// Fixed by passing the stable nominal type ID to `kk_enum_box_ordinal` and
+/// by having `__enum_static_init_*` register the enum class's supertype edges
+/// (`kotlin.Enum` and `kotlin.Comparable`) so the runtime assignability walk
+/// can answer checks correctly.
 
 private func runCodegenPipeline(
     inputPath: String,
