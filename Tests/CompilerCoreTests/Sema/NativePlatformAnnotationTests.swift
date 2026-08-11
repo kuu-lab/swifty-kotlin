@@ -4,14 +4,18 @@ import Testing
 
 @Suite
 struct NativePlatformAnnotationTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -26,7 +30,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testFreezingIsDeprecatedMarkerIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "FreezingIsDeprecated"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -38,7 +42,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testFreezingIsDeprecatedCarriesRequiresOptInWarning() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "FreezingIsDeprecated"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let requiresOptIn = try #require(
@@ -58,7 +62,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testFreezingIsDeprecatedCarriesNativeTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "FreezingIsDeprecated"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let target = try #require(
@@ -136,7 +140,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testHiddenFromObjCAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "HiddenFromObjC"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -148,7 +152,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testHiddenFromObjCCarriesObjCRefinementMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "HiddenFromObjC"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let annotations = sema.symbols.annotations(for: symbol)
@@ -165,7 +169,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testHiddenFromObjCCarriesClassFunctionPropertyTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "HiddenFromObjC"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let target = try #require(
@@ -209,7 +213,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testNoInlineAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "NoInline"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -221,7 +225,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testNoInlineCarriesExperimentalNativeApiMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "NoInline"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let annotations = sema.symbols.annotations(for: symbol)
@@ -234,7 +238,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testNoInlineCarriesFunctionPropertyTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "NoInline"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let target = try #require(
@@ -274,7 +278,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testObsoleteNativeApiMarkerIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ObsoleteNativeApi"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -286,7 +290,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testObsoleteNativeApiCarriesRequiresOptInError() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ObsoleteNativeApi"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let requiresOptIn = try #require(
@@ -306,7 +310,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testObsoleteNativeApiCarriesNativeTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ObsoleteNativeApi"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let target = try #require(
@@ -384,7 +388,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testEagerInitializationAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "EagerInitialization"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -396,7 +400,7 @@ struct NativePlatformAnnotationTests {
 
     @Test
     func testEagerInitializationCarriesStdlibMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "EagerInitialization"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let annotations = sema.symbols.annotations(for: symbol)

@@ -1210,7 +1210,7 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
-        // BUG-172: boxes a values()/entries element as a genuine ordinal Int
+        // BUG-177: boxes a values()/entries element as a genuine ordinal Int
         // (tagged with its declared name for generic Any-printing) instead of
         // a pre-baked name string. BUG-182: also carries the enum class's
         // stable nominal type ID so `is`/`as`/`KClass.isInstance` work after
@@ -1473,26 +1473,60 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        // KSP-662: Bridges retained for Unicode case mapping, locale-aware
+        // conversion, and digitOf table lookup after moving Char conversions to Kotlin.
         RuntimeABIFunctionSpec(
-            name: "kk_char_uppercase",
+            name: "__kk_char_uppercase_string",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "code", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_uppercaseChar",
+            name: "__kk_char_lowercase_string",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "code", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_uppercase_locale",
+            name: "__kk_char_titlecase_string",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_uppercase_code",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_lowercase_code",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_titlecase_code",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_uppercase_locale",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,
@@ -1500,59 +1534,19 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_lowercase",
+            name: "__kk_char_lowercase_locale",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_lowercaseChar",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_lowercase_locale",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "code", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_titlecase",
+            name: "__kk_char_digit_value",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_titlecaseChar",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_digitToInt",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_digitToIntOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "code", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"

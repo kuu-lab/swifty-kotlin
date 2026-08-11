@@ -303,20 +303,11 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let sharedFlowSymbol = ensureInterfaceSymbol(
-            named: "SharedFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-675: SharedFlow / MutableSharedFlow are declared by bundled Kotlin
+        // source (Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/SharedFlow.kt),
+        // so no synthetic symbols are registered for them here.
         let stateFlowSymbol = ensureInterfaceSymbol(
             named: "StateFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let mutableSharedFlowSymbol = ensureClassSymbol(
-            named: "MutableSharedFlow",
             in: flowPkg,
             symbols: symbols,
             interner: interner
@@ -330,9 +321,9 @@ extension DataFlowSemaPhase {
         // KSP-499 Stage 2: give the Flow family real generic type parameters
         // (previously `args: []` on every ClassType use, with the element type
         // tracked only in the Sema side-tables `flowElementTypesByExpr`/`BySymbol`
-        // — see SemanticsModels.swift). Flow/SharedFlow/StateFlow are read-only
-        // and covariant (`Flow<out T>` in kotlinx.coroutines); MutableSharedFlow/
-        // MutableStateFlow expose mutation (`emit`, `value =`) and are invariant.
+        // — see SemanticsModels.swift). Flow/StateFlow are read-only and
+        // covariant (`Flow<out T>` in kotlinx.coroutines); MutableStateFlow
+        // exposes mutation (`emit`, `value =`) and is invariant.
         // Pattern mirrors `registerSyntheticIterableStub` in
         // HeaderHelpers+SyntheticIterableRegistry.swift.
         func declareFlowFamilyTypeParameter(
@@ -363,20 +354,10 @@ extension DataFlowSemaPhase {
             ownerFQName: flowPkg + [interner.intern("Flow")],
             variance: .out
         )
-        let sharedFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: sharedFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("SharedFlow")],
-            variance: .out
-        )
         let stateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
             owner: stateFlowSymbol,
             ownerFQName: flowPkg + [interner.intern("StateFlow")],
             variance: .out
-        )
-        let mutableSharedFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: mutableSharedFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("MutableSharedFlow")],
-            variance: .invariant
         )
         let mutableStateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
             owner: mutableStateFlowSymbol,
@@ -451,19 +432,9 @@ extension DataFlowSemaPhase {
             args: [.out(types.make(.typeParam(TypeParamType(symbol: flowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
-        let sharedFlowRawType = types.make(.classType(ClassType(
-            classSymbol: sharedFlowSymbol,
-            args: [.out(types.make(.typeParam(TypeParamType(symbol: sharedFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
         let stateFlowRawType = types.make(.classType(ClassType(
             classSymbol: stateFlowSymbol,
             args: [.out(types.make(.typeParam(TypeParamType(symbol: stateFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
-        let mutableSharedFlowType = types.make(.classType(ClassType(
-            classSymbol: mutableSharedFlowSymbol,
-            args: [.invariant(types.make(.typeParam(TypeParamType(symbol: mutableSharedFlowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let mutableStateFlowType = types.make(.classType(ClassType(
@@ -647,9 +618,7 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(deferredType, for: deferredSymbol)
         symbols.setPropertyType(dispatchersType, for: dispatchersSymbol)
         symbols.setPropertyType(flowRawType, for: flowInterfaceSymbol)
-        symbols.setPropertyType(sharedFlowRawType, for: sharedFlowSymbol)
         symbols.setPropertyType(stateFlowRawType, for: stateFlowSymbol)
-        symbols.setPropertyType(mutableSharedFlowType, for: mutableSharedFlowSymbol)
         symbols.setPropertyType(mutableStateFlowType, for: mutableStateFlowSymbol)
         symbols.setPropertyType(dispatcherType, for: dispatcherSymbol)
         symbols.setPropertyType(channelType, for: channelSymbol)
@@ -663,10 +632,11 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
-        symbols.setDirectSupertypes([flowInterfaceSymbol], for: sharedFlowSymbol)
-        symbols.setDirectSupertypes([sharedFlowSymbol], for: stateFlowSymbol)
-        symbols.setDirectSupertypes([sharedFlowSymbol], for: mutableSharedFlowSymbol)
-        symbols.setDirectSupertypes([stateFlowSymbol, mutableSharedFlowSymbol], for: mutableStateFlowSymbol)
+        // KSP-675: StateFlow no longer inherits from the (now Kotlin-declared)
+        // SharedFlow; it keeps its own runtime-handle surface until KSP-676
+        // migrates the StateFlow family as well.
+        symbols.setDirectSupertypes([flowInterfaceSymbol], for: stateFlowSymbol)
+        symbols.setDirectSupertypes([stateFlowSymbol], for: mutableStateFlowSymbol)
 
         registerSyntheticCoroutineMember(
             ownerSymbol: flowInterfaceSymbol,
@@ -2305,14 +2275,6 @@ extension DataFlowSemaPhase {
             types.anyType
         }
         registerSyntheticCoroutineConstructor(
-            ownerSymbol: mutableSharedFlowSymbol,
-            ownerType: mutableSharedFlowType,
-            externalLinkName: "kk_mutable_shared_flow_create",
-            parameters: [(name: "replay", type: types.intType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineConstructor(
             ownerSymbol: mutableStateFlowSymbol,
             ownerType: mutableStateFlowType,
             externalLinkName: "kk_mutable_state_flow_create",
@@ -2320,16 +2282,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "shareIn",
-            externalLinkName: "kk_flow_share_in",
-            returnType: sharedFlowRawType,
-            parameters: [(name: "replay", type: types.intType)],
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-675: `Flow.shareIn` is bundled Kotlin source (SharedFlow.kt); it
+        // composes `collect` with the Kotlin MutableSharedFlow replay buffer, so
+        // the kk_flow_share_in runtime bridge is gone.
         registerSyntheticCoroutineMember(
             ownerSymbol: flowInterfaceSymbol,
             ownerType: flowRawType,
@@ -2340,9 +2295,13 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // KSP-675: collect / replayCache used to live on the synthetic SharedFlow
+        // interface that StateFlow inherited from. SharedFlow is Kotlin source
+        // now, so the runtime-handle surface is registered on StateFlow directly
+        // until KSP-676 migrates the StateFlow family.
         registerSyntheticCoroutineMember(
-            ownerSymbol: sharedFlowSymbol,
-            ownerType: sharedFlowRawType,
+            ownerSymbol: stateFlowSymbol,
+            ownerType: stateFlowRawType,
             name: "collect",
             externalLinkName: "kk_shared_flow_collect",
             returnType: types.unitType,
@@ -2356,8 +2315,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticObjectProperty(
-            ownerSymbol: sharedFlowSymbol,
-            ownerType: sharedFlowRawType,
+            ownerSymbol: stateFlowSymbol,
+            ownerType: stateFlowRawType,
             name: "replayCache",
             propertyType: listAnyType,
             externalLinkName: "kk_shared_flow_replay_cache",
@@ -2370,26 +2329,6 @@ extension DataFlowSemaPhase {
             name: "value",
             propertyType: types.anyType,
             externalLinkName: "kk_state_flow_value",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableSharedFlowSymbol,
-            ownerType: mutableSharedFlowType,
-            name: "emit",
-            externalLinkName: "kk_mutable_shared_flow_emit",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableSharedFlowSymbol,
-            ownerType: mutableSharedFlowType,
-            name: "tryEmit",
-            externalLinkName: "kk_mutable_shared_flow_try_emit",
-            returnType: types.booleanType,
-            parameters: [(name: "value", type: types.anyType)],
             symbols: symbols,
             interner: interner
         )

@@ -365,7 +365,7 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(result == runtimeNullSentinelInt, "withTimeoutOrNull should return the null sentinel when block exceeds timeout")
     }
 
-    // MARK: - BUG-181: a timed-out block must not resume its caller's continuation
+    // MARK: - BUG-190: a timed-out block must not resume its caller's continuation
 
     /// The block of `withTimeout`/`withTimeoutOrNull` runs on its own child continuation.
     /// Otherwise the abandoned block keeps sharing the caller's continuation state after

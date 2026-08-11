@@ -292,20 +292,26 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Stdlib interfaces (e.g. `Collection.size`, `CharSequence.length`)
-        // are backed by runtime objects that never register itable property
-        // getters; their reads are lowered by the collection/runtime
-        // fallbacks that run after this helper. Only user-declared interface
-        // properties participate in itable getter dispatch, so let stdlib
-        // interfaces fall through.
-        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+        // Synthetic stdlib interface properties (e.g. `Collection.size`,
+        // `CharSequence.length`) are backed by runtime objects that never
+        // register itable property getters; their reads are lowered by the
+        // collection/runtime fallbacks that run after this helper. Only
+        // properties declared in Kotlin dispatch through the itable: user code
+        // and bundled stdlib source (they carry a decl site, e.g.
+        // `SharedFlow.replayCache`), plus the same declarations read back from
+        // a precompiled library. The owner alone is not enough — an imported
+        // nominal can still gain synthetic runtime members.
+        guard let propertyInfo = sema.symbols.symbol(propertySymbol),
+              propertyInfo.declSite != nil
+                  || propertyInfo.flags.contains(.importedLibrary),
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .interface,
-              !isStdlibDeclaredInterface(ownerInfo, interner: interner),
               let methodSlot = kirInterfacePropertyGetterSlot(
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,
-                  sema: sema
+                  sema: sema,
+                  interner: interner
               )
         else {
             return nil
@@ -476,25 +482,6 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-    }
-
-    /// True when `interfaceInfo` is an interface declared by the Kotlin
-    /// standard library (its fully-qualified name is rooted at the `kotlin`/
-    /// `kotlinx` packages, or it is a known collection interface). Reads of such
-    /// interfaces' properties are serviced by dedicated runtime/collection
-    /// lowerings, not by user-registered itable getters (BUG-141).
-    func isStdlibDeclaredInterface(
-        _ interfaceInfo: SemanticSymbol,
-        interner: StringInterner
-    ) -> Bool {
-        if KnownCompilerNames(interner: interner).collectionKind(of: interfaceInfo) != nil {
-            return true
-        }
-        guard let root = interfaceInfo.fqName.first else {
-            return false
-        }
-        let rootName = interner.resolve(root)
-        return rootName == "kotlin" || rootName == "kotlinx"
     }
 
     func objectLiteralPropertyUsesAccessor(

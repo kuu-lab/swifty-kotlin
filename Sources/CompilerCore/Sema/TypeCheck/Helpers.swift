@@ -25,9 +25,10 @@ func nominalRangeElementType(
 }
 
 /// Returns the element type for a range-like argument expression.
-/// Prefers explicit `UIntRange` / `ULongRange` markers when available so
-/// locals derived from range constructors still lower correctly.
-func coerceInRangeElementType(
+/// Supports `..` range literals and nominal UIntRange / ULongRange classes
+/// so unsigned `coerceIn(range)` calls can be type-checked before KSP-640
+/// adds Kotlin source overloads for UByte/UShort/UInt/ULong.
+func unsignedCoerceInRangeElementType(
     for expr: ExprID,
     sema: SemaModule,
     interner: StringInterner
@@ -35,11 +36,7 @@ func coerceInRangeElementType(
     let exprType = sema.bindings.exprTypes[expr] ?? sema.types.anyType
     let nonNullExprType = sema.types.makeNonNullable(exprType)
     if sema.bindings.isRangeExpr(expr) {
-        if nonNullExprType == sema.types.intType
-            || nonNullExprType == sema.types.longType
-            || nonNullExprType == sema.types.uintType
-            || nonNullExprType == sema.types.ulongType
-        {
+        if nonNullExprType == sema.types.uintType || nonNullExprType == sema.types.ulongType {
             return nonNullExprType
         }
     }

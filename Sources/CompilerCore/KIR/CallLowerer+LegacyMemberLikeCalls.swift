@@ -816,96 +816,6 @@ extension CallLowerer {
             }
         }
 
-        // Int/Long/Byte/Short/UByte/UShort/UInt/ULong.coerceIn(min, max) (STDLIB-150, STDLIB-500)
-        if interner.resolve(calleeName) == "coerceIn", args.count == 2 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(prefix + "_coerceIn"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // Int/Long/UInt/ULong.coerceIn(range) — single ClosedRange argument (STDLIB-525, STDLIB-CONV-006)
-        // Decompose the range into first/last and delegate to kk_{int,long,uint,ulong}_coerceIn.
-        // The shared emitCoerceInRange helper types the extracted bounds as the non-nullable
-        // receiver type and __kk_range_first/__kk_range_last return the range's element type.
-        if interner.resolve(calleeName) == "coerceIn", args.count == 1 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let intType = sema.types.intType
-            let longType = sema.types.longType
-            let uintType = sema.types.uintType
-            let ulongType = sema.types.ulongType
-            let supportsRangeCoercion = receiverType == intType || receiverType == longType
-                || receiverType == uintType || receiverType == ulongType
-            if supportsRangeCoercion,
-               let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                let argExprID = args[0].expr
-                let argType = sema.bindings.exprTypes[argExprID] ?? sema.types.anyType
-                if sema.bindings.isRangeExpr(argExprID)
-                    || nominalRangeElementType(for: argType, sema: sema, interner: interner) != nil
-                {
-                    emitCoerceInRange(
-                        prefix: prefix,
-                        receiverType: receiverType,
-                        loweredReceiverID: loweredReceiverID,
-                        loweredRangeArgID: loweredArgIDs[0],
-                        result: result,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    return result
-                }
-            }
-        }
-
-        // Int/Long/Double/Float/Byte/Short/UByte/UShort/UInt/ULong.coerceAtLeast(min)
-        // / coerceAtMost(max) (STDLIB-150, STDLIB-500)
-        if args.count == 1 {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                    // Check if this is range-based coercion (single range argument)
-                    if args.count == 1 {
-                        let argExprID = args[0].expr
-                        if sema.bindings.isRangeExpr(argExprID) {
-                            // Use range-based coercion functions
-                            let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast_range" : "_coerceAtMost_range"
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern(prefix + suffix),
-                                arguments: [loweredReceiverID, loweredArgIDs[0]],
-                                result: result,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                            return result
-                        }
-                    }
-                    // Fallback to single-value coercion
-                    let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast" : "_coerceAtMost"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(prefix + suffix),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
-
         // Primitive member function: Int/Long.toString() → kk_any_to_string
         // and Int/Long.toString(radix: Int) → kk_int_toString_radix (EXPR-003)
         if calleeName == interner.intern("toString"),
@@ -1176,70 +1086,14 @@ extension CallLowerer {
             }
         }
 
-        // Char.digitToInt() / Char.digitToIntOrNull() (STDLIB-083)
-        if args.isEmpty {
+        // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
+        // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
+        // digitToInt / digitToIntOrNull, so no lowering special case is needed.
+        if args.isEmpty, interner.resolve(calleeName) == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == sema.types.charType {
-                let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "digitToInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToInt"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "digitToIntOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToIntOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
-                if calleeStr == "code" {
-                    instructions.append(.copy(from: loweredReceiverID, to: result))
-                    return result
-                }
-            }
-        }
-
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
-        if args.count == 1 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == sema.types.charType {
-                let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "digitToInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToInt_radix"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "digitToIntOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToIntOrNull_radix"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+            if sema.types.makeNonNullable(receiverType) == sema.types.charType {
+                instructions.append(.copy(from: loweredReceiverID, to: result))
+                return result
             }
         }
 

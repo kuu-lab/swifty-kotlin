@@ -84,7 +84,7 @@ struct CodegenBackendSequenceMapTests {
     }
 
     @Test
-    func testCodegenSequenceMapUsesRuntimeHelper() throws {
+    func testCodegenSequenceMapUsesBundledSourceImplementation() throws {
         let source = """
         fun render(): Sequence<Int> {
             return sequenceOf(1, 2, 3).map { it * 3 }
@@ -99,6 +99,7 @@ struct CodegenBackendSequenceMapTests {
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(callees.contains("map"), "Sequence.map is source-backed (KSP-441); expected 'map' callee, got: \(callees)")
+            #expect(!callees.contains("kk_sequence_map"), "Sequence.map should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

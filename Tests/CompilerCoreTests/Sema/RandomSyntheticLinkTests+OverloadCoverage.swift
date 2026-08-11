@@ -21,7 +21,7 @@ extension RandomSyntheticLinkTests {
     /// Random(seed: Int) secondary constructor is registered.
     @Test
     func testRandomIntSeedConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let ctorFQ = ["kotlin", "random", "Random", "<init>"].map { interner.intern($0) }
         let ctors = sema.symbols.lookupAll(fqName: ctorFQ)
@@ -42,7 +42,7 @@ extension RandomSyntheticLinkTests {
     /// Random(seed: Long) secondary constructor is registered.
     @Test
     func testRandomLongSeedConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let ctorFQ = ["kotlin", "random", "Random", "<init>"].map { interner.intern($0) }
         let ctors = sema.symbols.lookupAll(fqName: ctorFQ)
@@ -65,7 +65,7 @@ extension RandomSyntheticLinkTests {
     /// no longer a synthetic property bridged to the deleted kk_random_default).
     @Test
     func testRandomDefaultSingletonIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
         let randomSym = try #require(sema.symbols.lookup(fqName: randomFQ))
@@ -91,7 +91,7 @@ extension RandomSyntheticLinkTests {
     // the UIntRange/ULongRange-typed overload stays native (KSP-457 scope).
     @Test
     func testNextULongOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fq = ["kotlin", "random", "Random", "nextULong"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
@@ -135,7 +135,7 @@ extension RandomSyntheticLinkTests {
     /// nextUInt() / nextUInt(until) / nextUInt(from, until) / nextUInt(range) are registered.
     @Test
     func testNextUIntOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fq = ["kotlin", "random", "Random", "nextUInt"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
@@ -207,7 +207,7 @@ extension RandomSyntheticLinkTests {
     /// nextBytes(size: Int) returning a new ByteArray is registered as a real member.
     @Test
     func testNextBytesSizeOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let byteArray = try byteArrayType(sema: sema, interner: interner)
 
         let fq = ["kotlin", "random", "Random", "nextBytes"].map { interner.intern($0) }
@@ -227,7 +227,7 @@ extension RandomSyntheticLinkTests {
     /// extensions on Random (matching upstream URandom.kt), linked correctly.
     @Test
     func testNextUBytesOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fq = ["kotlin", "random", "nextUBytes"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
@@ -278,7 +278,7 @@ extension RandomSyntheticLinkTests {
     /// no longer bridged to the deleted kk_random_nextBits).
     @Test
     func testNextBitsMemberIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fq = ["kotlin", "random", "Random", "nextBits"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
@@ -297,7 +297,7 @@ extension RandomSyntheticLinkTests {
     /// nextBytes(array, fromIndex, toIndex) is registered and linked correctly.
     @Test
     func testNextBytesArrayRangeOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let byteArray = try byteArrayType(sema: sema, interner: interner)
 
         let fq = ["kotlin", "random", "Random", "nextBytes"].map { interner.intern($0) }
@@ -322,7 +322,7 @@ extension RandomSyntheticLinkTests {
 
     @Test
     func testRangeRandomOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
         let randomSymbol = try #require(sema.symbols.lookup(fqName: randomFQ))

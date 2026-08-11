@@ -330,13 +330,6 @@ extension CallLowerer {
         {
             finalArguments.insert(receiver.loweredID, at: 0)
         }
-        if loweredCallee == interner.intern("kk_char_digitToChar_radix"),
-           finalArguments.count == 1
-        {
-            let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
-            instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
-            finalArguments.append(radixExpr)
-        }
         // Array.count() with no predicate: kk_array_count's native signature always
         // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
         // lambda argument, finalArguments only has the receiver. Without this padding,
@@ -890,17 +883,20 @@ extension CallLowerer {
         }
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
-        // Virtual dispatch is only correct when no remapping occurred.
-        // KSP-611: an imported interface member is also "remapped" to its own link
-        // name, which for an abstract member is an empty stub, so itable dispatch
-        // must still be attempted in that case; tryEmitVirtualDispatch falls back to
-        // the link name when the receiver has no resolvable itable entry.
-        let isImportedInterfaceMemberLink = chosenCallee.map { callee in
-            isImportedInterfaceMember(callee, sema: sema)
-                && sema.symbols.externalLinkName(for: callee)
-                    .map { interner.intern($0) == loweredCallee } ?? false
+        // Virtual dispatch is only correct when no remapping occurred; a
+        // declaration imported from a precompiled library is always named by
+        // its own mangled link name, which is not such a remapping. KSP-611: for
+        // an abstract imported interface member that link name is an empty stub,
+        // so itable dispatch must be attempted there as well;
+        // tryEmitVirtualDispatch falls back to the link name when the receiver
+        // has no resolvable itable entry.
+        let isImportedLibraryLink = chosenCallee.map { symbol in
+            (!kirIsRuntimeBridgedCallee(symbol, sema: sema)
+                || isImportedInterfaceMember(symbol, sema: sema))
+                && sema.symbols.externalLinkName(for: symbol)
+                    .map { interner.intern($0) == loweredCallee } == true
         } ?? false
-        if loweredCallee == calleeName || isImportedInterfaceMemberLink,
+        if loweredCallee == calleeName || isImportedLibraryLink,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,

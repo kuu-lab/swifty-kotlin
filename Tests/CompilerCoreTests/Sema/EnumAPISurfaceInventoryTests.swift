@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct EnumAPISurfaceInventoryTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -19,7 +28,7 @@ struct EnumAPISurfaceInventoryTests {
     }
 
     @Test func testEnumEntriesInterfaceIsRegisteredUnderKotlinEnums() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("enums"),
@@ -34,7 +43,7 @@ struct EnumAPISurfaceInventoryTests {
     }
 
     @Test func testEnumEntriesFunctionReturnsKotlinEnumsEnumEntries() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("enums"),
@@ -132,7 +141,7 @@ struct EnumAPISurfaceInventoryTests {
     // ordinary member-call resolver nor the collection member-call fallback
     // ever discovered List's members on an EnumEntries-typed receiver.
     @Test func testEnumEntriesInterfaceDeclaresListAsSupertype() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("enums"),

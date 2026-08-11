@@ -3,6 +3,15 @@ import Testing
 
 @Suite
 struct SequenceScopeSyntheticTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -18,7 +27,7 @@ struct SequenceScopeSyntheticTests {
     }
 
     @Test func testSequenceScopeSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sequencePackage = ["kotlin", "sequences"].map { interner.intern($0) }
         let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
 
