@@ -191,7 +191,7 @@ extension DataFlowSemaPhase {
         )
 
         // Re-register File.walk() (zero-arg) with FileTreeWalk return type.
-        // FileIOStubs registered it first (potentially with a listOfFile fallback); this updates it.
+        // registerSyntheticFileIOStubs registered it first (potentially with a listOfFile fallback); this updates it.
         registerFileMemberFunction(
             named: "walk",
             externalLinkName: "kk_file_walk",
@@ -281,7 +281,8 @@ extension DataFlowSemaPhase {
         return symbols.lookup(fqName: listFQName)
     }
 
-    /// Called by HeaderHelpers+SyntheticFileIOStubs to look up the FileTreeWalk type ID.
+    /// Called by registerSyntheticFileIOStubs (in HeaderHelpers+SyntheticTODOAndIOStubs.swift)
+    /// to look up the FileTreeWalk type ID.
     func resolveFileTreeWalkType(symbols: SymbolTable, types: TypeSystem, interner: StringInterner) -> TypeID? {
         let kotlinIOPkg = ensurePackage(path: ["kotlin", "io"], symbols: symbols, interner: interner)
         let fqName = kotlinIOPkg + [interner.intern("FileTreeWalk")]

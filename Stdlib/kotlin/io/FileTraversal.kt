@@ -12,7 +12,7 @@ import java.io.File
 //
 // NOTE: Not yet wired into the compiler pipeline.
 // Sema stubs in HeaderHelpers+SyntheticFileTreeWalkStubs.swift and
-// HeaderHelpers+SyntheticFileIOStubs.swift dispatch directly to the
+// HeaderHelpers+SyntheticTODOAndIOStubs.swift dispatch directly to the
 // kk_file_* ABI functions. This file is the migration target; wiring
 // (and removal of the corresponding synthetic stubs and ABI entries)
 // happens in a follow-up task.
