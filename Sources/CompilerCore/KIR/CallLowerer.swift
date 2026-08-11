@@ -265,8 +265,11 @@ final class CallLowerer {
     ) -> KIRExprID {
         // SAM constructor calls: `Transformer { ... }` — the single lambda
         // argument is already marked as a SAM conversion and no call binding
-        // exists for the constructor.  Lower the lambda directly; the SAM
-        // wrapper is produced by LambdaLowerer.
+        // exists for the constructor (the callee name is the fun interface itself).
+        // Lower the lambda directly; the SAM wrapper is produced by LambdaLowerer.
+        // A regular function call with a single SAM-converted argument (e.g.
+        // `useOp(::myCompare)`) must still call the function, so require the
+        // absence of a call binding here.
         if args.count == 1,
            sema.bindings.isSamConversion(args[0].expr),
            sema.bindings.callBinding(for: exprID) == nil

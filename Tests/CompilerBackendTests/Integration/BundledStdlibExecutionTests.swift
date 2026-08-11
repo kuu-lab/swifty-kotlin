@@ -669,6 +669,26 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// BUG-164: A callable reference passed to a `fun interface` parameter
+    /// must be SAM-converted and the containing function must still be called.
+    @Test
+    func testCallableRefPassedToFunInterfaceParameterRuns() throws {
+        try compileAndRunKotlin(
+            """
+            fun interface IntOp { fun apply(a: Int, b: Int): Int }
+
+            fun useOp(o: IntOp): Int = o.apply(10, 4)
+
+            fun myCompare(a: Int, b: Int): Int = a - b
+
+            fun main() {
+                println(useOp(::myCompare))
+            }
+            """,
+            expectedOutput: "6\n"
+        )
+    }
+
     // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
     // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
     // Verify signed zero, subnormal values, computed NaNs, and payload NaNs
@@ -727,6 +747,7 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
 
     // KSP-417: These APIs use private runtime bridges. This also guards the
     // flat-string return ABI for __kk_string_normalize_flat.
