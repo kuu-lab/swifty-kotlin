@@ -1336,8 +1336,14 @@ extension ExprTypeChecker {
                 sema: sema
             )
             let resultType: TypeID
+            // An expected type that still mentions type parameters belongs to a
+            // generic signature whose type arguments are inferred from this very
+            // argument (`fun <T> runCatching(block: () -> T)`). Checking against
+            // it would fail, and adopting it would hide the concrete type the
+            // caller needs for inference, so report the reference's own type.
             if let expectedType,
-               case .functionType = sema.types.kind(of: expectedType)
+               case .functionType = sema.types.kind(of: expectedType),
+               !sema.types.typeContainsAnyTypeParam(expectedType)
             {
                 driver.emitSubtypeConstraint(
                     left: inferredType,

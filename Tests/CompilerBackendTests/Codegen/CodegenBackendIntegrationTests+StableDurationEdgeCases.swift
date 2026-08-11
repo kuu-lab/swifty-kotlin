@@ -1,10 +1,81 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    // Disable the shared stdlib .kklib cache for this pipeline so that bundled
+    // stdlib sources are injected and compiled together with the test module.
+    // This avoids a cross-module synthetic-enum ordinal issue that would
+    // otherwise cause DurationUnit entry references to lower to zero.
+    let savedStdlibLibraryPath = CompilerOptions.defaultStdlibLibraryPath
+    CompilerOptions.defaultStdlibLibraryPath = nil
+    defer { CompilerOptions.defaultStdlibLibraryPath = savedStdlibLibraryPath }
 
+    let target = defaultTargetTriple()
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: target,
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendStableDurationEdgeCasesTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+
+    @Test
     func testDurationStableUnitExtensionPropertiesInt() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -43,6 +114,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testDurationStableUnitExtensionPropertiesLong() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -94,6 +166,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testDurationStableInWholeAccessors() throws {
         let source = """
         import kotlin.time.Duration.Companion.hours
@@ -124,6 +197,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testDurationStableNegativeLiteralDuration() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -144,6 +218,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableNegativeLiteralDuration", expected: "-5\ntrue\nfalse\n-1500\ntrue\n")
     }
 
+    @Test
     func testDurationStableAbsoluteValue() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -164,6 +239,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableAbsoluteValue", expected: "7\nfalse\ntrue\n3\n")
     }
 
+    @Test
     func testDurationStableIsFiniteIsInfinite() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -184,6 +260,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableIsFiniteInfinite", expected: "true\nfalse\ntrue\nfalse\n")
     }
 
+    @Test
     func testDurationStableCompanionConstants() throws {
         let source = """
         import kotlin.time.Duration
@@ -198,6 +275,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableCompanionConstants", expected: "0\ntrue\ntrue\n")
     }
 
+    @Test
     func testDurationStableIsoStringAndParse() throws {
         let source = """
         import kotlin.time.Duration
@@ -226,6 +304,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testDurationStableParseIsoString() throws {
         let source = """
         import kotlin.time.Duration
@@ -245,6 +324,7 @@ extension CodegenBackendIntegrationTests {
     // bridges. Verify the thrown exception actually propagates out of the Kotlin
     // source wrapper (not just the native bridge, which RuntimeDurationTests already
     // covers directly).
+    @Test
     func testDurationStableParseAndParseIsoStringThrowOnInvalidInput() throws {
         let source = """
         import kotlin.time.Duration
@@ -271,6 +351,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testDurationStableDoubleReceiverExtensionProperties() throws {
         let source = """
         import kotlin.time.Duration.Companion.days
@@ -285,6 +366,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableDoubleReceiverExtensions", expected: "1500\n30\n")
     }
 
+    @Test
     func testDurationStableNumericToDurationUnitOverloads() throws {
         let source = """
         import kotlin.time.DurationUnit
@@ -304,6 +386,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableToDurationUnit", expected: "2\n1500\n90\n")
     }
 
+    @Test
     func testDurationStableDurationDivisionReturnsDouble() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -317,6 +400,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableDivisionReturnsDouble", expected: "1.5\n0.25\n")
     }
 
+    @Test
     func testDurationStableInWholeDays() throws {
         let source = """
         import kotlin.time.Duration.Companion.days
@@ -331,6 +415,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableInWholeDays", expected: "2\n1\n")
     }
 
+    @Test
     func testDurationStableToComponentsOverloads() throws {
         let source = """
         import kotlin.time.Duration.Companion.days
@@ -370,6 +455,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableToComponents", expected: "1\n2\n3\n4\n5\n26\n3\n4\n5\n1563\n4\n5\n-1\n-500000000\n")
     }
 
+    @Test
     func testDurationStableArithmeticAddSubtract() throws {
         let source = """
         import kotlin.time.Duration.Companion.milliseconds
@@ -385,6 +471,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableAddSubtract", expected: "2500\n1500\ntrue\n")
     }
 
+    @Test
     func testDurationStableArithmeticTimesDiv() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -400,6 +487,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableTimesDiv", expected: "20\n5\n0\nfalse\n")
     }
 
+    @Test
     func testDurationStableUnaryMinus() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -415,6 +503,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableUnaryMinus", expected: "-5\ntrue\n5\n")
     }
 
+    @Test
     func testDurationStableComparisonOperators() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -432,6 +521,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableComparisonOperators", expected: "true\ntrue\ntrue\nfalse\n")
     }
 
+    @Test
     func testDurationStableInfiniteAddSaturation() throws {
         let source = """
         import kotlin.time.Duration
@@ -450,6 +540,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableInfiniteAddSaturation", expected: "true\ntrue\nfalse\nfalse\n")
     }
 
+    @Test
     func testDurationStableDivByZeroSaturatesToInfinite() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -463,6 +554,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableDivByZero", expected: "true\ntrue\n")
     }
 
+    @Test
     func testDurationStableNegativeZeroEqualsPositiveZero() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -481,6 +573,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableNegativeZeroEqualsPositiveZero", expected: "0\n0\nfalse\nfalse\ntrue\n")
     }
 
+    @Test
     func testDurationStableZeroDurationPredicates() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -498,6 +591,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableZeroPredicates", expected: "0\nfalse\nfalse\ntrue\nfalse\n")
     }
 
+    @Test
     func testDurationStableInWholeNanoseconds() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -516,6 +610,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableInWholeNs", expected: "10000000000\n-3000000000\n")
     }
 
+    @Test
     func testDurationStableCrossUnitConsistency() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -562,6 +657,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testDurationStableBoundaryPredicatesRequireNoOptIn() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds
@@ -578,6 +674,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableBoundaryPredicates", expected: "true\nfalse\ntrue\nfalse\n")
     }
 
+    @Test
     func testDurationUnitToTimeUnitConversion() throws {
         let source = """
         import java.util.concurrent.TimeUnit
@@ -606,4 +703,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationUnitToTimeUnit", expected: "ns\ns\nd\ntrue\nfalse\n")
     }
 }
-
+#endif

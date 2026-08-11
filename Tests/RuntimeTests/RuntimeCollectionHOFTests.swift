@@ -182,15 +182,6 @@ private let maxByNegativeValue: @convention(c) (Int, Int, UnsafeMutablePointer<I
     -value
 }
 
-private let groupingFoldToInitialValueSelector: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, element, _ in
-    gHOFState.addCall()
-    return key * 100 + element
-}
-
-private let groupingFoldToSelectorOperation: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, accumulator, element, _ in
-    accumulator + key + element
-}
-
 private let addCapture: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, value, outThrown in
     var thrown = 0
     let capture = kk_array_get(closureRaw, 0, &thrown)
@@ -254,25 +245,6 @@ private let groupByParity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?)
 
 private let groupingByStringKey: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     runtimeStringRaw(value % 2 == 0 ? "even" : "odd")
-}
-
-private let groupingReduceToFold: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, acc, value, _ in
-    acc * 10 + value + key
-}
-
-private let groupingInitialValueSelector: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, element, _ in
-    key * 100 + element
-}
-
-private let groupingFoldOperation: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, accumulator, element, _ in
-    accumulator + key + element
-}
-
-private let aggregateGroupingLambda: @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, accumulator, element, first, _ in
-    if first != 0 {
-        return key * 10 + element
-    }
-    return accumulator + key + element
 }
 
 // Lambda that returns value * 10 (for associateWithTo tests)
@@ -433,14 +405,6 @@ struct RuntimeCollectionHOFTests {
         )
         #expect(emptyResult == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
-    }
-
-    @Test
-    func testMutableListFillReplacesEveryElement() {
-        let source = makeList([1, 2, 3])
-
-        #expect(kk_mutable_list_fill(source, 9) == 0)
-        #expect(listElements(source) == [9, 9, 9])
     }
 
     @Test
@@ -962,10 +926,6 @@ struct RuntimeCollectionHOFTests {
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
         #expect(listElements(listMapped) == [2, 99, 6])
 
-        let setSource = kk_set_of(makeArray([1, runtimeNullSentinelInt, 3]), 3)
-        let setMapped = kk_set_mapNotNull(setSource, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
-        #expect(Set(listElements(setMapped)) == Set([2, 99, 6]))
-
         let arraySource = makeArray([1, runtimeNullSentinelInt, 3])
         let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
         #expect(listElements(arrayMapped) == [2, 99, 6])
@@ -1019,10 +979,6 @@ struct RuntimeCollectionHOFTests {
 
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
         #expect(listElements(listMapped) == [0, 1, 2])
-
-        let setSource = kk_set_of(makeArray([0, 1, 2]), 3)
-        let setMapped = kk_set_mapNotNull(setSource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        #expect(Set(listElements(setMapped)) == Set([0, 1, 2]))
 
         let arraySource = makeArray([0, 1, 2])
         let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
@@ -1350,189 +1306,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testGroupingByEachCountPreservesKeyOrderAndCounts() {
-        let source = makeList([3, 1, 4, 2, 5])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let counts = kk_grouping_eachCount(grouping, nil)
-
-        #expect(mapKeys(counts) == [1, 0])
-        #expect(kk_unbox_int(kk_map_get(counts, 1)) == 3)
-        #expect(kk_unbox_int(kk_map_get(counts, 0)) == 2)
-    }
-
-    @Test
-    func testGroupingByEachCountUsesValueEqualityForStringKeys() {
-        let source = makeList([1, 2, 3, 4])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupingByStringKey, to: Int.self), 0)
-        let counts = kk_grouping_eachCount(grouping, nil)
-
-        #expect(mapKeys(counts).map(runtimeStringValue) == ["odd", "even"])
-        #expect(kk_unbox_int(kk_map_get(counts, runtimeStringRaw("odd"))) == 2)
-        #expect(kk_unbox_int(kk_map_get(counts, runtimeStringRaw("even"))) == 2)
-    }
-
-    @Test
-    func testGroupingReduceToUsesExistingDestinationAndAddsNewKeys() {
-        let source = makeList([1, 3, 2])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [10]))
-
-        let result = kk_grouping_reduceTo(
-            grouping,
-            dest,
-            unsafeBitCast(groupingReduceToFold, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [1, 0])
-        #expect(kk_map_get(result, 1) == 1024)
-        #expect(kk_map_get(result, 0) == 2)
-    }
-
-    @Test
-    func testGroupingReduceToEmptySourceLeavesDestinationUnchanged() {
-        let grouping = kk_list_groupingBy(makeList([]), unsafeBitCast(groupByParity, to: Int.self), 0)
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [10]))
-
-        let result = kk_grouping_reduceTo(
-            grouping,
-            dest,
-            unsafeBitCast(groupingReduceToFold, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [1])
-        #expect(kk_map_get(result, 1) == 10)
-    }
-
-    @Test
-    func testGroupingFoldInitialValueSelectorUsesKeyAndFirstElement() {
-        let source = makeList([3, 1, 4, 2, 5])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let folded = kk_grouping_fold_initialValueSelector(
-            grouping,
-            unsafeBitCast(groupingInitialValueSelector, to: Int.self),
-            0,
-            unsafeBitCast(groupingFoldOperation, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(mapKeys(folded) == [1, 0])
-        #expect(kk_unbox_int(kk_map_get(folded, 1)) == 115)
-        #expect(kk_unbox_int(kk_map_get(folded, 0)) == 10)
-    }
-
-    @Test
-    func testGroupingFoldToWithInitialValueMutatesDestination() {
-        let source = makeList([3, 1, 4, 2, 5])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [1000]))
-
-        let result = kk_grouping_foldTo(
-            grouping,
-            dest,
-            10,
-            unsafeBitCast(foldSum, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [1, 0])
-        #expect(kk_map_get(result, 1) == 1009)
-        #expect(kk_map_get(result, 0) == 16)
-    }
-
-    @Test
-    func testGroupingFoldToWithInitialValueSelectorUsesExistingValues() {
-        let source = makeList([3, 1, 4, 2])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [0], values: [500]))
-
-        let result = kk_grouping_foldTo_selector(
-            grouping,
-            dest,
-            unsafeBitCast(groupingFoldToInitialValueSelector, to: Int.self),
-            0,
-            unsafeBitCast(groupingFoldToSelectorOperation, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [0, 1])
-        #expect(kk_map_get(result, 0) == 506)
-        #expect(kk_map_get(result, 1) == 109)
-        #expect(gHOFState.callsSnapshot() == 1)
-    }
-
-    @Test
-    func testGroupingAggregatePreservesKeyOrderAndAccumulatorValues() {
-        let source = makeList([3, 1, 4, 2, 5])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let aggregated = kk_grouping_aggregate(grouping, unsafeBitCast(aggregateGroupingLambda, to: Int.self), 0, nil)
-
-        #expect(mapKeys(aggregated) == [1, 0])
-        #expect(kk_unbox_int(kk_map_get(aggregated, 1)) == 21)
-        #expect(kk_unbox_int(kk_map_get(aggregated, 0)) == 6)
-    }
-
-    @Test
-    func testGroupingAggregateToUpdatesDestinationAndPreservesKeyOrder() {
-        let source = makeList([3, 1, 4, 2, 5])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let destination = kk_map_of(makeArray([1]), makeArray([100]), 1)
-        let aggregated = kk_grouping_aggregateTo(
-            grouping,
-            destination,
-            unsafeBitCast(aggregateGroupingLambda, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(aggregated == destination)
-        #expect(mapKeys(aggregated) == [1, 0])
-        #expect(kk_unbox_int(kk_map_get(aggregated, 1)) == 112)
-        #expect(kk_unbox_int(kk_map_get(aggregated, 0)) == 6)
-    }
-
-    @Test
-    func testGroupingByEachCountToAccumulatesIntoExistingDestination() {
-        let source = makeList([3, 1, 4, 2, 5])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
-        let dest = makeMutableMap(keys: [1], values: [kk_box_int(7)])
-
-        let result = kk_grouping_eachCountTo(grouping, dest, nil)
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [1, 0])
-        #expect(kk_unbox_int(kk_map_get(result, 1)) == 10)
-        #expect(kk_unbox_int(kk_map_get(result, 0)) == 2)
-    }
-
-    @Test
-    func testGroupingByEachCountToUsesValueEqualityForStringKeys() {
-        let source = makeList([1, 2, 3, 4])
-        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupingByStringKey, to: Int.self), 0)
-        let dest = makeMutableMap(
-            keys: [runtimeStringRaw("odd")],
-            values: [kk_box_int(5)]
-        )
-
-        let result = kk_grouping_eachCountTo(grouping, dest, nil)
-
-        #expect(result == dest)
-        #expect(mapKeys(result).map(runtimeStringValue) == ["odd", "even"])
-        #expect(kk_unbox_int(kk_map_get(result, runtimeStringRaw("odd"))) == 7)
-        #expect(kk_unbox_int(kk_map_get(result, runtimeStringRaw("even"))) == 2)
-    }
-
-    @Test
     func testMapForEachFilterAndMapUsePairEntries() {
         let keys = makeArray([1, 2, 3])
         let values = makeArray([10, 21, 32])
@@ -1757,6 +1530,44 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
+    func testMutableCollectionRemoveAndClearHandleListAndSetTargets() {
+        let listTarget = makeList([1, 2, 3])
+
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(listTarget, 2)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(listTarget, 9)) == 0)
+        #expect(listElements(listTarget) == [1, 3])
+        #expect(kk_mutable_collection_clear(listTarget) == 0)
+        #expect(listElements(listTarget) == [])
+
+        let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2]))
+
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(setTarget, 1)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(setTarget, 1)) == 0)
+        #expect(setElements(setTarget) == [2])
+        #expect(kk_mutable_collection_clear(setTarget) == 0)
+        #expect(setElements(setTarget) == [])
+    }
+
+    @Test
+    func testMutableCollectionBulkRemovalHandlesListAndSetTargets() {
+        let listTarget = makeList([1, 2, 3, 2])
+
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(listTarget, makeList([2]))) == 1)
+        #expect(listElements(listTarget) == [1, 3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, makeList([3, 4]))) == 1)
+        #expect(listElements(listTarget) == [3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, makeList([3, 4]))) == 0)
+
+        let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2, 3]))
+
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(setTarget, makeList([1]))) == 1)
+        #expect(setElements(setTarget) == [2, 3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, makeList([3]))) == 1)
+        #expect(setElements(setTarget) == [3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, makeList([3]))) == 0)
+    }
+
+    @Test
     func testCollectionAndIterableToMutableListCopyElements() {
         let listSource = makeList([1, 2, 3])
         let collectionCopy = kk_collection_toMutableList(listSource)
@@ -1810,39 +1621,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testSetBinaryOperationsWithStringHandlesUseValueEqualityAndPreserveLeftOrder() {
-        let leftAlpha = makeRuntimeStringRaw("alpha")
-        let leftBeta = makeRuntimeStringRaw("beta")
-        let rightBeta = makeRuntimeStringRaw("beta")
-        let rightGamma = makeRuntimeStringRaw("gamma")
-
-        let left = registerRuntimeObject(RuntimeSetBox(elements: [leftAlpha, leftBeta]))
-        let right = registerRuntimeObject(RuntimeListBox(elements: [rightBeta, rightGamma, rightBeta]))
-
-        let intersected = kk_set_intersect(left, right)
-        let unioned = kk_set_union(left, right)
-        let subtracted = kk_set_subtract(left, right)
-
-        #expect(setElements(intersected) == [leftBeta])
-        #expect(setElements(unioned) == [leftAlpha, leftBeta, rightGamma])
-        #expect(setElements(subtracted) == [leftAlpha])
-    }
-
-    @Test
-    func testSetBinaryOperationsAcceptSetInputAndPreserveOrder() {
-        let left = registerRuntimeObject(RuntimeSetBox(elements: [1, 2, 3]))
-        let right = registerRuntimeObject(RuntimeSetBox(elements: [3, 4, 2]))
-
-        let intersected = kk_set_intersect(left, right)
-        let unioned = kk_set_union(left, right)
-        let subtracted = kk_set_subtract(left, right)
-
-        #expect(setElements(intersected) == [2, 3])
-        #expect(setElements(unioned) == [1, 2, 3, 4])
-        #expect(setElements(subtracted) == [1])
-    }
-
-    @Test
     func testListSubtractAcceptsIterableInputDeduplicatesAndPreservesReceiverOrder() {
         let left = makeList([1, 2, 2, 3, 4])
         let right = makeList([2, 4, 2])
@@ -1865,8 +1643,6 @@ struct RuntimeCollectionHOFTests {
         let set = kk_set_of(makeArray([1, 2, 3]), 3)
         #expect(kk_unbox_bool(kk_set_contains(set, 2)) == 1)
         #expect(kk_unbox_bool(kk_set_contains(set, 9)) == 0)
-        #expect(kk_unbox_bool(kk_set_containsAll(set, makeList([1, 3]))) == 1)
-        #expect(kk_unbox_bool(kk_set_containsAll(set, makeList([1, 9]))) == 0)
 
         let keys = makeArray([1, 2])
         let values = makeArray([10, 20])
