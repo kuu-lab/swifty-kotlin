@@ -229,11 +229,19 @@ final class CallLowerer {
         guard dataParam.type == .nullableConstUInt8Pointer,
               lengthParam.type == .intptr,
               byteCountParam.type == .intptr,
-              hashParam.type == .intptr,
-              dataParam.name.hasSuffix("Data")
+              hashParam.type == .intptr
         else {
             return false
         }
+        // Unprefixed flat-string quartet used by many single-string entry points.
+        if dataParam.name == "data"
+            && lengthParam.name == "length"
+            && byteCountParam.name == "byteCount"
+            && hashParam.name == "hash"
+        {
+            return true
+        }
+        guard dataParam.name.hasSuffix("Data") else { return false }
         let prefix = String(dataParam.name.dropLast(4))
         return lengthParam.name == "\(prefix)Length"
             && byteCountParam.name == "\(prefix)ByteCount"

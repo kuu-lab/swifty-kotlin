@@ -352,7 +352,7 @@
 - [x] KSP-486: MatchResult/MatchGroup 層を Kotlin 化する（純ロジック約 20 関数）
   - 削除 kk_*: `kk_match_result_value/groupValues/range/groups/component1/component2/next`, `kk_match_group_collection_get_at/get/size`, `kk_match_group_value/range`, `kk_match_result_destructured(_match)`, `kk_match_result_destructured_component1..9`, `kk_regex_pattern`, `kk_regex_options`, `kk_regex_group_names`（`RuntimeRegex.swift`）
   - 内部のマッチ位置データ取得のみ `__kk_` 最小ブリッジに残す / 手順: T / diff: `regex_named_groups.kt` ほか既存 10 ケース
-- [ ] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する
+- [x] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する
   - Kotlin 化: `String.toRegex`×3 / `matches` / `contains` / `replace(First)` / `split` のオーバーロード分岐・入力検証（下敷き: 死蔵 `Stdlib/kotlin/text/Regex.kt` はコメントアウト状態 — 実質新規実装）
   - `__kk_` 降格: `kk_regex_create(_with_option/_with_options)`, `kk_regex_from_literal`, `kk_regex_find(All)`, `kk_regex_matchEntire`, `kk_regex_matches`, `kk_regex_containsMatchIn`, `kk_regex_replace_lambda`, `kk_string_*_regex` 系エンジン呼び出し
   - 削除: `HeaderHelpers+SyntheticRegexStubs.swift` の該当登録 / 手順: T
