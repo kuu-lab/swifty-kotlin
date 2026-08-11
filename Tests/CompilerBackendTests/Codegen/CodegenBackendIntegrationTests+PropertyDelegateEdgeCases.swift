@@ -1,9 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+private func assertKotlinOutput(
+    _ source: String,
+    moduleName: String,
+    expected: String
+) throws {
+    try withTemporaryFile(contents: source) { path in
+        let outputBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        let ctx = try runCodegenPipeline(
+            inputPath: path,
+            moduleName: moduleName,
+            emit: .executable,
+            outputPath: outputBase
+        )
+        try LinkPhase().run(ctx)
+        let result = try CommandRunner.run(executable: outputBase, arguments: [])
+        let normalizedStdout = result.stdout
+            .replacingOccurrences(of: "\r\n", with: "\n")
+        #expect(normalizedStdout == expected)
+    }
+}
+
+@Suite
+struct CodegenBackendPropertyDelegateEdgeCasesTests {
+
+    @Test
     func testCodegenCompilesLazyOfValueRead() throws {
         let source = """
         fun main() {
@@ -30,6 +92,7 @@ extension CodegenBackendIntegrationTests {
     // pointer and call it directly, which crashed for this boxed-closure
     // shape. Also pins that an explicit `Lazy<Int>` expected type resolves
     // and type-checks correctly end to end (not just at the Sema layer).
+    @Test
     func testCodegenCompilesLazyBlockValueRead() throws {
         let source = """
         fun main() {
@@ -58,6 +121,7 @@ extension CodegenBackendIntegrationTests {
     // dereference. Fixed by invoking through `kk_function_invoke_0`, which
     // unwraps a boxed closure when present and falls back to a bare pointer
     // otherwise.
+    @Test
     func testCodegenCompilesDirectLazyCallValueRead() throws {
         let source = """
         fun main() {
@@ -79,6 +143,7 @@ extension CodegenBackendIntegrationTests {
     // Exercises the boxed-closure initializer with an actual captured
     // variable, rather than a trivial literal, since a capture-free lambda
     // could conceivably take a different codegen shape.
+    @Test
     func testCodegenCompilesLazyBlockCapturingOuterVariable() throws {
         let source = """
         fun main() {
@@ -107,6 +172,7 @@ extension CodegenBackendIntegrationTests {
     // This made any explicitly annotated `Lazy<T>` local fail type checking
     // against `lazyOf(...)`'s inferred type. Fixed by removing the dead
     // `kotlin.properties.Lazy` registration.
+    @Test
     func testCodegenCompilesExplicitlyTypedLazyOfValueRead() throws {
         let source = """
         fun main() {
@@ -136,6 +202,7 @@ extension CodegenBackendIntegrationTests {
     // top-level delegated properties were unaffected — they already route
     // through a synthesized getter/setter accessor.
 
+    @Test
     func testCodegenLocalCustomDelegateReturnsUnboxedInt() throws {
         let source = """
         class IntProp {
@@ -159,6 +226,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenLocalCustomDelegateReturnsString() throws {
         let source = """
         class StringProp {
@@ -180,6 +248,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenLocalCustomDelegateReturnsBoolean() throws {
         let source = """
         class BooleanProp {
@@ -203,6 +272,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenLocalCustomDelegateVarSetValueRoundTrips() throws {
         let source = """
         class IntProp {
@@ -240,6 +310,7 @@ extension CodegenBackendIntegrationTests {
     // to an instance member inside the block (here, the primary-constructor
     // property `label`) silently resolved to nothing instead of the captured
     // value.
+    @Test
     func testMemberLazyDelegateCapturesEnclosingInstanceProperty() throws {
         let source = """
         class Foo(val label: String) {
@@ -266,6 +337,7 @@ extension CodegenBackendIntegrationTests {
     // class, so constructing a second `Foo` clobbered the first instance's
     // delegate — both `a.x` and `b.x` observed whichever instance was
     // constructed last instead of their own captured `label`.
+    @Test
     func testMemberLazyDelegateUsesPerInstanceStorage() throws {
         let source = """
         class Foo(val label: String) {
@@ -299,6 +371,7 @@ extension CodegenBackendIntegrationTests {
     // provideDelegate's return value (same rule as member/top-level delegated
     // properties in KIRLoweringDriver+ProvideDelegate.swift).
 
+    @Test
     func testCodegenLocalProvideDelegateReturnsString() throws {
         let source = """
         import kotlin.reflect.KProperty
@@ -324,6 +397,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenLocalProvideDelegateVarSetValueRoundTrips() throws {
         let source = """
         import kotlin.reflect.KProperty
@@ -356,6 +430,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenTopLevelProvideDelegateStillWorks() throws {
         // Regression guard: top-level provideDelegate already worked through
         // KIRLoweringDriver+ProvideDelegate.swift and must be unaffected by the
@@ -384,6 +459,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenMemberProvideDelegateUsesResolvedOperator() throws {
         let source = """
         import kotlin.reflect.KProperty
@@ -412,6 +488,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenMemberCustomDelegatePrimitiveStillWorks() throws {
         // Regression guard: member-property custom delegates already worked
         // before this fix and share DeclTypeChecker+PropertyHelpers.swift's
@@ -448,6 +525,7 @@ extension CodegenBackendIntegrationTests {
     // also never observed a value change, because assignment through an
     // explicit receiver wrote the (unused) backing field slot directly instead
     // of dispatching to the property's setter accessor.
+    @Test
     func testCodegenMemberObservableDelegateReportsChanges() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -484,6 +562,7 @@ extension CodegenBackendIntegrationTests {
     // parameters used to concatenate the raw values as if they were string
     // handles, because the synthetic callback parameters were all typed `Any`
     // and Sema never binds a type to the (unvisited) callback body.
+    @Test
     func testCodegenMemberObservableDelegateFormatsIntValues() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -518,6 +597,7 @@ extension CodegenBackendIntegrationTests {
     // the runtime boxed; a boxed `false` is a non-zero handle, so every change
     // was accepted. Also covers compound assignment, which used to bypass the
     // delegate entirely by reading and writing the backing field slot.
+    @Test
     func testCodegenMemberVetoableDelegateRejectsChanges() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -553,6 +633,7 @@ extension CodegenBackendIntegrationTests {
     // value so the enclosing instance can travel with the three callback
     // arguments. A raw top-level thunk has no way to resolve implicit member
     // reads or writes in the callback body.
+    @Test
     func testCodegenMemberDelegateCallbacksCaptureEnclosingInstance() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -607,6 +688,7 @@ extension CodegenBackendIntegrationTests {
     // BUG-151: `Delegates.notNull()` reads crashed with
     // "Property delegate must be assigned before being accessed" even after a
     // write, because the write never reached `kk_notNull_set_value`.
+    @Test
     func testCodegenMemberNotNullDelegateRoundTrips() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -637,6 +719,7 @@ extension CodegenBackendIntegrationTests {
 
     // BUG-151: the same callback-body loss affected top-level delegated
     // properties, which lower through a separate initializer path.
+    @Test
     func testCodegenTopLevelObservableAndVetoableDelegates() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -671,3 +754,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif

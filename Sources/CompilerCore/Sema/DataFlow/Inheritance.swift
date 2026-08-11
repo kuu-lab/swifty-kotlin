@@ -228,7 +228,9 @@ extension DataFlowSemaPhase {
         }
 
         var candidatePaths: [[InternedString]] = [path]
-        if path.count == 1, !currentPackage.isEmpty {
+        if !currentPackage.isEmpty {
+            // Allow nested/package-relative supertypes such as
+            // `TimeSource.WithComparableMarks` inside `kotlin.time`.
             candidatePaths.append(currentPackage + path)
         }
         // Also try matching against imports: if the simple name matches
@@ -266,10 +268,32 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner
                 )
-                return ResolvedSupertype(symbol: symbol, typeArgs: resolvedArgs)
+                let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
+                return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
             }
         }
         return nil
+    }
+
+    /// A supertype written through a type alias (e.g. `class R : AutoCloseable`, where
+    /// `kotlin.AutoCloseable` aliases `kotlin.io.Closeable`) must record the aliased
+    /// nominal type: the alias symbol itself is neither open nor an interface, and it
+    /// carries no layout, so leaving it in the inheritance edge suppresses both the
+    /// subclassability check and vtable/itable synthesis for the implementer.
+    private func resolveTypeAliasSupertype(
+        _ symbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> SymbolID? {
+        guard symbols.symbol(symbol)?.kind == .typeAlias,
+              let underlying = symbols.typeAliasUnderlyingType(for: symbol),
+              case let .classType(classType) = types.kind(of: underlying),
+              classType.classSymbol != symbol
+        else {
+            return nil
+        }
+        return resolveTypeAliasSupertype(classType.classSymbol, symbols: symbols, types: types)
+            ?? classType.classSymbol
     }
 
     private func resolveTypeArgRefsForInheritance(

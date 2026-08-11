@@ -93,33 +93,6 @@ public extension RuntimeABISpec {
             section: "Bitwise",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_countOneBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_countLeadingZeroBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_countTrailingZeroBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
         // STDLIB-BIT-007: Additional bit manipulation functions
         // KSP-642: rotateLeft / rotateRight moved to bundled Kotlin source.
         RuntimeABIFunctionSpec(
@@ -159,33 +132,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // Long bit manipulation functions
-        RuntimeABIFunctionSpec(
-            name: "kk_long_countOneBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_countLeadingZeroBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_countTrailingZeroBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_long_highestOneBit",
             parameters: [

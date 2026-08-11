@@ -204,6 +204,21 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    // Tagged Pair/Triple boxes hash structurally, matching both
+    // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
+    // RuntimePairBox is internal runtime state and keeps the pointer hash.
+    if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    {
+        return 31 &* kk_any_hashCode(pairBox.first, 0) &+ kk_any_hashCode(pairBox.second, 0)
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
+       let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
+    {
+        var hash = kk_any_hashCode(tripleBox.first, 0)
+        hash = 31 &* hash &+ kk_any_hashCode(tripleBox.second, 0)
+        return 31 &* hash &+ kk_any_hashCode(tripleBox.third, 0)
+    }
     // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
     // and other user-defined objects reached via Any.hashCode() — must stay
     // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural
@@ -489,18 +504,18 @@ public func kk_max_double(_ aBits: Int, _ bBits: Int) -> Int {
     return a >= b ? aBits : bBits
 }
 
-@_cdecl("kk_math_ceil")
-public func kk_math_ceil(_ value: Int) -> Int {
+@_cdecl("__kk_math_ceil")
+public func __kk_math_ceil(_ value: Int) -> Int {
     kk_double_to_bits(ceil(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_floor")
-public func kk_math_floor(_ value: Int) -> Int {
+@_cdecl("__kk_math_floor")
+public func __kk_math_floor(_ value: Int) -> Int {
     kk_double_to_bits(floor(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_round")
-public func kk_math_round(_ value: Int) -> Int {
+@_cdecl("__kk_math_round")
+public func __kk_math_round(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).rounded(.toNearestOrEven))
 }
 
@@ -746,18 +761,18 @@ public func kk_math_sqrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sqrtf)
 }
 
-@_cdecl("kk_math_round_float")
-public func kk_math_round_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_round_float")
+public func __kk_math_round_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v) { $0.rounded(.toNearestOrEven) }
 }
 
-@_cdecl("kk_math_ceil_float")
-public func kk_math_ceil_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_ceil_float")
+public func __kk_math_ceil_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, ceilf)
 }
 
-@_cdecl("kk_math_floor_float")
-public func kk_math_floor_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_floor_float")
+public func __kk_math_floor_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, floorf)
 }
 
@@ -1035,15 +1050,15 @@ public func kk_float_fromBits(_ bits: Int) -> Int {
     Int(UInt32(truncatingIfNeeded: bits))  // re-widen to the zero-extended ABI form
 }
 
-// MARK: - STDLIB-514: truncate, IEEErem, withSign, nextTowards
+// MARK: - STDLIB-514: truncate, IEEErem, nextTowards
 
-@_cdecl("kk_math_truncate")
-public func kk_math_truncate(_ value: Int) -> Int {
+@_cdecl("__kk_math_truncate")
+public func __kk_math_truncate(_ value: Int) -> Int {
     kk_double_to_bits(trunc(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_truncate_float")
-public func kk_math_truncate_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_truncate_float")
+public func __kk_math_truncate_float(_ value: Int) -> Int {
     kk_float_to_bits(truncf(kk_bits_to_float(value)))
 }
 
@@ -1055,30 +1070,6 @@ public func kk_math_IEEErem(_ x: Int, _ y: Int) -> Int {
 @_cdecl("kk_math_IEEErem_float")
 public func kk_math_IEEErem_float(_ x: Int, _ y: Int) -> Int {
     kk_float_to_bits(remainderf(kk_bits_to_float(x), kk_bits_to_float(y)))
-}
-
-@_cdecl("kk_math_withSign")
-public func kk_math_withSign(_ x: Int, _ sign: Int) -> Int {
-    kk_double_to_bits(copysign(kk_bits_to_double(x), kk_bits_to_double(sign)))
-}
-
-@_cdecl("kk_math_withSign_float")
-public func kk_math_withSign_float(_ x: Int, _ sign: Int) -> Int {
-    kk_float_to_bits(copysignf(kk_bits_to_float(x), kk_bits_to_float(sign)))
-}
-
-@_cdecl("kk_math_withSign_int")
-public func kk_math_withSign_int(_ x: Int, _ sign: Int) -> Int {
-    let d = kk_bits_to_double(x)
-    let signDouble = sign < 0 ? -1.0 : 1.0
-    return kk_double_to_bits(copysign(d, signDouble))
-}
-
-@_cdecl("kk_math_withSign_float_int")
-public func kk_math_withSign_float_int(_ x: Int, _ sign: Int) -> Int {
-    let f = kk_bits_to_float(x)
-    let signFloat: Float = sign < 0 ? -1.0 : 1.0
-    return kk_float_to_bits(copysignf(f, signFloat))
 }
 
 @_cdecl("kk_math_nextTowards")
@@ -1221,25 +1212,6 @@ public func kk_long_to_byte(_ value: Int) -> Int {
 @_cdecl("kk_long_to_short")
 public func kk_long_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
-}
-
-// Kotlin Int is 32-bit; runtime stores it sign-extended in a 64-bit word.
-// Truncate to Int32 before querying bit properties so results match Kotlin semantics
-// (e.g. (-1).countOneBits() == 32, not 64).
-// Optimized: Use direct bit manipulation to avoid Int32 conversion overhead
-@_cdecl("kk_int_countOneBits")
-public func kk_int_countOneBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).nonzeroBitCount)
-}
-
-@_cdecl("kk_int_countLeadingZeroBits")
-public func kk_int_countLeadingZeroBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).leadingZeroBitCount)
-}
-
-@_cdecl("kk_int_countTrailingZeroBits")
-public func kk_int_countTrailingZeroBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).trailingZeroBitCount)
 }
 
 // MARK: - Double arithmetic ops (bit-encoded intptr_t ABI)

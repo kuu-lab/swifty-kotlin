@@ -11,7 +11,7 @@ import java.io.File
 // NOTE: Not yet wired into the compiler pipeline.
 // The synthetic FileTreeWalk Sema stub and the kk_file_tree_walk_* ABI
 // functions have been removed (CLEANUP-STUB-108); `File.walk()` is now a
-// synthetic stub in HeaderHelpers+SyntheticFileIOStubs.swift returning an
+// synthetic stub in HeaderHelpers+SyntheticTODOAndIOStubs.swift returning an
 // eagerly materialised List<File> via kk_file_walk. This file is the
 // migration target for the lazy traversal API; wiring happens in a
 // follow-up task.

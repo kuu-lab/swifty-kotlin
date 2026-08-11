@@ -13,10 +13,11 @@ extension LoweringPassRegressionTests {
     /// Regression test for STDLIB-021-BUG-01.
     ///
     /// `val (evens, odds) = listOf(1,2,3,4).partition { it % 2 == 0 }` should
-    /// lower to calls of `kk_pair_first` / `kk_pair_second` on the Pair, and
-    /// the subsequent `.size` accesses on the resulting lists must lower to
-    /// `kk_list_size` calls.  Before the fix the component variables were typed
-    /// as raw type parameters, which caused `.size` lookup to fail.
+    /// lower to the source-backed `kotlin.Pair` `component1` / `component2`
+    /// members (KSP-608), and the subsequent `.size` accesses on the resulting
+    /// lists must lower to `__kk_list_size` calls.  Before the fix the component
+    /// variables were typed as raw type parameters, which caused `.size` lookup
+    /// to fail.
     @Test
     func testPairDestructuringAfterPartitionEmitsComponentNCalls() throws {
         let source = """
@@ -47,14 +48,15 @@ extension LoweringPassRegressionTests {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            // The Pair destructuring must lower to kk_pair_first / kk_pair_second.
+            // The Pair destructuring must lower to the bundled Kotlin Pair's
+            // componentN members rather than a same-named runtime export.
             #expect(
-                allCallees.contains("kk_pair_first"),
-                "Expected kk_pair_first for component1(); callees: \(allCallees)"
+                allCallees.contains("component1"),
+                "Expected component1() call for the first component; callees: \(allCallees)"
             )
             #expect(
-                allCallees.contains("kk_pair_second"),
-                "Expected kk_pair_second for component2(); callees: \(allCallees)"
+                allCallees.contains("component2"),
+                "Expected component2() call for the second component; callees: \(allCallees)"
             )
 
             // The .size access on the resulting List<Int> variables must lower to

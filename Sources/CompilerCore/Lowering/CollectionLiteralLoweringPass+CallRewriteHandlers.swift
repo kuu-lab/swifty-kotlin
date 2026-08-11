@@ -37,10 +37,10 @@ extension CollectionLiteralConstructionLoweringPass {
         if state.listExprIDs.contains(receiverID.rawValue),
            call.callee != lookup.countName,
            call.callee != lookup.filterName,
-           call.callee != lookup.filterNotName
+           call.callee != lookup.filterNotName,
+           let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: call.callee, arity: 1)
         {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
-            let kkName = listHOFRuntimeName(for: call.callee, lookup: lookup)
             let hofResult = ctx.module.arena.appendTemporary(type: nil
             )
             instructions.append(.call(
@@ -120,21 +120,6 @@ extension CollectionLiteralConstructionLoweringPass {
         let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         return zeroExpr
-    }
-
-    private func listHOFRuntimeName(
-        for callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> InternedString {
-        switch callee {
-        case lookup.mapName: lookup.kkListMapName
-        case lookup.mapNotNullName: lookup.kkListMapNotNullName
-        case lookup.forEachName: lookup.kkListForEachName
-        case lookup.onEachName: lookup.kkListOnEachName
-        case lookup.flatMapName: lookup.kkListFlatMapName
-        case lookup.flatMapIndexedName: lookup.kkListFlatMapIndexedName
-        default: callee
-        }
     }
 
     private func mapHOFRuntimeName(

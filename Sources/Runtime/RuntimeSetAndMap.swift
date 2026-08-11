@@ -84,14 +84,11 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
     }
-    // Delegate to kk_sequence_to_list when the handle is a sequence box.
-    // This can happen when Collection.toList() is resolved on a sequence
-    // receiver via the synthetic Collection stub.
-    if let ptr = UnsafeMutableRawPointer(bitPattern: collRaw) {
-        let isObj = runtimeStorage.withGCLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
-        if isObj, tryCast(ptr, to: RuntimeSequenceBox.self) != nil {
-            return kk_sequence_to_list(collRaw, nil)
-        }
+    // Delegate to sequence collection when the handle is a runtime-backed or
+    // source-implemented Sequence box. This can happen when Collection.toList()
+    // is resolved on a sequence receiver via the synthetic Collection stub.
+    if let elements = runtimeSequenceSourceElements(from: collRaw) {
+        return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
