@@ -1,15 +1,77 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendULongCollectionBoxingTests {
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
     /// Regression for a ULong boxed into a generic collection (List/Set/Map):
     /// boxing previously reused kk_box_long / RuntimeLongBox, so any ULong
     /// value above Int64.max was reinterpreted as a negative signed Long
     /// wherever it went through boxed-Any dispatch (toString, equals,
     /// contains, sorted). RuntimeULongBox now keeps ULong distinguishable
     /// from Long at every one of those dispatch points.
+    @Test
     func testULongBoxedInCollectionsRendersAndComparesAsUnsigned() throws {
         let source = """
         fun main() {
@@ -59,6 +121,7 @@ extension CodegenBackendIntegrationTests {
     /// boxing path and null still propagating correctly through nullable ULong?/
     /// Long? — including as a generic Any? function argument, which is a
     /// different lowering path than a plain `val x: Any? = ...` assignment.
+    @Test
     func testULongAndLongBoxingAtNullSentinelBoundary() throws {
         let source = """
         fun show(x: Any?) {
@@ -109,3 +172,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif

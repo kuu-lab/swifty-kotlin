@@ -132,27 +132,6 @@ extension DataFlowSemaPhase {
             mlTypeParamSymbol: mlTypeParamSymbol,
             mlTypeParamType: mlTypeParamType
         )
-        registerMutableListFillMember(
-            symbols: symbols, types: types, interner: interner,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
-        registerMutableListReplaceAllMember(
-            symbols: symbols, types: types, interner: interner,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
-        registerMutableListRemoveIfMember(
-            symbols: symbols, types: types, interner: interner,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
         registerMutableListShuffleMember(
             symbols: symbols, types: types, interner: interner,
             mutableListFQName: mutableListFQName,
@@ -383,7 +362,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: mlSetSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_set", for: mlSetSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_set", for: mlSetSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: mlReceiverType,
@@ -427,7 +406,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_add", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_add", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -476,7 +455,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_add_at", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_add_at", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -515,7 +494,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeAt", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeAt", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -555,7 +534,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeFirst", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeFirst", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -595,7 +574,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeFirstOrNull", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeFirstOrNull", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -635,7 +614,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeLast", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeLast", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -675,7 +654,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeLastOrNull", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeLastOrNull", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -714,143 +693,12 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_clear", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_clear", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
                 parameterTypes: [],
                 returnType: types.unitType,
-                typeParameterSymbols: [mlTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerMutableListFillMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let memberName = interner.intern("fill")
-        let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_fill", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [mlTypeParamType],
-                returnType: types.unitType,
-                typeParameterSymbols: [mlTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerMutableListReplaceAllMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let memberName = interner.intern("replaceAll")
-        let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let operationType = types.make(.functionType(FunctionType(
-            params: [mlTypeParamType],
-            returnType: mlTypeParamType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_replaceAll", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [operationType],
-                returnType: types.unitType,
-                canThrow: true,
-                typeParameterSymbols: [mlTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerMutableListRemoveIfMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let memberName = interner.intern("removeIf")
-        let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let predicateType = types.make(.functionType(FunctionType(
-            params: [mlTypeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeIf", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [predicateType],
-                returnType: types.booleanType,
-                canThrow: true,
                 typeParameterSymbols: [mlTypeParamSymbol],
                 classTypeParameterCount: 1
             ),
@@ -884,7 +732,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_shuffle", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_shuffle", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -923,7 +771,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_reverse", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_reverse", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -968,7 +816,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_retainAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_retainAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1007,7 +855,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_sort", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_sort", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1052,7 +900,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_sortWith", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_sortWith", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1112,7 +960,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_sortBy", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_sortBy", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1173,7 +1021,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_sortByDescending", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_sortByDescending", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1213,7 +1061,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_sortDescending", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_sortDescending", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1259,7 +1107,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_addAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_addAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1295,8 +1143,8 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         let overloads: [(params: [TypeID], external: String)] = [
-            ([mlTypeParamType], "kk_mutable_list_add"),
-            ([collectionType], "kk_mutable_list_addAll"),
+            ([mlTypeParamType], "__kk_mutable_list_add"),
+            ([collectionType], "__kk_mutable_list_addAll"),
         ]
 
         for overload in overloads {
@@ -1363,7 +1211,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1388,7 +1236,7 @@ extension DataFlowSemaPhase {
         let memberName = interner.intern("minusAssign")
         let memberFQName = mutableListFQName + [memberName]
         guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.externalLinkName(for: symbolID) == "kk_mutable_list_remove"
+            symbols.externalLinkName(for: symbolID) == "__kk_mutable_list_remove"
         }) == nil else {
             return
         }
@@ -1406,7 +1254,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_remove", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_remove", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1432,7 +1280,7 @@ extension DataFlowSemaPhase {
         let memberName = interner.intern("minusAssign")
         let memberFQName = mutableListFQName + [memberName]
         guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.externalLinkName(for: symbolID) == "kk_mutable_list_removeAll"
+            symbols.externalLinkName(for: symbolID) == "__kk_mutable_list_removeAll"
         }) == nil else {
             return
         }
@@ -1455,7 +1303,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_list_removeAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_removeAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,

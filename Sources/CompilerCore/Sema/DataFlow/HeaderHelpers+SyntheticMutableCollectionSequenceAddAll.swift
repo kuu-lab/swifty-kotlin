@@ -13,7 +13,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             ownerSymbol: mutableCollectionSymbol,
-            externalLinkName: "kk_mutable_collection_addAll_sequence",
+            externalLinkName: "__kk_mutable_collection_addAll_sequence",
             flags: [.synthetic],
             sequenceSymbol: sequenceSymbol
         )
@@ -22,7 +22,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             ownerSymbol: mutableListSymbol,
-            externalLinkName: "kk_mutable_list_addAll_sequence",
+            externalLinkName: "__kk_mutable_list_addAll_sequence",
             flags: [.synthetic, .operatorFunction],
             sequenceSymbol: sequenceSymbol
         )
@@ -31,7 +31,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             ownerSymbol: mutableSetSymbol,
-            externalLinkName: "kk_mutable_set_addAll_sequence",
+            externalLinkName: "__kk_mutable_set_addAll_sequence",
             flags: [.synthetic],
             sequenceSymbol: sequenceSymbol
         )
