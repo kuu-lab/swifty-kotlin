@@ -25,7 +25,7 @@ import Testing
     }
 
     // STDLIB-IO-PROP-002: `File.extension` resolves to a non-null `String`
-    // through the synthetic stub registered in HeaderHelpers+SyntheticFileIOStubs.
+    // through the synthetic stub registered in HeaderHelpers+SyntheticTODOAndIOStubs.
     // The property is exposed as a member so that callers can use it on any
     // `java.io.File` instance produced by either `File(path)` constructor.
     @Test func testCompile_file_extensionPropertyResolves() throws {

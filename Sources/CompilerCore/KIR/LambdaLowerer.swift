@@ -689,7 +689,7 @@ final class LambdaLowerer {
             symbol: adapterSymbol,
             callee: adapterName,
             captureArguments: [closureObj],
-            hasClosureParam: true
+            hasClosureParam: false
         )
         return materializedExpr
     }

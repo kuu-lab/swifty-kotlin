@@ -636,7 +636,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_stackTraceToString",
+            name: "__kk_throwable_rawStackFrames",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
@@ -645,9 +645,9 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_printStackTrace",
+            name: "__kk_printStderr",
             parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Exception",

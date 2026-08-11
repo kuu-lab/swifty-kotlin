@@ -11,20 +11,6 @@ public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
 }
 
-@_cdecl("kk_long_range_first")
-public func kk_long_range_first(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_first") { range in
-        range.first
-    }
-}
-
-@_cdecl("kk_long_range_last")
-public func kk_long_range_last(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_last") { range in
-        range.last
-    }
-}
-
 @_cdecl("kk_long_range_step")
 public func kk_long_range_step(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_step") { range in
@@ -257,7 +243,7 @@ public func kk_ulong_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 // MARK: - IntRange reversed (STDLIB-093)
 
-@_cdecl("kk_range_reversed")
+@_cdecl("__kk_range_reversed")
 public func kk_range_reversed(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_reversed") { range in
         registerRuntimeObject(RuntimeRangeBox(first: range.last, last: range.first, step: 0 &- range.step))

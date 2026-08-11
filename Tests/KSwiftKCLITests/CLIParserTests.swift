@@ -125,6 +125,13 @@ struct CLIParserTests {
 
     @Test
     func parsesStdlibFlags() throws {
+        // Isolate from test-process state that may have set a shared
+        // prebuilt stdlib library path; CLI flag parsing should determine
+        // includeStdlib on its own.
+        let savedDefaultStdlibLibraryPath = CompilerOptions.defaultStdlibLibraryPath
+        defer { CompilerOptions.defaultStdlibLibraryPath = savedDefaultStdlibLibraryPath }
+        CompilerOptions.defaultStdlibLibraryPath = nil
+
         let noStdlib = try CLIParser.parse(args: ["--no-stdlib", "main.kt"])
         #expect(noStdlib.includeStdlib == false)
 
