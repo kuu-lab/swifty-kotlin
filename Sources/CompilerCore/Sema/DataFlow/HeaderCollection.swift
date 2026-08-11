@@ -1086,6 +1086,8 @@ extension DataFlowSemaPhase {
         let names: [[String]] = switch sourceManager.path(of: file.fileID) {
         case "__bundled_kotlin/Comparable.kt":
             [["kotlin", "Comparable"]]
+        case "__bundled_kotlin/io/Closeable.kt":
+            [["kotlin", "io", "Closeable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
             [["kotlin", "collections", "RandomAccess"]]
         case "__bundled_kotlin/collections/MutableIterable.kt":

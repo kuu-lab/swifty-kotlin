@@ -963,25 +963,14 @@ public extension RuntimeABISpec {
                 ),
                 // STDLIB-250: Closeable.use {}
                 RuntimeABIFunctionSpec(
-                    name: "kk_use",
-                    parameters: [
-                        RuntimeABIParameter(name: "resourceRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                // STDLIB-KOTLIN-ROOT-CLOSE-001: AutoCloseable { closeAction }
-                RuntimeABIFunctionSpec(
-                    name: "kk_auto_closeable_create",
+                    name: "__kk_auto_closeable_create",
                     parameters: [
                         RuntimeABIParameter(name: "fnPtr", type: .intptr),
                         RuntimeABIParameter(name: "closureRaw", type: .intptr),
                     ],
                     returnType: .intptr,
-                    section: "Collection"
+                    section: "Collection",
+                    isThrowing: false
                 ),
                 // STDLIB-533: List?.orEmpty()
                 RuntimeABIFunctionSpec(
