@@ -17,7 +17,7 @@ public func kk_ulong_to_int(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_uint")
 public func kk_int_to_uint(_ value: Int) -> Int {
-    Int(UInt32(truncatingIfNeeded: value))
+    Int(UInt32(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_long_to_uint")
@@ -27,7 +27,10 @@ public func kk_long_to_uint(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_long")
 public func kk_int_to_long(_ value: Int) -> Int {
-    value
+    // value may be a boxed Int (RuntimeIntBox) when converting from a nullable
+    // Int expression (e.g. `digitToIntOrNull(radix)!!.toLong()`), so unbox first
+    // before reinterpreting the raw bits as a Long.
+    kk_unbox_int(value)
 }
 
 @_cdecl("kk_uint_to_long")
@@ -37,7 +40,7 @@ public func kk_uint_to_long(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_ulong")
 public func kk_int_to_ulong(_ value: Int) -> Int {
-    value
+    kk_unbox_int(value)
 }
 
 @_cdecl("kk_long_to_ulong")
@@ -139,12 +142,12 @@ public func kk_ushort_to_double(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_ubyte")
 public func kk_int_to_ubyte(_ value: Int) -> Int {
-    Int(UInt8(truncatingIfNeeded: value))
+    Int(UInt8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_ushort")
 public func kk_int_to_ushort(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: value))
+    Int(UInt16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_long_to_ubyte")
@@ -240,7 +243,7 @@ public func kk_ushort_to_ulong(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_char")
 public func kk_int_to_char(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: value))
+    Int(UInt16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_long_to_char")

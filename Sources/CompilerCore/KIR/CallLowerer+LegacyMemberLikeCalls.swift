@@ -1065,70 +1065,14 @@ extension CallLowerer {
             }
         }
 
-        // Char.digitToInt() / Char.digitToIntOrNull() (STDLIB-083)
-        if args.isEmpty {
+        // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
+        // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
+        // digitToInt / digitToIntOrNull, so no lowering special case is needed.
+        if args.isEmpty, interner.resolve(calleeName) == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == sema.types.charType {
-                let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "digitToInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToInt"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "digitToIntOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToIntOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
-                if calleeStr == "code" {
-                    instructions.append(.copy(from: loweredReceiverID, to: result))
-                    return result
-                }
-            }
-        }
-
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
-        if args.count == 1 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == sema.types.charType {
-                let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "digitToInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToInt_radix"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "digitToIntOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToIntOrNull_radix"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+            if sema.types.makeNonNullable(receiverType) == sema.types.charType {
+                instructions.append(.copy(from: loweredReceiverID, to: result))
+                return result
             }
         }
 

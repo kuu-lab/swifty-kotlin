@@ -356,27 +356,27 @@ public func kk_bits_to_double(_ value: Int) -> Double {
 
 @_cdecl("kk_int_to_float_bits")
 public func kk_int_to_float_bits(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_byte")
 public func kk_int_to_byte(_ value: Int) -> Int {
-    Int(Int8(truncatingIfNeeded: value))
+    Int(Int8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_short")
 public func kk_int_to_short(_ value: Int) -> Int {
-    Int(Int16(truncatingIfNeeded: value))
+    Int(Int16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_double_bits")
 public func kk_int_to_double_bits(_ value: Int) -> Int {
-    kk_double_to_bits(Double(value))
+    kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_float_to_double_bits")

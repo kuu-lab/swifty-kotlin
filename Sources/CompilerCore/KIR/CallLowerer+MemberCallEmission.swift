@@ -328,13 +328,6 @@ extension CallLowerer {
         {
             finalArguments.insert(receiver.loweredID, at: 0)
         }
-        if loweredCallee == interner.intern("kk_char_digitToChar_radix"),
-           finalArguments.count == 1
-        {
-            let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
-            instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
-            finalArguments.append(radixExpr)
-        }
         // Array.count() with no predicate: kk_array_count's native signature always
         // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
         // lambda argument, finalArguments only has the receiver. Without this padding,
