@@ -695,7 +695,6 @@ final class CallLowerer {
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 1,
-           !isSourceBacked(chosen, sema: sema),
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
@@ -726,7 +725,6 @@ final class CallLowerer {
         }
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema),
            let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
            case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
            functionType.params.isEmpty,
@@ -787,8 +785,7 @@ final class CallLowerer {
         // silently dropped and its returned elements never boxed. Handle it
         // directly, same as the other two generateSequence overloads above.
         if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema)
+           loweredArgIDs.count == 2
         {
             let expandedNextFunction = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArgIDs[1],
