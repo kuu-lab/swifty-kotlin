@@ -582,26 +582,21 @@ extension CallLowerer {
             return result
         }
 
-        // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
-        // STDLIB-BIT-007: Additional bit manipulation functions
-        // NOTE: This bit-count lowering logic is intentionally duplicated in
+        // Int bit extraction functions (STDLIB-BIT-007).
+        // NOTE: This lowering logic is intentionally duplicated in
         // CallLowerer+SafeMemberCalls.swift for the safe-call (?.) path.
         // If you change the callee-name -> runtime-name mapping here, update
         // the other file as well. Consider extracting a shared helper if the
         // number of bit-operation intrinsics grows further.
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "countOneBits" || calleeStr == "countLeadingZeroBits" || calleeStr == "countTrailingZeroBits" ||
-               calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit" {
+            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit" {
                 let intType = sema.types.intType
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
                 if nonNullReceiverType == intType {
                     let runtimeName: String
                     switch calleeStr {
-                    case "countOneBits": runtimeName = "kk_int_countOneBits"
-                    case "countLeadingZeroBits": runtimeName = "kk_int_countLeadingZeroBits"
-                    case "countTrailingZeroBits": runtimeName = "kk_int_countTrailingZeroBits"
                     case "highestOneBit": runtimeName = "kk_int_highestOneBit"
                     case "lowestOneBit": runtimeName = "kk_int_lowestOneBit"
                     case "takeHighestOneBit": runtimeName = "kk_int_takeHighestOneBit"
