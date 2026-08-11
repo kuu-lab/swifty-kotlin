@@ -79,7 +79,15 @@ struct LLVMEntryPointObjectEmitter {
         // the compiling user and not guessable.
         let objectURL = try makePrivateObjectURL()
         do {
-            try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+            // Keep the target machine alive inside the same Linux critical
+            // section as its creation, IR construction, emission, and
+            // disposal. LLVM target machines retain process-global target
+            // state, so splitting those operations across separate lock
+            // scopes still permits another worker to mutate that state while
+            // this wrapper is using it.
+            try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+                try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+            }
         } catch {
             // On success the caller owns the directory and removes it after linking; on failure it
             // never receives the path, so drop the private directory here to avoid leaking it.
@@ -122,7 +130,9 @@ struct LLVMEntryPointObjectEmitter {
         guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: .O0) else {
             throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to create LLVM target machine for entry wrapper")
         }
-        defer { bindings.disposeTargetMachine(targetMachine) }
+        defer {
+            bindings.disposeTargetMachine(targetMachine)
+        }
 
         guard bindings.applyTargetMachine(targetMachine, to: module) else {
             throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to apply target data layout to entry wrapper")

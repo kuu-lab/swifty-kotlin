@@ -124,6 +124,7 @@ extension DataFlowSemaPhase {
                 isMutable: metadataRecord.isMutable,
                 nominalTypeParametersSignature: metadataRecord.nominalTypeParametersSignature,
                 nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
+                constValueLiteral: metadataRecord.constValueLiteral,
                 nominalTypeParameters: metadataRecord.nominalTypeParameters
             ))
         }

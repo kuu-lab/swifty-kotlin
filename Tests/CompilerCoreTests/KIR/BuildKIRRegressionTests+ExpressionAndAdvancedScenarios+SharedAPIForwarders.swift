@@ -433,7 +433,7 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        #expect(callees.contains("kk_mutable_map_putAll"))
+        #expect(callees.contains("__kk_mutable_map_putAll"))
         #expect(!(callees.contains("putAll")))
     }
 

@@ -92,6 +92,10 @@ package struct MetadataRecord {
     /// declaration, with the child's type parameters substituted in (e.g.
     /// `Lkotlinx.coroutines.flow.SharedFlow<T8154>;`).
     let nominalSupertypeSignatures: [String]
+    /// Encoded compile-time constant value of a `const val` property, so
+    /// consumers can inline it instead of reading an uninitialized global slot
+    /// (a precompiled library has no `main` to run top-level initializers).
+    let constValueLiteral: String?
     /// Declaration-order type parameters of a nominal type, encoded as
     /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`), so consumers can
     /// restore the generic arity used by constructor/member resolution.
@@ -142,6 +146,7 @@ package struct MetadataRecord {
         isMutable: Bool = false,
         nominalTypeParametersSignature: String? = nil,
         nominalSupertypeSignatures: [String] = [],
+        constValueLiteral: String? = nil,
         nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
@@ -188,6 +193,7 @@ package struct MetadataRecord {
         self.isMutable = isMutable
         self.nominalTypeParametersSignature = nominalTypeParametersSignature
         self.nominalSupertypeSignatures = nominalSupertypeSignatures
+        self.constValueLiteral = constValueLiteral
         self.nominalTypeParameters = nominalTypeParameters
     }
 }
@@ -676,6 +682,7 @@ package final class MetadataEncoder {
         var propertyGetterExternalLinkName: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable = false
+        var constValueLiteral: String?
         if symbol.kind == .property || symbol.kind == .field,
            symbols.propertyType(for: symbol.id) != nil
         {
@@ -719,6 +726,9 @@ package final class MetadataEncoder {
                 }
             }
             isMutable = symbol.flags.contains(.mutable)
+            if !isMutable, let constValue = symbols.constValueExprKind(for: symbol.id) {
+                constValueLiteral = MetadataConstValueCoder.encode(constValue) { interner.resolve($0) }
+            }
         }
 
         if symbol.kind == .typeAlias,
@@ -886,6 +896,7 @@ package final class MetadataEncoder {
             isMutable: isMutable,
             nominalTypeParametersSignature: nominalTypeParametersSignature,
             nominalSupertypeSignatures: nominalSupertypeSignatures,
+            constValueLiteral: constValueLiteral,
             nominalTypeParameters: nominalTypeParameters
         )
     }
@@ -996,6 +1007,9 @@ package final class MetadataEncoder {
                 }
                 if record.isMutable {
                     fields.append("mutable=1")
+                }
+                if let constValue = record.constValueLiteral, !constValue.isEmpty {
+                    fields.append("const=\(constValue)")
                 }
             }
             if record.kind == .typeAlias {
@@ -1329,6 +1343,7 @@ final class MetadataDecoder {
                 isMutable: rec.isMutable,
                 nominalTypeParametersSignature: rec.nominalTypeParametersSignature,
                 nominalSupertypeSignatures: rec.nominalSupertypeSignatures,
+                constValueLiteral: rec.constValueLiteral,
                 nominalTypeParameters: rec.nominalTypeParameters
             ))
         }
@@ -1381,6 +1396,7 @@ final class MetadataDecoder {
         var isMutable: Bool = false
         var nominalTypeParametersSignature: String?
         var nominalSupertypeSignatures: [String] = []
+        var constValueLiteral: String?
         var nominalTypeParameters: String?
         var schemaVersion: String?
     }
@@ -1473,6 +1489,8 @@ final class MetadataDecoder {
             record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
         case "mutable":
             record.isMutable = value == "1" || value == "true"
+        case "const":
+            record.constValueLiteral = value.isEmpty ? nil : value
         case "abiSig":
             record.abiReturnTypeSignature = value.isEmpty ? nil : value
         case "schema":

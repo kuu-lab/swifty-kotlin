@@ -52,14 +52,14 @@ extension ABILoweringPass {
     static let typeParamBoxingBoundaryCallees: Set<String> = [
         "kk_pair_new",
         "kk_triple_new",
-        "kk_mutable_collection_add",
-        "kk_mutable_list_add",
-        "kk_mutable_list_add_at",
-        "kk_mutable_list_set",
-        "kk_mutable_set_add",
-        "kk_mutable_map_put",
-        "kk_mutable_map_putAll",
-        "kk_mutable_map_plusAssign_pair",
+        "__kk_mutable_collection_add",
+        "__kk_mutable_list_add",
+        "__kk_mutable_list_add_at",
+        "__kk_mutable_list_set",
+        "__kk_mutable_set_add",
+        "__kk_mutable_map_put",
+        "__kk_mutable_map_putAll",
+        "__kk_mutable_map_plusAssign_pair",
     ]
 
     /// True when the call target is a declaration compiled from Kotlin source —
@@ -248,12 +248,19 @@ extension ABILoweringPass {
 
     func isNonValueClassReference(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
         guard case let .classType(classType) = kind else { return false }
-        // Exclude value classes — they are unboxed to their underlying primitive.
-        if let symbols,
-           let sym = symbols.symbol(classType.classSymbol),
-           sym.flags.contains(.valueType)
-        {
-            return false
+        // Non-null enum values use their raw ordinal representation outside
+        // Any-erased and nullable slots, just like value classes use their
+        // underlying primitive. Keep an enum-typed copy from being mistaken
+        // for a reference boundary and boxed unnecessarily.
+        if let symbols, let sym = symbols.symbol(classType.classSymbol) {
+            if classType.nullability == .nonNull, sym.kind == .enumClass {
+                return false
+            }
+            // Exclude value classes — they are unboxed to their underlying
+            // primitive.
+            if sym.flags.contains(.valueType) {
+                return false
+            }
         }
         return true
     }
