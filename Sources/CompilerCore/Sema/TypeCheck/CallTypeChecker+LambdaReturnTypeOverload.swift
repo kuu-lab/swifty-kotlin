@@ -51,12 +51,30 @@ extension CallTypeChecker {
             case .callableRef:
                 break
             case .intLiteral:
-                if inferredNonLambdaArgTypes[index] != nil {
+                // Always re-infer an unsuffixed int literal against the surviving
+                // candidates' parameter type, even if a previous pass already gave
+                // it a default Int. This lets member calls like
+                // `shortArray.binarySearch(20)` narrow to Short/Byte.
+                let literalExpectedType = uniformNumericLiteralParameterType(
+                    at: index,
+                    candidates: candidates,
+                    sema: sema
+                )
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                )
+            case .unaryExpr(let op, let operandID, _):
+                guard (op == .unaryPlus || op == .unaryMinus),
+                      case .intLiteral = ast.arena.expr(operandID)
+                else {
+                    if inferredNonLambdaArgTypes[index] == nil {
+                        inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                    }
                     continue
                 }
-                // An unsuffixed int literal must see the candidates' parameter
-                // type (e.g. Long) before inference, or it defaults to Int and
-                // every candidate rejects it (`Millis(1500)` with `value: Long`).
+                // Constant-folded unary +/- over an int literal should see the
+                // candidates' parameter type, just like a bare int literal, so
+                // `byteArrayOf(1, -1)` and `shortArrayOf(1, -1)` resolve.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
                     candidates: candidates,
@@ -378,13 +396,13 @@ extension CallTypeChecker {
         return expectedType
     }
 
-    /// Returns the expected numeric type (Long/UInt/ULong) for an unsuffixed
-    /// int-literal argument if every candidate agrees on that parameter being
-    /// one of those types, so the literal can be widened before overload
-    /// resolution instead of defaulting to Int and rejecting every candidate.
-    /// Returns nil (leaving the literal as Int) when candidates disagree or
-    /// none expect a wideable numeric type — the normal Int-literal path and
-    /// existing overload resolution still handle those cases.
+    /// Returns the expected numeric type (Long/UInt/ULong/Byte/Short) for an
+    /// unsuffixed int-literal argument if every candidate agrees on that
+    /// parameter being one of those types, so the literal can be widened before
+    /// overload resolution instead of defaulting to Int and rejecting every
+    /// candidate. Returns nil (leaving the literal as Int) when candidates
+    /// disagree or none expect a wideable numeric type — the normal Int-literal
+    /// path and existing overload resolution still handle those cases.
     private func uniformNumericLiteralParameterType(
         at index: Int,
         candidates: [SymbolID],
@@ -399,7 +417,8 @@ extension CallTypeChecker {
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
             guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
-                  primitive == .long || primitive == .uint || primitive == .ulong
+                  primitive == .long || primitive == .uint || primitive == .ulong ||
+                  primitive == .byte || primitive == .short
             else {
                 return nil
             }

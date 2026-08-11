@@ -18,8 +18,8 @@ extension DataFlowSemaPhase {
         )
 
         let accessors: [(name: String, returnType: TypeID, externalLinkName: String, annotations: [MetadataAnnotationRecord])] = [
-            ("getByteAt", types.intType, "kk_native_byteArray_getByteAt", experimentalNativeApiAnnotations()),
-            ("getShortAt", types.intType, "kk_native_byteArray_getShortAt", experimentalNativeApiAnnotations()),
+            ("getByteAt", types.byteType, "kk_native_byteArray_getByteAt", experimentalNativeApiAnnotations()),
+            ("getShortAt", types.shortType, "kk_native_byteArray_getShortAt", experimentalNativeApiAnnotations()),
             ("getIntAt", types.intType, "kk_native_byteArray_getIntAt", experimentalNativeApiAnnotations()),
             ("getLongAt", types.longType, "kk_native_byteArray_getLongAt", experimentalNativeApiAnnotations()),
             ("getUByteAt", types.ubyteType, "kk_native_byteArray_getUByteAt", experimentalNativeUnsignedApiAnnotations()),
@@ -45,8 +45,8 @@ extension DataFlowSemaPhase {
         }
 
         let setters: [(name: String, valueType: TypeID, externalLinkName: String, annotations: [MetadataAnnotationRecord])] = [
-            ("setByteAt", types.intType, "kk_native_byteArray_setByteAt", experimentalNativeApiAnnotations()),
-            ("setShortAt", types.intType, "kk_native_byteArray_setShortAt", experimentalNativeApiAnnotations()),
+            ("setByteAt", types.byteType, "kk_native_byteArray_setByteAt", experimentalNativeApiAnnotations()),
+            ("setShortAt", types.shortType, "kk_native_byteArray_setShortAt", experimentalNativeApiAnnotations()),
             ("setIntAt", types.intType, "kk_native_byteArray_setIntAt", experimentalNativeApiAnnotations()),
             ("setLongAt", types.longType, "kk_native_byteArray_setLongAt", experimentalNativeApiAnnotations()),
             ("setUByteAt", types.ubyteType, "kk_native_byteArray_setUByteAt", experimentalNativeUnsignedApiAnnotations()),

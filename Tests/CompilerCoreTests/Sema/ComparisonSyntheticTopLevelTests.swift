@@ -398,7 +398,7 @@ struct ComparisonSyntheticTopLevelTests {
                 }
             }
 
-            // === testThreeArgMaxOfByteResolvesToInt3Overload ===
+            // === testThreeArgMaxOfByteResolvesToGenericComparableOverload ===
             do {
                 let callExpr = try #require(lastExprID(in: ast, path: paths[9], ctx: ctx) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
@@ -406,10 +406,10 @@ struct ComparisonSyntheticTopLevelTests {
                         else { return false }
                         return interner.resolve(calleeName) == "maxOf" && args.count == 3
                     })
-                // Byte maps to Int internally, so the result type is Int
-                #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
-                // Resolves via the Int3 special-call path
-                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfInt3)
+                // Byte is a distinct primitive, so it resolves to the generic Comparable<Byte> overload.
+                #expect(sema.bindings.exprTypes[callExpr] == sema.types.byteType)
+                // No fixed-arity special-call kind for the generic overload.
+                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
                 let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 let symbol = try #require(sema.symbols.symbol(chosen))
                 #expect(symbol.fqName == [
@@ -417,11 +417,9 @@ struct ComparisonSyntheticTopLevelTests {
                     interner.intern("comparisons"),
                     interner.intern("maxOf"),
                 ])
-                let sig = try #require(sema.symbols.functionSignature(for: chosen))
-                #expect(sig.parameterTypes == [sema.types.intType, sema.types.intType, sema.types.intType])
             }
 
-            // === testThreeArgMaxOfShortResolvesToInt3Overload ===
+            // === testThreeArgMaxOfShortResolvesToGenericComparableOverload ===
             do {
                 let callExpr = try #require(lastExprID(in: ast, path: paths[10], ctx: ctx) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
@@ -429,10 +427,10 @@ struct ComparisonSyntheticTopLevelTests {
                         else { return false }
                         return interner.resolve(calleeName) == "maxOf" && args.count == 3
                     })
-                // Short maps to Int internally, so the result type is Int
-                #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
-                // Resolves via the Int3 special-call path
-                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfInt3)
+                // Short is a distinct primitive, so it resolves to the generic Comparable<Short> overload.
+                #expect(sema.bindings.exprTypes[callExpr] == sema.types.shortType)
+                // No fixed-arity special-call kind for the generic overload.
+                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
                 let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 let symbol = try #require(sema.symbols.symbol(chosen))
                 #expect(symbol.fqName == [
@@ -440,8 +438,6 @@ struct ComparisonSyntheticTopLevelTests {
                     interner.intern("comparisons"),
                     interner.intern("maxOf"),
                 ])
-                let sig = try #require(sema.symbols.functionSignature(for: chosen))
-                #expect(sig.parameterTypes == [sema.types.intType, sema.types.intType, sema.types.intType])
             }
 
             // === testTwoArgMinOfIntResolvesToInt2Overload ===
@@ -490,7 +486,7 @@ struct ComparisonSyntheticTopLevelTests {
                 #expect(sig.valueParameterIsVararg == [false, true])
             }
 
-            // === testTwoArgMinOfByteResolvesToInt2Overload ===
+            // === testTwoArgMinOfByteResolvesToGenericComparableOverload ===
             do {
                 let callExpr = try #require(lastExprID(in: ast, path: paths[13], ctx: ctx) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
@@ -498,10 +494,10 @@ struct ComparisonSyntheticTopLevelTests {
                         else { return false }
                         return interner.resolve(calleeName) == "minOf" && args.count == 2
                     })
-                // Byte maps to Int internally, so the result type is Int
-                #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
-                // Resolves via the Int 2-arg special-call path
-                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .minOfInt)
+                // Byte is a distinct primitive, so it resolves to the generic Comparable<Byte> overload.
+                #expect(sema.bindings.exprTypes[callExpr] == sema.types.byteType)
+                // No fixed-arity special-call kind for the generic overload.
+                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
                 let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 let symbol = try #require(sema.symbols.symbol(chosen))
                 #expect(symbol.fqName == [
@@ -509,11 +505,9 @@ struct ComparisonSyntheticTopLevelTests {
                     interner.intern("comparisons"),
                     interner.intern("minOf"),
                 ])
-                let sig = try #require(sema.symbols.functionSignature(for: chosen))
-                #expect(sig.parameterTypes == [sema.types.intType, sema.types.intType])
             }
 
-            // === testVarargMinOfByteResolvesToIntVarargOverload ===
+            // === testVarargMinOfByteResolvesToGenericComparableVarargOverload ===
             do {
                 let callExpr = try #require(lastExprID(in: ast, path: paths[14], ctx: ctx) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
@@ -521,8 +515,8 @@ struct ComparisonSyntheticTopLevelTests {
                         else { return false }
                         return interner.resolve(calleeName) == "minOf" && args.count == 4
                     })
-                // Byte maps to Int internally, so the result type is Int
-                #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
+                // Byte is a distinct primitive, so the result type is Byte.
+                #expect(sema.bindings.exprTypes[callExpr] == sema.types.byteType)
                 // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
                 #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
                 let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
@@ -533,12 +527,10 @@ struct ComparisonSyntheticTopLevelTests {
                     interner.intern("minOf"),
                 ])
                 let sig = try #require(sema.symbols.functionSignature(for: chosen))
-                #expect(sig.parameterTypes == [sema.types.intType, sema.types.intType])
-                #expect(sig.returnType == sema.types.intType)
-                #expect(sig.valueParameterIsVararg == [false, true])
+                #expect(sig.valueParameterIsVararg == [true])
             }
 
-            // === testVarargMaxOfByteResolvesToIntVarargOverload ===
+            // === testVarargMaxOfByteResolvesToGenericComparableVarargOverload ===
             do {
                 let callExpr = try #require(lastExprID(in: ast, path: paths[15], ctx: ctx) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
@@ -546,8 +538,8 @@ struct ComparisonSyntheticTopLevelTests {
                         else { return false }
                         return interner.resolve(calleeName) == "maxOf" && args.count == 4
                     })
-                // Byte maps to Int internally, so the result type is Int
-                #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
+                // Byte is a distinct primitive, so the result type is Byte.
+                #expect(sema.bindings.exprTypes[callExpr] == sema.types.byteType)
                 // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
                 #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
                 let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
@@ -558,9 +550,7 @@ struct ComparisonSyntheticTopLevelTests {
                     interner.intern("maxOf"),
                 ])
                 let sig = try #require(sema.symbols.functionSignature(for: chosen))
-                #expect(sig.parameterTypes == [sema.types.intType, sema.types.intType])
-                #expect(sig.returnType == sema.types.intType)
-                #expect(sig.valueParameterIsVararg == [false, true])
+                #expect(sig.valueParameterIsVararg == [true])
             }
 
             // === testTwoArgMaxOfFloatResolvesToFloat2Overload ===
@@ -682,7 +672,7 @@ struct ComparisonSyntheticTopLevelTests {
                         else { return false }
                         return interner.resolve(calleeName) == "maxOf" && args.count == 3
                     })
-                // Double is preserved end-to-end (unlike Byte, which widens to Int)
+                // Double is preserved end-to-end
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.doubleType)
                 // Resolves via the Double3 special-call path
                 #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfDouble3)

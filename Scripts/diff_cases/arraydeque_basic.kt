@@ -49,9 +49,36 @@ fun main() {
     println(ring.toString())
 
     val strings = ArrayDeque<String>()
+    println(strings.isEmpty())
+    println(strings.isNotEmpty())
+    println(strings.firstOrNull())
+    println(strings.lastOrNull())
+    println(strings.removeFirstOrNull())
+    println(strings.removeLastOrNull())
     strings.addLast("b")
     strings.addFirst("a")
     strings.addLast("c")
     println(strings.toString())
     println(strings[1])
+    println(strings.removeFirst())
+    println(strings.removeLast())
+    println(strings.toString())
+
+    try {
+        ArrayDeque<Int>().first()
+    } catch (e: NoSuchElementException) {
+        println("first: " + e.message)
+    }
+    try {
+        ArrayDeque<Int>().removeLast()
+    } catch (e: NoSuchElementException) {
+        println("removeLast: " + e.message)
+    }
+    try {
+        val single = ArrayDeque<Int>()
+        single.addLast(7)
+        println(single[3])
+    } catch (e: IndexOutOfBoundsException) {
+        println("get: " + e.message)
+    }
 }
