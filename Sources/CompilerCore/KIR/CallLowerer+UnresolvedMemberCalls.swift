@@ -77,8 +77,8 @@ extension CallLowerer {
                 return interner.intern("kk_string_get_flat")
             case "toRegex":
                 return argumentCount == 0
-                    ? interner.intern("kk_string_toRegex_flat")
-                    : interner.intern("kk_string_toRegex_with_option_flat")
+                    ? interner.intern("__kk_string_toRegex_flat")
+                    : interner.intern("__kk_string_toRegex_with_option_flat")
             default:
                 break
             }
@@ -94,8 +94,6 @@ extension CallLowerer {
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "flatMapIndexed":
-                return interner.intern("kk_list_flatMapIndexed")
             // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
             // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
             case "sorted":

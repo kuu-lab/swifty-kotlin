@@ -76,7 +76,7 @@ public fun String.replace(oldChar: Char, newChar: Char, ignoreCase: Boolean = fa
  * with the specified [replacement] string.
  */
 public fun String.replace(regex: Regex, replacement: String): String =
-    __kk_replace_regex(regex, replacement)
+    regex.replace(this, replacement)
 
 /**
  * Returns a new string with the first occurrence of [oldValue] replaced with [newValue].
@@ -127,13 +127,49 @@ public fun String.replaceFirst(oldChar: Char, newChar: Char, ignoreCase: Boolean
  * Returns a new string with the first occurrence of [regex] replaced by [replacement].
  */
 public fun String.replaceFirst(regex: Regex, replacement: String): String =
-    __kk_replaceFirst_regex(regex, replacement)
+    regex.replaceFirst(this, replacement)
 
 /**
  * Splits this string around matches of [regex].
  */
 public fun String.split(regex: Regex): List<String> =
-    __kk_split_regex(regex)
+    regex.split(this, 0)
+
+/**
+ * Splits this string around matches of [regex], limiting the result to [limit] items.
+ */
+public fun String.split(regex: Regex, limit: Int): List<String> =
+    regex.split(this, limit)
+
+/**
+ * Returns `true` if this string matches the [regex].
+ */
+public fun String.matches(regex: Regex): Boolean =
+    __kk_string_matches_regex(regex)
+
+/**
+ * Returns `true` if this string contains a match of [regex].
+ */
+public operator fun String.contains(regex: Regex): Boolean =
+    __kk_string_contains_regex(regex)
+
+/**
+ * Returns a [Regex] that matches this string as a pattern.
+ */
+public fun String.toRegex(): Regex =
+    __kk_string_toRegex()
+
+/**
+ * Returns a [Regex] that matches this string as a pattern with the given [option].
+ */
+public fun String.toRegex(option: RegexOption): Regex =
+    __kk_string_toRegex_with_option(option)
+
+/**
+ * Returns a [Regex] that matches this string as a pattern with the given [options].
+ */
+public fun String.toRegex(options: Set<RegexOption>): Regex =
+    __kk_string_toRegex_with_options(options)
 
 /**
  * Returns the substring before the first occurrence of [delimiter], or
@@ -259,14 +295,20 @@ public fun String.replaceBeforeLast(delimiter: Char, replacement: String, missin
     return if (index == -1) missingDelimiterValue else replacement + substring(index)
 }
 
-@KsSymbolName("kk_string_replace_regex")
-private external fun String.__kk_replace_regex(regex: Regex, replacement: String): String
+@KsSymbolName("__kk_string_matches_regex_flat")
+private external fun String.__kk_string_matches_regex(regex: Regex): Boolean
 
-@KsSymbolName("kk_string_replaceFirst_regex")
-private external fun String.__kk_replaceFirst_regex(regex: Regex, replacement: String): String
+@KsSymbolName("__kk_string_contains_regex_flat")
+private external fun String.__kk_string_contains_regex(regex: Regex): Boolean
 
-@KsSymbolName("kk_string_split_regex_flat")
-private external fun String.__kk_split_regex(regex: Regex): List<String>
+@KsSymbolName("__kk_string_toRegex_flat")
+private external fun String.__kk_string_toRegex(): Regex
+
+@KsSymbolName("__kk_string_toRegex_with_option_flat")
+private external fun String.__kk_string_toRegex_with_option(option: RegexOption): Regex
+
+@KsSymbolName("__kk_string_toRegex_with_options_flat")
+private external fun String.__kk_string_toRegex_with_options(options: Set<RegexOption>): Regex
 
 private fun __kk_appendStringRange(sb: StringBuilder, value: List<Char>, startIndex: Int, endIndex: Int) {
     var i = startIndex

@@ -37,10 +37,11 @@ extension CollectionLiteralConstructionLoweringPass {
             let lambdaID = arguments[1]
             // countName with a List receiver is now a bundled Kotlin source function, so
             // it must not be intercepted by the generic list-HOF rewrite path below.
-            if state.listExprIDs.contains(receiverID.rawValue)
-                && callee != lookup.countName
-                && callee != lookup.filterName
-                && callee != lookup.filterNotName
+            if let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1),
+               state.listExprIDs.contains(receiverID.rawValue),
+               callee != lookup.countName,
+               callee != lookup.filterName,
+               callee != lookup.filterNotName
             {
                 let closureRawID: KIRExprID
                 if arguments.count == 3 {
@@ -50,7 +51,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     closureRawID = zeroExpr
                 }
-                let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) ?? callee
                 let needsListTag = callee == lookup.mapName
                     || callee == lookup.mapNotNullName
                     || callee == lookup.flatMapName

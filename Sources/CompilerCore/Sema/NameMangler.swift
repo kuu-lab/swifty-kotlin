@@ -201,16 +201,21 @@ package final class NameMangler {
             return applyNullability(encoded, nullability: nullability)
 
         case let .classType(classType):
-            // Value class mangling: for non-null value classes, encode the
+            // Value class mangling: for non-null value classes that can be
+            // safely unboxed (no implemented interfaces), encode the
             // underlying primitive type instead of the wrapper class name.
             // This matches Kotlin/JVM behavior where `fun f(Meter)` and
             // `fun f(Int)` have the same JVM signature when Meter wraps Int.
             // A `VC<>` wrapper distinguishes the mangled name so that overloads
             // on the wrapper vs. the underlying type do not collide.
+            //
+            // Value classes that implement interfaces (e.g. ValueTimeMark)
+            // must keep their boxed class identity, so they encode as the
+            // regular class type and can round-trip through metadata.
             if classType.nullability == .nonNull,
                let sym = symbols.symbol(classType.classSymbol),
                sym.flags.contains(.valueType),
-               let underlyingType = symbols.valueClassUnderlyingType(for: classType.classSymbol)
+               let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
             {
                 let underlyingEncoded = encodeType(underlyingType, symbols: symbols, types: types, nameResolver: nameResolver)
                 return "VC<\(underlyingEncoded)>"

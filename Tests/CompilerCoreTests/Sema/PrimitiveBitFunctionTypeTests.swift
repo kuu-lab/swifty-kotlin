@@ -26,4 +26,31 @@ struct PrimitiveBitFunctionTypeTests {
             )
         }
     }
+
+    /// BUG-015: an arithmetic compound assignment used to demote the target local to
+    /// `Int`, so later `Long` member calls such as `value and 0xFFL` failed to resolve.
+    @Test
+    func testCompoundAssignmentPreservesNonIntNumericLocalTypes() throws {
+        let source = """
+        fun probe(value: Long, scale: Double): Long {
+            var accumulated = value
+            accumulated -= 1L
+            accumulated += 2L
+            accumulated *= 3L
+            var scaled = scale
+            scaled /= 2.0
+            return (accumulated and 0xFFL) + scaled.toLong()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                ctx.diagnostics.diagnostics.isEmpty,
+                Comment(rawValue: "Compound assignment should preserve Long/Double local types, got: \(ctx.diagnostics.diagnostics)")
+            )
+        }
+    }
 }

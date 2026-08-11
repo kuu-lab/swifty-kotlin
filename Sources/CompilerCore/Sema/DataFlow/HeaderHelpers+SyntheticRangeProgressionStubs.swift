@@ -654,9 +654,9 @@ extension DataFlowSemaPhase {
         case "ULongProgression":
             firstLastRuntime = ("kk_ulong_range_first", "kk_ulong_range_last")
         case "LongProgression":
-            firstLastRuntime = ("kk_long_range_first", "kk_long_range_last")
+            firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         default:
-            firstLastRuntime = ("kk_range_first", "kk_range_last")
+            firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         }
         let stepRuntime: String
         switch name {
@@ -669,7 +669,7 @@ extension DataFlowSemaPhase {
         switch name {
         case "UIntProgression": isEmptyRuntime = "kk_uint_range_isEmpty"
         case "ULongProgression": isEmptyRuntime = "kk_ulong_range_isEmpty"
-        default: isEmptyRuntime = "kk_range_isEmpty"
+        default: isEmptyRuntime = "__kk_range_isEmpty"
         }
         let reversedRuntime: String
         let toListRuntime: String
@@ -681,13 +681,13 @@ extension DataFlowSemaPhase {
             reversedRuntime = "kk_ulong_range_reversed"
             toListRuntime = "kk_ulong_range_toList"
         case "LongProgression":
-            reversedRuntime = "kk_range_reversed"
+            reversedRuntime = "__kk_range_reversed"
             toListRuntime = "kk_long_range_toList"
         case "CharProgression":
-            reversedRuntime = "kk_range_reversed"
+            reversedRuntime = "__kk_range_reversed"
             toListRuntime = "kk_char_range_toList"
         default:
-            reversedRuntime = "kk_range_reversed"
+            reversedRuntime = "__kk_range_reversed"
             toListRuntime = "kk_range_toList"
         }
 
@@ -964,7 +964,7 @@ extension DataFlowSemaPhase {
             named: "start",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
-            externalLinkName: "kk_range_start",
+            externalLinkName: "__kk_range_first",
             symbols: symbols,
             interner: interner
         )
@@ -972,7 +972,7 @@ extension DataFlowSemaPhase {
             named: "endInclusive",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
-            externalLinkName: "kk_range_end",
+            externalLinkName: "__kk_range_last",
             symbols: symbols,
             interner: interner
         )
@@ -995,7 +995,7 @@ extension DataFlowSemaPhase {
             receiverType: rangeType,
             parameterTypes: [],
             returnType: types.booleanType,
-            externalLinkName: "kk_range_isEmpty",
+            externalLinkName: "__kk_range_isEmpty",
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
             symbols: symbols,

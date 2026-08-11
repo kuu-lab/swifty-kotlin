@@ -292,10 +292,6 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             val powF = f.pow(f)
             val powDI = d.pow(i)
             val powFI = f.pow(i)
-            val signD = d.withSign(d)
-            val signDI = d.withSign(i)
-            val signF = f.withSign(f)
-            val signFI = f.withSign(i)
         }
         """
 
@@ -320,10 +316,6 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 "kk_math_pow_float",
                 "kk_math_pow_int",
                 "kk_math_pow_float_int",
-                "kk_math_withSign",
-                "kk_math_withSign_int",
-                "kk_math_withSign_float",
-                "kk_math_withSign_float_int",
             ] {
                 #expect(
                     calls.contains(where: { $0 == expected && $1 == 2 }),

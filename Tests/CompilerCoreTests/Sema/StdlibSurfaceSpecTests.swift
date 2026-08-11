@@ -43,9 +43,6 @@ struct StdlibSurfaceSpecTests {
 
     @Test func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
-            list("map", 1),
-            list("mapNotNull", 1),
-            list("flatMap", 1),
             list("forEach", 1),
             list("groupBy", 1),
             list("associateBy", 1),
@@ -60,17 +57,10 @@ struct StdlibSurfaceSpecTests {
             list("forEachIndexed", 1),
             list("onEach", 1),
             list("onEachIndexed", 1),
-            list("mapIndexed", 1),
             list("takeWhile", 1),
             list("dropWhile", 1),
             list("takeLastWhile", 1),
             list("dropLastWhile", 1),
-            list("mapTo", 2),
-            list("flatMapTo", 2),
-            list("mapNotNullTo", 2),
-            list("mapIndexedTo", 2),
-            list("mapIndexedNotNullTo", 2),
-            list("flatMapIndexedTo", 2),
             list("associateTo", 2),
             list("associateByTo", 2),
             list("associateWithTo", 2),

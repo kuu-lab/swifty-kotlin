@@ -1,6 +1,6 @@
 # Refactoring Metrics
 
-Baseline refreshed on 2026-07-12 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
+Baseline refreshed on 2026-08-10 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
 
 ## LoC Guard
 
@@ -14,21 +14,22 @@ Output:
 
 ```tsv
 metric	scope	value
-loc_by_directory	.	2695
-loc_by_directory	.github	737
-loc_by_directory	Scripts	22591
-loc_by_directory	Sources	328534
-loc_by_directory	Stdlib	3617
-loc_by_directory	Tests	231961
-loc_by_directory	docs	3472
-loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	93496
-loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	35644
-header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	77223
-call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	4028
+loc_by_directory	.	1315
+loc_by_directory	.agents	73
+loc_by_directory	.github	778
+loc_by_directory	Scripts	27743
+loc_by_directory	Sources	306909
+loc_by_directory	Stdlib	3068
+loc_by_directory	Tests	241866
+loc_by_directory	docs	3552
+loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	75157
+loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	36626
+header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	56810
+call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	3564
 kir_lowering_todo_fixme_count	Sources/CompilerCore/{KIR,Lowering}/*.swift	0
-kk_literal_count	Swift/Kotlin sources	17199
-interner_resolve_literal_comparison_count	Swift sources	716
-typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	105
+kk_literal_count	Swift/Kotlin sources	11385
+interner_resolve_literal_comparison_count	Swift sources	695
+typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	81
 ```
 
 Notes:
