@@ -4,6 +4,39 @@ import Testing
 
 @Suite
 struct RangeSyntheticInterfaceTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun inspectClosedRange(range: ClosedRange<Int>): Boolean {
+            return range.start <= range.endInclusive && range.contains(3) && !range.isEmpty()
+        }
+
+        fun inspectClosedFloatingPointRange(): Boolean {
+            val range = 1.0..4.0
+            return range.start <= range.endInclusive &&
+                range.contains(3.0) &&
+                !range.isEmpty()
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
@@ -206,28 +239,14 @@ struct RangeSyntheticInterfaceTests {
     }
 
     @Test func testClosedRangeAndClosedFloatingPointRangeResolveInSource() throws {
-        let source = """
-        fun inspectClosedRange(range: ClosedRange<Int>): Boolean {
-            return range.start <= range.endInclusive && range.contains(3) && !range.isEmpty()
-        }
 
-        fun inspectClosedFloatingPointRange(): Boolean {
-            val range = 1.0..4.0
-            return range.start <= range.endInclusive &&
-                range.contains(3.0) &&
-                !range.isEmpty()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
             #expect(
                 !(ctx.diagnostics.hasError),
                 Comment(rawValue: "Expected ClosedRange and ClosedFloatingPointRange surface to resolve cleanly, got: \(diagnosticSummary)")
             )
-        }
+
     }
 }
 #endif
