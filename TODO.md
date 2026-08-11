@@ -497,7 +497,7 @@
 - [ ] KSP-687: primitive array（IntArray/LongArray/DoubleArray/FloatArray/CharArray 等）の HOF を Kotlin 化する（KSP-433 完了メモが「`kk_array_*` ブリッジ削除には primitive array HOF の Kotlin 化（**別タスク**）が前提」と明記したまま未起票だった — 2026-08-12 追補）
   - 対象: `RuntimeCollectionHOFArray.swift` の 40 関数（2026-08-12 実測。generic `Array<T>` 経路は KSP-433 で source 化済みだが、primitive レシーバは `CallTypeChecker+ArrayMemberFallback.swift` の合成フォールバック経由で今も全ブリッジへ到達する）と、`CollectionLiteralLoweringPass+LookupTables+Array.swift` / `CallLowerer+UnresolvedMemberCalls.swift` の未解決メンバ fallback 表の該当分
   - 併せて解消: `Array<T>.joinToString(..., transform)` が synthetic メンバ優先で `kk_array_joinToString_transform` に残る問題（KSP-433 記載・BUG-158 と共有）、fold アキュムレータの raw 表現規約（KSP-433 の同 PR 修正参照）の source 実装への引き継ぎ
-  - 注意: `Byte`/`Short` が独立プリミティブでない型モデル制約（KSP-645 調査記録・BUG-199）により ByteArray/ShortArray 要素は Int 扱いになる — Int/Long/Double/Float/Char 系から着手し、Byte/Short 系で JVM-erasure 衝突が出る場合は分割して残りを BUG-199 待ちにする
+  - 注意: `Byte`/`Short` が独立プリミティブでない型モデル制約（KSP-645 調査記録・BUG-199）は、#5665（Byte/Short の独立プリミティブ化、`Tests/CompilerCoreTests/Sema/ByteShortOverloadResolutionTests.swift` 追加）で解消された可能性が高い — 着手時に BUG-199 の最小再現で現状を再確認し、未解消なら Int/Long/Double/Float/Char 系から着手して ByteArray/ShortArray 系を分割する
   - 前提: KSP-433（完了済み）/ 手順: T / diff: `array_hof_source_backed.kt` の primitive 版を新規追加
 
 #### math / numbers
