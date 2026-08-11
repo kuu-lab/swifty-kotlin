@@ -744,16 +744,6 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_set_maxOrNull", parameters: [
-            p("setRaw", .intptr),
-        ]),
-        abiParitySpec("kk_set_minOrNull", parameters: [
-            p("setRaw", .intptr),
-        ]),
-        abiParitySpec("kk_set_toList", parameters: [
-            p("setRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_shared_flow_collect", parameters: [
             p("handle", .intptr),
             p("collectorFnPtr", .intptr),
