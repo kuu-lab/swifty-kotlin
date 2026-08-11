@@ -81,7 +81,20 @@ extension LoweringPassRegressionTests {
             return expr
         }
         #expect(returnValues.count == 1)
-        #expect(returnValues.first != callerResult)
+        // The inline result is materialized into the call result register, so the
+        // caller's return value uses that register and a preceding copy exists.
+        #expect(returnValues.first == callerResult)
+
+        let addResult = loweredCaller.body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { return nil }
+            return interner.resolve(callee) == "kk_op_add" ? result : nil
+        }.first
+        let addResultExpr = try #require(addResult, "expected kk_op_add call")
+        let hasCopyToResult = loweredCaller.body.contains { instruction in
+            guard case let .copy(from, to) = instruction else { return false }
+            return from == addResultExpr && to == callerResult
+        }
+        #expect(hasCopyToResult, "expected copy from inline result to call result register")
     }
 
     @Test

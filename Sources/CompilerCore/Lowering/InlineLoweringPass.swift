@@ -454,19 +454,20 @@ final class InlineLoweringPass: LoweringPass {
                     }
                     if let result {
                         if let lambdaReturn = lambdaExpansion.returnedExpr {
-                            aliases[result] = boxErasedLambdaResultIfNeeded(
+                            let finalExpr = boxErasedLambdaResultIfNeeded(
                                 returnedExpr: resolveAlias(of: lambdaReturn, aliases: aliases),
                                 result: result,
                                 module: module,
                                 ctx: ctx,
                                 into: &loweredBody
                             )
+                            loweredBody.append(.copy(from: finalExpr, to: result))
                         } else if let unitType = unitType {
                             let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                            aliases[result] = unitExpr
+                            loweredBody.append(.copy(from: unitExpr, to: result))
                         } else {
                             let unitExpr = module.arena.appendExpr(.unit, type: nil)
-                            aliases[result] = unitExpr
+                            loweredBody.append(.copy(from: unitExpr, to: result))
                         }
                     }
                     continue
@@ -630,11 +631,13 @@ final class InlineLoweringPass: LoweringPass {
                 loweredBody.append(.label(trailingThrowLabel))
             }
 
-            // Alias the call result to the expansion's returned expression (shared
-            // for both non-local-return and normal paths).
+            // Copy the expansion's returned expression into the call result so the
+            // result register remains valid across basic-block merges (e.g. safe-call
+            // null branches). Aliasing it globally would leak the non-null branch's
+            // value into the null branch.
             if let result {
                 if let returnedExpr = expansion.returnedExpr {
-                    aliases[result] = unboxErasedInlineResultIfNeeded(
+                    let finalExpr = unboxErasedInlineResultIfNeeded(
                         returnedExpr: resolveAlias(of: returnedExpr, aliases: aliases),
                         result: result,
                         inlineTarget: inlineTarget,
@@ -642,9 +645,10 @@ final class InlineLoweringPass: LoweringPass {
                         ctx: ctx,
                         into: &loweredBody
                     )
+                    loweredBody.append(.copy(from: finalExpr, to: result))
                 } else {
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                    aliases[result] = unitExpr
+                    loweredBody.append(.copy(from: unitExpr, to: result))
                 }
             }
         }
