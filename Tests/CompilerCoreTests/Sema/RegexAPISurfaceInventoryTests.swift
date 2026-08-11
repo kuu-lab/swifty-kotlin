@@ -21,7 +21,9 @@ struct RegexAPISurfaceInventoryTests {
 
     // MARK: - Shared sema fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -29,7 +31,9 @@ struct RegexAPISurfaceInventoryTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     // MARK: - Lookup helpers
@@ -61,7 +65,7 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 1. Constructors
 
     @Test func testRegexSingleArgConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         // Regex(pattern: String) -> Regex
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "<init>"],
@@ -75,7 +79,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexSingleOptionConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         // Regex(pattern: String, option: RegexOption) -> Regex
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "<init>"],
@@ -89,7 +93,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexSetOptionsConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         // Regex(pattern: String, options: Set<RegexOption>) -> Regex
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "<init>"],
@@ -103,7 +107,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testAllThreeRegexConstructorOverloadsArePresent() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "<init>"],
             sema: sema,
@@ -123,14 +127,14 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 2. RegexOption enum entries
 
     @Test func testRegexOptionEnumClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let sym = sema.symbols.lookup(fqName: fq)
         #expect(sym != nil, "kotlin.text.RegexOption enum class must exist in symbol table")
     }
 
     @Test func testRegexOptionAllEnumEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let entries = [
             "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL",
             "LITERAL", "UNIX_LINES", "COMMENTS", "CANON_EQ",
@@ -147,7 +151,7 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 3. Regex member functions
 
     @Test func testRegexMatchesIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "matches"],
             sema: sema,
@@ -157,7 +161,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexContainsMatchInIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "containsMatchIn"],
             sema: sema,
@@ -168,7 +172,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexFindIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "find"],
             sema: sema,
@@ -178,7 +182,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexFindAllIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "findAll"],
             sema: sema,
@@ -188,7 +192,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexMatchEntireIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "matchEntire"],
             sema: sema,
@@ -199,7 +203,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testRegexReplaceWithLambdaIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "replace"],
             sema: sema,
@@ -214,7 +218,7 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
 
     @Test func testRegexAccessorsAreNoLongerRuntimeLinked() throws {
-        let (sema, _) = try makeSema()
+        let (sema, _) = try sharedSema()
         let removed = ["kk_regex_pattern", "kk_regex_options", "kk_regex_group_names"]
         let present = registeredLinkNames(sema: sema).intersection(removed)
         #expect(
@@ -226,7 +230,7 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 5. Companion methods (fromLiteral)
 
     @Test func testRegexFromLiteralCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "text", "Regex", "Companion", "fromLiteral"]
             .map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
@@ -244,7 +248,7 @@ struct RegexAPISurfaceInventoryTests {
     /// public layer lives in `__bundled_kotlin/text/MatchResult.kt`; only the raw
     /// match-position `__kk_*` bridges remain in the runtime.
     @Test func testMatchResultLayerIsNoLongerRuntimeLinked() throws {
-        let (sema, _) = try makeSema()
+        let (sema, _) = try sharedSema()
         var removed: Set<String> = [
             "kk_match_result_value",
             "kk_match_result_range",
@@ -273,7 +277,7 @@ struct RegexAPISurfaceInventoryTests {
 
     /// The remaining raw bridges must stay wired, since the Kotlin layer calls them.
     @Test func testRawMatchDataBridgesAreRegistered() throws {
-        let (sema, _) = try makeSema()
+        let (sema, _) = try sharedSema()
         let bridges: Set<String> = [
             "__kk_match_result_group_count",
             "__kk_match_result_group_value",
@@ -293,7 +297,7 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 9. String extension: replaceFirst / split with Regex
 
     @Test func testStringReplaceFirstWithRegexIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "replaceFirst"],
             sema: sema,
@@ -315,7 +319,7 @@ struct RegexAPISurfaceInventoryTests {
     }
 
     @Test func testStringSplitWithRegexIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "split"],
             sema: sema,
@@ -609,7 +613,7 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 15. Symbol table completeness: all mandatory API symbols present
 
     @Test func testMandatoryAPISymbolsAreAllRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         // Each (fqPath, expectedLinkName) pair must be present.
         // nil linkName means we only check symbol existence, not the link.

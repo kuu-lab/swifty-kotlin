@@ -7,6 +7,15 @@ import Testing
 /// `fileAttributesViewOrNull<V>`) are no longer registered by Sema.
 @Suite
 struct PathGenericFunctionStubRemovalTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -19,7 +28,7 @@ struct PathGenericFunctionStubRemovalTests {
     }
 
     @Test func testRemovedPathGenericFunctionStubsAreNotRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let removedNames = [
             ["kotlin", "io", "path", "Path", "useLines"],
             ["kotlin", "io", "path", "useDirectoryEntries"],
@@ -36,7 +45,7 @@ struct PathGenericFunctionStubRemovalTests {
     /// stays registered; only the reified `readAttributes<A : BasicFileAttributes>`
     /// overload is removed.
     @Test func testOnlyStringReadAttributesOverloadRemains() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "io", "path", "readAttributes"].map(interner.intern)
         let symbols = sema.symbols.lookupAll(fqName: fqName)
         #expect(!symbols.isEmpty)

@@ -12,7 +12,9 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     // MARK: - Shared sema fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -20,7 +22,9 @@ struct UuidFromLongsFromByteArraySemaTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     // MARK: - Lookup helpers
@@ -41,7 +45,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testUuidFromLongsCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
             sema: sema,
@@ -55,7 +59,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testUuidFromLongsAcceptsTwoLongParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         #expect(!syms.isEmpty, "Uuid.fromLongs must be registered")
@@ -70,7 +74,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testUuidFromLongsReturnTypeIsUuid() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         #expect(!syms.isEmpty, "Uuid.fromLongs must be registered")
@@ -94,7 +98,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testUuidFromByteArrayCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
             sema: sema,
@@ -108,7 +112,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testUuidFromByteArrayAcceptsOneParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         #expect(!syms.isEmpty, "Uuid.fromByteArray must be registered")
@@ -121,7 +125,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testUuidFromByteArrayReturnTypeIsUuid() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         #expect(!syms.isEmpty, "Uuid.fromByteArray must be registered")
@@ -145,7 +149,7 @@ struct UuidFromLongsFromByteArraySemaTests {
 
     @Test
     func testMigratedCompanionFactoriesHaveNoPureRuntimeLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let companionFQ = ["kotlin", "uuid", "Uuid", "Companion"]
         var foundLinks: Set<String> = []
         for memberName in ["fromLongs", "fromByteArray"] {
