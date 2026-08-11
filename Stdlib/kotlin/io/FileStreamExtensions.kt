@@ -2,7 +2,7 @@ package kotlin.io
 
 // MIGRATION-IO-002
 // File stream and buffer extension functions.
-// Migration source: Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift
+// Migration source: Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift
 //   (registerSyntheticFileIOStubs — bufferedReader, bufferedWriter, inputStream, outputStream,
 //    Reader / Writer / InputStream / OutputStream extension registrations)
 //
@@ -14,7 +14,7 @@ package kotlin.io
 //   kk_reader_readText, kk_reader_copyTo, kk_reader_copyTo_default
 //
 // NOTE: Not yet wired into the compiler pipeline (RF-STDLIB-004+).
-// Sema stubs in HeaderHelpers+SyntheticFileIOStubs.swift still dispatch directly to the
+// Sema stubs in HeaderHelpers+SyntheticTODOAndIOStubs.swift still dispatch directly to the
 // kk_* ABI functions. This file is the migration target; wiring (and removal of the
 // corresponding synthetic stubs) happens in RF-STDLIB-004+.
 //
