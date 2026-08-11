@@ -1,5 +1,6 @@
+#if canImport(Testing)
 import Foundation
-import XCTest
+import Testing
 
 /// Guards BUG-135: Swift Testing suites share one process and run
 /// concurrently, so calling a process-global runtime reset / GC from one
@@ -12,7 +13,8 @@ import XCTest
 /// mistake fails deterministically in the offending PR instead of crashing
 /// unrelated CI runs. Tests that genuinely need these APIs must stay XCTest
 /// (e.g. via IsolatedRuntimeXCTestCase).
-final class RuntimeSwiftTestingIsolationLintTests: XCTestCase {
+@Suite
+struct RuntimeSwiftTestingIsolationLintTests {
     private static let forbiddenCalls = [
         "kk_runtime_force_reset",
         "kk_runtime_reset_gc",
@@ -28,6 +30,7 @@ final class RuntimeSwiftTestingIsolationLintTests: XCTestCase {
     // Split so this file's own source never matches the marker.
     private static let swiftTestingMarker = "canImport(" + "Testing)"
 
+    @Test
     func testSwiftTestingSuitesDoNotResetGlobalRuntimeState() throws {
         let thisFile = URL(fileURLWithPath: #filePath)
         let testsRoot = thisFile.deletingLastPathComponent().deletingLastPathComponent()
@@ -56,11 +59,11 @@ final class RuntimeSwiftTestingIsolationLintTests: XCTestCase {
             }
         }
 
-        XCTAssertGreaterThan(
-            scannedSwiftTestingFiles, 0,
+        #expect(
+            scannedSwiftTestingFiles > 0,
             "Lint scanned no Swift Testing files — the source layout changed and this lint needs updating"
         )
-        XCTAssertTrue(
+        #expect(
             violations.isEmpty,
             """
             Swift Testing suites must not mutate process-global runtime state: they run \
@@ -71,3 +74,4 @@ final class RuntimeSwiftTestingIsolationLintTests: XCTestCase {
         )
     }
 }
+#endif
