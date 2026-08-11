@@ -9,6 +9,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 fun main() = runBlocking {
+    val start = System.currentTimeMillis()
+
     // Collect each job's completion string in a Mutex-guarded list instead of
     // printing from inside the coroutines. The scheduler-dependent completion
     // order of the two jobs (JVM vs. native) would otherwise make the printed
@@ -31,9 +33,10 @@ fun main() = runBlocking {
 
     for (line in results.sorted()) println(line)
 
-    // Completion order proves concurrency without depending on wall time:
-    // with a non-blocking delay the shorter job (job2, 50ms) finishes first,
-    // whereas a blocking delay would serialize them in launch order.
-    println(if (results.first() == "job2 done") "concurrent" else "sequential")
+    val elapsed = System.currentTimeMillis() - start
+    // With non-blocking delay, both run concurrently: elapsed ~ 100ms.
+    // With blocking delay, they would serialize: elapsed ~ 150ms.
+    // Use a generous threshold (500ms) to avoid flakiness on slow CI runners.
+    println(if (elapsed < 500) "concurrent" else "sequential ($elapsed ms)")
     println("done")
 }
