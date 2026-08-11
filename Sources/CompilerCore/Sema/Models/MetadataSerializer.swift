@@ -542,31 +542,13 @@ package final class MetadataEncoder {
         }()
 
         if metadataAnchorOnly {
-            // Synthetic nominal anchors need their declared layout sizes so that
-            // consumer-side interface dispatch can reconstruct the nominal shape.
-            // Slot mappings are filtered by includedSymbolIDs and remain absent
-            // when their referenced methods are not exported.
+            // Synthetic nominal anchors need their declared layout sizes as
+            // consumer-side synthesis hints. Do not serialize partial slot maps:
+            // their synthetic members are intentionally not exported and are
+            // re-registered by the consumer. Keeping only an inherited itable
+            // entry would install an incomplete layout and prevent synthesis from
+            // assigning slots to those re-registered members.
             if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
-                let serializedFieldOffsets = serializeFieldOffsets(
-                    layout.fieldOffsets,
-                    symbols: symbols,
-                    interner: interner,
-                    includedSymbolIDs: includedSymbolIDs
-                )
-                let serializedVTableSlots = serializeVTableSlots(
-                    layout.vtableSlots,
-                    symbols: symbols,
-                    interner: interner,
-                    includedSymbolIDs: includedSymbolIDs,
-                    mangler: mangler,
-                    types: types
-                )
-                let serializedITableSlots = serializeITableSlots(
-                    layout.itableSlots,
-                    symbols: symbols,
-                    interner: interner,
-                    includedSymbolIDs: includedSymbolIDs
-                )
                 return MetadataRecord(
                     kind: symbol.kind,
                     mangledName: mangled,
@@ -576,9 +558,6 @@ package final class MetadataEncoder {
                     declaredVtableSize: layout.vtableSize,
                     declaredItableSize: layout.itableSize,
                     superFQName: computedSuperFQName,
-                    fieldOffsets: serializedFieldOffsets.isEmpty ? nil : serializedFieldOffsets,
-                    vtableSlots: serializedVTableSlots.isEmpty || serializedVTableSlots == "v2:" ? nil : serializedVTableSlots,
-                    itableSlots: serializedITableSlots.isEmpty ? nil : serializedITableSlots,
                     isDataClass: symbol.flags.contains(.dataType),
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),

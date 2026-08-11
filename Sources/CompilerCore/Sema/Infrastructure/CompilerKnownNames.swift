@@ -583,16 +583,6 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicReferenceName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
         ]
-        // java.io.File constructors are runtime factories (`kk_file_new` /
-        // `kk_file_new_parent_child`) that allocate the box themselves. Treat
-        // them like BigInteger so CallLowerer does not emit `kk_object_new` +
-        // an implicit `this` before the factory call.
-        let io = interner.intern("io")
-        let fileName = interner.intern("File")
-        boxedRuntimeFactoryFQNames = [
-            [java, math, bigIntegerName],
-            [java, io, fileName],
-        ]
     }
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {

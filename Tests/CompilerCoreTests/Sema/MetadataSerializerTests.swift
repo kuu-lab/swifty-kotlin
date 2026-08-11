@@ -373,7 +373,7 @@ struct MetadataSerializerTests {
         let types = TypeSystem()
         let kotlin = interner.intern("kotlin")
 
-        _ = symbols.define(
+        let charSequence = symbols.define(
             kind: .interface,
             name: interner.intern("CharSequence"),
             fqName: [kotlin, interner.intern("CharSequence")],
@@ -404,7 +404,7 @@ struct MetadataSerializerTests {
                 instanceSizeWords: 3,
                 fieldOffsets: [first: 2],
                 vtableSlots: [first: 0],
-                itableSlots: [:],
+                itableSlots: [charSequence: 0],
                 superClass: nil
             ),
             for: range
@@ -440,15 +440,16 @@ struct MetadataSerializerTests {
         #expect(records.map(\.fqName) == ["kotlin.CharSequence", "kotlin.ranges.IntRange"])
         #expect(records.map(\.kind) == [.interface, .class])
         #expect(records.allSatisfy { !$0.mangledName.isEmpty })
-        let charSequence = try #require(records.first { $0.fqName == "kotlin.CharSequence" })
-        #expect(charSequence.declaredInstanceSizeWords == nil)
+        let charSequenceRecord = try #require(records.first { $0.fqName == "kotlin.CharSequence" })
+        #expect(charSequenceRecord.declaredInstanceSizeWords == nil)
         let intRange = try #require(records.first { $0.fqName == "kotlin.ranges.IntRange" })
         #expect(intRange.declaredFieldCount == 1)
         #expect(intRange.declaredInstanceSizeWords == 3)
         #expect(intRange.declaredVtableSize == 1)
-        #expect(intRange.declaredItableSize == 0)
+        #expect(intRange.declaredItableSize == 1)
         #expect(records.allSatisfy { $0.fieldOffsets == nil })
         #expect(records.allSatisfy { $0.vtableSlots == nil })
+        #expect(records.allSatisfy { $0.itableSlots == nil })
     }
 
     @Test func testSerializeMultipleRecords() {
