@@ -1301,9 +1301,29 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured.
         let isBoundReceiver = receiver != nil && unboundClassType == nil
 
+        // BUG-164: callable references must also support SAM-conversion to a
+        // functional interface expected type, the same way lambda literals do.
+        let expectedFunctionType: TypeID?
+        let expectedSamInterfaceType: TypeID?
+        if let expectedType {
+            if case .functionType = sema.types.kind(of: expectedType) {
+                expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+                expectedFunctionType = sema.types.make(.functionType(samFT))
+                expectedSamInterfaceType = expectedType
+            } else {
+                expectedFunctionType = nil
+                expectedSamInterfaceType = nil
+            }
+        } else {
+            expectedFunctionType = nil
+            expectedSamInterfaceType = nil
+        }
+
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
-            expectedType: expectedType,
+            expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             sema: sema
         )
@@ -1322,41 +1342,39 @@ extension ExprTypeChecker {
             // argument (`fun <T> runCatching(block: () -> T)`). Checking against
             // it would fail, and adopting it would hide the concrete type the
             // caller needs for inference, so report the reference's own type.
-            if let expectedType,
-               case .functionType = sema.types.kind(of: expectedType),
-               !sema.types.typeContainsAnyTypeParam(expectedType)
-            {
-                driver.emitSubtypeConstraint(
-                    left: inferredType,
-                    right: expectedType,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-                resultType = expectedType
-            } else if let expectedType,
-                      let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema)
-            {
-                // BUG-164: A callable reference passed to a fun-interface parameter
-                // must be SAM-converted and bound to the interface type, not left as a
-                // bare function type.  `lowerCallableRefExpr` checks `isSamConversion`
-                // and emits the wrapper object that makes interface dispatch work.
-                let samFTTypeID = sema.types.make(.functionType(samFT))
-                driver.emitSubtypeConstraint(
-                    left: inferredType,
-                    right: samFTTypeID,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-                sema.bindings.markSamConversion(id)
-                sema.bindings.bindSamUnderlyingFunctionType(id, type: samFTTypeID)
-                sema.bindings.bindSamInterfaceType(id, type: expectedType)
-                resultType = expectedType
+            if let expectedFunctionType {
+                let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
+                if !sema.types.typeContainsAnyTypeParam(concreteResult) {
+                    driver.emitSubtypeConstraint(
+                        left: inferredType,
+                        right: expectedFunctionType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: sema,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    resultType = concreteResult
+                } else {
+                    resultType = inferredType
+                }
+
             } else {
                 resultType = inferredType
+            }
+            // BUG-164: A callable reference passed to a fun-interface parameter
+            // must be SAM-converted and bound to the interface type, not left as a
+            // bare function type.  `lowerCallableRefExpr` checks `isSamConversion`
+            // and emits the wrapper object that makes interface dispatch work.
+            // Only perform the conversion when the resolved result is the concrete
+            // interface type; if the expected type still contains type parameters,
+            // leave the reference as a function value so generic inference can
+            // substitute a concrete instantiation later.
+            if let expectedSamInterfaceType,
+               resultType == expectedSamInterfaceType
+            {
+                sema.bindings.markSamConversion(id)
+                sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
+                sema.bindings.bindSamUnderlyingFunctionType(id, type: expectedFunctionType ?? inferredType)
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

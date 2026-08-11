@@ -105,6 +105,7 @@ extension CallTypeChecker {
         let isListFactoryReceiver = receiverClassification.isListFactoryReceiver
         let isSyntheticSequenceReceiver = receiverClassification.isSyntheticSequenceReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
+        let isSetReceiver = receiverClassification.isSetReceiver
         var activeCollectionHOFNames = collectionHOFNames
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
@@ -327,11 +328,14 @@ extension CallTypeChecker {
             return nil
         }
 
+        /// Bind a member call to a bundled Kotlin-source extension declared on a
+        /// collection owner interface (`Map`, `Set`, …), inferring the owner's type
+        /// arguments from the receiver and any remaining ones from lambda returns.
         @discardableResult
-        func bindBundledMapSourceFunction() -> Bool {
-            guard isMapReceiver, !isSequenceReceiver else {
-                return false
-            }
+        func bindBundledCollectionOwnerSourceFunction(
+            receiverTypeArgumentCount: Int,
+            isOwnerSymbol: (SemanticSymbol) -> Bool
+        ) -> Bool {
             let sourceFQName = [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
@@ -339,7 +343,7 @@ extension CallTypeChecker {
             ]
             let receiverForLookup = sema.types.makeNonNullable(receiverType)
             guard let (actualReceiverClassType, _) = resolveClassTypeSymbol(receiverForLookup, sema: sema),
-                  actualReceiverClassType.args.count >= 2
+                  actualReceiverClassType.args.count >= receiverTypeArgumentCount
             else {
                 return false
             }
@@ -355,7 +359,7 @@ extension CallTypeChecker {
                     return false
                 }
                 guard let (sigClassType, sigSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
-                      knownNames.isMapLikeSymbol(sigSymbol)
+                      isOwnerSymbol(sigSymbol)
                 else {
                     return false
                 }
@@ -424,6 +428,27 @@ extension CallTypeChecker {
             ))
             sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
             return true
+        }
+
+        @discardableResult
+        func bindBundledMapSourceFunction() -> Bool {
+            guard isMapReceiver, !isSequenceReceiver else {
+                return false
+            }
+            return bindBundledCollectionOwnerSourceFunction(receiverTypeArgumentCount: 2) {
+                knownNames.isMapLikeSymbol($0)
+            }
+        }
+
+        // KSP-432: Set members are source-backed in Stdlib/kotlin/collections/SetHOF.kt.
+        @discardableResult
+        func bindBundledSetSourceFunction() -> Bool {
+            guard isSetReceiver, !isSequenceReceiver, !isMapReceiver else {
+                return false
+            }
+            return bindBundledCollectionOwnerSourceFunction(receiverTypeArgumentCount: 1) {
+                knownNames.isSetLikeSymbol($0)
+            }
         }
         if interner.resolve(calleeName) == "asFlow",
            args.isEmpty,
@@ -3242,6 +3267,17 @@ extension CallTypeChecker {
             // an already-bound CallBinding from a list/aggregate source path.
             if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
+            }
+
+            if isSetReceiver, sema.bindings.callBindings[id] == nil, bindBundledSetSourceFunction() {
+                // The call now targets an ordinary Kotlin declaration, so its lambda
+                // arguments are boxed callables rather than native (closureObj, it)
+                // collection-HOF lambdas.
+                for arg in args {
+                    if let lambdaExpr = ast.arena.expr(arg.expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
+                    }
+                }
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

@@ -578,10 +578,10 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(ret, for: mSymbol)
         }
 
-        registerComponent(name: "component1", ret: types.intType, externalLinkName: "kk_pair_first")
-        registerComponent(name: "component2", ret: tType, externalLinkName: "kk_pair_second")
-        registerPropertyGetter(name: "index", ret: types.intType, externalLinkName: "kk_pair_first")
-        registerPropertyGetter(name: "value", ret: tType, externalLinkName: "kk_pair_second")
+        registerComponent(name: "component1", ret: types.intType, externalLinkName: "__kk_pair_first")
+        registerComponent(name: "component2", ret: tType, externalLinkName: "__kk_pair_second")
+        registerPropertyGetter(name: "index", ret: types.intType, externalLinkName: "__kk_pair_first")
+        registerPropertyGetter(name: "value", ret: tType, externalLinkName: "__kk_pair_second")
 
         // Constructor: IndexedValue(index, value) → kk_indexed_value_new (STDLIB-563)
         let initName = interner.intern("<init>")

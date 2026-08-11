@@ -204,6 +204,21 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    // Tagged Pair/Triple boxes hash structurally, matching both
+    // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
+    // RuntimePairBox is internal runtime state and keeps the pointer hash.
+    if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    {
+        return 31 &* kk_any_hashCode(pairBox.first, 0) &+ kk_any_hashCode(pairBox.second, 0)
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
+       let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
+    {
+        var hash = kk_any_hashCode(tripleBox.first, 0)
+        hash = 31 &* hash &+ kk_any_hashCode(tripleBox.second, 0)
+        return 31 &* hash &+ kk_any_hashCode(tripleBox.third, 0)
+    }
     // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
     // and other user-defined objects reached via Any.hashCode() — must stay
     // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural
@@ -1014,23 +1029,25 @@ public func kk_double_fromBits(_ bits: Int) -> Int {
 
 /// Float.toBits(): Int — returns IEEE 754 bit representation as Int.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
+/// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
+/// sign-extended back into the Int domain Kotlin expects.
 @_cdecl("kk_float_toBits")
 public func kk_float_toBits(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
-    if f.isNaN { return Int(bitPattern: UInt(0x7FC0_0000 as UInt32)) }
-    return kk_float_to_bits(f)
+    if f.isNaN { return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32)) }
+    return Int(Int32(bitPattern: f.bitPattern))
 }
 
 /// Float.toRawBits(): Int — actual bit pattern without canonicalizing NaN.
 @_cdecl("kk_float_toRawBits")
 public func kk_float_toRawBits(_ value: Int) -> Int {
-    value  // bit pattern is already canonical in our ABI
+    Int(Int32(truncatingIfNeeded: value))
 }
 
 /// Float.Companion.fromBits(bits: Int): Float
 @_cdecl("kk_float_fromBits")
 public func kk_float_fromBits(_ bits: Int) -> Int {
-    bits  // already Float bit representation in ABI
+    Int(UInt32(truncatingIfNeeded: bits))  // re-widen to the zero-extended ABI form
 }
 
 // MARK: - STDLIB-514: truncate, IEEErem, withSign, nextTowards

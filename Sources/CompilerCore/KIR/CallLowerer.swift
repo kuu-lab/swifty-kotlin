@@ -326,9 +326,9 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         // SAM constructor calls: `Transformer { ... }` — the single lambda
-        // argument is already marked as a SAM conversion and there is no real
-        // callee binding (the callee name is the fun interface itself).  Lower the
-        // lambda directly; the SAM wrapper is produced by LambdaLowerer.
+        // argument is already marked as a SAM conversion and no call binding
+        // exists for the constructor (the callee name is the fun interface itself).
+        // Lower the lambda directly; the SAM wrapper is produced by LambdaLowerer.
         // A regular function call with a single SAM-converted argument (e.g.
         // `useOp(::myCompare)`) must still call the function, so require the
         // absence of a call binding here.
@@ -389,45 +389,6 @@ final class CallLowerer {
             instructions: &instructions
         ) {
             return loweredRepeat
-        }
-
-        if let loweredMeasureTime = lowerMeasureTimeMillisCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTime
-        }
-
-        if let loweredMeasureMicros = lowerMeasureTimeMicrosCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureMicros
-        }
-
-        if let loweredMeasureNano = lowerMeasureNanoTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureNano
         }
 
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
@@ -737,7 +698,6 @@ final class CallLowerer {
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 1,
-           !isSourceBacked(chosen, sema: sema),
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
@@ -768,7 +728,6 @@ final class CallLowerer {
         }
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema),
            let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
            case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
            functionType.params.isEmpty,
@@ -829,8 +788,7 @@ final class CallLowerer {
         // silently dropped and its returned elements never boxed. Handle it
         // directly, same as the other two generateSequence overloads above.
         if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2,
-           !isSourceBacked(chosen, sema: sema)
+           loweredArgIDs.count == 2
         {
             let expandedNextFunction = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArgIDs[1],
@@ -1378,10 +1336,10 @@ final class CallLowerer {
                 instructions.append(.rethrow(value: thrownResult))
                 instructions.append(.label(continueLabel))
             }
-            if loweredCalleeName == interner.intern("kk_auto_closeable_create"),
+            if loweredCalleeName == interner.intern("__kk_auto_closeable_create"),
                let closeableSymbol = sema.types.closeableInterfaceSymbol
             {
-                // kk_auto_closeable_create wraps the close-action lambda in a
+                // __kk_auto_closeable_create wraps the close-action lambda in a
                 // lightweight object and hardcodes its close() method at
                 // itable slot 0 (see the kk_object_register_itable_method
                 // call inside it), but never registers that slot against the

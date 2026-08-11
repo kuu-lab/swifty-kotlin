@@ -105,8 +105,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticPairStub(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTripleStub(symbols: symbols, types: types, interner: interner)
+        registerSyntheticTupleNominalAnchors(symbols: symbols, interner: interner)
 
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         if symbols.lookup(fqName: kotlinCollectionsPkg) == nil {
@@ -278,13 +277,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Now that List is registered, patch Pair.toList() and Triple.toList()
-        // return types from the provisional Any? to the correct List<Any?>.
-        patchPairTripleToListReturnTypes(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol
-        )
-
         registerSyntheticMutableListStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
@@ -305,6 +297,7 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             setInterfaceSymbol: setInterfaceSymbol,
             collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
         registerMutableCollectionIterableAddAllMembers(

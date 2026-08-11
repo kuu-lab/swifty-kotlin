@@ -136,6 +136,57 @@ func runtimeIsAssignable(sourceTypeID: Int64, targetTypeID: Int64) -> Bool {
     }
 }
 
+func runtimeTypeAncestors(of typeID: Int64) -> Set<Int64> {
+    guard typeID != 0 else {
+        return []
+    }
+    return runtimeStorage.withMetadataLock { state in
+        var visited: Set<Int64> = [typeID]
+        var queue: [Int64] = [typeID]
+        var index = 0
+        while index < queue.count {
+            let current = queue[index]
+            index += 1
+            guard let parents = state.typeParents[current] else {
+                continue
+            }
+            for parent in parents where visited.insert(parent).inserted {
+                queue.append(parent)
+            }
+        }
+        return visited
+    }
+}
+
+/// Reports whether `rhs` is guaranteed to satisfy the parameter type of the
+/// `compareTo` reached through `lhs`, so a virtual dispatch on `lhs` is safe.
+///
+/// Operands related by inheritance qualify, as do siblings sharing a Comparable
+/// supertype more specific than `kotlin.Comparable` itself (e.g. two classes
+/// implementing `Ranked : Comparable<Ranked>`). Merely both being Comparable is
+/// not enough: `Version : Comparable<Version>` and `Money : Comparable<Money>`
+/// have incompatible `compareTo` parameters.
+func runtimeComparableOperandsAreCompatible(
+    lhsTypeID: Int64,
+    rhsTypeID: Int64,
+    comparableTypeID: Int64
+) -> Bool {
+    if lhsTypeID == rhsTypeID {
+        return true
+    }
+    if runtimeIsAssignable(sourceTypeID: rhsTypeID, targetTypeID: lhsTypeID)
+        || runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: rhsTypeID)
+    {
+        return true
+    }
+    let rhsAncestors = runtimeTypeAncestors(of: rhsTypeID)
+    return runtimeTypeAncestors(of: lhsTypeID).contains { ancestor in
+        ancestor != comparableTypeID
+            && rhsAncestors.contains(ancestor)
+            && runtimeIsAssignable(sourceTypeID: ancestor, targetTypeID: comparableTypeID)
+    }
+}
+
 func runtimeAllocateThrowable(message: String, cause: Int = 0) -> Int {
     let throwable = RuntimeThrowableBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())

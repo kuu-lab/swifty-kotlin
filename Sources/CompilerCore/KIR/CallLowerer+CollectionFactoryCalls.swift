@@ -90,7 +90,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                name == "setOfNotNull" ? "kk_set_of_not_null" : "__kk_set_of",
+                name == "setOfNotNull" ? "__kk_set_of_not_null" : "__kk_set_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -337,14 +337,14 @@ extension CallLowerer {
 
             let key = arena.appendTemporary(type: sema.types.anyType)
             emitNonThrowingCall(
-                callee: interner.intern("kk_pair_first"),
+                callee: interner.intern("__kk_pair_first"),
                 arg: pair,
                 result: key,
                 into: &instructions
             )
             let value = arena.appendTemporary(type: sema.types.anyType)
             emitNonThrowingCall(
-                callee: interner.intern("kk_pair_second"),
+                callee: interner.intern("__kk_pair_second"),
                 arg: pair,
                 result: value,
                 into: &instructions

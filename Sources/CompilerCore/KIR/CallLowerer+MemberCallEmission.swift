@@ -388,15 +388,15 @@ extension CallLowerer {
            finalArguments.count >= 3
         {
             switch loweredCallee {
-            case interner.intern("kk_mutable_list_sortBy"):
-                loweredCallee = interner.intern("kk_mutable_list_sortBy_primitive")
-            case interner.intern("kk_mutable_list_sortByDescending"):
-                loweredCallee = interner.intern("kk_mutable_list_sortByDescending_primitive")
+            case interner.intern("__kk_mutable_list_sortBy"):
+                loweredCallee = interner.intern("__kk_mutable_list_sortBy_primitive")
+            case interner.intern("__kk_mutable_list_sortByDescending"):
+                loweredCallee = interner.intern("__kk_mutable_list_sortByDescending_primitive")
             default:
                 break
             }
-            if loweredCallee == interner.intern("kk_mutable_list_sortBy_primitive")
-                || loweredCallee == interner.intern("kk_mutable_list_sortByDescending_primitive")
+            if loweredCallee == interner.intern("__kk_mutable_list_sortBy_primitive")
+                || loweredCallee == interner.intern("__kk_mutable_list_sortByDescending_primitive")
             {
                 let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveSelectorKind.rawValue)), type: sema.types.intType)
                 instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
@@ -803,8 +803,8 @@ extension CallLowerer {
             let primitiveSortCallees: Set<InternedString> = [
                 interner.intern("kk_list_sorted_primitive"),
                 interner.intern("kk_list_sortedDescending_primitive"),
-                interner.intern("kk_mutable_list_sort_primitive"),
-                interner.intern("kk_mutable_list_sortDescending_primitive"),
+                interner.intern("__kk_mutable_list_sort_primitive"),
+                interner.intern("__kk_mutable_list_sortDescending_primitive"),
             ]
             if primitiveSortCallees.contains(loweredCallee),
                finalArguments.count == 1
@@ -942,7 +942,16 @@ extension CallLowerer {
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
         // Virtual dispatch is only correct when no remapping occurred.
-        if loweredCallee == calleeName,
+        // KSP-611: an imported interface member is also "remapped" to its own link
+        // name, which for an abstract member is an empty stub, so itable dispatch
+        // must still be attempted in that case; tryEmitVirtualDispatch falls back to
+        // the link name when the receiver has no resolvable itable entry.
+        let isImportedInterfaceMemberLink = chosenCallee.map { callee in
+            isImportedInterfaceMember(callee, sema: sema)
+                && sema.symbols.externalLinkName(for: callee)
+                    .map { interner.intern($0) == loweredCallee } ?? false
+        } ?? false
+        if loweredCallee == calleeName || isImportedInterfaceMemberLink,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
@@ -954,9 +963,9 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCallee == interner.intern("kk_system_currentTimeMillis")
-            || loweredCallee == interner.intern("kk_system_nanoTime")
-            || loweredCallee == interner.intern("kk_system_process_start_nanos")
+        if loweredCallee == interner.intern("__kk_system_currentTimeMillis")
+            || loweredCallee == interner.intern("__kk_system_nanoTime")
+            || loweredCallee == interner.intern("__kk_system_process_start_nanos")
             || loweredCallee == interner.intern("kk_system_gc")
             || loweredCallee == interner.intern("kk_runtime_getRuntime")
             || loweredCallee == interner.intern("kk_runtime_totalMemory")
@@ -1160,8 +1169,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
             interner.intern("kk_array_copyOf_newSize_init"),
-            interner.intern("kk_mutable_list_replaceAll"),
-            interner.intern("kk_mutable_list_removeIf"),
             interner.intern("kk_list_binarySearch_compare"),
             interner.intern("kk_list_binarySearch_comparator"),
             interner.intern("kk_list_binarySearchBy"),
