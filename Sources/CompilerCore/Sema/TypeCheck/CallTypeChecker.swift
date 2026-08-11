@@ -2182,7 +2182,7 @@ final class CallTypeChecker {
                 if explicitTypeArgs.count == 2 {
                     keyType = explicitTypeArgs[0]
                     valueType = explicitTypeArgs[1]
-                } else if let inferred = inferSyntheticMapKeyValueTypes(from: args, ctx: ctx, locals: &locals) {
+                } else if let inferred = inferSyntheticMapKeyValueTypes(from: argTypes, ctx: ctx) {
                     keyType = inferred.keyType
                     valueType = inferred.valueType
                 } else {
