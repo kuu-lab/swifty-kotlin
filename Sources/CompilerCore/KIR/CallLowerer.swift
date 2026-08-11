@@ -148,8 +148,7 @@ final class CallLowerer {
     }
 
     /// True for synthetic runtime-backed factory constructors that allocate
-    /// their own object (atomic scalar boxes, java.math.BigInteger, and
-    /// built-in exception classes).
+    /// their own object (atomic scalar boxes and built-in exception classes).
     private func isAtomicScalarConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -163,7 +162,6 @@ final class CallLowerer {
             return false
         }
         return knownNames.isAtomicScalarFactorySymbol(ownerInfo)
-            || knownNames.isBoxedRuntimeFactorySymbol(ownerInfo)
             || isRuntimeFactoryConstructor(symbolID, sema: sema)
     }
 
@@ -252,7 +250,7 @@ final class CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let result = arena.appendTemporary(type: resultType)
-        // The runtime factory (e.g. `kk_atomic_int_create` or `kk_biginteger_fromString`)
+        // The runtime factory (e.g. `kk_atomic_int_create`)
         // allocates the box itself; we must not precede it with `kk_object_new`
         // and an implicit `this` argument.
         let callee = sema.symbols.externalLinkName(for: constructorSymbol)
@@ -427,32 +425,6 @@ final class CallLowerer {
             instructions: &instructions
         ) {
             return loweredMeasureNano
-        }
-
-        if let loweredMeasureTimeDuration = lowerMeasureTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimeDuration
-        }
-
-        if let loweredMeasureTimedValue = lowerMeasureTimedValueCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTimedValue
         }
 
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
@@ -977,25 +949,18 @@ final class CallLowerer {
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
-            if let chosen,
-               sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
-                sema.symbols.externalLinkName(for: chosen) == "kk_compareValuesByVararg"
-            {
-                NormalizedCallResult(arguments: loweredArgIDs, defaultMask: 0)
-            } else {
-                driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredArgIDs,
-                    callBinding: callBinding,
-                    chosenCallee: chosen,
-                    spreadFlags: args.map(\.isSpread),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
-            }
+            driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgIDs,
+                callBinding: callBinding,
+                chosenCallee: chosen,
+                spreadFlags: args.map(\.isSpread),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
         } else {
             NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(
@@ -1479,6 +1444,8 @@ final class CallLowerer {
             return interner.intern("kk_function_invoke_2")
         case 3:
             return interner.intern("kk_function_invoke_3")
+        case 4:
+            return interner.intern("kk_function_invoke_4")
         default:
             return nil
         }

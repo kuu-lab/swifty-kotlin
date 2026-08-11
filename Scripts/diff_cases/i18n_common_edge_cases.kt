@@ -10,8 +10,8 @@ fun main() {
     println("Hello".lowercase())
 
     val locale = Locale("en", "US")
-    println(locale.language)
-    println(locale.country)
+    println("HELLO".lowercase(locale))
+    println("hello".uppercase(locale))
 
     println("ff".toIntOrNull(16))
     println("xz".toIntOrNull(16))

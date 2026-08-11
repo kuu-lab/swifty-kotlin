@@ -21,7 +21,7 @@ extension CallLowerer {
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy", "reduceIndexed", "reduceIndexedOrNull", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed",
             "sortedByDescending", "sortedWith", "partition", "zip", "zipWithNext",
-            "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "filterNot", "findLast", "replaceAll", "removeIf",
+            "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "filterNot", "findLast",
             "trim", "trimStart", "trimEnd",
             "sortWith", "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",
@@ -117,82 +117,19 @@ extension CallLowerer {
         return finalArgs
     }
 
-    func comparatorTrampolineName(
-        comparatorExprID: ExprID?,
-        loweredComparatorID: KIRExprID,
-        sema: SemaModule,
-        interner: StringInterner,
-        instructions: [KIRInstruction]
-    ) -> String? {
-        func trampolineName(for externalLinkName: String) -> String? {
-            switch externalLinkName {
-            case "kk_comparator_from_multi_selectors",
-                 "kk_comparator_from_multi_selectors3",
-                 "kk_comparator_from_multi_selectors_vararg":
-                return "kk_comparator_from_multi_selectors_trampoline"
-            case "kk_comparator_nulls_first",
-                 "kk_comparator_nulls_first_of":
-                return "kk_comparator_nulls_first_trampoline"
-            case "kk_comparator_nulls_last",
-                 "kk_comparator_nulls_last_of":
-                return "kk_comparator_nulls_last_trampoline"
-            case "kk_comparator_nulls_last_natural":
-                return "kk_comparator_nulls_last_natural_trampoline"
-            default:
-                return nil
-            }
-        }
-
-        if let comparatorExprID,
-           let chosenCallee = sema.bindings.callBinding(for: comparatorExprID)?.chosenCallee
-        {
-            if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-               let trampolineName = trampolineName(for: externalLinkName)
-            {
-                return trampolineName
-            }
-        }
-
-        for instruction in instructions.reversed() {
-            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  result == loweredComparatorID,
-                  let trampolineName = trampolineName(for: interner.resolve(callee))
-            else {
-                continue
-            }
-            return trampolineName
-        }
-        return nil
-    }
-
-    func makeComparatorTrampolineArgument(
-        comparatorExprID: ExprID?,
+    /// Comparator-taking collection HOFs use the `(comparator, closureRaw)` runtime
+    /// ABI pair. KSP-461 moved every comparator factory to bundled Kotlin source, so
+    /// the comparator is always a `Comparator<T>` object dispatched through its
+    /// itable compare slot and the closure slot is always zero.
+    func makeComparatorObjectArgumentPair(
         loweredComparatorID: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,
-        interner: StringInterner,
         instructions: inout [KIRInstruction]
-    ) -> [KIRExprID]? {
-        let trampolineName = comparatorTrampolineName(
-            comparatorExprID: comparatorExprID,
-            loweredComparatorID: loweredComparatorID,
-            sema: sema,
-            interner: interner,
-            instructions: instructions
-        )
-        guard let trampolineName else {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            return [loweredComparatorID, zeroExpr]
-        }
-
-        let fnPtrExpr = arena.appendTemporary(type: sema.types.intType
-        )
-        instructions.append(.constValue(
-            result: fnPtrExpr,
-            value: .externSymbolAddress(interner.intern(trampolineName))
-        ))
-        return [fnPtrExpr, loweredComparatorID]
+    ) -> [KIRExprID] {
+        let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+        return [loweredComparatorID, zeroExpr]
     }
 
     func adaptComparatorFactoryArgumentsForCollectionHOF(
@@ -207,22 +144,19 @@ extension CallLowerer {
         let comparatorOnlyHOFNames: Set<String> = [
             "sortWith", "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
         ]
+        _ = argExprIDs
         guard comparatorOnlyHOFNames.contains(interner.resolve(calleeName)),
               loweredArgIDs.count == 1,
-              let comparatorArgID = loweredArgIDs.first,
-              let comparatorExprID = argExprIDs.first,
-              let comparatorArgs = makeComparatorTrampolineArgument(
-                  comparatorExprID: comparatorExprID,
-                  loweredComparatorID: comparatorArgID,
-                  sema: sema,
-                  arena: arena,
-                  interner: interner,
-                  instructions: &instructions
-              )
+              let comparatorArgID = loweredArgIDs.first
         else {
             return loweredArgIDs
         }
-        return comparatorArgs
+        return makeComparatorObjectArgumentPair(
+            loweredComparatorID: comparatorArgID,
+            sema: sema,
+            arena: arena,
+            instructions: &instructions
+        )
     }
 
     func adaptComparatorBackedCollectionArguments(
@@ -239,34 +173,30 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
-            interner.intern("kk_mutable_list_sortWith"),
+            interner.intern("__kk_mutable_list_sortWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
-           finalArguments.count == 2,
-           let comparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: sourceArgExprs.first,
-               loweredComparatorID: finalArguments[1],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
+           finalArguments.count == 2
         {
+            let comparatorArgs = makeComparatorObjectArgumentPair(
+                loweredComparatorID: finalArguments[1],
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
             return [finalArguments[0]] + comparatorArgs
         }
 
         if loweredCallee == interner.intern("kk_list_binarySearch_comparator"),
            finalArguments.count == 5,
-           sourceArgExprs.count >= 2,
-           let comparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: sourceArgExprs[1],
-               loweredComparatorID: finalArguments[2],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
+           sourceArgExprs.count >= 2
         {
+            let comparatorArgs = makeComparatorObjectArgumentPair(
+                loweredComparatorID: finalArguments[2],
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
             var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
             adapted.append(contentsOf: comparatorArgs)
             adapted.append(contentsOf: finalArguments[3...])
@@ -286,15 +216,13 @@ extension CallLowerer {
             let receiverArg = hasReceiver ? finalArguments[0] : nil
             let comparatorIndex = hasReceiver ? 1 : 0
             let selectorStartIndex = hasReceiver ? 2 : 1
-            guard finalArguments.count >= selectorStartIndex + 2,
-                  let comparatorArgs = makeComparatorTrampolineArgument(
-                      comparatorExprID: sourceArgExprs.first,
-                      loweredComparatorID: finalArguments[comparatorIndex],
-                      sema: sema,
-                      arena: arena,
-                      interner: interner,
-                      instructions: &instructions
-                  )
+            let comparatorArgs = makeComparatorObjectArgumentPair(
+                loweredComparatorID: finalArguments[comparatorIndex],
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
+            guard finalArguments.count >= selectorStartIndex + 2
             else {
                 return finalArguments
             }

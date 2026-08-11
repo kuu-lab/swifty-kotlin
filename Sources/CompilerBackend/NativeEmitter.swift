@@ -208,7 +208,7 @@ struct NativeEmitter {
                 // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
                 // kk_function_invoke, which uses the flat intptr callback ABI.
                 // selFn/cFn: comparator selector/comparator function pointers passed to
-                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_comparator_from_selector).
+                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_list_sortedBy).
                 if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" || name.hasSuffix("fn") {
                     positions.append(kirIndex)
                 }
@@ -245,6 +245,11 @@ struct NativeEmitter {
             bindings.disposeContext(built.context)
         }
 
+        let triple = targetTripleString()
+        CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            bindings.setTarget(built.module, triple: triple)
+        }
+
         guard let llvmIR = bindings.printModule(built.module) else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
         }
@@ -262,31 +267,36 @@ struct NativeEmitter {
             bindings.disposeContext(built.context)
         }
 
-        var triple = targetTripleString()
-        bindings.setTarget(built.module, triple: triple)
-
-        var targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel)
-        if targetMachine == nil,
-           let hostTriple = bindings.defaultTargetTriple(),
-           !hostTriple.isEmpty,
-           hostTriple != triple
-        {
-            triple = hostTriple
+        // LLVM target registration and native emission use process-global state
+        // on Linux. Keep module construction parallel, but serialize only the
+        // target-machine section that is not thread-safe.
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            var triple = targetTripleString()
             bindings.setTarget(built.module, triple: triple)
-            targetMachine = bindings.createTargetMachine(triple: hostTriple, optLevel: optLevel)
-        }
 
-        guard let targetMachine else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create LLVM target machine")
-        }
-        defer { bindings.disposeTargetMachine(targetMachine) }
+            var targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel)
+            if targetMachine == nil,
+               let hostTriple = bindings.defaultTargetTriple(),
+               !hostTriple.isEmpty,
+               hostTriple != triple
+            {
+                triple = hostTriple
+                bindings.setTarget(built.module, triple: triple)
+                targetMachine = bindings.createTargetMachine(triple: hostTriple, optLevel: optLevel)
+            }
 
-        guard bindings.applyTargetMachine(targetMachine, to: built.module) else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to apply target data layout")
-        }
+            guard let targetMachine else {
+                throw LLVMBackendError.nativeEmissionFailed("failed to create LLVM target machine")
+            }
+            defer { bindings.disposeTargetMachine(targetMachine) }
 
-        if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
-            throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+            guard bindings.applyTargetMachine(targetMachine, to: built.module) else {
+                throw LLVMBackendError.nativeEmissionFailed("failed to apply target data layout")
+            }
+
+            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
+                throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+            }
         }
     }
 
@@ -406,9 +416,6 @@ struct NativeEmitter {
             bindings.disposeContext(context)
             throw LLVMBackendError.nativeEmissionFailed("LLVMModuleCreateWithNameInContext returned null")
         }
-
-        let triple = targetTripleString()
-        bindings.setTarget(llvmModule, triple: triple)
 
         guard let int64Type = bindings.int64Type(context: context) else {
             bindings.disposeModule(llvmModule)

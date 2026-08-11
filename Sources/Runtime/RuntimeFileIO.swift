@@ -7,78 +7,11 @@ final class RuntimeFileBox {
     init(_ path: String) { self.path = path }
 }
 
-private final class RuntimeFileAlreadyExistsExceptionBox: RuntimeThrowableBox {
-    override var exceptionFQName: String {
-        "kotlin.io.FileAlreadyExistsException"
-    }
-
-    override var exceptionHierarchyFQNames: [String] {
-        [
-            "kotlin.io.FileAlreadyExistsException",
-            "kotlin.Exception",
-            "kotlin.Throwable",
-        ]
-    }
-}
-
-private func runtimeAllocateFileAlreadyExistsException(message: String) -> Int {
-    registerRuntimeObject(RuntimeFileAlreadyExistsExceptionBox(message: message))
-}
-
-private final class RuntimeNoSuchFileExceptionBox: RuntimeThrowableBox {
-    override var exceptionFQName: String {
-        "kotlin.io.NoSuchFileException"
-    }
-
-    override var exceptionHierarchyFQNames: [String] {
-        [
-            "kotlin.io.NoSuchFileException",
-            "kotlin.Exception",
-            "kotlin.Throwable",
-        ]
-    }
-}
-
-private func runtimeAllocateNoSuchFileException(message: String) -> Int {
-    registerRuntimeObject(RuntimeNoSuchFileExceptionBox(message: message))
-}
-
-// MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk
-
-final class RuntimeFileTreeWalkBox {
-    let root: String
-    let topDown: Bool
-    var maxDepth: Int
-    var filterFnPtr: Int = 0;    var filterClosureRaw: Int = 0
-    var onEnterFnPtr: Int = 0;   var onEnterClosureRaw: Int = 0
-    var onLeaveFnPtr: Int = 0;   var onLeaveClosureRaw: Int = 0
-    var onFailFnPtr: Int = 0;    var onFailClosureRaw: Int = 0
-    init(root: String, topDown: Bool = true) {
-        self.root = root
-        self.topDown = topDown
-        self.maxDepth = Int.max
-    }
-    func makeCopy() -> RuntimeFileTreeWalkBox {
-        let c = RuntimeFileTreeWalkBox(root: root, topDown: topDown)
-        c.maxDepth = maxDepth
-        c.filterFnPtr = filterFnPtr;    c.filterClosureRaw = filterClosureRaw
-        c.onEnterFnPtr = onEnterFnPtr;  c.onEnterClosureRaw = onEnterClosureRaw
-        c.onLeaveFnPtr = onLeaveFnPtr;  c.onLeaveClosureRaw = onLeaveClosureRaw
-        c.onFailFnPtr = onFailFnPtr;    c.onFailClosureRaw = onFailClosureRaw
-        return c
-    }
-}
-
 final class RuntimeClassLoaderBox {}
 
 private func runtimeFileBox(from raw: Int) -> RuntimeFileBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeFileBox.self)
-}
-
-private func runtimeFileTreeWalkBox(from raw: Int) -> RuntimeFileTreeWalkBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeFileTreeWalkBox.self)
 }
 
 private func resourceRootDirectory() -> URL {
@@ -162,7 +95,10 @@ private func runtimeCreateDeprecatedTempFile(
     let fullPath = (rootDirectory as NSString).appendingPathComponent(fileName)
     let created = FileManager.default.createFile(atPath: fullPath, contents: nil)
     if !created {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Failed to create temp file \(fullPath)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: fullPath,
+            reason: "Failed to create the temporary file."
+        )
     }
     return registerRuntimeObject(RuntimeFileBox(fullPath))
 }
@@ -182,7 +118,10 @@ private func runtimeCreateDeprecatedTempDirectory(
     do {
         _ = try FileManager.default.createDirectory(atPath: fullPath, withIntermediateDirectories: true)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: fullPath,
+            reason: error.localizedDescription
+        )
     }
     return registerRuntimeObject(RuntimeFileBox(fullPath))
 }
@@ -226,7 +165,10 @@ public func kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<I
         let content = try String(contentsOfFile: file.path, encoding: .utf8)
         return fileMakeStringRaw(content)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return fileMakeStringRaw("")
     }
 }
@@ -326,7 +268,10 @@ public func kk_file_writeText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: Unsaf
     do {
         try text.write(toFile: file.path, atomically: true, encoding: .utf8)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
     }
     return 0
 }
@@ -357,7 +302,10 @@ public func kk_file_appendText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: Unsa
             try text.write(toFile: file.path, atomically: true, encoding: .utf8)
         }
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
     }
     return 0
 }
@@ -373,7 +321,10 @@ public func kk_file_readLines(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<
         let lines = fileSplitLines(content)
         return registerRuntimeObject(RuntimeListBox(elements: lines.map { fileMakeStringRaw($0) }))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 }
@@ -391,7 +342,10 @@ public func kk_file_readBytes(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<
         let elements = data.map { Int(Int8(bitPattern: $0)) }
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 }
@@ -420,7 +374,10 @@ public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Un
             try data.write(to: url)
         }
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
     }
     return 0
 }
@@ -440,7 +397,10 @@ public func kk_file_writeBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Uns
     do {
         try Data(bytes).write(to: URL(fileURLWithPath: file.path))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
     }
     return 0
 }
@@ -573,7 +533,10 @@ public func kk_file_forEachLine(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_forEachLine received invalid File handle")
     }
     guard let content = try? String(contentsOfFile: file.path, encoding: .utf8) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot read file \(file.path)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: "Cannot read the file."
+        )
         return 0
     }
     let lines = fileSplitLines(content)
@@ -613,7 +576,10 @@ private func fileForEachBlockImpl(
     }
     let effectiveBlockSize = max(1, blockSize)
     guard let data = try? Data(contentsOf: URL(fileURLWithPath: file.path)) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot read file \(file.path)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: "Cannot read the file."
+        )
         return 0
     }
     var offset = data.startIndex
@@ -653,7 +619,10 @@ public func kk_file_useLines(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_useLines received invalid File handle")
     }
     guard let content = try? String(contentsOfFile: file.path, encoding: .utf8) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot read file \(file.path)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: "Cannot read the file."
+        )
         return 0
     }
     let lines = fileSplitLines(content)
@@ -706,244 +675,23 @@ public func kk_file_walk(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walk received invalid File handle")
     }
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path))
-}
-
-@_cdecl("kk_file_tree_walk_sortedBy")
-public func kk_file_tree_walk_sortedBy(
-    _ walkRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_sortedBy received invalid FileTreeWalk handle")
-    }
     var results: [Int] = []
-    fileTreeWalkCollect(at: walk.root, walk: walk, depth: 0, results: &results)
-    let filtered: [Int]
-    if walk.filterFnPtr != 0 {
-        filtered = results.filter { handle in
-            var thrown = 0
-            let r = runtimeInvokeCollectionLambda1(
-                fnPtr: walk.filterFnPtr, closureRaw: walk.filterClosureRaw,
-                value: handle, outThrown: &thrown
-            )
-            return thrown == 0 && kk_unbox_bool(r) != 0
-        }
-    } else {
-        filtered = results
-    }
-    guard let sorted = runtimeSortByElements(
-        filtered,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        descending: false,
-        primitiveKind: nil,
-        outThrown: outThrown
-    ) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
+    fileWalkCollect(at: file.path, results: &results)
+    return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
-// MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk runtime
-
-/// Postorder (BOTTOM_UP) or preorder (TOP_DOWN) DFS traversal of the file tree
-/// rooted at `path`. Directories are traversed only when `currentDepth < maxDepth`.
-private func fileTreeWalkCollect(
-    at path: String,
-    walk: RuntimeFileTreeWalkBox,
-    depth: Int,
-    results: inout [Int]
-) {
+/// Preorder (TOP_DOWN) DFS traversal of the file tree rooted at `path`.
+/// Directory entries are visited in sorted order so output is deterministic.
+private func fileWalkCollect(at path: String, results: inout [Int]) {
     var isDir: ObjCBool = false
     _ = FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
-    let fileHandle = registerRuntimeObject(RuntimeFileBox(path))
-
-    if walk.topDown {
-        results.append(fileHandle)
+    results.append(registerRuntimeObject(RuntimeFileBox(path)))
+    guard isDir.boolValue,
+          let entries = try? FileManager.default.contentsOfDirectory(atPath: path)
+    else { return }
+    for entry in entries.sorted() {
+        fileWalkCollect(at: (path as NSString).appendingPathComponent(entry), results: &results)
     }
-
-    if isDir.boolValue && depth < walk.maxDepth {
-        var descend = true
-        if walk.onEnterFnPtr != 0 {
-            var thrown = 0
-            let r = runtimeInvokeCollectionLambda1(
-                fnPtr: walk.onEnterFnPtr, closureRaw: walk.onEnterClosureRaw,
-                value: fileHandle, outThrown: &thrown
-            )
-            descend = thrown == 0 && kk_unbox_bool(r) != 0
-        }
-        if descend {
-            do {
-                let contents = try FileManager.default.contentsOfDirectory(atPath: path)
-                for entry in contents.sorted() {
-                    let childPath = (path as NSString).appendingPathComponent(entry)
-                    fileTreeWalkCollect(at: childPath, walk: walk, depth: depth + 1, results: &results)
-                }
-            } catch {
-                if walk.onFailFnPtr != 0 {
-                    var thrown = 0
-                    _ = runtimeInvokeCollectionLambda2(
-                        fnPtr: walk.onFailFnPtr, closureRaw: walk.onFailClosureRaw,
-                        lhs: fileHandle, rhs: 0, outThrown: &thrown
-                    )
-                }
-            }
-        }
-        if walk.onLeaveFnPtr != 0 {
-            var thrown = 0
-            _ = runtimeInvokeCollectionLambda1(
-                fnPtr: walk.onLeaveFnPtr, closureRaw: walk.onLeaveClosureRaw,
-                value: fileHandle, outThrown: &thrown
-            )
-        }
-    }
-
-    if !walk.topDown {
-        results.append(fileHandle)
-    }
-}
-
-@_cdecl("kk_file_walkTopDown")
-public func kk_file_walkTopDown(_ fileRaw: Int) -> Int {
-    guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walkTopDown received invalid File handle")
-    }
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: true))
-}
-
-@_cdecl("kk_file_walkBottomUp")
-public func kk_file_walkBottomUp(_ fileRaw: Int) -> Int {
-    guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walkBottomUp received invalid File handle")
-    }
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: false))
-}
-
-/// `directionRaw` is the ordinal of `FileWalkDirection`: 0 = TOP_DOWN, 1 = BOTTOM_UP.
-@_cdecl("kk_file_walk_with_direction")
-public func kk_file_walk_with_direction(_ fileRaw: Int, _ directionRaw: Int) -> Int {
-    guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walk_with_direction received invalid File handle")
-    }
-    let topDown = kk_unbox_int(directionRaw) != 1
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: topDown))
-}
-
-@_cdecl("kk_file_tree_walk_to_list")
-public func kk_file_tree_walk_to_list(_ walkRaw: Int) -> Int {
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_to_list received invalid FileTreeWalk handle")
-    }
-    var results: [Int] = []
-    fileTreeWalkCollect(at: walk.root, walk: walk, depth: 0, results: &results)
-    let filtered: [Int]
-    if walk.filterFnPtr != 0 {
-        filtered = results.filter { handle in
-            var thrown = 0
-            let r = runtimeInvokeCollectionLambda1(
-                fnPtr: walk.filterFnPtr, closureRaw: walk.filterClosureRaw,
-                value: handle, outThrown: &thrown
-            )
-            return thrown == 0 && kk_unbox_bool(r) != 0
-        }
-    } else {
-        filtered = results
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: filtered))
-}
-
-@_cdecl("kk_file_tree_walk_max_depth")
-public func kk_file_tree_walk_max_depth(_ walkRaw: Int, _ depthRaw: Int) -> Int {
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_max_depth received invalid FileTreeWalk handle")
-    }
-    let copy = walk.makeCopy()
-    copy.maxDepth = max(0, kk_unbox_int(depthRaw))
-    return registerRuntimeObject(copy)
-}
-
-// MARK: - STDLIB-IO-TYPE-004: FileTreeWalk builder methods (filter / onEnter / onLeave / onFail)
-
-@_cdecl("kk_file_tree_walk_create")
-public func kk_file_tree_walk_create(_ fileRaw: Int, _ directionRaw: Int) -> Int {
-    guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_create received invalid File handle")
-    }
-    let topDown = kk_unbox_int(directionRaw) != 1
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: topDown))
-}
-
-@_cdecl("kk_file_tree_walk_filter")
-public func kk_file_tree_walk_filter(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_filter received invalid FileTreeWalk handle")
-    }
-    let copy = walk.makeCopy()
-    copy.filterFnPtr = fnPtr; copy.filterClosureRaw = closureRaw
-    return registerRuntimeObject(copy)
-}
-
-@_cdecl("kk_file_tree_walk_onEnter")
-public func kk_file_tree_walk_onEnter(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_onEnter received invalid FileTreeWalk handle")
-    }
-    let copy = walk.makeCopy()
-    copy.onEnterFnPtr = fnPtr; copy.onEnterClosureRaw = closureRaw
-    return registerRuntimeObject(copy)
-}
-
-@_cdecl("kk_file_tree_walk_onLeave")
-public func kk_file_tree_walk_onLeave(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_onLeave received invalid FileTreeWalk handle")
-    }
-    let copy = walk.makeCopy()
-    copy.onLeaveFnPtr = fnPtr; copy.onLeaveClosureRaw = closureRaw
-    return registerRuntimeObject(copy)
-}
-
-@_cdecl("kk_file_tree_walk_onFail")
-public func kk_file_tree_walk_onFail(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_onFail received invalid FileTreeWalk handle")
-    }
-    let copy = walk.makeCopy()
-    copy.onFailFnPtr = fnPtr; copy.onFailClosureRaw = closureRaw
-    return registerRuntimeObject(copy)
-}
-
-// MARK: - STDLIB-IO-TYPE-004: FileTreeWalk.forEach
-
-@_cdecl("kk_file_tree_walk_forEach")
-public func kk_file_tree_walk_forEach(
-    _ walkRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_forEach received invalid FileTreeWalk handle")
-    }
-    var results: [Int] = []
-    fileTreeWalkCollect(at: walk.root, walk: walk, depth: 0, results: &results)
-    for elem in results {
-        var lambdaThrown = 0
-        _ = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr, closureRaw: closureRaw,
-            value: elem, outThrown: &lambdaThrown
-        )
-        if lambdaThrown != 0 {
-            outThrown?.pointee = lambdaThrown
-            return 0
-        }
-    }
-    return 0
 }
 
 // MARK: - STDLIB-IO-FN-015: File.copyTo(target, overwrite, bufferSize)
@@ -989,7 +737,8 @@ public func kk_file_copyTo(
     var sourceIsDir: ObjCBool = false
     guard fm.fileExists(atPath: source.path, isDirectory: &sourceIsDir) else {
         outThrown?.pointee = runtimeAllocateNoSuchFileException(
-            message: "NoSuchFileException: \(source.path) (The source file doesn't exist.)"
+            file: source.path,
+            reason: "The source file doesn't exist."
         )
         return targetRaw
     }
@@ -999,7 +748,9 @@ public func kk_file_copyTo(
     if targetExists {
         if !overwrite {
             outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
-                message: "FileAlreadyExistsException: \(target.path) (The destination file already exists.)"
+                file: source.path,
+                other: target.path,
+                reason: "The destination file already exists."
             )
             return targetRaw
         }
@@ -1007,15 +758,19 @@ public func kk_file_copyTo(
            let contents = try? fm.contentsOfDirectory(atPath: target.path),
            !contents.isEmpty {
             outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
-                message: "FileAlreadyExistsException: \(target.path) (The destination file already exists.)"
+                file: source.path,
+                other: target.path,
+                reason: "Tried to overwrite the destination, but failed to delete it."
             )
             return targetRaw
         }
         do {
             try fm.removeItem(atPath: target.path)
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
+            outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
+                file: source.path,
+                other: target.path,
+                reason: "Tried to overwrite the destination, but failed to delete it."
             )
             return targetRaw
         }
@@ -1031,8 +786,10 @@ public func kk_file_copyTo(
                 withIntermediateDirectories: true
             )
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
+            outThrown?.pointee = runtimeAllocateFileSystemException(
+                file: source.path,
+                other: target.path,
+                reason: error.localizedDescription
             )
             return targetRaw
         }
@@ -1047,8 +804,10 @@ public func kk_file_copyTo(
                 withIntermediateDirectories: false
             )
         } catch {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: \(error.localizedDescription)"
+            outThrown?.pointee = runtimeAllocateFileSystemException(
+                file: source.path,
+                other: target.path,
+                reason: "Failed to create target directory."
             )
         }
         return targetRaw
@@ -1060,8 +819,10 @@ public func kk_file_copyTo(
         defer { try? readHandle.close() }
 
         guard fm.createFile(atPath: target.path, contents: nil) else {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IOException: Failed to create target file \(target.path)"
+            outThrown?.pointee = runtimeAllocateFileSystemException(
+                file: source.path,
+                other: target.path,
+                reason: "Failed to create the destination file."
             )
             return targetRaw
         }
@@ -1074,8 +835,10 @@ public func kk_file_copyTo(
             writeHandle.write(chunk)
         }
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IOException: \(error.localizedDescription)"
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: source.path,
+            other: target.path,
+            reason: error.localizedDescription
         )
     }
     return targetRaw
@@ -1133,7 +896,9 @@ public func kk_file_copyRecursively(
                 if !dstIsDir.boolValue {
                     if !overwrite {
                         outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
-                            message: "FileAlreadyExistsException: \(dstPath) (The destination file already exists.)"
+                            file: srcPath,
+                            other: dstPath,
+                            reason: "The destination file already exists."
                         )
                         return false
                     }
@@ -1141,8 +906,10 @@ public func kk_file_copyRecursively(
                         try fm.removeItem(atPath: dstPath)
                         try fm.createDirectory(atPath: dstPath, withIntermediateDirectories: true)
                     } catch {
-                        outThrown?.pointee = runtimeAllocateThrowable(
-                            message: "IOException: \(error.localizedDescription)"
+                        outThrown?.pointee = runtimeAllocateFileSystemException(
+                            file: srcPath,
+                            other: dstPath,
+                            reason: error.localizedDescription
                         )
                         return false
                     }
@@ -1152,8 +919,10 @@ public func kk_file_copyRecursively(
                 do {
                     try fm.createDirectory(atPath: dstPath, withIntermediateDirectories: true)
                 } catch {
-                    outThrown?.pointee = runtimeAllocateThrowable(
-                        message: "IOException: \(error.localizedDescription)"
+                    outThrown?.pointee = runtimeAllocateFileSystemException(
+                        file: srcPath,
+                        other: dstPath,
+                        reason: error.localizedDescription
                     )
                     return false
                 }
@@ -1177,16 +946,20 @@ public func kk_file_copyRecursively(
             let dstExists = fm.fileExists(atPath: dstPath, isDirectory: &dstIsDir)
             if dstExists {
                 if !overwrite {
-                    outThrown?.pointee = runtimeAllocateThrowable(
-                        message: "FileAlreadyExistsException: \(dstPath) (The destination file already exists.)"
+                    outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
+                        file: srcPath,
+                        other: dstPath,
+                        reason: "The destination file already exists."
                     )
                     return false
                 }
                 do {
                     try fm.removeItem(atPath: dstPath)
                 } catch {
-                    outThrown?.pointee = runtimeAllocateThrowable(
-                        message: "IOException: \(error.localizedDescription)"
+                    outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
+                        file: srcPath,
+                        other: dstPath,
+                        reason: "Tried to overwrite the destination, but failed to delete it."
                     )
                     return false
                 }
@@ -1197,8 +970,10 @@ public func kk_file_copyRecursively(
                 do {
                     try fm.createDirectory(atPath: parentPath, withIntermediateDirectories: true)
                 } catch {
-                    outThrown?.pointee = runtimeAllocateThrowable(
-                        message: "IOException: \(error.localizedDescription)"
+                    outThrown?.pointee = runtimeAllocateFileSystemException(
+                        file: srcPath,
+                        other: dstPath,
+                        reason: error.localizedDescription
                     )
                     return false
                 }
@@ -1206,8 +981,10 @@ public func kk_file_copyRecursively(
             do {
                 try fm.copyItem(atPath: srcPath, toPath: dstPath)
             } catch {
-                outThrown?.pointee = runtimeAllocateThrowable(
-                    message: "IOException: \(error.localizedDescription)"
+                outThrown?.pointee = runtimeAllocateFileSystemException(
+                    file: srcPath,
+                    other: dstPath,
+                    reason: error.localizedDescription
                 )
                 return false
             }
@@ -1256,7 +1033,10 @@ public func kk_file_bufferedReader(_ fileRaw: Int, _ outThrown: UnsafeMutablePoi
         let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: file.path))
         return registerRuntimeObject(RuntimeBufferedReaderBox(fileHandle: fileHandle))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return 0
     }
 }
@@ -1452,7 +1232,10 @@ public func kk_file_bufferedWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePoi
         handle.truncateFile(atOffset: 0)
         return registerRuntimeObject(RuntimeBufferedWriterBox(fileHandle: handle))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return 0
     }
 }
@@ -1532,7 +1315,10 @@ public func kk_file_printWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePointe
         handle.truncateFile(atOffset: 0)
         return registerRuntimeObject(RuntimeBufferedWriterBox(fileHandle: handle))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return 0
     }
 }
@@ -1653,7 +1439,10 @@ public func kk_file_inputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointe
         let data = try Data(contentsOf: URL(fileURLWithPath: file.path))
         return registerRuntimeObject(RuntimeInputStreamBox(data: data))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return 0
     }
 }
@@ -1765,7 +1554,10 @@ public func kk_file_outputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePoint
         handle.truncateFile(atOffset: 0)
         return registerRuntimeObject(RuntimeOutputStreamBox(fileHandle: handle))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: file.path,
+            reason: error.localizedDescription
+        )
         return 0
     }
 }
@@ -2287,12 +2079,15 @@ public func kk_files_createFile(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: Un
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_createFile received invalid Path handle")
     }
     if FileManager.default.fileExists(atPath: path.pathString) {
-        outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(message: "FileAlreadyExistsException: \(path.pathString)")
+        outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(file: path.pathString)
         return pathRaw
     }
     let created = FileManager.default.createFile(atPath: path.pathString, contents: nil)
     if !created {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Failed to create file \(path.pathString)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: "Failed to create the file."
+        )
     }
     return pathRaw
 }
@@ -2306,13 +2101,16 @@ public func kk_files_delete(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: Unsafe
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_delete received invalid Path handle")
     }
     guard FileManager.default.fileExists(atPath: path.pathString) else {
-        outThrown?.pointee = runtimeAllocateNoSuchFileException(message: "NoSuchFileException: \(path.pathString)")
+        outThrown?.pointee = runtimeAllocateNoSuchFileException(file: path.pathString)
         return 0
     }
     do {
         try FileManager.default.removeItem(atPath: path.pathString)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: error.localizedDescription
+        )
     }
     return 0
 }
@@ -2331,7 +2129,11 @@ public func kk_files_copy(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _
     do {
         try FileManager.default.copyItem(atPath: source.pathString, toPath: target.pathString)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: source.pathString,
+            other: target.pathString,
+            reason: error.localizedDescription
+        )
     }
     return targetRaw
 }
@@ -2350,7 +2152,11 @@ public func kk_files_move(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _
     do {
         try FileManager.default.moveItem(atPath: source.pathString, toPath: target.pathString)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: source.pathString,
+            other: target.pathString,
+            reason: error.localizedDescription
+        )
     }
     return targetRaw
 }
@@ -2366,7 +2172,10 @@ public func kk_files_createDirectory(_ filesRaw: Int, _ pathRaw: Int, _ outThrow
     do {
         _ = try FileManager.default.createDirectory(atPath: path.pathString, withIntermediateDirectories: false)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: error.localizedDescription
+        )
     }
     return pathRaw
 }
@@ -2382,7 +2191,10 @@ public func kk_files_createDirectories(_ filesRaw: Int, _ pathRaw: Int, _ outThr
     do {
         _ = try FileManager.default.createDirectory(atPath: path.pathString, withIntermediateDirectories: true)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: error.localizedDescription
+        )
     }
     return pathRaw
 }
@@ -2399,7 +2211,10 @@ public func kk_files_size(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMu
         let attrs = try FileManager.default.attributesOfItem(atPath: path.pathString)
         return (attrs[.size] as? Int) ?? 0
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: error.localizedDescription
+        )
         return 0
     }
 }
@@ -2419,7 +2234,10 @@ public func kk_files_getLastModifiedTime(_ filesRaw: Int, _ pathRaw: Int, _ outT
         }
         return registerRuntimeObject(RuntimeFileTimeBox(milliseconds: Int(modDate.timeIntervalSince1970 * 1000)))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: error.localizedDescription
+        )
         return registerRuntimeObject(RuntimeFileTimeBox(milliseconds: 0))
     }
 }
@@ -2502,7 +2320,10 @@ public func kk_files_list(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMu
         }
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: path.pathString,
+            reason: error.localizedDescription
+        )
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 }
@@ -2525,7 +2346,10 @@ public func kk_files_createTempFile(_ filesRaw: Int, _ prefixRaw: Int, _ suffixR
     let fullPath = (tmpDir as NSString).appendingPathComponent(fileName)
     let created = FileManager.default.createFile(atPath: fullPath, contents: nil)
     if !created {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Failed to create temp file \(fullPath)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: fullPath,
+            reason: "Failed to create the temporary file."
+        )
         return registerRuntimeObject(RuntimePathBox(fullPath))
     }
     return registerRuntimeObject(RuntimePathBox(fullPath))
@@ -2543,7 +2367,10 @@ public func kk_files_createTempDirectory(_ filesRaw: Int, _ prefixRaw: Int, _ ou
     do {
         _ = try FileManager.default.createDirectory(atPath: fullPath, withIntermediateDirectories: true)
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        outThrown?.pointee = runtimeAllocateFileSystemException(
+            file: fullPath,
+            reason: error.localizedDescription
+        )
     }
     return registerRuntimeObject(RuntimePathBox(fullPath))
 }

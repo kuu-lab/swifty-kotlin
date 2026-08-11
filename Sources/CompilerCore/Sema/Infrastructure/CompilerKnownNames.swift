@@ -208,7 +208,6 @@ package struct KnownCompilerNames {
     let linkedHashSet: InternedString
     let collection: InternedString
     let mutableCollection: InternedString
-    let arrayDeque: InternedString
     let array: InternedString
     let intArray: InternedString
     let longArray: InternedString
@@ -226,7 +225,6 @@ package struct KnownCompilerNames {
     let regex: InternedString
     let stringBuilder: InternedString
     let sequence: InternedString
-    let grouping: InternedString
     let continuation: InternedString
     let suspendCoroutine: InternedString
     let resume: InternedString
@@ -247,7 +245,6 @@ package struct KnownCompilerNames {
     package let main: InternedString
     let with: InternedString
     let run: InternedString
-    let runCatching: InternedString
     let withContext: InternedString
     let withTimeout: InternedString
     let withTimeoutOrNull: InternedString
@@ -344,7 +341,6 @@ package struct KnownCompilerNames {
     let kotlinSequenceFQName: [InternedString]
     let kotlinContinuationFQName: [InternedString]
     let kotlinSuspendCoroutineFQName: [InternedString]
-    let kotlinCollectionsGroupingFQName: [InternedString]
     let kotlinCollectionsListFQName: [InternedString]
     let kotlinCollectionsMutableListFQName: [InternedString]
     let kotlinCollectionsSetFQName: [InternedString]
@@ -352,7 +348,6 @@ package struct KnownCompilerNames {
     let kotlinCollectionsLinkedHashSetFQName: [InternedString]
     let kotlinCollectionsMapFQName: [InternedString]
     let kotlinCollectionsMutableMapFQName: [InternedString]
-    let kotlinCollectionsArrayDequeFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
@@ -369,7 +364,6 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
     let atomicScalarFactoryFQNames: Set<[InternedString]>
-    let boxedRuntimeFactoryFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
 
@@ -399,7 +393,6 @@ package struct KnownCompilerNames {
         linkedHashSet = interner.intern("LinkedHashSet")
         collection = interner.intern("Collection")
         mutableCollection = interner.intern("MutableCollection")
-        arrayDeque = interner.intern("ArrayDeque")
         array = interner.intern("Array")
         intArray = interner.intern("IntArray")
         longArray = interner.intern("LongArray")
@@ -417,7 +410,6 @@ package struct KnownCompilerNames {
         regex = interner.intern("Regex")
         stringBuilder = interner.intern("StringBuilder")
         sequence = interner.intern("Sequence")
-        grouping = interner.intern("Grouping")
         continuation = interner.intern("Continuation")
         suspendCoroutine = interner.intern("suspendCoroutine")
         resume = interner.intern("resume")
@@ -438,7 +430,6 @@ package struct KnownCompilerNames {
         main = interner.intern("main")
         with = interner.intern("with")
         run = interner.intern("run")
-        runCatching = interner.intern("runCatching")
         withContext = interner.intern("withContext")
         withTimeout = interner.intern("withTimeout")
         withTimeoutOrNull = interner.intern("withTimeoutOrNull")
@@ -545,7 +536,6 @@ package struct KnownCompilerNames {
         kotlinSequenceFQName = [kotlin, kotlinSequences, sequence]
         kotlinContinuationFQName = [kotlin, kotlinCoroutines, continuation]
         kotlinSuspendCoroutineFQName = [kotlin, kotlinCoroutines, suspendCoroutine]
-        kotlinCollectionsGroupingFQName = [kotlin, kotlinCollections, grouping]
         kotlinCollectionsListFQName = [kotlin, kotlinCollections, list]
         kotlinCollectionsMutableListFQName = [kotlin, kotlinCollections, mutableList]
         kotlinCollectionsSetFQName = [kotlin, kotlinCollections, set]
@@ -553,7 +543,6 @@ package struct KnownCompilerNames {
         kotlinCollectionsLinkedHashSetFQName = [kotlin, kotlinCollections, linkedHashSet]
         kotlinCollectionsMapFQName = [kotlin, kotlinCollections, map]
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
-        kotlinCollectionsArrayDequeFQName = [kotlin, kotlinCollections, arrayDeque]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
@@ -583,8 +572,6 @@ package struct KnownCompilerNames {
         let util = interner.intern("util")
         let javaConcurrent = interner.intern("concurrent")
         let javaAtomic = interner.intern("atomic")
-        let math = interner.intern("math")
-        let bigIntegerName = interner.intern("BigInteger")
         atomicScalarFactoryFQNames = [
             [kotlin, kotlinConcurrent, atomicIntName],
             [kotlin, kotlinConcurrent, atomicLongName],
@@ -595,9 +582,6 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicBooleanName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicReferenceName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
-        ]
-        boxedRuntimeFactoryFQNames = [
-            [java, math, bigIntegerName],
         ]
     }
 
@@ -660,19 +644,8 @@ package struct KnownCompilerNames {
         atomicScalarFactoryFQNames.contains(symbol.fqName)
     }
 
-    /// True for synthetic runtime-backed boxed classes whose constructors
-    /// are factory functions (e.g. `kk_biginteger_fromString`) rather than
-    /// `(this, ...)` initializers.
-    func isBoxedRuntimeFactorySymbol(_ symbol: SemanticSymbol) -> Bool {
-        boxedRuntimeFactoryFQNames.contains(symbol.fqName)
-    }
-
     func isSequenceSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == sequence || symbolMatches(symbol, fqName: kotlinSequenceFQName)
-    }
-
-    func isGroupingSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == grouping || symbolMatches(symbol, fqName: kotlinCollectionsGroupingFQName)
     }
 
     func isCoroutineHandleSymbol(_ symbol: SemanticSymbol) -> Bool {
@@ -782,10 +755,6 @@ package struct KnownCompilerNames {
         symbol.name == mutableSet || symbol.name == linkedHashSet
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
-    }
-
-    func isArrayDequeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == arrayDeque || symbolMatches(symbol, fqName: kotlinCollectionsArrayDequeFQName)
     }
 
     func isSetLikeSymbol(_ symbol: SemanticSymbol) -> Bool {

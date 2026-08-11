@@ -896,225 +896,70 @@ public extension RuntimeABISpec {
                     section: "Collection",
             isThrowing: false
                 ),
-                // ArrayDeque (STDLIB-240)
+                // ArrayDeque (STDLIB-240 / KSP-625 ring-buffer bridges)
                 RuntimeABIFunctionSpec(
-            name: "kk_arraydeque_new",
+                    name: "__kk_arraydeque_new",
                     parameters: [],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false,
+                    isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_addFirst",
+                    name: "__kk_arraydeque_addFirst",
                     parameters: [
                         RuntimeABIParameter(name: "dequeRaw", type: .intptr),
                         RuntimeABIParameter(name: "element", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false
+                    isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_addLast",
+                    name: "__kk_arraydeque_addLast",
                     parameters: [
                         RuntimeABIParameter(name: "dequeRaw", type: .intptr),
                         RuntimeABIParameter(name: "element", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false
+                    isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_removeFirst",
-                    parameters: [
-                        RuntimeABIParameter(name: "dequeRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_removeLast",
-                    parameters: [
-                        RuntimeABIParameter(name: "dequeRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_first",
-                    parameters: [
-                        RuntimeABIParameter(name: "dequeRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_last",
-                    parameters: [
-                        RuntimeABIParameter(name: "dequeRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_size",
+                    name: "__kk_arraydeque_removeFirst",
                     parameters: [
                         RuntimeABIParameter(name: "dequeRaw", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false
+                    isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_isEmpty",
+                    name: "__kk_arraydeque_removeLast",
                     parameters: [
                         RuntimeABIParameter(name: "dequeRaw", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false
+                    isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_arraydeque_toString",
+                    name: "__kk_arraydeque_get",
+                    parameters: [
+                        RuntimeABIParameter(name: "dequeRaw", type: .intptr),
+                        RuntimeABIParameter(name: "index", type: .intptr),
+                    ],
+                    returnType: .intptr,
+                    section: "Collection",
+                    isThrowing: false
+                ),
+                RuntimeABIFunctionSpec(
+                    name: "__kk_arraydeque_size",
                     parameters: [
                         RuntimeABIParameter(name: "dequeRaw", type: .intptr),
                     ],
-                    returnType: .opaquePointer,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                // Grouping (STDLIB-285/286)
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_groupingBy",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                    ],
                     returnType: .intptr,
                     section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_eachCount",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_eachCountTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_aggregate",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_aggregateTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_fold",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initial", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_fold_initialValueSelector",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "operationFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "operationClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_foldTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initial", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_foldTo_selector",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "initialValueSelectorClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_reduce",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_grouping_reduceTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "groupingRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
+                    isThrowing: false
                 ),
                 // STDLIB-250: Closeable.use {}
                 RuntimeABIFunctionSpec(
@@ -1143,16 +988,6 @@ public extension RuntimeABISpec {
                     name: "kk_list_orEmpty",
                     parameters: [
                         RuntimeABIParameter(name: "listRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                // STDLIB-532: Map?.orEmpty()
-                RuntimeABIFunctionSpec(
-                    name: "kk_map_orEmpty",
-                    parameters: [
-                        RuntimeABIParameter(name: "mapRaw", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",

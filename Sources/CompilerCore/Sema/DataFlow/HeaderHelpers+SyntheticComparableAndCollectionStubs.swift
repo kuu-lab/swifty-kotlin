@@ -305,6 +305,7 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             setInterfaceSymbol: setInterfaceSymbol,
             collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
         registerMutableCollectionIterableAddAllMembers(
@@ -367,13 +368,6 @@ extension DataFlowSemaPhase {
             keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
             valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol
         )
-        registerMapToMutableMapMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
-            valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol
-        )
         registerMapHigherOrderMembers(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
@@ -385,18 +379,10 @@ extension DataFlowSemaPhase {
             skipStats: skipStats
         )
 
-        registerSyntheticArrayDequeStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
+        // KSP-625: ArrayDeque is provided by bundled Kotlin source
+        // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
+        // registered for it here.
 
-        // Keep collection aliases visible while bundled collection factories
-        // are loaded; their declarations reference MutableList/MutableMap
-        // symbols during the two-phase stdlib bootstrap.
-        registerSyntheticCollectionTypeAliases(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
         registerSyntheticCollectionFactoryStubs(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,

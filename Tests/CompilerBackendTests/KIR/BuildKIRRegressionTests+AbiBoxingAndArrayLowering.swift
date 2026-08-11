@@ -41,10 +41,8 @@ struct BuildKIRCodegenRegressionTests {
         #expect(callees.contains(interner.intern("kk_list_intersect")))
         #expect(callees.contains(interner.intern("kk_list_union")))
         #expect(callees.contains(interner.intern("kk_list_subtract")))
-        #expect(callees.contains(interner.intern("kk_set_toList")))
-        #expect(callees.contains(interner.intern("kk_set_intersect")))
-        #expect(callees.contains(interner.intern("kk_set_union")))
-        #expect(callees.contains(interner.intern("kk_set_subtract")))
+        #expect(callees.contains(interner.intern("__kk_set_contains")))
+        #expect(callees.contains(interner.intern("__kk_set_size")))
     }
 
     @Test
@@ -69,7 +67,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersSetBinaryMembersToCollectionRuntimeCalls() throws {
+    func testBuildKIRLowersSetBinaryMembersToBundledSourceCalls() throws {
         let source = """
         fun main(values: Set<Int>, other: List<Int>) {
             values.intersect(other)
@@ -86,12 +84,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_set_intersect"))
-            #expect(callNames.contains("kk_set_union"))
-            #expect(callNames.contains("kk_set_subtract"))
-            #expect(!(callNames.contains("intersect")))
-            #expect(!(callNames.contains("union")))
-            #expect(!(callNames.contains("subtract")))
+            #expect(callNames.contains("intersect"))
+            #expect(callNames.contains("union"))
+            #expect(callNames.contains("subtract"))
+            #expect(!(callNames.contains("kk_set_intersect")))
+            #expect(!(callNames.contains("kk_set_union")))
+            #expect(!(callNames.contains("kk_set_subtract")))
         }
     }
 
@@ -269,21 +267,20 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
-    // KSP-410: sumBy/sumByDouble/partition/reduceOrNull/reduceRightIndexed/
-    // reduceRightIndexedOrNull/reduceRightOrNull are bundled Kotlin source
-    // (StringHOF.kt). Neither lowers to a `kk_string_*_flat` call site anymore;
-    // dropped from this table. See StringSyntheticMemberLinkTests for their
-    // "carries no C external link" coverage. mapIndexed stays here
-    // (BUG-176: Swift-backed).
+    // KSP-410: the whole String HOF family is bundled Kotlin source
+    // (StringHOF.kt), so none of it may lower to a `kk_string_*` call anymore.
     @Test
-    func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
+    func testBuildKIRLowersStringHOFToBundledKotlinCallsInsteadOfRuntimeCalls() throws {
         let source = """
         fun main(value: String) {
-            value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
-            value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
-            value.toCollection(mutableListOf<Char>())
+            value.map { c -> c }
             value.mapIndexed { index, _ -> index }
-            value.mapNotNull { ch -> if (ch == 'a') 1 else null }
+            value.mapNotNull { c -> if (c == 'a') 1 else null }
+            value.firstNotNullOf { c -> if (c == 'a') 1 else null }
+            value.firstNotNullOfOrNull { c -> if (c == 'b') 2 else null }
+            value.sumBy { c -> c.code }
+            value.partition { c -> c == 'a' }
+            value.reduce { acc, c -> if (c > acc) c else acc }
         }
         """
 
@@ -295,20 +292,15 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            let flatNames = [
-                "kk_string_firstNotNullOf_flat",
-                "kk_string_firstNotNullOfOrNull_flat",
-                "kk_string_toCollection_flat",
-                "kk_string_mapIndexed_flat",
-                "kk_string_mapNotNull_flat",
+            let migrated = [
+                "map", "mapIndexed", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull",
+                "sumBy", "partition", "reduce",
             ]
-            for flatName in flatNames {
-                #expect(callNames.contains(flatName), "Missing \(flatName)")
-            }
-
-            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
-            for rawName in rawNames {
-                #expect(!(callNames.contains(rawName)), "Unexpected raw String HOF call \(rawName)")
+            for name in migrated {
+                #expect(
+                    !callNames.contains("kk_string_\(name)") && !callNames.contains("kk_string_\(name)_flat"),
+                    "String.\(name) must not lower to a runtime call"
+                )
             }
         }
     }
@@ -392,7 +384,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
+    func testBuildKIRLowersMapWithDefaultToBundledSourceCall() throws {
         let source = """
         fun main(values: Map<Int, Int>) {
             values.withDefault { it * 10 }
@@ -407,8 +399,8 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_map_withDefault"))
-            #expect(!(callNames.contains("withDefault")))
+            #expect(callNames.contains("withDefault"))
+            #expect(!(callNames.contains("kk_map_withDefault")))
         }
     }
 
@@ -730,7 +722,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
 
-            #expect(throwFlags["kk_map_getValue"]?.allSatisfy { $0 == true } == true, "kk_map_getValue should be lowered as throwing so ABI lowering wires outThrown.")
+            #expect(throwFlags["getValue"]?.allSatisfy { $0 == true } == true, "Map.getValue should be lowered as throwing so ABI lowering wires outThrown.")
         }
     }
 
@@ -796,12 +788,12 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_mutable_list_add_at"))
-            #expect(callNames.contains("kk_mutable_list_set"))
+            #expect(callNames.contains("__kk_mutable_list_add_at"))
+            #expect(callNames.contains("__kk_mutable_list_set"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
         }
     }
 

@@ -36,7 +36,7 @@ jobs:
         run: bash Scripts/check_todo_ids.sh
 
   # CompilerCore and kotlinc-diff shards build in independent hosted workspaces.
-  # Verification 2-4 shares one hosted build so expensive SwiftPM products are
+  # Verification 2-3 shares one hosted build so expensive SwiftPM products are
   # reused within that lane.
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
@@ -99,12 +99,26 @@ jobs:
         env:
           SWIFT_TEST_PARALLEL: "1"
         run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS
-      - name: Run CompilerCoreTests shard with strict concurrency warnings
+      # Method-level sharding avoids assigning large Swift Testing suites as
+      # indivisible units. Golden parameter batches and the serialized frontend
+      # benchmark are handled separately below.
+      - name: Run CompilerCoreTests method shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
-            --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests \
+            --mode dynamic --list-filter '^CompilerCoreTests\.' \
+            --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' \
+            --target-prefix CompilerCoreTests \
             --shard-index "${{ matrix.shard_index }}" --shard-count 3 \
-            -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\.FrontendParallelBenchmarkTests/'
+            -- $SWIFT_XSWIFTC_FLAGS
+      - name: Run CompilerCore golden batch shard
+        env:
+          KSWIFTK_GOLDEN_SHARD_INDEX: ${{ matrix.shard_index }}
+          KSWIFTK_GOLDEN_SHARD_COUNT: 3
+          SWIFT_TEST_PARALLEL: "1"
+        run: |
+          bash Scripts/swift_test.sh --skip-build \
+            --filter '^CompilerCoreTests\.Golden(Diagnostics|Lexer|Parser|Sema)GoldenTests/' \
+            $SWIFT_XSWIFTC_FLAGS
       - name: Run CompilerCore frontend benchmarks separately
         if: matrix.shard_index == 0
         env:
@@ -112,17 +126,6 @@ jobs:
         run: |
           bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             $SWIFT_XSWIFTC_FLAGS
-      - name: Build release kswiftc
-        if: matrix.shard_index == 0
-        run: |
-          swift build -debug-info-format none -c release --product kswiftc \
-            -j "$SWIFT_TEST_BUILD_JOBS"
-      - name: Run minimal end-to-end compiler test
-        if: matrix.shard_index == 0
-        run: |
-          kswiftc_bin="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"
-          "$kswiftc_bin" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello
-          /tmp/swiftbuild_hello
       - name: Reproduce hints
         if: always()
         run: |
@@ -134,15 +137,14 @@ jobs:
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
-              echo 'swift build -debug-info-format none -c release --product kswiftc -j "\$worker_count"'
-              echo 'KSWIFTC="$(swift build -c release --product kswiftc --show-bin-path)/kswiftc"; "$KSWIFTC" Scripts/diff_cases/hello.kt -o /tmp/swiftbuild_hello && /tmp/swiftbuild_hello'
             fi
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/'"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\\.' --list-exclude '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS"
+            echo "KSWIFTK_GOLDEN_SHARD_INDEX=${{ matrix.shard_index }} KSWIFTK_GOLDEN_SHARD_COUNT=3 SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.Golden(Diagnostics|Lexer|Parser|Sema)GoldenTests/' $SWIFT_XSWIFTC_FLAGS"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify-self-hosted:
-    name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
+    name: Verification 2-3/5 (Backend, Runtime, CLI, and LSP)
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -218,6 +220,28 @@ jobs:
         env:
           SWIFT_TEST_PARALLEL: "1"
         run: bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\.' $SWIFT_XSWIFTC_FLAGS
+      - name: Reproduce hints
+        if: always()
+        run: |
+          {
+            echo '## Verification 2-3/5 reproduce'
+            echo '```bash'
+            echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
+            echo 'KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 bash Scripts/build_swift_tests.sh -j "$worker_count" $SWIFT_XSWIFTC_FLAGS'
+            echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS="$worker_count" SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests -- $SWIFT_XSWIFTC_FLAGS'
+            echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- $SWIFT_XSWIFTC_FLAGS'
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify-repository-checks:
+    name: Verification 4/5 (Repository Checks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
       - name: Generate loc report
         run: |
           mkdir -p "$RUNNER_TEMP/refactoring-metrics"
@@ -292,19 +316,38 @@ jobs:
         if: always()
         run: |
           {
-            echo '## Verification 2-4/5 reproduce'
+            echo '## Verification 4/5 reproduce'
             echo '```bash'
-            echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
-            echo 'KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 bash Scripts/build_swift_tests.sh -j "$worker_count" $SWIFT_XSWIFTC_FLAGS'
-            echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS="$worker_count" SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests -- $SWIFT_XSWIFTC_FLAGS'
-            echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- $SWIFT_XSWIFTC_FLAGS'
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^KSwiftKCLITests\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' $SWIFT_XSWIFTC_FLAGS"
-            echo "npm install --prefix \"\$RUNNER_TEMP/jscpd\" --no-save jscpd@4.0.8"
-            echo 'jscpd --config .jscpd-ci.json --output /tmp/kswiftk-jscpd-report'
+            echo 'bash Scripts/loc_report.sh'
+            echo 'npm install --prefix "$RUNNER_TEMP/jscpd" --no-save jscpd@4.0.8'
+            echo 'PATH="$RUNNER_TEMP/jscpd/node_modules/.bin:$PATH" jscpd --config .jscpd-ci.json --output /tmp/kswiftk-jscpd-report'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Preserve the existing required-check name while delegating its work to two
+  # parallel jobs. This avoids branch-protection churn during the split.
+  verify-self-hosted-gate:
+    name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
+    if: always()
+    needs:
+      - verify-self-hosted
+      - verify-repository-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require delegated verification jobs
+        env:
+          SELF_HOSTED_RESULT: ${{ needs.verify-self-hosted.result }}
+          REPOSITORY_CHECKS_RESULT: ${{ needs.verify-repository-checks.result }}
+        run: |
+          if [[ "$SELF_HOSTED_RESULT" != "success" ]]; then
+            echo "verify-self-hosted result: $SELF_HOSTED_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$REPOSITORY_CHECKS_RESULT" != "success" ]]; then
+            echo "verify-repository-checks result: $REPOSITORY_CHECKS_RESULT" >&2
+            exit 1
+          fi
 
   verify-diff:
     name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
@@ -332,7 +375,9 @@ jobs:
           swift-version: "6.3"
       - name: Show toolchain versions
         run: swift --version
-      - name: Build kswiftc
+      # This required lane owns release-compiler E2E coverage. Every selected
+      # diff case is compiled and executed; shard 1 includes hello.kt.
+      - name: Build release kswiftc
         env:
           SWIFT_BUILD_JOBS: "4"
         run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency

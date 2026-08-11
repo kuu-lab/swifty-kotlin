@@ -479,6 +479,35 @@ extension ExprLowerer {
                         )
                     }
                 }
+                // Imported top-level properties with a custom getter have no
+                // global slot in the producing artifact; their reads dispatch
+                // to the precompiled getter accessor instead.
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   sym.flags.contains(.importedLibrary),
+                   sema.symbols.propertyHasCustomGetter(for: symbol),
+                   sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+                   {
+                       let parentKind = sema.symbols.parentSymbol(for: symbol)
+                           .flatMap { sema.symbols.symbol($0) }?.kind
+                       return parentKind == nil || parentKind == .package
+                   }()
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
                 if let sym = sema.symbols.symbol(symbol),
@@ -977,7 +1006,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localDecl(_, _, _, initializer, isDelegated, _):
+        case let .localDecl(_, isMutable, _, initializer, isDelegated, _):
             if let initializer {
                 let initializerID = lowerExpr(
                     initializer,
@@ -1085,8 +1114,26 @@ extension ExprLowerer {
                         default:
                             false
                         }
-                        if !isDelegated, let initializerType, initializerType != declaredType,
-                           declaredTypeIsReferenceLike
+                        // A mutable local initialized directly from a bare symbol
+                        // reference (an enum entry or object singleton, e.g. `var d:
+                        // Direction = Direction.NORTH`) must not alias its storage to
+                        // that exact expression. `arena.expr` never changes once
+                        // recorded, so a later reassignment (`d = Direction.SOUTH`)
+                        // only patches the runtime bits in place via `.copy` — any
+                        // fold that pattern-matches the storage's static `.symbolRef`
+                        // shape (e.g. enum `.name`/`.ordinal` constant-folding in
+                        // tryLowerEnumEntryPropertyRead) would keep resolving to the
+                        // *initial* entry forever, regardless of the reassignment.
+                        let initializerIsBareSymbolRef: Bool = {
+                            if case .symbolRef = arena.expr(initializerID) { return true }
+                            return false
+                        }()
+                        let requiresFreshSlotForMutableAlias = isMutable
+                            && declaredTypeIsReferenceLike
+                            && initializerIsBareSymbolRef
+                        if !isDelegated, declaredTypeIsReferenceLike,
+                           (initializerType != nil && initializerType != declaredType)
+                           || requiresFreshSlotForMutableAlias
                         {
                             let localSlot = arena.appendTemporary(type: declaredType)
                             instructions.append(.copy(from: initializerID, to: localSlot))

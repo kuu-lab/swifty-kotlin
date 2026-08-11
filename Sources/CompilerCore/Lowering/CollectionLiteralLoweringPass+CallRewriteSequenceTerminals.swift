@@ -247,24 +247,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             return true
         }
-        if state.setExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSetSortedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
     }
 
     if callee == lookup.distinctName, arguments.count == 1 {
@@ -303,24 +285,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 arguments: [receiverID],
                 result: toListResult,
                 canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(toListResult.rawValue)
-                loweredBody.append(.copy(from: toListResult, to: result))
-            }
-            return true
-        }
-        if state.mapExprIDs.contains(receiverID.rawValue) {
-            let toListResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkMapToListName,
-                arguments: [receiverID],
-                result: toListResult,
-                canThrow: false,
                 thrownResult: nil
             ))
             if let result {

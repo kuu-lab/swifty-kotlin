@@ -7,12 +7,6 @@ symbol fq=golden.sema.catchAccessDeniedWithReason kind=function vis=public flags
 symbol fq=java.io.File kind=class vis=public flags=synthetic type=java.io.File
 symbol fq=java.io.File.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=java.io.File
 symbol fq=java.io.File.<init>.path kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.io.AccessDeniedException kind=class vis=public flags=synthetic type=kotlin.io.AccessDeniedException
-symbol fq=kotlin.io.AccessDeniedException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[java.io.File] ret=kotlin.io.AccessDeniedException
-symbol fq=kotlin.io.AccessDeniedException.<init>#2 kind=constructor vis=public flags=synthetic sig=recv=_ params=[java.io.File,java.io.File?,String?] ret=kotlin.io.AccessDeniedException
-symbol fq=kotlin.io.AccessDeniedException.<init>.file kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.io.AccessDeniedException.<init>.other kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.io.AccessDeniedException.<init>.reason kind=valueParameter vis=private flags=synthetic
 file faccess_denied_exception package=golden.sema
   decl golden.sema.catchAccessDenied fun catchAccessDenied sym=golden.sema.catchAccessDenied
   decl golden.sema.catchAccessDeniedWithReason fun catchAccessDeniedWithReason sym=golden.sema.catchAccessDeniedWithReason

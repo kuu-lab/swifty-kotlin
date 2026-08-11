@@ -166,9 +166,20 @@ final class LambdaLowerer {
             }
             return types
         }()
-        let lambdaReturnType = functionType?.returnType
+        let substitutedReturnType = functionType?.returnType
             ?? sema.bindings.exprTypes[bodyExpr]
             ?? sema.types.anyType
+        // A return the callee declares as a type parameter carries a boxed value
+        // at runtime even though the body is checked against the substituted
+        // concrete type, so box on the way out.
+        let returnsErasedGeneric = !needsClosureParam && !isSamConversion
+            && driver.ctx.lambdaReturnsErasedGeneric(for: exprID, ast: ast, sema: sema)
+        let lambdaReturnType = erasedLambdaReturnType(
+            substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            interner: interner
+        )
 
         let captureSymbols = computeCaptureSymbolsForLambda(
             lambdaExprID: exprID,
@@ -186,8 +197,11 @@ final class LambdaLowerer {
                 params: params,
                 bodyExpr: bodyExpr,
                 effectiveParamCount: effectiveParamCount,
+                hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
                 lambdaReturnType: lambdaReturnType,
+                substitutedReturnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
                 functionType: functionType,
                 isSamConversion: isSamConversion,
                 boundType: boundType,
@@ -367,7 +381,11 @@ final class LambdaLowerer {
         } else {
             params
         }
-        let valueParamStart = needsClosureParam ? 1 : 0
+        // Value parameters start after the closure environment parameter (HOF
+        // lambdas) and after the explicit receiver parameter (receiver lambdas
+        // such as `DeepRecursiveScope<T, R>.(T) -> R`); without the receiver
+        // offset a named parameter would alias the receiver slot.
+        let valueParamStart = (needsClosureParam ? 1 : 0) + (needsExplicitReceiver ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
@@ -381,7 +399,16 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        lambdaBody.append(.returnValue(loweredBody))
+        let returnedBody = boxErasedReturnValue(
+            loweredBody,
+            returnType: substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
         // The expected/contextual function type (e.g. a plain `(T) -> R)` HOF
@@ -500,6 +527,14 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
+        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
+        // without dropping the receiver. Keep the raw lambda instead: call sites
+        // that consume such callables adapt them through
+        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
+        guard functionType.receiver == nil else {
+            return nil
+        }
         let createCallee: InternedString
         switch functionType.params.count {
         case 0:
@@ -508,6 +543,10 @@ final class LambdaLowerer {
             createCallee = interner.intern("kk_function_create_1")
         case 2:
             createCallee = interner.intern("kk_function_create_2")
+        case 3:
+            createCallee = interner.intern("kk_function_create_3")
+        case 4:
+            createCallee = interner.intern("kk_function_create_4")
         default:
             return nil
         }
@@ -1421,8 +1460,11 @@ final class LambdaLowerer {
         params: [InternedString],
         bodyExpr: ExprID,
         effectiveParamCount: Int,
+        hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
         lambdaReturnType: TypeID,
+        substitutedReturnType: TypeID,
+        returnsErasedGeneric: Bool,
         functionType: FunctionType?,
         isSamConversion: Bool,
         boundType: TypeID?,
@@ -1459,7 +1501,7 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
 
             // Handle receiver parameter if needed
-            if paramIndex == 0, functionType?.receiver != nil {
+            if paramIndex == 0, hasExplicitReceiverParam {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
         }
@@ -1470,8 +1512,10 @@ final class LambdaLowerer {
         } else {
             params
         }
-        for (i, paramName) in effectiveParamNames.enumerated() where i < lambdaParameters.count {
-            driver.ctx.registerLambdaParam(symbol: lambdaParameters[i].symbol, forName: paramName)
+        // Named parameters follow the explicit receiver parameter, if any.
+        let valueParamStart = hasExplicitReceiverParam ? 1 : 0
+        for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
+            driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
         // Lower the body
@@ -1484,7 +1528,16 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        lambdaBody.append(.returnValue(loweredBody))
+        let returnedBody = boxErasedReturnValue(
+            loweredBody,
+            returnType: substitutedReturnType,
+            returnsErasedGeneric: returnsErasedGeneric,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
         // See the matching comment in lowerLambdaLiteralExpr: the expected/

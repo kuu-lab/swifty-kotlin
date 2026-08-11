@@ -82,56 +82,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let containsKeyName = interner.intern("containsKey")
-        let containsKeyFQName = mapFQName + [containsKeyName]
-        if symbols.lookup(fqName: containsKeyFQName) == nil {
-            let containsKeySymbol = symbols.define(
-                kind: .function,
-                name: containsKeyName,
-                fqName: containsKeyFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(mapSymbol, for: containsKeySymbol)
-            symbols.setExternalLinkName("kk_map_contains_key", for: containsKeySymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [keyType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [keyParamSymbol, valueParamSymbol],
-                    classTypeParameterCount: 2
-                ),
-                for: containsKeySymbol
-            )
-        }
-
-        let containsValueName = interner.intern("containsValue")
-        let containsValueFQName = mapFQName + [containsValueName]
-        if symbols.lookup(fqName: containsValueFQName) == nil {
-            let containsValueSymbol = symbols.define(
-                kind: .function,
-                name: containsValueName,
-                fqName: containsValueFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(mapSymbol, for: containsValueSymbol)
-            symbols.setExternalLinkName("kk_map_contains_value", for: containsValueSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [valueType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [keyParamSymbol, valueParamSymbol],
-                    classTypeParameterCount: 2
-                ),
-                for: containsValueSymbol
-            )
-        }
-
         return (mapSymbol, keyParamSymbol, valueParamSymbol)
     }
 
@@ -239,55 +189,6 @@ extension DataFlowSemaPhase {
         }
 
         return abstractMapSymbol
-    }
-
-    func registerMapToMutableMapMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        mapInterfaceSymbol: SymbolID,
-        keyTypeParamSymbol: SymbolID,
-        valueTypeParamSymbol: SymbolID
-    ) {
-        let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
-        let toMutableMapName = interner.intern("toMutableMap")
-        let toMutableMapFQName = mapFQName + [toMutableMapName]
-        guard symbols.lookup(fqName: toMutableMapFQName) == nil else { return }
-        guard let mutableMapSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("MutableMap")]) else {
-            return
-        }
-        let keyType = types.make(.typeParam(TypeParamType(symbol: keyTypeParamSymbol, nullability: .nonNull)))
-        let valueType = types.make(.typeParam(TypeParamType(symbol: valueTypeParamSymbol, nullability: .nonNull)))
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mapInterfaceSymbol,
-            args: [.out(keyType), .out(valueType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: toMutableMapName,
-            fqName: toMutableMapFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(mapInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_map_to_mutable_map", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: types.make(.classType(ClassType(
-                    classSymbol: mutableMapSymbol,
-                    args: [.invariant(keyType), .invariant(valueType)],
-                    nullability: .nonNull
-                ))),
-                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
-                classTypeParameterCount: 2
-            ),
-            for: memberSymbol
-        )
     }
 
     func registerMapHigherOrderMembers(
@@ -400,47 +301,6 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
-
-        if let setSymbol {
-            let keysType = types.make(.classType(ClassType(
-                classSymbol: setSymbol,
-                args: [.out(keyType)],
-                nullability: .nonNull
-            )))
-            registerMember(
-                name: "keys",
-                externalLinkName: "kk_map_keys",
-                parameterTypes: [],
-                returnType: keysType,
-                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-            )
-
-            let entriesType = types.make(.classType(ClassType(
-                classSymbol: setSymbol,
-                args: [.out(entryType)],
-                nullability: .nonNull
-            )))
-            registerMember(
-                name: "entries",
-                externalLinkName: "kk_map_entries",
-                parameterTypes: [],
-                returnType: entriesType,
-                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-            )
-        }
-
-        let valuesType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(valueType)],
-            nullability: .nonNull
-        )))
-        registerMember(
-            name: "values",
-            externalLinkName: "kk_map_values",
-            parameterTypes: [],
-            returnType: valuesType,
-            typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-        )
 
         let forEachLambdaType = types.make(.functionType(FunctionType(
             params: [entryType],
@@ -757,22 +617,6 @@ extension DataFlowSemaPhase {
         )
 
         registerMember(
-            name: "getValue",
-            externalLinkName: "kk_map_getValue",
-            parameterTypes: [keyType],
-            returnType: valueType,
-            typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-        )
-
-        registerMember(
-            name: "getOrDefault",
-            externalLinkName: "kk_map_getOrDefault",
-            parameterTypes: [keyType, valueType],
-            returnType: valueType,
-            typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-        )
-
-        registerMember(
             name: "plus",
             externalLinkName: "kk_map_plus",
             parameterTypes: [pairType],
@@ -790,49 +634,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
 
-        let getOrElseLambdaType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: valueType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMember(
-            name: "getOrElse",
-            externalLinkName: "kk_map_getOrElse",
-            parameterTypes: [keyType, getOrElseLambdaType],
-            returnType: valueType,
-            typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
-            flags: [.synthetic, .inlineFunction]
-        )
-
-        let withDefaultLambdaType = types.make(.functionType(FunctionType(
-            params: [keyType],
-            returnType: valueType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMember(
-            name: "withDefault",
-            externalLinkName: "kk_map_withDefault",
-            parameterTypes: [withDefaultLambdaType],
-            returnType: selfMapType,
-            typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-        )
-
         if let listSymbol {
-            let toListType = types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.out(pairType)],
-                nullability: .nonNull
-            )))
-            registerMember(
-                name: "toList",
-                externalLinkName: "kk_map_toList",
-                parameterTypes: [],
-                returnType: toListType,
-                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
-            )
-
             let rName = interner.intern("R")
             let flatMapRSymbol = symbols.define(
                 kind: .typeParameter,
@@ -1077,13 +879,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let getOrPutLambdaType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: valueType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
         let mapParamType = types.make(.classType(ClassType(
             classSymbol: mapInterfaceSymbol,
             args: [.out(keyType), .out(valueType)],
@@ -1102,14 +897,13 @@ extension DataFlowSemaPhase {
         }
 
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
-            ("set", [keyType, valueType], types.unitType, "kk_mutable_map_put", [.synthetic, .operatorFunction]),
-            ("put", [keyType, valueType], types.makeNullable(valueType), "kk_mutable_map_put", [.synthetic]),
-            ("remove", [keyType], types.makeNullable(valueType), "kk_mutable_map_remove", [.synthetic]),
-            ("clear", [], types.unitType, "kk_mutable_map_clear", [.synthetic]),
-            ("getOrPut", [keyType, getOrPutLambdaType], valueType, "kk_mutable_map_getOrPut", [.synthetic, .inlineFunction]),
-            ("putAll", [mapParamType], types.unitType, "kk_mutable_map_putAll", [.synthetic]),
-            ("plusAssign", [pairType], types.unitType, "kk_mutable_map_plusAssign_pair", [.synthetic, .operatorFunction]),
-            ("plusAssign", [mapParamType], types.unitType, "kk_mutable_map_putAll", [.synthetic, .operatorFunction]),
+            ("set", [keyType, valueType], types.unitType, "__kk_mutable_map_put", [.synthetic, .operatorFunction]),
+            ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic]),
+            ("remove", [keyType], types.makeNullable(valueType), "__kk_mutable_map_remove", [.synthetic]),
+            ("clear", [], types.unitType, "__kk_mutable_map_clear", [.synthetic]),
+            ("putAll", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic]),
+            ("plusAssign", [pairType], types.unitType, "__kk_mutable_map_plusAssign_pair", [.synthetic, .operatorFunction]),
+            ("plusAssign", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic, .operatorFunction]),
         ]
 
         for member in members {

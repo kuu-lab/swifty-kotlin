@@ -110,14 +110,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ScopeFunction") { phase, symbols, types, interner, _ in
             phase.registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "TestFramework") { phase, symbols, types, interner, context in
-            phase.registerSyntheticTestFrameworkStubs(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                kotlinPkg: context.kotlinPkg
-            )
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coroutine") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -132,9 +124,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Regex") { phase, symbols, types, interner, _ in
             phase.registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "DeepRecursive") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Duration") { phase, symbols, types, interner, _ in
             phase.registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
@@ -208,14 +197,8 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "KotlinIOException") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileWalkDirection") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileTreeWalk") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "OnErrorAction") { phase, symbols, types, interner, _ in
             phase.registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
@@ -261,17 +244,11 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "URL") { phase, symbols, types, interner in
             phase.registerSyntheticURLStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "LocaleConstructor") { phase, symbols, types, interner in
-            phase.registerSyntheticLocaleConstructorStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in
             phase.registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeInterop") { phase, symbols, types, interner in
             phase.registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "BigInteger") { phase, symbols, types, interner in
-            phase.registerSyntheticBigIntegerStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "NativeInvoke") { phase, symbols, _, interner in
             phase.registerSyntheticNativeInvokeStubs(symbols: symbols, interner: interner)

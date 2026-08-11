@@ -69,13 +69,19 @@ extension KIRLoweringDriver {
         body: [KIRInstruction],
         inits: KIRLoweringEmitContext
     ) -> [KIRInstruction] {
+        // The initializers were lowered under their own function scopes, so
+        // their labels restart from the same base as `main`'s own body.
+        let relocatedInits = KIRLabelRelocation.relocatingLabels(
+            of: inits.instructions,
+            toAvoidCollisionsWith: body
+        )
         var newBody: KIRLoweringEmitContext = []
         if let first = body.first, case .beginBlock = first {
             newBody.append(first)
-            newBody.append(contentsOf: inits)
+            newBody.append(contentsOf: relocatedInits)
             newBody.append(contentsOf: body.dropFirst())
         } else {
-            newBody.append(contentsOf: inits)
+            newBody.append(contentsOf: relocatedInits)
             newBody.append(contentsOf: body)
         }
         return newBody.instructions
@@ -594,6 +600,7 @@ extension KIRLoweringDriver {
         case 1: interner.intern("kk_function_create_1")
         case 2: interner.intern("kk_function_create_2")
         case 3: interner.intern("kk_function_create_3")
+        case 4: interner.intern("kk_function_create_4")
         default: preconditionFailure("Unsupported delegate callback arity: \(valueParams.count)")
         }
         instructions.append(.call(

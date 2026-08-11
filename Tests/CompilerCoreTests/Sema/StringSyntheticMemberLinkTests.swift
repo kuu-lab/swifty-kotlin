@@ -210,6 +210,23 @@ struct StringSyntheticMemberLinkTests {
         }
 
         do {
+            // KSP-417: String.random overloads use private runtime bridge symbols.
+                    let links = externalLinks(for: "random", sema: sema, interner: interner)
+                    #expect(
+                        links.contains("__kk_string_random"),
+                        "String.random() should link to __kk_string_random, got \(links.sorted())"
+                    )
+                    #expect(
+                        links.contains("__kk_string_random_random"),
+                        "String.random(Random) should link to __kk_string_random_random, got \(links.sorted())"
+                    )
+                    #expect(
+                        !links.contains("kk_string_random") && !links.contains("kk_string_random_random"),
+                        "String.random overloads should no longer expose public kk_ symbols (KSP-417)"
+                    )
+        }
+
+        do {
             // Originally testChunkedSequenceStubsHaveCorrectExternalLinks
                     let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
                     #expect(
@@ -297,12 +314,6 @@ struct StringSyntheticMemberLinkTests {
                     )
                     #expect(
                         externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
                     )
         }
 
@@ -1193,15 +1204,20 @@ struct StringSyntheticMemberLinkTests {
 
             do {
 
+                let samplePath = paths[11]
+
                 let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
                 #expect(
                     !ctx.diagnostics.hasError,
                     "Expected CharSequence.firstNotNullOf surface to resolve cleanly, got: \(diagnosticSummary)"
                 )
 
-                let firstNotNullOfBindings = sema.bindings.callBindings.values.filter { binding in
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf_flat"
+                let callIDs = allExprIDs(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "firstNotNullOf"
                 }
+                #expect(callIDs.count == 2, "Expected two String.firstNotNullOf call sites")
+                let firstNotNullOfBindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
                 #expect(firstNotNullOfBindings.count == 2)
 
             }
@@ -1210,15 +1226,20 @@ struct StringSyntheticMemberLinkTests {
 
             do {
 
+                let samplePath = paths[12]
+
                 let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
                 #expect(
                     !ctx.diagnostics.hasError,
                     "Expected CharSequence.firstNotNullOfOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
                 )
 
-                let bindings = sema.bindings.callBindings.values.filter { binding in
-                    sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull_flat"
+                let callIDs = allExprIDs(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "firstNotNullOfOrNull"
                 }
+                #expect(callIDs.count == 2, "Expected two String.firstNotNullOfOrNull call sites")
+                let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
                 #expect(bindings.count == 2)
 
             }
