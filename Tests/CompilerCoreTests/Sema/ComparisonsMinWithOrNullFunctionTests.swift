@@ -9,10 +9,11 @@ import Testing
 @Suite
 struct ComparisonsMinWithOrNullFunctionTests {
 
-    /// `List<T>.minWithOrNull(Comparator)` and `Sequence<T>.minWithOrNull(Comparator)`
-    /// must type-check end-to-end from user source.
-    @Test func testMinWithOrNullFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         fun pickList(xs: List<Int>, cmp: Comparator<Int>): Int? {
             return xs.minWithOrNull(cmp)
         }
@@ -20,16 +21,45 @@ struct ComparisonsMinWithOrNullFunctionTests {
         fun pickSequence(xs: Sequence<Int>, cmp: Comparator<Int>): Int? {
             return xs.minWithOrNull(cmp)
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """,
+        """
+        package sample2
+        fun noop() {}
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    /// `List<T>.minWithOrNull(Comparator)` and `Sequence<T>.minWithOrNull(Comparator)`
+    /// must type-check end-to-end from user source.
+    @Test func testMinWithOrNullFunctionResolvesInSource() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Expected minWithOrNull to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 
     /// `List<T>.minWithOrNull` must be registered with the `kk_list_minWithOrNull` external link.
     @Test func testListMinWithOrNullIsRegisteredWithRuntimeLink() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let fq = ["kotlin", "collections", "List", "minWithOrNull"].map { ctx.interner.intern($0) }
         let links = Set(
@@ -42,8 +72,8 @@ struct ComparisonsMinWithOrNullFunctionTests {
     /// `Sequence<T>.minWithOrNull` must be registered with the
     /// `kk_sequence_minWithOrNull` external link.
     @Test func testSequenceMinWithOrNullIsRegisteredWithRuntimeLink() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let fq = ["kotlin", "sequences", "Sequence", "minWithOrNull"].map { ctx.interner.intern($0) }
         let links = Set(

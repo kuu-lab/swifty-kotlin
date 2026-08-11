@@ -15,6 +15,44 @@ import Testing
 @Suite
 struct PathWalkOptionEnumTests {
 
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        import kotlin.io.path.PathWalkOption
+
+        fun pickBreadthFirst(): PathWalkOption = PathWalkOption.BREADTH_FIRST
+        fun pickFollowLinks(): PathWalkOption = PathWalkOption.FOLLOW_LINKS
+        """,
+        """
+        package sample1
+        import kotlin.io.path.PathWalkOption
+
+        fun describe(option: PathWalkOption): String {
+            return when (option) {
+                PathWalkOption.BREADTH_FIRST -> "breadth-first"
+                PathWalkOption.FOLLOW_LINKS -> "follow-links"
+            }
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     // MARK: Helpers
 
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
@@ -156,46 +194,26 @@ struct PathWalkOptionEnumTests {
     // MARK: - Member resolution in source
 
     @Test func testPathWalkOptionMemberAccessResolves() throws {
-        let source = """
-        import kotlin.io.path.PathWalkOption
 
-        fun pickBreadthFirst(): PathWalkOption = PathWalkOption.BREADTH_FIRST
-        fun pickFollowLinks(): PathWalkOption = PathWalkOption.FOLLOW_LINKS
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             let messages = errors.map { "\($0.code): \($0.message)" }
             #expect(
                 errors.isEmpty,
                 Comment(rawValue: "Expected every PathWalkOption entry to resolve cleanly, got: \(messages)")
             )
-        }
+
     }
 
     @Test func testPathWalkOptionUsedInWhenExpressionResolves() throws {
-        let source = """
-        import kotlin.io.path.PathWalkOption
 
-        fun describe(option: PathWalkOption): String {
-            return when (option) {
-                PathWalkOption.BREADTH_FIRST -> "breadth-first"
-                PathWalkOption.FOLLOW_LINKS -> "follow-links"
-            }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(
                 errors.isEmpty,
                 "PathWalkOption in when expression should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
-        }
+
     }
 }
 #endif

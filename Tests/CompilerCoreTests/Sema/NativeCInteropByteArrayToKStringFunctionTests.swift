@@ -4,9 +4,49 @@ import Testing
 
 @Suite
 struct NativeCInteropByteArrayToKStringFunctionTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlinx.cinterop.toKString
+
+        fun decode(bytes: ByteArray): String {
+            return bytes.toKString()
+        }
+        """,
+        """
+        package sample2
+        import kotlinx.cinterop.toKString
+
+        fun decode(bytes: ByteArray): String {
+            return bytes.toKString(0, bytes.size, false)
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     @Test func testByteArrayToKStringFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "compile clean: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -39,26 +79,14 @@ struct NativeCInteropByteArrayToKStringFunctionTests {
     }
 
     @Test func testByteArrayToKStringFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.toKString
 
-        fun decode(bytes: ByteArray): String {
-            return bytes.toKString()
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "resolve with no args: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test func testByteArrayToKStringFunctionResolvesWithAllArgs() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.toKString
 
-        fun decode(bytes: ByteArray): String {
-            return bytes.toKString(0, bytes.size, false)
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "resolve with all args: \(ctx.diagnostics.diagnostics)")
     }
 }
