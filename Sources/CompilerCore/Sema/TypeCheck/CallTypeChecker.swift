@@ -819,51 +819,6 @@ final class CallTypeChecker {
             return sequenceType
         }
 
-        // --- Stdlib repeat(times) { ... } (STDLIB-008) ---
-        // Infer the lambda argument with the expected `(Int) -> Unit` type so
-        // implicit `it` resolves to the loop index.
-        if let calleeName,
-           args.count == 2,
-           shouldUseRepeatSpecialHandling(calleeName: calleeName, locals: locals),
-           topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
-               locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: false
-           ) == .repeatLoop
-        {
-            let intType = sema.types.intType
-            let unitType = sema.types.unitType
-            let countType = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: intType
-            )
-            driver.emitSubtypeConstraint(
-                left: countType,
-                right: intType,
-                range: ast.arena.exprRange(args[0].expr) ?? range,
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
-            let actionExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [intType],
-                returnType: unitType
-            )))
-            _ = driver.inferExpr(
-                args[1].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: actionExpectedType
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .repeatLoop)
-            sema.bindings.bindExprType(id, type: unitType)
-            return unitType
-        }
-
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
