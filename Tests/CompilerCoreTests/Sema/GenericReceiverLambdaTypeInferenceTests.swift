@@ -10,8 +10,11 @@ import Testing
 @Suite
 struct GenericReceiverLambdaTypeInferenceTests {
 
-    @Test func testGenericExtensionReceiverLambdaResolvesMembers() throws {
-        let source = """
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         val myValue: String = "lexical"
 
         class MutableBox<T> {
@@ -26,19 +29,9 @@ struct GenericReceiverLambdaTypeInferenceTests {
         fun useApply2(): MutableBox<Int> = MutableBox<Int>().apply2 { myValue = 42 }
 
         fun useApply2WithLexicalShadow(): MutableBox<Int> = MutableBox<Int>().apply2 { myValue = 42 }
+        """,
         """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Generic receiver lambda should resolve members and shadow lexical myValue, got: \(errors)"
-        )
-    }
-
-    @Test func testGenericRunWithReturnTypeResolvesMembers() throws {
-        let source = """
+        package sample1
         class MutableBox<T> {
             var myValue: T? = null
         }
@@ -49,18 +42,9 @@ struct GenericReceiverLambdaTypeInferenceTests {
             myValue = 100
             myValue ?: 0
         }
+        """,
         """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Generic receiver lambda T.() -> R should resolve myValue and return type, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    @Test func testWithInferredReceiverFromArgumentStillWorks() throws {
-        let source = """
+        package sample2
         class MutableBox<T> {
             var myValue: T? = null
         }
@@ -74,18 +58,9 @@ struct GenericReceiverLambdaTypeInferenceTests {
                 myValue ?: 0
             }
         }
+        """,
         """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "with(receiver, T.() -> R) should resolve receiver members, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    @Test func testConcreteReceiverLambdaStillWorks() throws {
-        let source = """
+        package sample3
         class ConcreteBox {
             var myValue: Int? = null
         }
@@ -97,9 +72,54 @@ struct GenericReceiverLambdaTypeInferenceTests {
 
         fun useConcrete(): ConcreteBox = ConcreteBox().apply2 { myValue = 42 }
         """
+    ]
 
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    @Test func testGenericExtensionReceiverLambdaResolvesMembers() throws {
+
+        let ctx = try sharedCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Generic receiver lambda should resolve members and shadow lexical myValue, got: \(errors)"
+        )
+    }
+
+    @Test func testGenericRunWithReturnTypeResolvesMembers() throws {
+
+        let ctx = try sharedCtx()
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Generic receiver lambda T.() -> R should resolve myValue and return type, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testWithInferredReceiverFromArgumentStillWorks() throws {
+
+        let ctx = try sharedCtx()
+        #expect(
+            !ctx.diagnostics.hasError,
+            "with(receiver, T.() -> R) should resolve receiver members, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testConcreteReceiverLambdaStillWorks() throws {
+
+        let ctx = try sharedCtx()
         #expect(
             !ctx.diagnostics.hasError,
             "Concrete receiver lambda should still resolve members, got: \(ctx.diagnostics.diagnostics)"

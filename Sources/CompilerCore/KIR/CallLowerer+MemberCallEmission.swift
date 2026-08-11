@@ -46,11 +46,13 @@ extension CallLowerer {
         let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
         let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
         let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+        let byteType = sema.types.byteType
+        let shortType = sema.types.shortType
         var receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         if nullableReceiverAllowed {
             receiverType = sema.types.makeNonNullable(receiverType)
         }
-        return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType
+        return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType || receiverType == byteType || receiverType == shortType
     }
 
     func appendReceiverToMemberArguments(

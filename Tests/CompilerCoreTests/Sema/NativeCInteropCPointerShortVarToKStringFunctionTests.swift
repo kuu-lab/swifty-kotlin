@@ -4,9 +4,47 @@ import Testing
 
 @Suite
 struct NativeCInteropCPointerShortVarToKStringFunctionTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """,
+        """
+        package sample2
+        import kotlinx.cinterop.CPointer
+        import kotlinx.cinterop.ShortVar
+        import kotlinx.cinterop.toKString
+
+        fun decode(p: CPointer<ShortVar>): String {
+            return p.toKString()
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     @Test func testCPointerShortVarToKStringFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "compile clean: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -24,8 +62,8 @@ struct NativeCInteropCPointerShortVarToKStringFunctionTests {
     }
 
     @Test func testCPointerShortVarToKStringFunctionLinksToRuntimeSymbol() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
@@ -42,16 +80,8 @@ struct NativeCInteropCPointerShortVarToKStringFunctionTests {
     }
 
     @Test func testCPointerShortVarToKStringFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.CPointer
-        import kotlinx.cinterop.ShortVar
-        import kotlinx.cinterop.toKString
 
-        fun decode(p: CPointer<ShortVar>): String {
-            return p.toKString()
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }

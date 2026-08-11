@@ -79,8 +79,8 @@ struct NativeByteArrayAccessorSurfaceTests {
     @Test func testSignedByteArrayAccessorsAreRegistered() throws {
         let (sema, interner) = try sharedSema()
         let expected: [(name: String, returnType: TypeID, linkName: String)] = [
-            ("getByteAt", sema.types.intType, "kk_native_byteArray_getByteAt"),
-            ("getShortAt", sema.types.intType, "kk_native_byteArray_getShortAt"),
+            ("getByteAt", sema.types.byteType, "kk_native_byteArray_getByteAt"),
+            ("getShortAt", sema.types.shortType, "kk_native_byteArray_getShortAt"),
             ("getIntAt", sema.types.intType, "kk_native_byteArray_getIntAt"),
             ("getLongAt", sema.types.longType, "kk_native_byteArray_getLongAt"),
         ]

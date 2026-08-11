@@ -11,6 +11,52 @@ import Testing
 /// link `__kk_throwable_new`.
 @Suite
 struct CharacterCodingExceptionTypeTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        import kotlin.text.CharacterCodingException
+
+        fun throwImported(): Nothing = throw CharacterCodingException()
+        fun throwImportedWithMessage(): Nothing = throw CharacterCodingException("bad input")
+
+        fun catchAsCharacterCoding(): String =
+            try { throw CharacterCodingException("decode failed") }
+            catch (e: CharacterCodingException) { e.message ?: "none" }
+
+        fun catchAsException(): String =
+            try { throw CharacterCodingException("encode failed") }
+            catch (e: Exception) { e.message ?: "none" }
+
+        fun catchAsThrowable(): String =
+            try { throw CharacterCodingException("io failed") }
+            catch (t: Throwable) { t.message ?: "none" }
+        """,
+        """
+        package sample1
+        import kotlin.text.CharacterCodingException
+
+        fun nullable(message: String?): Exception = CharacterCodingException(message)
+        fun explicitNull(): Exception = CharacterCodingException(null)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
@@ -147,27 +193,9 @@ struct CharacterCodingExceptionTypeTests {
 
     // MARK: - Source resolution
 
-    @Test
-    func testCharacterCodingExceptionTypeChecksThroughImport() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.CharacterCodingException
+    @Test func testCharacterCodingExceptionTypeChecksThroughImport() throws {
 
-        fun throwImported(): Nothing = throw CharacterCodingException()
-        fun throwImportedWithMessage(): Nothing = throw CharacterCodingException("bad input")
-
-        fun catchAsCharacterCoding(): String =
-            try { throw CharacterCodingException("decode failed") }
-            catch (e: CharacterCodingException) { e.message ?: "none" }
-
-        fun catchAsException(): String =
-            try { throw CharacterCodingException("encode failed") }
-            catch (e: Exception) { e.message ?: "none" }
-
-        fun catchAsThrowable(): String =
-            try { throw CharacterCodingException("io failed") }
-            catch (t: Throwable) { t.message ?: "none" }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -175,15 +203,9 @@ struct CharacterCodingExceptionTypeTests {
         )
     }
 
-    @Test
-    func testCharacterCodingExceptionAcceptsNullMessageArgument() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.CharacterCodingException
+    @Test func testCharacterCodingExceptionAcceptsNullMessageArgument() throws {
 
-        fun nullable(message: String?): Exception = CharacterCodingException(message)
-        fun explicitNull(): Exception = CharacterCodingException(null)
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,

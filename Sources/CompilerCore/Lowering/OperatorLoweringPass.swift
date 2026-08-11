@@ -176,7 +176,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
         switch primitiveType {
-        case .int, .ubyte, .ushort, .uint:
+        case .int, .byte, .short, .ubyte, .ushort, .uint:
             return interner.intern("kk_unbox_int")
         case .long:
             return interner.intern("kk_unbox_long")

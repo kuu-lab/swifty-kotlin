@@ -239,6 +239,8 @@ private enum RuntimeTypeTokenEncoding {
     static let ulongBase: Int64 = 8
     static let ubyteBase: Int64 = 9
     static let ushortBase: Int64 = 10
+    static let byteBase: Int64 = 16
+    static let shortBase: Int64 = 17
     // REFL-002: Additional primitive bases for Long, Double, Float, Char.
     static let longBase: Int64 = 11
     static let doubleBase: Int64 = 12
@@ -511,7 +513,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     case RuntimeTypeTokenEncoding.intBase,
          RuntimeTypeTokenEncoding.uintBase,
          RuntimeTypeTokenEncoding.ubyteBase,
-         RuntimeTypeTokenEncoding.ushortBase:
+         RuntimeTypeTokenEncoding.ushortBase,
+         RuntimeTypeTokenEncoding.byteBase,
+         RuntimeTypeTokenEncoding.shortBase:
         // NOTE: an unboxed (non-object-pointer) value here is treated as a
         // match. That's unsound in general — Int/UInt/UByte/UShort share no
         // value-range heuristic that distinguishes them from Long/Double/
@@ -789,6 +793,10 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
         "UByte"
     case RuntimeTypeTokenEncoding.ushortBase:
         "UShort"
+    case RuntimeTypeTokenEncoding.byteBase:
+        "Byte"
+    case RuntimeTypeTokenEncoding.shortBase:
+        "Short"
     case RuntimeTypeTokenEncoding.booleanBase:
         "Boolean"
     // REFL-002: Additional primitive bases for accurate simpleName.
@@ -831,6 +839,8 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     case RuntimeTypeTokenEncoding.ulongBase:   "kotlin.ULong"
     case RuntimeTypeTokenEncoding.ubyteBase:   "kotlin.UByte"
     case RuntimeTypeTokenEncoding.ushortBase:  "kotlin.UShort"
+    case RuntimeTypeTokenEncoding.byteBase:     "kotlin.Byte"
+    case RuntimeTypeTokenEncoding.shortBase:    "kotlin.Short"
     case RuntimeTypeTokenEncoding.booleanBase: "kotlin.Boolean"
     case RuntimeTypeTokenEncoding.longBase:    "kotlin.Long"
     case RuntimeTypeTokenEncoding.doubleBase:  "kotlin.Double"

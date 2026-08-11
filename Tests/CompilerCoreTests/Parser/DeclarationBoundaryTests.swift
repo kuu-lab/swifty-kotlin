@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-/// BUG-207 (found while implementing KSP-614): a body-less top-level
+/// BUG-208 (found while implementing KSP-614): a body-less top-level
 /// declaration — such as the `external fun` bridges used by the bundled Kotlin
 /// stdlib — used to absorb the following declaration when that declaration
 /// started with a visibility/linkage modifier, because only `fun`/`val`/`class`

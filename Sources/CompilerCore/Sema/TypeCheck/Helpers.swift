@@ -371,9 +371,9 @@ struct TypeCheckHelpers {
         case knownNames.longArray:
             return sema.types.longType
         case knownNames.shortArray:
-            return sema.types.intType
+            return sema.types.shortType
         case knownNames.byteArray:
-            return sema.types.intType
+            return sema.types.byteType
         case knownNames.ubyteArray:
             return sema.types.ubyteType
         case knownNames.ushortArray:
@@ -534,9 +534,6 @@ struct TypeCheckHelpers {
     ) -> TypeID? {
         if let builtin = BuiltinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
             return builtin
-        }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.make(.primitive(.int, nullability))
         }
         return nil
     }

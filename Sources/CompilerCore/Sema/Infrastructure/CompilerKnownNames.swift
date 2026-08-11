@@ -587,7 +587,11 @@ package struct KnownCompilerNames {
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {
         switch name {
-        case byte, short, int:
+        case byte:
+            types.withNullability(nullability, for: types.byteType)
+        case short:
+            types.withNullability(nullability, for: types.shortType)
+        case int:
             types.withNullability(nullability, for: types.intType)
         case long:
             types.withNullability(nullability, for: types.longType)

@@ -143,14 +143,27 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         let untilFQName = ["kotlin", "ranges", "until"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: untilFQName)
 
-        #expect(candidates.count == 4, "until should register four signed overloads")
-
-        let expectedSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = [
-            (sema.types.intType, sema.types.intType, sema.types.intType),
-            (sema.types.intType, sema.types.longType, sema.types.longType),
-            (sema.types.longType, sema.types.intType, sema.types.longType),
-            (sema.types.longType, sema.types.longType, sema.types.longType),
+        // Byte and Short now have distinct primitives, so the signed `until`
+        // overload matrix is Byte/Short/Int/Long crossed with itself.
+        let signedRangeUntilTypes = [
+            sema.types.byteType,
+            sema.types.shortType,
+            sema.types.intType,
+            sema.types.longType,
         ]
+        var expectedSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = []
+        for receiver in signedRangeUntilTypes {
+            for parameter in signedRangeUntilTypes {
+                let returnType: TypeID = (receiver == sema.types.longType || parameter == sema.types.longType)
+                    ? sema.types.longType
+                    : sema.types.intType
+                expectedSignatures.append((receiver, parameter, returnType))
+            }
+        }
+        #expect(
+            candidates.count == expectedSignatures.count,
+            "until should register the full signed overload matrix (got \(candidates.count), expected \(expectedSignatures.count))"
+        )
 
         for expected in expectedSignatures {
             let v = candidates.contains(where: { symbolID in
@@ -200,10 +213,15 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             #expect(untilCalls.count == 5, "Expected five until calls in the sample")
 
             let expectedUntilSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = [
-                (sema.types.intType, sema.types.intType, sema.types.intType),
-                (sema.types.intType, sema.types.intType, sema.types.intType),
-                (sema.types.intType, sema.types.longType, sema.types.longType),
-                (sema.types.longType, sema.types.intType, sema.types.longType),
+                // bb = 1.toByte() until 2.toByte()
+                (sema.types.byteType, sema.types.byteType, sema.types.intType),
+                // ss = 1.toShort() until 2.toShort()
+                (sema.types.shortType, sema.types.shortType, sema.types.intType),
+                // bl = 1.toByte() until 2L
+                (sema.types.byteType, sema.types.longType, sema.types.longType),
+                // lb = 1L until 2.toShort()
+                (sema.types.longType, sema.types.shortType, sema.types.longType),
+                // ll = 1L until 2L
                 (sema.types.longType, sema.types.longType, sema.types.longType),
             ]
 

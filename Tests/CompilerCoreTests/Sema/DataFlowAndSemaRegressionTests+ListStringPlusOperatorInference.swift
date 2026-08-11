@@ -8,6 +8,52 @@ import Testing
 // Targets: TypeCheck/ExprTypeChecker+BinaryAndFlowInference.swift
 
 extension DataFlowAndSemaRegressionTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun main() {
+            val items: List<String> = listOf("a", "b")
+            val x: List<String> = items + "x"
+            println(x)
+        }
+        """,
+        """
+        package sample1
+        data class Meta(val tags: List<String> = emptyList())
+
+        fun addTag(meta: Meta, tag: String): Meta =
+            meta.copy(tags = meta.tags + tag)
+
+        fun main() {
+            println(addTag(Meta(), "x").tags)
+        }
+        """,
+        """
+        package sample2
+        fun main() {
+            val greeting: String = "hi" + "there"
+            println(greeting)
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     // DEBT-DIFF-006: `someList + "x"` where someList is a List<String> was
     // misinterpreted as string concatenation (`Any.toString() + String`)
     // whenever the RHS happened to be a String, because the string-concat
@@ -19,18 +65,10 @@ extension DataFlowAndSemaRegressionTests {
     // collection fallback (which only looks at the LHS's static type) runs
     // first.
     @Test func testListOfStringPlusStringInfersListNotString() throws {
-        let source = """
-        fun main() {
-            val items: List<String> = listOf("a", "b")
-            val x: List<String> = items + "x"
-            println(x)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
-        }
+
     }
 
     // Same bug via a literal receiver and no intermediate local, matching the
@@ -38,21 +76,10 @@ extension DataFlowAndSemaRegressionTests {
     // Scripts/diff_cases/compiler_plugin_api.kt (`m.registeredExtensions +
     // "$kind:$name"`, `m.generatedModules + moduleName`, etc.).
     @Test func testDataClassCopyWithListPlusStringNamedArgument() throws {
-        let source = """
-        data class Meta(val tags: List<String> = emptyList())
 
-        fun addTag(meta: Meta, tag: String): Meta =
-            meta.copy(tags = meta.tags + tag)
-
-        fun main() {
-            println(addTag(Meta(), "x").tags)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
-        }
+
     }
 
     // Control: `Int + String` (never valid in real Kotlin) is unrelated to
@@ -60,17 +87,10 @@ extension DataFlowAndSemaRegressionTests {
     // reorders the check relative to List/Sequence-typed receivers, primitive
     // receivers never enter that branch.
     @Test func testStringConcatenationStillInfersStringForNonListReceiver() throws {
-        let source = """
-        fun main() {
-            val greeting: String = "hi" + "there"
-            println(greeting)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
-        }
+
     }
 }
 #endif

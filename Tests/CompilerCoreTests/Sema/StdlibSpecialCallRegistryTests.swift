@@ -3,8 +3,11 @@ import Testing
 
 @Suite
 struct StdlibSpecialCallRegistryTests {
+    /// KSP-604: `repeat` resolves to the bundled Kotlin declaration in
+    /// `Stdlib/kotlin/Standard.kt`, so it must no longer carry a synthetic stub
+    /// nor a `StdlibSpecialCallKind` marker.
     @Test
-    func testRepeatSpecialCallKindComesFromSyntheticStubMetadata() throws {
+    func testRepeatResolvesToBundledKotlinDeclaration() throws {
         let ctx = makeContextFromSource("""
         fun sample() {
             repeat(2) { index ->
@@ -19,7 +22,9 @@ struct StdlibSpecialCallRegistryTests {
         let ast = try #require(ctx.ast)
         let repeatFQName = ["kotlin", "repeat"].map { ctx.interner.intern($0) }
         let repeatSymbol = try #require(sema.symbols.lookup(fqName: repeatFQName))
-        #expect(sema.symbols.stdlibSpecialCallKind(forSymbol: repeatSymbol) == .repeatLoop)
+        let repeatFlags = try #require(sema.symbols.symbol(repeatSymbol)?.flags)
+        #expect(!repeatFlags.contains(.synthetic))
+        #expect(repeatFlags.contains(.inlineFunction))
 
         let repeatCall = try #require(
             firstExprID(in: ast) { _, expr in
@@ -32,6 +37,7 @@ struct StdlibSpecialCallRegistryTests {
             },
             "Expected top-level repeat call"
         )
-        #expect(sema.bindings.stdlibSpecialCallKind(for: repeatCall) == .repeatLoop)
+        #expect(sema.bindings.stdlibSpecialCallKind(for: repeatCall) == nil)
+        #expect(sema.bindings.callBinding(for: repeatCall)?.chosenCallee == repeatSymbol)
     }
 }
