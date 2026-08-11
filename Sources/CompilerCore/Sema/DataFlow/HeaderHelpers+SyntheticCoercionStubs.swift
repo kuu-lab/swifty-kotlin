@@ -312,77 +312,8 @@ extension DataFlowSemaPhase {
         // STDLIB-BIT-007: Additional bit manipulation functions
         // Use if-let instead of guard-return so future registrations below are not skipped.
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            let boolType = types.make(.primitive(.boolean, .nonNull))
-
-            // Double.isNaN() / isInfinite() / isFinite()
-            registerSyntheticCoercionFunction(
-                named: "isNaN",
-                externalLinkName: "kk_double_isNaN",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isInfinite",
-                externalLinkName: "kk_double_isInfinite",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isFinite",
-                externalLinkName: "kk_double_isFinite",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            // Float.isNaN() / isInfinite() / isFinite()
-            registerSyntheticCoercionFunction(
-                named: "isNaN",
-                externalLinkName: "kk_float_isNaN",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isInfinite",
-                externalLinkName: "kk_float_isInfinite",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "isFinite",
-                externalLinkName: "kk_float_isFinite",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: boolType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
+            // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use
+            // IEEE 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
 
             // Double.toBits(): Long / Double.toRawBits(): Long
             registerSyntheticCoercionFunction(
@@ -433,84 +364,11 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
-        // STDLIB-BIT-007: Additional bit manipulation functions
+        // STDLIB-BIT-007: Additional bit manipulation functions.
+        // countOneBits / countLeadingZeroBits / countTrailingZeroBits are declared in
+        // bundled Kotlin source (Stdlib/kotlin/BitOperations.kt) since KSP-643.
         // Use if-let instead of guard-return so future registrations below are not skipped.
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            registerSyntheticCoercionFunction(
-                named: "countOneBits",
-                externalLinkName: "kk_int_countOneBits",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "countLeadingZeroBits",
-                externalLinkName: "kk_int_countLeadingZeroBits",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "countTrailingZeroBits",
-                externalLinkName: "kk_int_countTrailingZeroBits",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "countOneBits",
-                externalLinkName: "kk_long_countOneBits",
-                receiverType: types.longType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "countLeadingZeroBits",
-                externalLinkName: "kk_long_countLeadingZeroBits",
-                receiverType: types.longType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "countTrailingZeroBits",
-                externalLinkName: "kk_long_countTrailingZeroBits",
-                receiverType: types.longType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            // STDLIB-BIT-007: Additional bit manipulation functions
-
             // Zero-argument Int functions
             registerSyntheticCoercionFunction(
                 named: "highestOneBit",

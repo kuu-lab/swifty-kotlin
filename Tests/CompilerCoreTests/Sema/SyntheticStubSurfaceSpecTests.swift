@@ -4,40 +4,8 @@ import Testing
 
 @Suite
 struct SyntheticStubSurfaceSpecTests {
-    @Test func testDeclarativeThrowableStackTraceSpecsRegisterLinksAndTypes() throws {
-        let (sema, interner) = try makeSema()
-        let throwableFQName = ["kotlin", "Throwable"].map(interner.intern)
-        let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
-        let throwableType = sema.types.make(.classType(ClassType(
-            classSymbol: throwableSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        try assertFunction(
-            named: "stackTraceToString",
-            ownerFQName: throwableFQName,
-            parameterTypes: [],
-            returnType: sema.types.stringType,
-            externalLinkName: "kk_throwable_stackTraceToString",
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-        try assertFunction(
-            named: "printStackTrace",
-            ownerFQName: throwableFQName,
-            parameterTypes: [],
-            returnType: sema.types.unitType,
-            externalLinkName: "kk_throwable_printStackTrace",
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-    }
-
     @Test func testDeclarativeCharSpecsKeepRadixOverloadParameterMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let digitToInt = try function(
             named: "digitToInt",
             ownerFQName: ["kotlin", "text"].map(interner.intern),
@@ -56,7 +24,9 @@ struct SyntheticStubSurfaceSpecTests {
         #expect(signature.valueParameterIsVararg == [false])
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -64,7 +34,9 @@ struct SyntheticStubSurfaceSpecTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func assertFunction(

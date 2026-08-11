@@ -281,11 +281,12 @@ extension CallTypeChecker {
             }
         }
 
-        // Int/Long.count*() → Int; Long/Int bit extraction functions preserve the receiver type (STDLIB-501, STDLIB-BIT-007)
+        // Int/Long bit extraction functions preserve the receiver type (STDLIB-BIT-007).
+        // count* are resolved as bundled Kotlin extensions (KSP-643).
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "countOneBits" || calleeStr == "countLeadingZeroBits" || calleeStr == "countTrailingZeroBits" ||
-                calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit"
+            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit"
+                || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit"
             {
                 let intType = sema.types.intType
                 let longType = sema.types.longType
@@ -293,11 +294,7 @@ extension CallTypeChecker {
                     ? sema.types.makeNonNullable(lookupReceiverType)
                     : lookupReceiverType
                 if receiverForCheck == intType || receiverForCheck == longType {
-                    let returnsInt = calleeStr == "countOneBits"
-                        || calleeStr == "countLeadingZeroBits"
-                        || calleeStr == "countTrailingZeroBits"
-                    let resultBase = returnsInt ? intType : receiverForCheck
-                    let finalType = safeCall ? sema.types.makeNullable(resultBase) : resultBase
+                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }

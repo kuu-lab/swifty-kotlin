@@ -10,14 +10,18 @@ struct NativeConcurrentSyntheticStubTests {
 
     // MARK: Helpers
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -119,7 +123,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testTransferModeEnumIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
         let symbol = try #require(
@@ -131,7 +135,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testTransferModeSafeEntryHasCorrectType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let enumFQName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
@@ -151,7 +155,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testTransferModeUnsafeEntryHasCorrectType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let enumFQName = ["kotlin", "native", "concurrent", "TransferMode"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
@@ -184,7 +188,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFutureStateEnumIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
         let symbol = try #require(
@@ -196,7 +200,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFutureStateEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let baseFQName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
         for entry in ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"] {
@@ -212,7 +216,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testContinuationTypesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
             let continuation = try symbol(
@@ -238,7 +242,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testContinuationConstructorsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let invokerType = try nativeContinuationInvokerType(sema: sema, interner: interner)
 
         for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
@@ -277,7 +281,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testContinuationMembersAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         for (name, arity) in [("Continuation0", 0), ("Continuation1", 1), ("Continuation2", 2)] {
             let continuationFQName = ["kotlin", "native", "concurrent", name].map { interner.intern($0) }
@@ -350,7 +354,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testCallContinuationFunctionsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let receiverType = try cOpaquePointerType(
             sema: sema,
             interner: interner
@@ -404,7 +408,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFreezingExceptionClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let freezingException = try symbol(
             ["kotlin", "native", "concurrent", "FreezingException"],
             sema: sema,
@@ -424,7 +428,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFreezingExceptionConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let exceptionFQName = ["kotlin", "native", "concurrent", "FreezingException"]
             .map { interner.intern($0) }
         let exception = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -470,7 +474,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testInvalidMutabilityExceptionClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let invalidMutabilityException = try symbol(
             ["kotlin", "native", "concurrent", "InvalidMutabilityException"],
             sema: sema,
@@ -490,7 +494,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testInvalidMutabilityExceptionConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let exceptionFQName = ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
             .map { interner.intern($0) }
         let exception = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -536,7 +540,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testWorkerClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
         let symbol = try #require(
@@ -548,7 +552,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testWorkerExecuteIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
         let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
@@ -599,7 +603,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testWorkerRequestTerminationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
         let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
@@ -646,7 +650,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testWorkerIsTerminatedPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
         let propFQName = workerFQName + [interner.intern("isTerminated")]
@@ -660,7 +664,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testWorkerNamePropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
         let propFQName = workerFQName + [interner.intern("name")]
@@ -674,7 +678,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testWorkerCompanionStartIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let companionFQName = ["kotlin", "native", "concurrent", "Worker", "Companion"]
             .map { interner.intern($0) }
@@ -693,7 +697,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFutureClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
         let symbol = try #require(
@@ -708,7 +712,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFutureResultPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
         let propFQName = futureFQName + [interner.intern("result")]
@@ -721,7 +725,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFutureConsumeMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
         let methodFQName = futureFQName + [interner.intern("consume")]
@@ -736,7 +740,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testFutureGetStateMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let futureFQName = ["kotlin", "native", "concurrent", "Future"].map { interner.intern($0) }
         let methodFQName = futureFQName + [interner.intern("getState")]
@@ -761,7 +765,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testSharedImmutableAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "SharedImmutable"].map { interner.intern($0) }
         let symbol = try #require(
@@ -841,7 +845,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testNativeThreadLocalAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "ThreadLocal"].map { interner.intern($0) }
         let symbol = try #require(
@@ -935,7 +939,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testObsoleteWorkersApiAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "native", "concurrent", "ObsoleteWorkersApi"].map { interner.intern($0) }
         let symbol = try #require(
@@ -977,7 +981,7 @@ struct NativeConcurrentSyntheticStubTests {
 
     @Test
     func testNativeConcurrentPackageIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let pkgFQName = ["kotlin", "native", "concurrent"].map { interner.intern($0) }
         let pkgSymbol = sema.symbols.lookup(fqName: pkgFQName)

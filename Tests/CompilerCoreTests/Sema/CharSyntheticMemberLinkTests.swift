@@ -25,7 +25,9 @@ struct CharSyntheticMemberLinkTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -33,11 +35,13 @@ struct CharSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     @Test func testCharPredicateStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isDefined は
         // bundled Kotlin へ移行済みのため合成スタブの外部リンクを持たない。
@@ -65,7 +69,7 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testIntDigitToCharStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let expected: [(parameterCount: Int, expectedLink: String)] = [
             (parameterCount: 0, expectedLink: "kk_char_digitToChar_radix"),
@@ -84,7 +88,7 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testKotlinTextPackageIsParentedUnderKotlinPackage() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let kotlinSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin")]))
         let kotlinTextSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("text")]))
@@ -93,7 +97,7 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testCharCategoryEnumSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let charCategorySymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -152,7 +156,7 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testCharCategoryPropertyReturnsCharCategoryEnum() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let charCategorySymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -174,7 +178,7 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testCharDirectionalityReturnsEnumType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let enumFQName = ["kotlin", "text", "CharDirectionality"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
@@ -197,7 +201,7 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testNativeCharCompanionHelpersAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let charSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -261,14 +265,14 @@ struct CharSyntheticMemberLinkTests {
     }
 
     @Test func testCharLocaleCaseStubHasCorrectExternalLink() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         #expect(externalLink(for: "lowercase", parameterCount: 1, sema: sema, interner: interner) == "kk_char_lowercase_locale")
         #expect(externalLink(for: "uppercase", parameterCount: 1, sema: sema, interner: interner) == "kk_char_uppercase_locale")
     }
 
     @Test func testCharDigitToIntOrNullRadixStubHasCorrectExternalLink() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(externalLink(for: "digitToIntOrNull", parameterCount: 1, sema: sema, interner: interner) == "kk_char_digitToIntOrNull_radix")
     }
 

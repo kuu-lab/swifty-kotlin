@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct ExperimentalTimeSourceSyntheticSurfaceTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -29,7 +38,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testExperimentalTimeIsRequiresOptInMarker() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("ExperimentalTime"),
@@ -56,7 +65,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testExperimentalTimeCarriesOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("ExperimentalTime"),
@@ -146,7 +155,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testAbstractDoubleTimeSourceSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let timeSourceSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [interner.intern("TimeSource")]))
         #expect(sema.symbols.symbol(timeSourceSymbol)?.kind == .interface)
@@ -239,7 +248,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testAbstractLongTimeSourceSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let withComparableMarksSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("TimeSource"),
@@ -325,7 +334,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testTestTimeSourceSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let abstractLongSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("AbstractLongTimeSource"),
@@ -414,7 +423,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testTimeSourceAsClockExtensionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
 
         let timeSourceSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
@@ -446,7 +455,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
             interner.intern("asClock"),
         ]).first)
         let signature = try #require(sema.symbols.functionSignature(for: asClockSymbol))
-        #expect(sema.symbols.externalLinkName(for: asClockSymbol) == "kk_time_source_as_clock")
+        #expect(sema.symbols.externalLinkName(for: asClockSymbol) == "__kk_time_source_as_clock")
         #expect(signature.receiverType == timeSourceType)
         #expect(signature.parameterTypes == [instantType])
         #expect(signature.returnType == clockType)

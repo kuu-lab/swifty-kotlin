@@ -4,7 +4,9 @@ import Testing
 
 @Suite
 struct LockSyntheticMemberLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -12,7 +14,9 @@ struct LockSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func externalLinks(
@@ -30,7 +34,7 @@ struct LockSyntheticMemberLinkTests {
     // __kk_lock_withLock bridge, so it is no longer a synthetic member.
 
     @Test func testReadWriteLockMembersHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let factoryFq = ["kotlin", "concurrent", "readWriteLock"].map { interner.intern($0) }
         let factoryLinks = sema.symbols.lookupAll(fqName: factoryFq).compactMap { sema.symbols.externalLinkName(for: $0) }
