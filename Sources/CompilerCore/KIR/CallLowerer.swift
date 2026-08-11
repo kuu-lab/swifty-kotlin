@@ -300,13 +300,13 @@ final class CallLowerer {
         let firstExpr = arena.appendTemporary(type: boundType)
         let lastExpr = arena.appendTemporary(type: boundType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_first"),
+            callee: interner.intern("__kk_range_first"),
             arg: loweredRangeArgID,
             result: firstExpr,
             into: &instructions
         )
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_last"),
+            callee: interner.intern("__kk_range_last"),
             arg: loweredRangeArgID,
             result: lastExpr,
             into: &instructions

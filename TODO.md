@@ -285,7 +285,7 @@
 
 #### kotlin.ranges [M6 実行体]（前提: KSP-312）
 
-- [ ] KSP-451: Range プロパティ・membership を完遂（`first`, `last`, `start`, `endInclusive/Exclusive`, `count`, `isEmpty`, `contains`, `sum`, `reversed` の Int/Long/Char 版）
+- [x] KSP-451: Range プロパティ・membership を完遂（`first`, `last`, `start`, `endInclusive/Exclusive`, `count`, `isEmpty`, `contains`, `sum`, `reversed` の Int/Long/Char 版）
   - 削除 kk_*: `kk_range_first`, `kk_range_last`, `kk_range_start`, `kk_range_end`, `kk_range_endExclusive`, `kk_range_count`, `kk_range_isEmpty`, `kk_range_contains`, `kk_range_sum`, `kk_range_reversed`, `kk_long_range_*` 同系, `kk_char_range_isEmpty`
 - [x] KSP-452: for-in の range 特例を `.iterator()` 経路へ統一する
   - 実施: range 直接特例（現行の実装先は `KIR/ControlFlowLowerer.swift`）を撤去し、`1..10` 等の直接 range もノミナル `IntRange`/`LongRange`/`CharRange` として bundled `RangeIterators.kt` の `iterator()` を解決するようにした。`hasNext`/`next` は他の iterable と同じ `kk_iterator_hasNext`/`kk_iterator_next` ディスパッチ。`RangeIterators.kt` は `toList()` 実体化をやめ遅延イテレータ実装に置換（diff: `for_in_range_iterator.kt`）

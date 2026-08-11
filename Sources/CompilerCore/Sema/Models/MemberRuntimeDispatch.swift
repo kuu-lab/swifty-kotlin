@@ -231,14 +231,14 @@ enum MemberRuntimeDispatch {
         case "contains":
             if kind.isULongRangeLike { return "kk_ulong_range_contains" }
             if kind.isUIntRangeLike { return "kk_uint_range_contains" }
-            return "kk_range_contains"
+            return "__kk_range_contains"
         case "isEmpty":
             return rangeRuntimeName(kind: kind, member: "isEmpty")
         case "endExclusive":
-            return "kk_range_endExclusive"
+            return "__kk_range_endExclusive"
         case "sum":
             if kind.isUIntRangeLike { return "kk_uint_range_sum" }
-            return "kk_range_sum"
+            return "__kk_range_sum"
         case "count":
             return rangeRuntimeName(kind: kind, member: "count")
         case "toList":
@@ -447,6 +447,10 @@ enum MemberRuntimeDispatch {
         }
         if kind.isUIntRangeLike {
             return "kk_uint_range_\(member)"
+        }
+        let migratedRangeMembers: Set<String> = ["first", "last", "count", "isEmpty", "reversed"]
+        if migratedRangeMembers.contains(member) && !kind.isULongRangeLike && !kind.isUIntRangeLike {
+            return "__kk_range_\(member)"
         }
         if kind.isLongRangeLike, let longMember {
             return "kk_long_range_\(longMember)"
