@@ -30,7 +30,7 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             #expect(throwFlags["kk_list_is_empty"]?.allSatisfy { $0 == false } == true)
-            #expect(throwFlags["kk_set_is_empty"]?.allSatisfy { $0 == false } == true)
+            #expect(throwFlags["__kk_set_is_empty"]?.allSatisfy { $0 == false } == true)
             #expect(throwFlags["kk_map_is_empty"]?.allSatisfy { $0 == false } == true)
             #expect(throwFlags["kk_array_is_empty"]?.allSatisfy { $0 == false } == true)
         }

@@ -101,6 +101,88 @@ extension DeclTypeChecker {
         )
     }
 
+    /// Type-checks the superclass constructor invocation written in a class
+    /// header (`class Sub(n: Int) : Base(n)`) and records the resolved
+    /// superclass constructor as the primary constructor's delegation target,
+    /// so KIR lowering can emit the `super(...)` call.
+    ///
+    /// The arguments live in the primary constructor's scope, so they are
+    /// checked with the primary constructor parameters seeded as locals — the
+    /// same scope `typeCheckClassDelegation` builds for `by` expressions.
+    func typeCheckPrimaryConstructorSuperDelegation(
+        _ classDecl: ClassDecl,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
+              let superclassInfo = sema.symbols.symbol(superclassSymbol),
+              let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
+              .compactMap({ sema.symbols.symbol($0) })
+              .first(where: { $0.kind == .constructor })
+        else {
+            return
+        }
+
+        let args = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
+
+        var delegationCtx = ctx
+        var locals: LocalBindings = [:]
+        if let signature = sema.symbols.functionSignature(for: primaryCtorSymbol.id) {
+            let ctorScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
+            for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
+                ctorScope.insert(paramSymbol)
+                guard let paramInfo = sema.symbols.symbol(paramSymbol) else { continue }
+                locals[paramInfo.name] = (
+                    type: localTypeForParameter(
+                        at: index, signature: signature, sema: sema, interner: ctx.interner
+                    ),
+                    symbol: paramSymbol,
+                    isMutable: false,
+                    isInitialized: true
+                )
+            }
+            delegationCtx = ctx.copying(scope: ctorScope)
+        }
+
+        var callArgs: [CallArg] = []
+        for arg in args {
+            let argType = driver.inferExpr(arg.expr, ctx: delegationCtx, locals: &locals, expectedType: nil)
+            callArgs.append(CallArg(label: arg.label, isSpread: arg.isSpread, type: argType))
+        }
+
+        let candidates = sema.symbols
+            .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
+            .filter { candidate in
+                guard let candidateInfo = sema.symbols.symbol(candidate) else { return false }
+                return candidateInfo.kind == .constructor && candidate != primaryCtorSymbol.id
+            }
+        guard !candidates.isEmpty else { return }
+
+        let callExpr = CallExpr(
+            range: classDecl.range,
+            calleeName: ctx.interner.intern("<init>"),
+            args: callArgs
+        )
+        let resolved = ctx.resolver.resolveCall(
+            candidates: candidates,
+            call: callExpr,
+            expectedType: nil,
+            ctx: sema
+        )
+        if let chosenCallee = resolved.chosenCallee {
+            sema.bindings.bindConstructorDelegationTarget(primaryCtorSymbol.id, target: chosenCallee)
+        }
+    }
+
+    /// The single class-kind supertype of `symbol`, if any.
+    func superclassSymbol(of symbol: SymbolID, sema: SemaModule) -> SymbolID? {
+        sema.symbols.directSupertypes(for: symbol).first {
+            let kind = sema.symbols.symbol($0)?.kind
+            return kind == .class || kind == .enumClass
+        }
+    }
+
     // MARK: - Init Block & Secondary Constructor Type Checking
 
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`

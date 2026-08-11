@@ -528,54 +528,6 @@ final class CallTypeChecker {
             return returnType
         }
 
-        // --- runCatching(block) (STDLIB-590) ---
-        // `runCatching { expr }` executes the block lambda and wraps the result
-        // in a Result<T>.  Similar to top-level `run`, but returns Result<T>.
-        if let calleeName, args.count == 1,
-           calleeName == knownNames.runCatching,
-           locals[calleeName] == nil,
-           isLambdaOrCallableRefArg(args[0].expr, ast: ast),
-           let runCatchingSymbol = sourceOrSyntheticStdlibFunctionSymbol(
-               calleeName,
-               fqComponents: ["kotlin", "runCatching"],
-               ctx: ctx
-           )
-        {
-            let lambdaType = driver.inferExpr(
-                args[0].expr, ctx: ctx, locals: &locals, expectedType: nil
-            )
-            let innerType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                fnType.returnType
-            } else {
-                sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
-                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                        return fnType.returnType
-                    }
-                    return nil
-                } ?? sema.types.anyType
-            }
-            // Build Result<T> type
-            let resultType: TypeID = if let resultClassSymbol = sema.symbols.lookup(fqName: knownNames.kotlinResultFQName) {
-                sema.types.make(.classType(ClassType(
-                    classSymbol: resultClassSymbol,
-                    args: [.invariant(innerType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                sema.types.anyType
-            }
-            // Mark the lambda for closure ABI expansion in KIR
-            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-            // Bind the call to the stdlib runCatching function symbol.
-            sema.bindings.bindCall(id, binding: CallBinding(
-                chosenCallee: runCatchingSymbol,
-                substitutedTypeArguments: [innerType],
-                parameterMapping: [0: 0]
-            ))
-            sema.bindings.bindExprType(id, type: resultType)
-            return resultType
-        }
-
         // --- kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn ---
         // Special intrinsic used by coroutine lowering. The block is type-checked
         // as a regular function taking the current Continuation<T>.
@@ -910,34 +862,6 @@ final class CallTypeChecker {
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .repeatLoop)
             sema.bindings.bindExprType(id, type: unitType)
             return unitType
-        }
-
-        // --- Stdlib system timing calls: measureTimeMillis / measureTimeMicros / measureNanoTime ---
-        if let calleeName,
-           args.count == 1,
-           let timingKind = topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
-               locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ),
-           timingKind == .measureTimeMillis
-               || timingKind == .measureTimeMicros
-               || timingKind == .measureNanoTime
-        {
-            let longType = sema.types.longType
-            // Intentionally passing expectedType:nil: KIR lowering discards the
-            // lambda result and the synthetic stub enforces the () -> Unit shape.
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: nil
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: timingKind)
-            sema.bindings.bindExprType(id, type: longType)
-            return longType
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---

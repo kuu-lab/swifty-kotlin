@@ -106,52 +106,6 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         }
     }
 
-    /// STDLIB-ARTIFACT-002: `java.math.BigInteger` constructor and throwing
-    /// instance methods work through the shared stdlib artifact. The String
-    /// constructor is a runtime factory (`kk_biginteger_fromString`) and must
-    /// not receive an implicit `this`; `divide`/`modInverse`/`modPow` carry
-    /// the `outThrown` channel and must be emitted as throwing calls.
-    func testBigIntegerFactoryAndThrowingMethodsSharedPath() throws {
-        let artifactPath = try Self.buildStdlibArtifact()
-
-        let source = """
-        import java.math.BigInteger
-
-        fun main() {
-            val a = BigInteger("100")
-            val b = BigInteger("200")
-            val sum = a.add(b)
-            val quotient = b.divide(a)
-            val modInv = BigInteger("3").modInverse(BigInteger("11"))
-            val modPow = BigInteger("3").modPow(BigInteger("4"), BigInteger("7"))
-            println("${sum.toString()} ${quotient.toString()} ${modInv.toString()} ${modPow.toString()}")
-        }
-        """
-
-        try withTemporaryFile(contents: source) { userPath in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .path
-            let ctx = makeCompilationContext(
-                inputs: [userPath],
-                moduleName: "TestModule",
-                emit: .executable,
-                outputPath: outputBase,
-                includeStdlib: false,
-                stdlibLibraryPath: artifactPath
-            )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            try CodegenPhase().run(ctx)
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "300 2 4 4\n")
-        }
-    }
-
     /// STDLIB-ARTIFACT-003: built-in exception constructors are runtime factories
     /// (`kk_*_exception_new_message`) and must not receive an implicit `this`
     /// allocated by `kk_object_new`; otherwise the message handle is misread and
@@ -1074,6 +1028,54 @@ final class StdlibArtifactRegressionTests: XCTestCase {
 
                 """
             )
+        }
+    }
+
+    /// STDLIB-ARTIFACT-003: an inline stdlib function whose body reads a
+    /// property of a bundled Kotlin class (`Map.plus` reading `pair.first` /
+    /// `pair.second`) links through the shared artifact.
+    ///
+    /// The inline body is serialized as KIR text and re-lowered in the consumer.
+    /// Its getter call is recorded with the pre-mangling callee spelling
+    /// (`get`) plus the library's link name for it (`kk_fn_get_<id>`). Only the
+    /// latter names anything the consumer can call: the accessor is compiled
+    /// into the library's own object and the consumer owns no symbol for it, so
+    /// dropping the link name left an `undefined reference to 'get'` at link
+    /// time. This only became reachable once `Pair`/`Triple` moved from
+    /// synthetic runtime stubs (whose accessors were external `kk_pair_*`
+    /// bridges, named identically in both modules) to bundled Kotlin source.
+    func testInlineStdlibFunctionReadingBundledClassPropertySharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val base: Map<String, Int> = mapOf("a" to 1)
+            println(base.plus("b" to 2))
+            println(emptyMap<String, Int>().plus("c" to 3))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n{c=3}\n")
         }
     }
 

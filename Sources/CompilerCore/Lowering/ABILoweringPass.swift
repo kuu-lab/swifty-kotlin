@@ -316,9 +316,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }()
                 let effectiveCallee = rewrittenCallee ?? callee
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
-                // Stubs explicitly marked .throwingFunction (e.g. BigInteger.divide,
-                // BigInteger(String)) must always emit the outThrown channel regardless
-                // of whether their callee name appears in nonThrowingCallees.
+                // Stubs explicitly marked .throwingFunction must always emit the
+                // outThrown channel regardless of whether their callee name appears
+                // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
@@ -342,7 +342,21 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }
                 var boxedArguments: [KIRExprID]
                 if let signature, let types {
-                    let receiverOffset = signature.receiverType != nil ? 1 : 0
+                    // A constructor bridged to an allocating runtime entry
+                    // (`Pair`'s `__kk_pair_new`) is called without the allocated-object
+                    // argument that an ordinary `<init>` receives, so its value
+                    // arguments start at index 0. Using the signature's receiver
+                    // unconditionally would shift every parameter by one and box each
+                    // argument against its neighbour's declared type.
+                    let receiverOffset: Int = {
+                        guard signature.receiverType != nil else { return 0 }
+                        if symbols?.symbol(effectiveCallSymbol ?? .invalid)?.kind == .constructor,
+                           arguments.count == signature.parameterTypes.count
+                        {
+                            return 0
+                        }
+                        return 1
+                    }()
                     boxedArguments = applyArgumentBoxing(
                         arguments: arguments,
                         signature: signature,

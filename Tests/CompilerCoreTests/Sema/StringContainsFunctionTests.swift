@@ -72,11 +72,11 @@ struct StringContainsFunctionTests {
         }
         #expect(regexInExprs.count >= 1, "Expected at least one `Regex in String` expression")
         let firstInExpr = try #require(regexInExprs.first, "Expected one `Regex in String` expression").0
-        let binding = sema.bindings.callBinding(for: firstInExpr)
-        let link = binding.flatMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }
+        let binding = try #require(sema.bindings.callBinding(for: firstInExpr))
+        let calleeName = sema.symbols.symbol(binding.chosenCallee).flatMap { ctx.interner.resolve($0.name) }
         #expect(
-            link == "kk_string_contains_regex_flat",
-            "Expected `r in s` to bind to kk_string_contains_regex_flat, got \(link ?? "nil")"
+            calleeName == "contains",
+            "Expected `r in s` to bind to String.contains, got \(calleeName ?? "nil")"
         )
     }
 }

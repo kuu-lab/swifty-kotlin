@@ -1,11 +1,72 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 // STDLIB-020: Sequence lazy evaluation order and sequence builder semantics.
-final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
 
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendSequenceLazyEdgeCasesTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testSequenceMapTakeEvaluatesOnlyNeededElements() throws {
         let source = """
         var counter = 0
@@ -31,6 +92,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceFilterTakeEvaluatesOnlyNeededElements() throws {
         let source = """
         var counter = 0
@@ -57,6 +119,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testInfiniteGenerateSequenceWithTakeTerminates() throws {
         let source = """
         fun main() {
@@ -69,6 +132,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "InfiniteGenerateSequenceTake", expected: "[1, 2, 3, 4, 5]\n")
     }
 
+    @Test
     func testGenerateSequenceTerminatesOnNull() throws {
         let source = """
         fun main() {
@@ -90,6 +154,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
     // so an unboxed Int element coincidentally still passes `is Int`. Checking
     // `is Long`/`is Char` alongside `is Int` is what actually discriminates a
     // boxed element (only `is Int` true) from an unboxed one (all three true).
+    @Test
     func testGenerateSequenceElementsAreBoxedNotJustNumericFallback() throws {
         let source = """
         fun main() {
@@ -115,6 +180,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
     // Same as above, but for a nextFunction with no if/else `null` branch —
     // this shape doesn't happen to trigger ABILoweringPass's incidental
     // copy-boxing, so it's a distinct regression risk from the if/else case.
+    @Test
     func testGenerateSequenceElementsAreBoxedWithoutIfElseBranch() throws {
         let source = """
         fun main() {
@@ -138,6 +204,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
     }
 
     // 1-arg form generateSequence(nextFunction: () -> T?) — STDLIB-SEQ-002.
+    @Test
     func testGenerateSequenceNoArgElementsAreBoxed() throws {
         let source = """
         fun main() {
@@ -165,6 +232,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
     // dropped captures (closureRaw was padded to 0) and crashed at runtime
     // with a kk_array_get_inbounds precondition failure for any capturing
     // closure of this form.
+    @Test
     func testGenerateSequenceNoArgWithCapturedStateWorks() throws {
         let source = """
         fun main() {
@@ -187,6 +255,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
     // Int would still coincidentally pass `is Int`, but a genuinely-typed
     // String element correctly fails it either way — this test's value is
     // pinning the end-to-end user-facing scenario from the bug report).
+    @Test
     func testGenerateSequenceFilterIsInstanceKeepsMatchingTypes() throws {
         let source = """
         fun main() {
@@ -198,6 +267,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "GenerateSequenceFilterIsInstance", expected: "[1, 2, 3]\n")
     }
 
+    @Test
     func testSequenceBuilderYieldAndYieldAll() throws {
         let source = """
         fun main() {
@@ -213,6 +283,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceBuilderYieldAll", expected: "[1, 2, 3, 4, 5]\n")
     }
 
+    @Test
     func testSequenceBuilderYieldAllPreservesLazyNested() throws {
         let source = """
         var counter = 0
@@ -238,6 +309,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceBuilderRangeLoopYieldUsesCPSProducer() throws {
         let source = """
         fun main() {
@@ -262,6 +334,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceFlatMapIsLazy() throws {
         let source = """
         var counter = 0
@@ -288,6 +361,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceDistinctPreservesOrder() throws {
         let source = """
         fun main() {
@@ -299,6 +373,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceDistinct", expected: "[3, 1, 2, 4]\n")
     }
 
+    @Test
     func testSequenceDistinctByPreservesFirstKeyOrder() throws {
         let source = """
         fun main() {
@@ -310,6 +385,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceDistinctBy", expected: "[3, 2]\n")
     }
 
+    @Test
     func testSequenceZipStopsAtShorterSequence() throws {
         let source = """
         fun main() {
@@ -323,6 +399,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceZip", expected: "[(1, a), (2, b)]\n")
     }
 
+    @Test
     func testSequenceDropSkipsFirstN() throws {
         let source = """
         fun main() {
@@ -334,6 +411,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceDrop", expected: "[3, 4, 5]\n")
     }
 
+    @Test
     func testSequenceElementAtOrElseUsesDefaultForMissingIndex() throws {
         let source = """
         fun main() {
@@ -344,6 +422,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceElementAtOrElse", expected: "40\n")
     }
 
+    @Test
     func testSequenceFilterKeepsMatchingElements() throws {
         let source = """
         fun main() {
@@ -357,6 +436,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilter", expected: "[2, 4]\n")
     }
 
+    @Test
     func testSequenceFilterIndexedKeepsIndexedMatches() throws {
         let source = """
         fun main() {
@@ -370,6 +450,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterIndexed", expected: "[10, 30, 40]\n")
     }
 
+    @Test
     func testSequenceFilterIndexedToAppendsIndexedMatches() throws {
         let source = """
         fun main() {
@@ -384,6 +465,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterIndexedTo", expected: "[1, 10, 30, 40]\n[1, 10, 30, 40]\n")
     }
 
+    @Test
     func testSequenceDropWhileSkipsLeadingMatchesOnly() throws {
         let source = """
         fun main() {
@@ -395,6 +477,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceDropWhile", expected: "[3, 1, 4]\n")
     }
 
+    @Test
     func testSequenceElementAtOrNullReturnsValueOrNull() throws {
         let source = """
         fun main() {
@@ -407,6 +490,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceElementAtOrNull", expected: "20\n-1\n")
     }
 
+    @Test
     func testSequenceElementAtReturnsIndexedValue() throws {
         let source = """
         fun main() {
@@ -417,6 +501,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceElementAt", expected: "20\n")
     }
 
+    @Test
     func testSequenceFilterIsInstanceKeepsMatchingTypes() throws {
         let source = """
         fun main() {
@@ -428,6 +513,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterIsInstance", expected: "[1, 3]\n")
     }
 
+    @Test
     func testSequenceTerminalOps() throws {
             let source = """
         fun main() {
@@ -479,6 +565,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testEmptySequenceTerminals() throws {
         let source = """
         fun main() {
@@ -502,6 +589,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceFirstReturnsFirstValue() throws {
         let source = """
         fun main() {
@@ -513,6 +601,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFirstRuntime", expected: "4\n")
     }
 
+    @Test
     func testSequenceFirstOnEmptyThrows() throws {
         let source = """
         fun main() {
@@ -528,6 +617,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFirstOnEmpty", expected: "no-element\n")
     }
 
+    @Test
     func testSequenceFirstOrNullReturnsFirstValue() throws {
         let source = """
         fun main() {
@@ -539,6 +629,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFirstOrNullRuntime", expected: "4\n")
     }
 
+    @Test
     func testSequenceFirstOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -560,6 +651,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testAsSequenceFromList() throws {
         let source = """
         fun main() {
@@ -574,6 +666,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "AsSequenceFromList", expected: "[11, 21, 31]\n")
     }
 
+    @Test
     func testSequenceAsIterableToList() throws {
         let source = """
         fun main() {
@@ -585,6 +678,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceAsIterableToList", expected: "[1, 2, 3]\n")
     }
 
+    @Test
     func testSequenceAsSequenceReturnsSameSequenceSurface() throws {
         let source = """
         fun main() {
@@ -596,6 +690,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceAsSequence", expected: "[2, 3, 4]\n")
     }
 
+    @Test
     func testConstrainOnceThrowsOnSecondIteration() throws {
         let source = """
         fun main() {
@@ -621,6 +716,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceAnyShortCircuits() throws {
         let source = """
         var counter = 0
@@ -644,6 +740,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceAllShortCircuits() throws {
         let source = """
         var counter = 0
@@ -667,6 +764,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceFindShortCircuits() throws {
         let source = """
         var counter = 0
@@ -690,6 +788,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 
+    @Test
     func testSequenceFindLastReturnsLastMatchingValue() throws {
         let source = """
         fun main() {
@@ -701,6 +800,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFindLastRuntime", expected: "4\n")
     }
 
+    @Test
     func testSequenceFilterNotNullDropsNullValues() throws {
         let source = """
         fun main() {
@@ -712,6 +812,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterNotNullRuntime", expected: "[1, 3]\n")
     }
 
+    @Test
     func testSequenceFilterNotKeepsRejectedPredicateValues() throws {
         let source = """
         fun main() {
@@ -723,6 +824,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterNotRuntime", expected: "[1, 3, 5]\n")
     }
 
+    @Test
     func testSequenceFilterIsInstanceToAppendsMatchingTypes() throws {
         let source = """
         fun main() {
@@ -737,6 +839,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterIsInstanceToRuntime", expected: "[0, 1, 3]\n[0, 1, 3]\n")
     }
 
+    @Test
     func testSequenceFilterToAppendsMatchingValues() throws {
         let source = """
         fun main() {
@@ -751,6 +854,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterToRuntime", expected: "[99, 2, 4]\n[99, 2, 4]\n")
     }
 
+    @Test
     func testSequenceFilterNotToAppendsNonMatchingValues() throws {
         let source = """
         fun main() {
@@ -765,6 +869,7 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "SequenceFilterNotToRuntime", expected: "[99, 1, 3, 5]\n[99, 1, 3, 5]\n")
     }
 
+    @Test
     func testSequenceOfBoxesPrimitiveElementsForFilterIsInstance() throws {
         let source = """
         fun main() {
@@ -789,3 +894,4 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         )
     }
 }
+#endif

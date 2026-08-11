@@ -5,14 +5,15 @@
 // central array. New `list(...)` entries go here.
 
 extension StdlibSurfaceSpec {
+    // KSP-421: List transform higher-order functions (map, mapIndexed,
+    // mapNotNull, flatMap, flatMapIndexed, flatten, and their *To variants)
+    // are now source-backed in
+    // Sources/CompilerCore/Stdlib/kotlin/collections/ListHOF.kt.
+    // The runtime bridge entries have been removed, so no list transform HOF
+    // surface specs remain here.
     static let listHOFMembers: [StdlibSurfaceSpec] = [
-        list("map", 1, "kk_list_map", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
-        list("mapNotNull", 1, "kk_list_mapNotNull", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
-        list("flatMap", 1, "kk_list_flatMap", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
-        list("flatMapIndexed", 1, "kk_list_flatMapIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("forEach", 1, "kk_list_forEach", returnStrategy: .unit, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
         list("groupBy", 1, "kk_list_groupBy", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
-        list("groupingBy", 1, "kk_list_groupingBy", returnStrategy: .any, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("associateBy", 1, "kk_list_associateBy", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("associateWith", 1, "kk_list_associateWith", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("associate", 1, "kk_list_associate", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
@@ -25,17 +26,10 @@ extension StdlibSurfaceSpec {
         list("forEachIndexed", 1, "kk_list_forEachIndexed", returnStrategy: .unit, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
         list("onEach", 1, "kk_list_onEach", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
         list("onEachIndexed", 1, "kk_list_onEachIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
-        list("mapIndexed", 1, "kk_list_mapIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("takeWhile", 1, "kk_list_takeWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         list("dropWhile", 1, "kk_list_dropWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         list("takeLastWhile", 1, "kk_list_takeLastWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         list("dropLastWhile", 1, "kk_list_dropLastWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
-        list("mapTo", 2, "kk_list_mapTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .destinationElement)),
-        list("flatMapTo", 2, "kk_list_flatMapTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .collectionOfDestinationElement)),
-        list("mapNotNullTo", 2, "kk_list_mapNotNullTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .nullableAny)),
-        list("mapIndexedTo", 2, "kk_list_mapIndexedTo", returnStrategy: .destinationArgument, lambdaExpectation: .indexedDestinationElement(argumentIndex: 1, returnStrategy: .destinationElement)),
-        list("mapIndexedNotNullTo", 2, "kk_list_mapIndexedNotNullTo", returnStrategy: .destinationArgument, lambdaExpectation: .indexedDestinationElement(argumentIndex: 1, returnStrategy: .nullableAny)),
-        list("flatMapIndexedTo", 2, "kk_list_flatMapIndexedTo", returnStrategy: .destinationArgument, lambdaExpectation: .indexedDestinationElement(argumentIndex: 1, returnStrategy: .collectionOfDestinationElement)),
         list("associateTo", 2, "kk_list_associateTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .pairOfDestinationKeyValue)),
         list("associateByTo", 2, "kk_list_associateByTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .any)),
         list("associateWithTo", 2, "kk_list_associateWithTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .any)),

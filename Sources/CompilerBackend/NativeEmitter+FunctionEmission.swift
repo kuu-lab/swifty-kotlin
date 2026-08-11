@@ -811,6 +811,12 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: false
                 ),
+                "__kk_string_normalize_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_string_normalize_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: false
+                ),
                 "kk_string_orEmpty_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_orEmpty_flat",
                     stringArgumentCount: 1,
@@ -1067,36 +1073,31 @@ extension NativeEmitter {
                     canThrow: true,
                     defaultMissingClosureRaw: true
                 ),
-                "kk_regex_create_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_create_flat",
+                "__kk_regex_create_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_create_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_regex_create_with_option_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_create_with_option_flat",
+                "__kk_regex_create_with_option_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_create_with_option_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_regex_create_with_options_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_create_with_options_flat",
+                "__kk_regex_create_with_options_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_create_with_options_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_matches_regex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_matches_regex_flat",
+                "__kk_string_matches_regex_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_matches_regex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_contains_regex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contains_regex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_split_regex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_split_regex_flat",
+                "__kk_string_contains_regex_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_contains_regex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
@@ -1105,50 +1106,50 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_toRegex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toRegex_flat",
+                "__kk_string_toRegex_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toRegex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toRegex_with_option_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toRegex_with_option_flat",
+                "__kk_string_toRegex_with_option_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toRegex_with_option_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toRegex_with_options_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toRegex_with_options_flat",
+                "__kk_string_toRegex_with_options_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toRegex_with_options_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_regex_find_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_find_flat",
+                "__kk_regex_find_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_find_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_regex_findAll_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_findAll_flat",
+                "__kk_regex_findAll_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_findAll_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_regex_matchEntire_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_matchEntire_flat",
+                "__kk_regex_matchEntire_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_matchEntire_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_regex_containsMatchIn_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_containsMatchIn_flat",
+                "__kk_regex_containsMatchIn_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_containsMatchIn_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_regex_from_literal_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_from_literal_flat",
+                "__kk_regex_from_literal_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_from_literal_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
@@ -1159,8 +1160,8 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_regex_matches_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_regex_matches_flat",
+                "__kk_regex_matches_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_regex_matches_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
@@ -1421,12 +1422,6 @@ extension NativeEmitter {
                 ),
                 "__kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toBigDecimal_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigInteger_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
@@ -3462,10 +3457,6 @@ extension NativeEmitter {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"
-        case "__exitProcess": "kk_system_exitProcess"
-        case "__getTimeMicros": "kk_system_getTimeMicros"
-        case "__getTimeMillis": "kk_system_getTimeMillis"
-        case "__getTimeNanos": "kk_system_getTimeNanos"
         case "__doubleToBits": "kk_double_toBits"
         case "__doubleToRawBits": "kk_double_toRawBits"
         case "__floatToBits": "kk_float_toBits"
