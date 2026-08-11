@@ -289,7 +289,45 @@ extension LocalDeclTypeChecker {
             indexTypes.append(indexType)
         }
 
-        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // Determine the expected element type so integer literals can be
+        // narrowed for built-in array assignment and operator-set calls
+        // (e.g. ByteArray[0] = 9).
+        let valueParameterIndex = indices.count
+        let setValueExpectedType: TypeID? = {
+            if !setCandidates.isEmpty {
+                var valueTypes: [TypeID] = []
+                for candidate in setCandidates {
+                    guard let sig = sema.symbols.functionSignature(for: candidate),
+                          sig.parameterTypes.count > valueParameterIndex
+                    else {
+                        continue
+                    }
+                    let paramType = sig.parameterTypes[valueParameterIndex]
+                    valueTypes.append(sema.types.makeNonNullable(paramType))
+                }
+                if valueTypes.count == 1 {
+                    return valueTypes[0]
+                }
+            }
+            return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
+        }()
+
+        // Only pass concrete wideable numeric types as the expected type;
+        // generic element types (e.g. MutableMap.set value type T) should
+        // not influence inference of non-literal values.
+        let valueExpectedType: TypeID? = {
+            guard let setValueExpectedType else { return nil }
+            let nonNull = sema.types.makeNonNullable(setValueExpectedType)
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNull),
+                  primitive == .long || primitive == .uint || primitive == .ulong ||
+                  primitive == .byte || primitive == .short
+            else {
+                return nil
+            }
+            return nonNull
+        }()
+
+        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
 
         if !setCandidates.isEmpty {
             // Resolve via operator fun set

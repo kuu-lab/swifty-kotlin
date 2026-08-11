@@ -10,8 +10,9 @@ import Testing
 ///   runtime symbol `kk_string_toShortOrNull` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
-///   diagnostics for a call returning `Int?` (Short is widened to Int in ABI).
-/// - An elvis fallback on the nullable result type-checks correctly.
+///   diagnostics for a call returning `Short?`.
+/// - An elvis fallback on the nullable result type-checks correctly, narrowing
+///   the fallback integer literal to `Short`.
 @Suite
 struct StringToShortOrNullFunctionTests {
     @Test
@@ -21,7 +22,7 @@ struct StringToShortOrNullFunctionTests {
             return raw.toShortOrNull()
         }
 
-        fun probe(): Int {
+        fun probe(): Short {
             val parsed = "32767".toShortOrNull()
             return parsed ?: 0
         }

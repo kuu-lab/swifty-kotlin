@@ -6,7 +6,7 @@ symbol fq=golden.sema.useSliceVar.$0.s kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.ranges.IntRange kind=class vis=public flags=synthetic
-symbol fq=kotlin.ranges.until#0 kind=function vis=public flags=synthetic sig=recv=Int params=[Int] ret=Int
+symbol fq=kotlin.ranges.until#5 kind=function vis=public flags=synthetic sig=recv=Int params=[Int] ret=Int
 symbol fq=kotlin.ranges.until.to kind=valueParameter vis=private flags=synthetic
 file fstring_slice package=golden.sema
   decl golden.sema.useSliceRange fun useSliceRange sym=golden.sema.useSliceRange
@@ -21,7 +21,7 @@ expr e@3:31#1 memberCall recv=e@3:31 callee=slice args=[_:e@3:45#1] type=String 
 expr e@5:31 string(hello) type=String
 expr e@5:45 int(0) type=Int
 expr e@5:53 int(3) type=Int
-expr e@5:45#1 memberCall recv=e@5:45 callee=until args=[_:e@5:53] type=Int call=kotlin.ranges.until#0
+expr e@5:45#1 memberCall recv=e@5:45 callee=until args=[_:e@5:53] type=Int call=kotlin.ranges.until#5
 expr e@5:31#1 memberCall recv=e@5:31 callee=slice args=[_:e@5:45#1] type=String call=kotlin.text.slice#1
 expr e@7:34 string(hello) type=String
 expr e@7:55 int(0) type=Int

@@ -81,7 +81,10 @@ extension ExprTypeChecker {
         }
 
         let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
-        let rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals)
+        // Elvis can narrow an integer literal on the right side to the overall
+        // expected type, e.g. `val b: Byte = parsed ?: 0`.
+        let rhsExpectedType: TypeID? = if op == .elvis { expectedType } else { nil }
+        let rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely —

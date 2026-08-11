@@ -23,8 +23,8 @@ struct IntConversionMemberCallTests {
 
             let expectedTypes: [String: TypeID] = [
                 "toFloat": sema.types.floatType,
-                "toByte": sema.types.intType,
-                "toShort": sema.types.intType,
+                "toByte": sema.types.byteType,
+                "toShort": sema.types.shortType,
             ]
 
             for memberName in expectedTypes.keys {

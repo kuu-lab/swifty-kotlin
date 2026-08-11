@@ -119,7 +119,7 @@ extension ExprTypeChecker {
         switch primitive {
         case .boolean, .char:
             return ctx.sema.types.intType
-        case .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
+        case .byte, .short, .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
             return targetType
         }
     }
