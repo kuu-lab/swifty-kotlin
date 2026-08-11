@@ -828,7 +828,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildList"), "buildList should be rewritten")
-        #expect(callees.contains("kk_build_list"), "buildList should become kk_build_list")
+        #expect(callees.contains("__kk_build_list"), "buildList should become __kk_build_list")
     }
 
     @Test
@@ -866,8 +866,8 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
         #expect(
-            callees.contains("kk_build_list_with_capacity"),
-            "buildList(capacity) should become kk_build_list_with_capacity"
+            callees.contains("__kk_build_list_with_capacity"),
+            "buildList(capacity) should become __kk_build_list_with_capacity"
         )
     }
 

@@ -466,8 +466,6 @@ struct CollectionLiteralLookupTables {
     var kkBuildMapName: InternedString { builderDSLLookup.kkBuildMapName }
     var addAllName: InternedString { builderDSLLookup.addAllName }
     var putName: InternedString { builderDSLLookup.putName }
-    var kkBuilderListAddName: InternedString { builderDSLLookup.kkBuilderListAddName }
-    var kkBuilderListAddAllName: InternedString { builderDSLLookup.kkBuilderListAddAllName }
     var kkBuilderSetAddName: InternedString { builderDSLLookup.kkBuilderSetAddName }
     var kkBuilderSetAddAllName: InternedString { builderDSLLookup.kkBuilderSetAddAllName }
     var kkBuilderMapPutName: InternedString { builderDSLLookup.kkBuilderMapPutName }
