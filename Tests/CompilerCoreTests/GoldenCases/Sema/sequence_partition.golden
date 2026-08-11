@@ -9,11 +9,7 @@ symbol fq=__local_1.emptySeq kind=local vis=private flags=_ type=kotlin.sequence
 symbol fq=__local_2.list kind=local vis=private flags=_ type=kotlin.collections.List<out Int>
 symbol fq=__local_3.allMatch kind=local vis=private flags=_ type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
 symbol fq=__local_4.noneMatch kind=local vis=private flags=_ type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
-symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
-symbol fq=kotlin.Pair.A kind=typeParameter vis=private flags=_
-symbol fq=kotlin.Pair.B kind=typeParameter vis=private flags=_
-symbol fq=kotlin.Pair.first kind=property vis=public flags=synthetic type=kotlin.Pair.A
-symbol fq=kotlin.Pair.second kind=property vis=public flags=synthetic type=kotlin.Pair.B
+symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit

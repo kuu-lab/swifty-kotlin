@@ -386,45 +386,6 @@ final class CallLowerer {
             return loweredRepeat
         }
 
-        if let loweredMeasureTime = lowerMeasureTimeMillisCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureTime
-        }
-
-        if let loweredMeasureMicros = lowerMeasureTimeMicrosCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureMicros
-        }
-
-        if let loweredMeasureNano = lowerMeasureNanoTimeCallExpr(
-            exprID,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        ) {
-            return loweredMeasureNano
-        }
-
         if let loweredArrayConstructor = lowerArrayConstructorCallExpr(
             exprID,
             args: args,
@@ -1373,10 +1334,10 @@ final class CallLowerer {
                 instructions.append(.rethrow(value: thrownResult))
                 instructions.append(.label(continueLabel))
             }
-            if loweredCalleeName == interner.intern("kk_auto_closeable_create"),
+            if loweredCalleeName == interner.intern("__kk_auto_closeable_create"),
                let closeableSymbol = sema.types.closeableInterfaceSymbol
             {
-                // kk_auto_closeable_create wraps the close-action lambda in a
+                // __kk_auto_closeable_create wraps the close-action lambda in a
                 // lightweight object and hardcodes its close() method at
                 // itable slot 0 (see the kk_object_register_itable_method
                 // call inside it), but never registers that slot against the
