@@ -15,21 +15,63 @@ import Testing
 /// stand-alone call shape and the more idiomatic `.use` pattern.
 @Suite
 struct InputStreamReadBytesFunctionTests {
-    // MARK: - Basic resolution
 
-    /// `InputStream.readBytes()` should type-check when invoked on a plain
-    /// `java.io.InputStream` receiver.  The returned value must be assignable
-    /// to a `ByteArray` (which the runtime models as `List<Int>`).
-    @Test func testInputStreamReadBytesResolves() throws {
-        let ctx = makeContextFromSource("""
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.File
 
         fun loadAll(file: File) {
             val stream = file.inputStream()
             val result = stream.readBytes()
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        import java.io.BufferedInputStream
+        import java.io.File
+
+        fun loadAll(file: File) {
+            val buffered: BufferedInputStream = file.inputStream().buffered()
+            val result = buffered.readBytes()
+        }
+        """,
+        """
+        package sample2
+        import java.io.File
+
+        fun loadAll(file: File) {
+            val result = file.inputStream().use { stream ->
+                stream.readBytes()
+            }
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    // MARK: - Basic resolution
+
+    /// `InputStream.readBytes()` should type-check when invoked on a plain
+    /// `java.io.InputStream` receiver.  The returned value must be assignable
+    /// to a `ByteArray` (which the runtime models as `List<Int>`).
+    @Test func testInputStreamReadBytesResolves() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -42,16 +84,8 @@ struct InputStreamReadBytesFunctionTests {
     /// receiver type is a buffered stream.  This exercises the inheritance
     /// path through the synthetic stub registry.
     @Test func testBufferedInputStreamReadBytesResolves() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.BufferedInputStream
-        import java.io.File
 
-        fun loadAll(file: File) {
-            val buffered: BufferedInputStream = file.inputStream().buffered()
-            val result = buffered.readBytes()
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -64,16 +98,8 @@ struct InputStreamReadBytesFunctionTests {
     /// `readBytes()` invocation inside a closure body when the receiver flows
     /// through the synthetic `Closeable.use` extension.
     @Test func testInputStreamReadBytesInsideUseBlock() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
 
-        fun loadAll(file: File) {
-            val result = file.inputStream().use { stream ->
-                stream.readBytes()
-            }
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -95,8 +121,7 @@ struct InputStreamReadBytesFunctionTests {
     /// Pinning these here guards against accidental renames or signature
     /// drift that would silently break the lowering pipeline.
     @Test func testInputStreamReadBytesSignatureAndRuntimeLink() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
 
         let interner = ctx.interner
         let sema = try #require(ctx.sema)
