@@ -80,6 +80,7 @@ extension DeclTypeChecker {
 
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
