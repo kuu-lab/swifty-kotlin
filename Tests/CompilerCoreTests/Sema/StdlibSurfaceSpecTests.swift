@@ -48,7 +48,6 @@ struct StdlibSurfaceSpecTests {
             list("flatMap", 1),
             list("forEach", 1),
             list("groupBy", 1),
-            list("groupingBy", 1),
             list("associateBy", 1),
             list("associateWith", 1),
             list("associate", 1),
@@ -77,17 +76,8 @@ struct StdlibSurfaceSpecTests {
             list("associateWithTo", 2),
             list("groupByTo", 2),
 
-            set("map", 1),
-            set("filter", 1),
-            set("forEach", 1),
-            set("filterNot", 1),
-            set("mapNotNull", 1),
-            set("flatMap", 1),
-            set("any", 1),
-            set("none", 1),
-            set("all", 1),
-            set("count", 1),
-
+            // Map and Set HOFs are source-backed and intentionally have no
+            // runtime surface-spec entries.
             sequence("map", 1),
             sequence("filter", 1),
             sequence("filterNot", 1),

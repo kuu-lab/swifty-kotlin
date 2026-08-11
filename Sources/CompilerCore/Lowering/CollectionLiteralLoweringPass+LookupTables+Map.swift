@@ -69,7 +69,7 @@ struct MapLookupNames {
         kkMapIteratorName = interner.intern("__kk_map_iterator")
         kkMapIteratorHasNextName = interner.intern("__kk_map_iterator_hasNext")
         kkMapIteratorNextName = interner.intern("__kk_map_iterator_next")
-        kkMutableMapPutAllName = interner.intern("kk_mutable_map_putAll")
+        kkMutableMapPutAllName = interner.intern("__kk_mutable_map_putAll")
         mapFactoryNames = [mapOfName, mutableMapOfName, hashMapOfName, linkedMapOfName, emptyMapName]
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
     }

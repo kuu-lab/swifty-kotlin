@@ -197,7 +197,7 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 
 | 領域 | cases | 現状 | 詳細 |
 | --- | --- | --- | --- |
-| `java.math.BigInteger` | `big_integer.kt` | 解消済み | PR #4667 で `not`/`shiftLeft`/`shiftRight` の未登録とエンディアン不整合バグを修正、SKIP-DIFF 解除済み |
+| `java.math.BigInteger` | （削除済み） | target-out 判定（CLEANUP-STUB-104） | BigInteger surface と `big_integer.kt` を削除済み（本 PR の19回目 master マージで取り込み）。対応不要 |
 | KSwiftK synthetic Sequence surface | ~~`sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt`~~ | 解消済み（移設） | PR #4660 で JVM kotlinc に無い synthetic surface と確定し、`Scripts/diff_cases` から削除して `CodegenBackendIntegrationTests+Sequence{TakeLast,TakeLastWhile,Subtract}.swift` の candidate-only テストへ移設済み |
 | Sequence source/runtime interop | `flatten_sequence_edge_cases.kt`, `sequence_lazy_eval.kt` | **未解消**（2026-08-01 確認、`--force-run-skipped` で再現） | source Sequence object-expression（`sequence {}` builder 含む）は runtime List/Sequence/RuntimeSequenceBox ハンドルに対する `.iterator()` 仮想ディスパッチが未整備で `KSWIFTK-RUNTIME-0001: Virtual dispatch failed` になる。`origin/master` の KSP-441（#5025、Source Sequence/Iterator interfaces 他）マージ後も再現することを確認済み — KSP-441 だけでは不十分で、SKIP-DIFF マーカーが指す通り KSP-447 の itable ブリッジ整備が別途必要 |
 | Scope functions | `scope_functions_edge_cases.kt` | 解消済み（2026-07-29 確認） | stale バイナリによる偽 FAIL だった。再ビルド後 `--force-run-skipped` で green、SKIP-DIFF 解除 |
