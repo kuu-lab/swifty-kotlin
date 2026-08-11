@@ -779,8 +779,8 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
         #expect(
-            callees.contains("kk_set_of_not_null"),
-            "setOfNotNull should be rewritten to kk_set_of_not_null, got: \(callees)"
+            callees.contains("__kk_set_of_not_null"),
+            "setOfNotNull should be rewritten to __kk_set_of_not_null, got: \(callees)"
         )
     }
 
@@ -1318,8 +1318,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnSetTypedParameterRewritesToKkSetSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
         #expect(
-            callees.contains("kk_set_size"),
-            "virtualCall(size) on Set-typed parameter should be rewritten to kk_set_size, got: \(callees)"
+            callees.contains("__kk_set_size"),
+            "virtualCall(size) on Set-typed parameter should be rewritten to __kk_set_size, got: \(callees)"
         )
     }
 
@@ -1468,8 +1468,8 @@ struct CollectionLiteralLoweringTests {
             receiverTypeName: "Set", callee: "contains", argCount: 1
         )
         #expect(
-            callees.contains("kk_set_contains"),
-            "virtualCall(contains) on Set-typed parameter should be rewritten to kk_set_contains, got: \(callees)"
+            callees.contains("__kk_set_contains"),
+            "virtualCall(contains) on Set-typed parameter should be rewritten to __kk_set_contains, got: \(callees)"
         )
     }
 
@@ -1477,8 +1477,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnSetTypedParameterRewritesToKkSetIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "isEmpty")
         #expect(
-            callees.contains("kk_set_is_empty"),
-            "virtualCall(isEmpty) on Set-typed parameter should be rewritten to kk_set_is_empty, got: \(callees)"
+            callees.contains("__kk_set_is_empty"),
+            "virtualCall(isEmpty) on Set-typed parameter should be rewritten to __kk_set_is_empty, got: \(callees)"
         )
     }
 

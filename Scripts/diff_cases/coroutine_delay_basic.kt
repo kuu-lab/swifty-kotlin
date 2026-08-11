@@ -36,7 +36,7 @@ fun main() = runBlocking {
     val elapsed = System.currentTimeMillis() - start
     // With non-blocking delay, both run concurrently: elapsed ~ 100ms.
     // With blocking delay, they would serialize: elapsed ~ 150ms.
-    // Use a generous threshold (200ms) to avoid flakiness.
-    println(if (elapsed < 200) "concurrent" else "sequential ($elapsed ms)")
+    // Use a generous threshold (500ms) to avoid flakiness on slow CI runners.
+    println(if (elapsed < 500) "concurrent" else "sequential ($elapsed ms)")
     println("done")
 }

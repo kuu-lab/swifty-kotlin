@@ -204,25 +204,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        if callee == lookup.sortedName, arguments.isEmpty, setExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSetSortedName,
-                arguments: [receiver],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
         if callee == lookup.distinctName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
             let transformResult = module.arena.appendTemporary(type: nil
             )
@@ -503,33 +484,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                         arguments: [receiver],
                         result: nil,
                         canThrow: true,
-                        thrownResult: nil
-                    ))
-                }
-                return true
-            }
-            if mapExprIDs.contains(receiver.rawValue) {
-                if let result {
-                    let toListResult = module.arena.appendTemporary(type: nil
-                    )
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapToListName,
-                        arguments: [receiver],
-                        result: toListResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    listExprIDs.insert(result.rawValue)
-                    listExprIDs.insert(toListResult.rawValue)
-                    loweredBody.append(.copy(from: toListResult, to: result))
-                } else {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapToListName,
-                        arguments: [receiver],
-                        result: nil,
-                        canThrow: false,
                         thrownResult: nil
                     ))
                 }

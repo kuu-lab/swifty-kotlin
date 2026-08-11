@@ -277,7 +277,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 && callee != lookup.mutableSetOfName
                 && callee != lookup.hashSetOfName
                 && callee != lookup.linkedSetOfName {
-                // emptySet(), setOf(), setOfNotNull() -> kk_emptySet()
+                // emptySet(), setOf(), setOfNotNull() -> __kk_emptySet()
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkEmptySetName,
@@ -287,7 +287,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // Mutable/hash/linked set factories produce a fresh instance via kk_set_of(null, 0).
+                // Mutable/hash/linked set factories produce a fresh instance via __kk_set_of(null, 0).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)

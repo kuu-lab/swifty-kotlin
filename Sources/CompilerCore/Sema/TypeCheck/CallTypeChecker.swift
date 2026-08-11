@@ -528,54 +528,6 @@ final class CallTypeChecker {
             return returnType
         }
 
-        // --- runCatching(block) (STDLIB-590) ---
-        // `runCatching { expr }` executes the block lambda and wraps the result
-        // in a Result<T>.  Similar to top-level `run`, but returns Result<T>.
-        if let calleeName, args.count == 1,
-           calleeName == knownNames.runCatching,
-           locals[calleeName] == nil,
-           isLambdaOrCallableRefArg(args[0].expr, ast: ast),
-           let runCatchingSymbol = sourceOrSyntheticStdlibFunctionSymbol(
-               calleeName,
-               fqComponents: ["kotlin", "runCatching"],
-               ctx: ctx
-           )
-        {
-            let lambdaType = driver.inferExpr(
-                args[0].expr, ctx: ctx, locals: &locals, expectedType: nil
-            )
-            let innerType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                fnType.returnType
-            } else {
-                sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
-                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                        return fnType.returnType
-                    }
-                    return nil
-                } ?? sema.types.anyType
-            }
-            // Build Result<T> type
-            let resultType: TypeID = if let resultClassSymbol = sema.symbols.lookup(fqName: knownNames.kotlinResultFQName) {
-                sema.types.make(.classType(ClassType(
-                    classSymbol: resultClassSymbol,
-                    args: [.invariant(innerType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                sema.types.anyType
-            }
-            // Mark the lambda for closure ABI expansion in KIR
-            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-            // Bind the call to the stdlib runCatching function symbol.
-            sema.bindings.bindCall(id, binding: CallBinding(
-                chosenCallee: runCatchingSymbol,
-                substitutedTypeArguments: [innerType],
-                parameterMapping: [0: 0]
-            ))
-            sema.bindings.bindExprType(id, type: resultType)
-            return resultType
-        }
-
         // --- kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn ---
         // Special intrinsic used by coroutine lowering. The block is type-checked
         // as a regular function taking the current Continuation<T>.
@@ -2389,11 +2341,11 @@ final class CallTypeChecker {
                 return sourceBackedFactory.type
             }
 
-            // Type aliases and concrete collection classes are represented by
-            // synthetic type symbols rather than source-backed factory
-            // functions. Keep their constructor typing available while the
-            // bundled stdlib is bootstrapped; CollectionLiteralLoweringPass
-            // rewrites the resulting calls to the matching runtime bridge.
+            // The collection aliases and the concrete LinkedHashSet class are
+            // type declarations (Stdlib/kotlin/collections/CollectionAliases.kt)
+            // rather than factory functions, so their constructor calls are typed
+            // here; CollectionLiteralLoweringPass rewrites the resulting calls to
+            // the matching runtime bridge.
             let expectedCollectionArgs: [TypeID] = if let expectedType,
                                                        expectedType != sema.types.errorType,
                                                        case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
@@ -2462,44 +2414,6 @@ final class CallTypeChecker {
             }
         }
 
-        if let calleeName,
-           interner.resolve(calleeName) == "LinkedHashSet",
-           args.isEmpty,
-           explicitTypeArgs.isEmpty,
-           let expectedType,
-           expectedType != sema.types.errorType,
-           case let .classType(expectedClassType) = sema.types.kind(of: expectedType),
-           expectedClassType.args.count == 1,
-           let expectedSymbol = ctx.cachedSymbol(expectedClassType.classSymbol),
-           knownNames.isMutableSetSymbol(expectedSymbol),
-           let chosen = candidates.first(where: { candidate in
-               guard let symbol = ctx.cachedSymbol(candidate),
-                     symbol.kind == .constructor,
-                     sema.symbols.externalLinkName(for: candidate) == "__kk_emptySet",
-                     let parent = sema.symbols.parentSymbol(for: candidate),
-                     let parentSymbol = ctx.cachedSymbol(parent)
-               else {
-                   return false
-               }
-               return parentSymbol.name == interner.intern("LinkedHashSet")
-           })
-        {
-            let elementType = driver.helpers.typeArgInnerTypeForCheck(expectedClassType.args[0])
-            if elementType != TypeID.invalid {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: chosen,
-                        substitutedTypeArguments: [elementType],
-                        parameterMapping: [:]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                sema.bindings.markCollectionExpr(id)
-                sema.bindings.bindExprType(id, type: expectedType)
-                return expectedType
-            }
-        }
         if let calleeName,
            interner.resolve(calleeName) == "atomicArrayOf",
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
