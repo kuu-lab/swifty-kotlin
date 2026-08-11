@@ -32,7 +32,7 @@ expr e@3:38 name(dest1) type=kotlin.collections.MutableMap<String, Int> ref=__lo
 expr e@3:47 name(it) type=String ref=s-0
 expr e@3:53 name(it) type=String ref=s-0
 expr e@3:53#1 memberCall recv=e@3:53 callee=length args=[] type=Int call=kotlin.length.$get
-expr e@3:47#1 memberCall recv=e@3:47 callee=to args=[_:e@3:53#1] type=kotlin.Pair<String, Int>
+expr e@3:47#1 memberCall recv=e@3:47 callee=to args=[_:e@3:53#1] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@3:45 lambda params=[] body=e@3:47#1 label=associateTo type=(String) -> kotlin.Pair<String, Int>
 expr e@3:19#1 memberCall recv=e@3:19 callee=associateTo args=[_:e@3:38,_:e@3:45] type=kotlin.collections.MutableMap<String, Int>
 expr e@3:5 localDecl result1 mutable=0 type=_ init=e@3:19#1 type=Unit ref=__local_1.result1
