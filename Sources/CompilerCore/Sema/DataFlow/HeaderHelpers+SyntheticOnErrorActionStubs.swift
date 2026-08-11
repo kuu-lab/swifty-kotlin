@@ -11,9 +11,9 @@
 /// `OnErrorAction.SKIP` / `OnErrorAction.TERMINATE` or declares a parameter
 /// or return type of `OnErrorAction`.
 ///
-/// Registration runs after `registerSyntheticFileIOStubs` (which ensures the
-/// `kotlin.io` package symbol exists) so the parent link can always be
-/// resolved.
+/// Registration runs after `registerSyntheticFileIOStubs` in
+/// `HeaderHelpers+SyntheticTODOAndIOStubs.swift` (which ensures the `kotlin.io`
+/// package symbol exists) so the parent link can always be resolved.
 ///
 /// At runtime, enum entries are materialized by `DataEnumSealedSynthesisPass`
 /// as boxed ordinal ints via `kk_box_int(ordinal)` — no dedicated `@_cdecl`

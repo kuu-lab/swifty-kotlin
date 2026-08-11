@@ -318,13 +318,14 @@ struct KotlinIOCommonEdgeCaseTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let kotlinFQN: [InternedString] = [interner.intern("kotlin")]
-            let autoCloseableFQN = kotlinFQN + [interner.intern("AutoCloseable")]
+            // KSP-611: the factory is Kotlin source (Stdlib/kotlin/io/Closeable.kt)
+            // declared as an external function bound to the runtime bridge.
+            let autoCloseableFQN = [interner.intern("kotlin"), interner.intern("io"), interner.intern("AutoCloseable")]
             let functionSymbol = sema.symbols.lookupAll(fqName: autoCloseableFQN).first { symbolID in
                 sema.symbols.symbol(symbolID)?.kind == .function
             }
-            let symbol = try #require(functionSymbol, "kotlin.AutoCloseable factory should be registered alongside the type alias")
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_auto_closeable_create")
+            let symbol = try #require(functionSymbol, "kotlin.io.AutoCloseable factory should be registered")
+            #expect(sema.symbols.externalLinkName(for: symbol) == "__kk_auto_closeable_create")
         }
     }
 
@@ -347,6 +348,40 @@ struct KotlinIOCommonEdgeCaseTests {
             let closeableFQN = kotlinIOFQN + [interner.intern("Closeable")]
             let symbol = sema.symbols.lookup(fqName: closeableFQN)
             #expect(symbol != nil, "kotlin.io.Closeable should be registered as a synthetic interface symbol")
+        }
+    }
+
+    // MARK: - Class implementing the AutoCloseable alias
+
+    /// KSP-611: `kotlin.AutoCloseable` is a type alias for `kotlin.io.Closeable`, so a
+    /// class listing it as a supertype must record the aliased interface — otherwise the
+    /// alias symbol (neither open nor an interface, and without a layout) both fails the
+    /// subclassability check and suppresses itable synthesis for `close()`.
+    @Test
+    func testClassImplementingAutoCloseableAliasRecordsCloseableSupertype() throws {
+        let source = """
+        class AliasResource : AutoCloseable {
+            override fun close() {}
+        }
+
+        fun main() {
+            AliasResource().use { println("used") }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "class : AutoCloseable should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let resourceSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("AliasResource")]))
+            let closeableSymbol = try #require(sema.symbols.lookup(
+                fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")]
+            ))
+            #expect(sema.symbols.directSupertypes(for: resourceSymbol).contains(closeableSymbol))
         }
     }
 

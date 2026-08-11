@@ -446,7 +446,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
             interner.intern("asClock"),
         ]).first)
         let signature = try #require(sema.symbols.functionSignature(for: asClockSymbol))
-        #expect(sema.symbols.externalLinkName(for: asClockSymbol) == "kk_time_source_as_clock")
+        #expect(sema.symbols.externalLinkName(for: asClockSymbol) == "__kk_time_source_as_clock")
         #expect(signature.receiverType == timeSourceType)
         #expect(signature.parameterTypes == [instantType])
         #expect(signature.returnType == clockType)

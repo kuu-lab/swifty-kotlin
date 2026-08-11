@@ -207,18 +207,47 @@ public func kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int {
     ))
 }
 
-// MARK: - TimeMark reading bridges (KSP-648)
+@_cdecl("__kk_time_source_mark_now")
+public func __kk_time_source_mark_now(_ receiver: Int) -> Int {
+    Int(runtimeMonotonicNowNanoseconds())
+}
+
+@_cdecl("__kk_time_source_monotonic_mark_now")
+public func __kk_time_source_monotonic_mark_now(_ receiver: Int) -> Int {
+    __kk_time_source_mark_now(receiver)
+}
+
+@_cdecl("__kk_time_source_as_clock")
+public func __kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int {
+    kk_time_source_as_clock(sourceRaw, originRaw)
+}
+
+// MARK: - TimeMark reading bridges (KSP-648 / KSP-649)
 //
 // elapsedNow / hasPassedNow / hasNotPassedNow / plus / minus / minus-mark / compareTo now
 // live in Sources/CompilerCore/Stdlib/kotlin/time/TimeMark.kt. Only the mark reading itself
 // (which touches RuntimeTimeMarkBox internals and the monotonic clock) stays native.
 
+private let valueTimeMarkRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.TimeSource.Monotonic.ValueTimeMark")
+
 @_cdecl("__kk_time_mark_reading_nanos")
 public func __kk_time_mark_reading_nanos(_ markRaw: Int) -> Int {
-    guard let mark = runtimeTimeMarkBox(from: markRaw) else {
+    if let mark = runtimeTimeMarkBox(from: markRaw) {
+        return Int(mark.uptimeNanoseconds)
+    }
+    guard let box = runtimeArrayBox(from: markRaw),
+          box.count > 0
+    else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_time_mark_reading_nanos received invalid TimeMark handle")
     }
-    return Int(mark.uptimeNanoseconds)
+    // ValueTimeMark is a boxed value class (RuntimeObjectBox) whose single
+    // property 'reading' is stored at field offset 2 after the header words.
+    if box.count == 3,
+       runtimeObjectTypeID(rawValue: markRaw) == valueTimeMarkRuntimeTypeID {
+        return box[2]
+    }
+    // Fallback for one-field value-class boxes stored at the last slot.
+    return box[box.count - 1]
 }
 
 @_cdecl("__kk_time_mark_now_reading_nanos")

@@ -2,6 +2,7 @@ package kotlin.math
 
 import kotlin.comparisons.maxOf
 import kotlin.comparisons.minOf
+import kotlin.internal.KsSymbolName
 
 // KSP-635
 // abs / sign / min / max and the PI / E constants migrated from the synthetic
@@ -74,3 +75,73 @@ public fun min(a: Double, b: Double): Double = minOf(a, b)
 public fun min(a: UInt, b: UInt): UInt = minOf(a, b)
 
 public fun min(a: ULong, b: ULong): ULong = minOf(a, b)
+
+// KSP-636
+// ceil / floor / round / truncate and withSign migrated from the synthetic
+// stubs in Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMathStubs.swift
+// and the kk_math_* entry points in Sources/Runtime/RuntimeNumericCompat.swift.
+//
+// Rounding functions still need libm/Foundation, so they are exposed as
+// internal __kk_math_* runtime bridges. withSign is pure bit manipulation on
+// top of Double/Float.toRawBits and Double/Float.fromBits, so it lives fully
+// in Kotlin.
+
+@KsSymbolName("__kk_math_ceil")
+internal external fun __kkMathCeil(x: Double): Double
+
+@KsSymbolName("__kk_math_floor")
+internal external fun __kkMathFloor(x: Double): Double
+
+@KsSymbolName("__kk_math_round")
+internal external fun __kkMathRound(x: Double): Double
+
+@KsSymbolName("__kk_math_truncate")
+internal external fun __kkMathTruncate(x: Double): Double
+
+@KsSymbolName("__kk_math_ceil_float")
+internal external fun __kkMathCeilFloat(x: Float): Float
+
+@KsSymbolName("__kk_math_floor_float")
+internal external fun __kkMathFloorFloat(x: Float): Float
+
+@KsSymbolName("__kk_math_round_float")
+internal external fun __kkMathRoundFloat(x: Float): Float
+
+@KsSymbolName("__kk_math_truncate_float")
+internal external fun __kkMathTruncateFloat(x: Float): Float
+
+public fun ceil(x: Double): Double = __kkMathCeil(x)
+
+public fun floor(x: Double): Double = __kkMathFloor(x)
+
+public fun round(x: Double): Double = __kkMathRound(x)
+
+public fun truncate(x: Double): Double = __kkMathTruncate(x)
+
+public fun ceil(x: Float): Float = __kkMathCeilFloat(x)
+
+public fun floor(x: Float): Float = __kkMathFloorFloat(x)
+
+public fun round(x: Float): Float = __kkMathRoundFloat(x)
+
+public fun truncate(x: Float): Float = __kkMathTruncateFloat(x)
+
+public fun Double.withSign(sign: Double): Double {
+    val xBits = this.toRawBits()
+    val signBit = sign.toRawBits() and Long.MIN_VALUE
+    val mag = xBits and Long.MAX_VALUE
+    return Double.fromBits(mag or signBit)
+}
+
+public fun Double.withSign(sign: Int): Double =
+    if (sign < 0) -abs(this) else abs(this)
+
+public fun Float.withSign(sign: Float): Float {
+    val xBits = this.toRawBits()
+    val signBit = sign.toRawBits() and Int.MIN_VALUE
+    val mag = xBits and Int.MAX_VALUE
+    return Float.fromBits(mag or signBit)
+}
+
+public fun Float.withSign(sign: Int): Float =
+    if (sign < 0) -abs(this) else abs(this)

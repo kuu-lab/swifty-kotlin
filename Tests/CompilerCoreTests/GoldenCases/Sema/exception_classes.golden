@@ -39,7 +39,6 @@ symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic|openType
 symbol fq=kotlin.RuntimeException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.RuntimeException
 symbol fq=kotlin.RuntimeException.<init>.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.Throwable kind=class vis=public flags=openType type=kotlin.Throwable
-symbol fq=kotlin.Throwable.stackTraceToString kind=function vis=public flags=synthetic sig=recv=kotlin.Throwable params=[] ret=String
 symbol fq=kotlin.UnsupportedOperationException kind=class vis=public flags=synthetic|openType type=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>.message kind=valueParameter vis=private flags=synthetic
@@ -112,7 +111,7 @@ expr e@35:33 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
 expr e@35:33#1 memberCall recv=e@35:33 callee=cause args=[] type=kotlin.Throwable? ref=kotlin.Throwable.cause
 expr e@35:9 localDecl cause mutable=0 type=Throwable? init=e@35:33#1 type=Unit ref=__local_1.cause
 expr e@36:29 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
-expr e@36:29#1 memberCall recv=e@36:29 callee=stackTraceToString args=[] type=String call=kotlin.Throwable.stackTraceToString
+expr e@36:29#1 memberCall recv=e@36:29 callee=stackTraceToString args=[] type=String call=kotlin.stackTraceToString
 expr e@36:9 localDecl trace mutable=0 type=String init=e@36:29#1 type=Unit ref=__local_2.trace
 expr e@37:9 name(msg) type=String? ref=__local_0.msg
 expr e@37:16 string(null) type=String

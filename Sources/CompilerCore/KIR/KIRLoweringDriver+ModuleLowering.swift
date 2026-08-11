@@ -149,12 +149,14 @@ extension KIRLoweringDriver {
 
             case let .interfaceDecl(interfaceDecl):
                 declIDs.append(contentsOf: lowerTopLevelInterfaceDecl(
-                    interfaceDecl, symbol: symbol, shared: shared
+                    interfaceDecl, symbol: symbol, shared: shared,
+                    compilationCtx: compilationCtx
                 ))
 
             case let .objectDecl(objectDecl):
                 declIDs.append(contentsOf: lowerTopLevelObjectDecl(
-                    objectDecl, symbol: symbol, shared: shared
+                    objectDecl, symbol: symbol, shared: shared,
+                    compilationCtx: compilationCtx
                 ))
 
             case let .funDecl(function):
@@ -190,7 +192,8 @@ extension KIRLoweringDriver {
     private func lowerTopLevelInterfaceDecl(
         _ interfaceDecl: InterfaceDecl,
         symbol: SymbolID,
-        shared: KIRLoweringSharedContext
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
     ) -> [KIRDeclID] {
         let arena = shared.arena
         var ifaceNestedObjects = interfaceDecl.nestedObjects
@@ -203,6 +206,7 @@ extension KIRLoweringDriver {
             nestedClasses: interfaceDecl.nestedClasses,
             nestedObjects: ifaceNestedObjects,
             shared: shared,
+            compilationCtx: compilationCtx,
             isInterfaceContext: true
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
@@ -221,7 +225,8 @@ extension KIRLoweringDriver {
     private func lowerTopLevelObjectDecl(
         _ objectDecl: ObjectDecl,
         symbol: SymbolID,
-        shared: KIRLoweringSharedContext
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
@@ -230,7 +235,8 @@ extension KIRLoweringDriver {
             memberProperties: objectDecl.memberProperties,
             nestedClasses: objectDecl.nestedClasses,
             nestedObjects: objectDecl.nestedObjects,
-            shared: shared
+            shared: shared,
+            compilationCtx: compilationCtx
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         var declIDs = [kirID]

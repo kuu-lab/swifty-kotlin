@@ -2475,11 +2475,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_array_size(suppressed), 0)
     }
 
-    func testThrowablePrintStackTraceWritesRenderedMessageToStandardError() {
+    func testThrowableRawStackFramesReturnsMessageHeader() {
         let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("print me")))
 
+        let frames = __kk_throwable_rawStackFrames(throwable)
+        XCTAssertEqual(kk_array_size(frames), 1)
+
+        var thrown = 0
+        let frameRaw = kk_array_get(frames, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)), "print me")
+    }
+
+    func testPrintStderrWritesMessageToStandardError() {
+        let message = rawFromRuntimeString("print me")
+
         let output = captureStandardError {
-            XCTAssertEqual(kk_throwable_printStackTrace(throwable), 0)
+            XCTAssertEqual(__kk_printStderr(message), 0)
         }
 
         XCTAssertEqual(output, "print me")

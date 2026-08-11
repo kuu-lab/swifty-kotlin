@@ -45,10 +45,6 @@ extension DataFlowSemaPhase {
             ("pow", [(name: "x", type: types.floatType), (name: "y", type: types.floatType)], types.floatType, "kk_math_pow_float"),
             ("pow", [(name: "x", type: types.doubleType), (name: "n", type: types.intType)], types.doubleType, "kk_math_pow_int"),
             ("pow", [(name: "x", type: types.floatType), (name: "n", type: types.intType)], types.floatType, "kk_math_pow_float_int"),
-            ("withSign", [(name: "x", type: types.doubleType), (name: "sign", type: types.doubleType)], types.doubleType, "kk_math_withSign"),
-            ("withSign", [(name: "x", type: types.doubleType), (name: "sign", type: types.intType)], types.doubleType, "kk_math_withSign_int"),
-            ("withSign", [(name: "x", type: types.floatType), (name: "sign", type: types.floatType)], types.floatType, "kk_math_withSign_float"),
-            ("withSign", [(name: "x", type: types.floatType), (name: "sign", type: types.intType)], types.floatType, "kk_math_withSign_float_int"),
         ]
         for overload in remainingFloatingMemberOverloads {
             if overload.name == "pow" {
@@ -76,39 +72,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        registerSyntheticMathTopLevelFunction(
-            named: "ceil",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.doubleType,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_ceil",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticMathTopLevelFunction(
-            named: "floor",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.doubleType,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_floor",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticMathTopLevelFunction(
-            named: "round",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.doubleType,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_round",
-            symbols: symbols,
-            interner: interner
-        )
-
         // STDLIB-500~509: Float overloads for trig/math functions
         let floatType = types.floatType
 
@@ -116,8 +79,7 @@ extension DataFlowSemaPhase {
             ("sin", "kk_math_sin_float"), ("cos", "kk_math_cos_float"),
             ("tan", "kk_math_tan_float"), ("asin", "kk_math_asin_float"),
             ("acos", "kk_math_acos_float"), ("atan", "kk_math_atan_float"),
-            ("sqrt", "kk_math_sqrt_float"), ("round", "kk_math_round_float"),
-            ("ceil", "kk_math_ceil_float"), ("floor", "kk_math_floor_float"),
+            ("sqrt", "kk_math_sqrt_float"),
             ("exp", "kk_math_exp_float"), ("ln", "kk_math_ln_float"),
             ("expm1", "kk_math_expm1_float"), ("ln1p", "kk_math_ln1p_float"),
             ("log2", "kk_math_log2_float"), ("log10", "kk_math_log10_float"),
@@ -279,30 +241,6 @@ extension DataFlowSemaPhase {
             parameterType: floatType,
             returnType: floatType,
             externalLinkName: "kk_float_nextDown",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-514: truncate
-
-        registerSyntheticMathTopLevelFunction(
-            named: "truncate",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: types.doubleType,
-            returnType: types.doubleType,
-            externalLinkName: "kk_math_truncate",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticMathTopLevelFunction(
-            named: "truncate",
-            packageFQName: kotlinMathPkg,
-            parameterName: "x",
-            parameterType: floatType,
-            returnType: floatType,
-            externalLinkName: "kk_math_truncate_float",
             symbols: symbols,
             interner: interner
         )

@@ -464,54 +464,6 @@ extension CallLowerer {
                 finalArguments.insert(exprID, at: lambdaArgIndex + offset)
             }
         }
-        if loweredCallee == interner.intern("kk_sequence_windowed_transform")
-            || (loweredCallee == interner.intern("kk_sequence_windowed") && hasHOFLambdaArg)
-        {
-            loweredCallee = interner.intern("kk_sequence_windowed_transform")
-            let originalArgumentCount = finalArguments.count
-            if originalArgumentCount >= 3 {
-                let lambdaArgIndex = originalArgumentCount - 1
-                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                    finalArguments[lambdaArgIndex],
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArguments[lambdaArgIndex] = fnPtrExpr
-                finalArguments.append(envPtrExpr)
-            }
-            if originalArgumentCount == 3 {
-                // `windowed(size, transform)` expands to `windowed(size, 1, false, transform)`.
-                let oneExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
-                instructions.append(.constValue(result: oneExpr, value: .intLiteral(1)))
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(oneExpr, at: 2)
-                finalArguments.insert(zeroExpr, at: 3)
-            } else if originalArgumentCount == 4 {
-                // `windowed(size, step, transform)` expands to
-                // `windowed(size, step, false, transform)`.
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(zeroExpr, at: 3)
-            }
-        }
-        if (loweredCallee == interner.intern("kk_sequence_chunked_transform")
-            || (loweredCallee == interner.intern("kk_sequence_chunked") && hasHOFLambdaArg)),
-           finalArguments.count == 3
-        {
-            loweredCallee = interner.intern("kk_sequence_chunked_transform")
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[2] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
         if (loweredCallee == interner.intern("kk_string_zipTransform")
             || loweredCallee == interner.intern("kk_string_zipTransform_flat")),
            finalArguments.count == 3
@@ -529,8 +481,7 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if (loweredCallee == interner.intern("kk_sequence_zip_transform")
-            || loweredCallee == interner.intern("kk_list_zip_transform")),
+        if loweredCallee == interner.intern("kk_list_zip_transform"),
            finalArguments.count == 3
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -580,11 +531,7 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
             || loweredCallee == interner.intern("kk_sequence_takeLastWhile")
-            || loweredCallee == interner.intern("kk_sequence_indexOfLast")
-            || loweredCallee == interner.intern("kk_sequence_takeWhile")
-            || loweredCallee == interner.intern("kk_sequence_dropWhile")
-            || loweredCallee == interner.intern("kk_sequence_distinctBy")
-            || loweredCallee == interner.intern("kk_sequence_zipWithNextTransform"),
+            || loweredCallee == interner.intern("kk_sequence_indexOfLast"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -943,9 +890,14 @@ extension CallLowerer {
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
         // Virtual dispatch is only correct when no remapping occurred; a
         // declaration imported from a precompiled library is always named by
-        // its own mangled link name, which is not such a remapping.
+        // its own mangled link name, which is not such a remapping. KSP-611: for
+        // an abstract imported interface member that link name is an empty stub,
+        // so itable dispatch must be attempted there as well;
+        // tryEmitVirtualDispatch falls back to the link name when the receiver
+        // has no resolvable itable entry.
         let isImportedLibraryLink = chosenCallee.map { symbol in
-            !kirIsRuntimeBridgedCallee(symbol, sema: sema)
+            (!kirIsRuntimeBridgedCallee(symbol, sema: sema)
+                || isImportedInterfaceMember(symbol, sema: sema))
                 && sema.symbols.externalLinkName(for: symbol)
                     .map { interner.intern($0) == loweredCallee } == true
         } ?? false
@@ -961,9 +913,9 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCallee == interner.intern("kk_system_currentTimeMillis")
-            || loweredCallee == interner.intern("kk_system_nanoTime")
-            || loweredCallee == interner.intern("kk_system_process_start_nanos")
+        if loweredCallee == interner.intern("__kk_system_currentTimeMillis")
+            || loweredCallee == interner.intern("__kk_system_nanoTime")
+            || loweredCallee == interner.intern("__kk_system_process_start_nanos")
             || loweredCallee == interner.intern("kk_system_gc")
             || loweredCallee == interner.intern("kk_runtime_getRuntime")
             || loweredCallee == interner.intern("kk_runtime_totalMemory")
@@ -1163,7 +1115,6 @@ extension CallLowerer {
             interner.intern("kk_string_chunked_sequence_transform"),
             interner.intern("kk_string_windowedSequence_transform"),
             interner.intern("kk_sequence_to_list"),
-            interner.intern("kk_sequence_chunked_transform"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
             interner.intern("kk_array_copyOf_newSize_init"),

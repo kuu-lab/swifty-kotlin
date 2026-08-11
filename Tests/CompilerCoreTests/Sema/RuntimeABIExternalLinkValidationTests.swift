@@ -93,8 +93,8 @@ struct RuntimeABIExternalLinkValidationTests {
             guard !functionDeclarations.isEmpty else {
                 continue
             }
-            let expectedParameterTypes = functionDeclarations.map {
-                canonicalHandleTypes(expectedRuntimeABIParameterTypes(for: $0))
+            let expectedParameterTypeVariants = functionDeclarations.flatMap {
+                expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
             }
             let expectedReturnTypes = Set(functionDeclarations.compactMap {
                 expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
@@ -109,8 +109,8 @@ struct RuntimeABIExternalLinkValidationTests {
                     coreActual = canonicalHandleTypes(actualParameterTypes)
                 }
 
-                if !expectedParameterTypes.contains(coreActual) {
-                    let expected = expectedParameterTypes
+                if !expectedParameterTypeVariants.contains(coreActual) {
+                    let expected = expectedParameterTypeVariants
                         .map { "[\($0.joined(separator: ", "))]" }
                         .joined(separator: " or ")
                     failures.append(
@@ -213,6 +213,7 @@ struct RuntimeABIExternalLinkValidationTests {
         let arity: Int
         let functionTypedParameterCount: Int
         let hasReceiver: Bool
+        let isInObjectScope: Bool
         let receiverType: String?
         let valueParameterTypes: [String]
         let valueParameterIsVararg: [Bool]
@@ -298,8 +299,10 @@ struct RuntimeABIExternalLinkValidationTests {
             // A constructor allocates the instance instead of receiving one, so it has no
             // receiver parameter even though it is declared inside a class scope.
             let isConstructor = headerIsConstructor(functionHeader)
+            let scopeKind = pendingScope?.kind
+            let isInObjectScope = scopeKind == .objectLike
             let hasReceiver = !isConstructor
-                && ((pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
+                && ((scopeKind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
@@ -307,6 +310,7 @@ struct RuntimeABIExternalLinkValidationTests {
                         arity: signature.valueParameterTypes.count,
                         functionTypedParameterCount: signature.functionTypedParameterCount,
                         hasReceiver: hasReceiver,
+                        isInObjectScope: isInObjectScope,
                         receiverType: signature.receiverType,
                         valueParameterTypes: signature.valueParameterTypes,
                         valueParameterIsVararg: signature.valueParameterIsVararg,
@@ -502,15 +506,35 @@ struct RuntimeABIExternalLinkValidationTests {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
+        if declaration.isInObjectScope {
+            // Object / companion object members may or may not pass the object
+            // receiver across the ABI; include both possibilities.
+            candidates.insert(loweredArity + 1)
+        }
         if declaration.linkName.hasSuffix("_flat") {
-            var flatCount = flatABIParameterCount(for: declaration.receiverType)
+            var flatCount = 0
+            if declaration.hasReceiver {
+                if let receiverType = declaration.receiverType {
+                    flatCount += flatABIParameterCount(for: receiverType)
+                } else {
+                    // Class / companion / object members have an implicit non-String receiver.
+                    flatCount += 1
+                }
+            }
             flatCount += declaration.valueParameterTypes.reduce(0) { partialResult, type in
                 partialResult + flatABIParameterCount(for: type)
             }
             if normalizedKotlinType(declaration.returnType) == "String" {
                 flatCount += 3
             }
+            if specs.contains(where: \.isThrowing) {
+                flatCount += 1
+            }
             candidates.insert(flatCount)
+            if declaration.isInObjectScope {
+                // Object / companion object receiver is a single intptr (non-String).
+                candidates.insert(flatCount + 1)
+            }
         }
         return candidates
     }
@@ -566,6 +590,17 @@ struct RuntimeABIExternalLinkValidationTests {
         RuntimeABICType.intptr.rawValue,
     ]
 
+    private func expectedRuntimeABIParameterTypeVariants(for declaration: BundledKsSymbolNameDeclaration) -> [[String]] {
+        let base = expectedRuntimeABIParameterTypes(for: declaration)
+        if declaration.isInObjectScope && !declaration.hasReceiver {
+            return [
+                base,
+                [RuntimeABICType.intptr.rawValue] + base,
+            ]
+        }
+        return [base]
+    }
+
     private func expectedRuntimeABIParameterTypes(for declaration: BundledKsSymbolNameDeclaration) -> [String] {
         let isFlat = declaration.linkName.hasSuffix("_flat")
         var types: [String] = []
@@ -608,6 +643,9 @@ struct RuntimeABIExternalLinkValidationTests {
         let normalized = normalizedKotlinType(returnType)
         if isFlat && normalized == "String" {
             return RuntimeABICType.nullableUInt8Pointer.rawValue
+        }
+        if normalized == "Nothing" {
+            return RuntimeABICType.noreturn.rawValue
         }
         return RuntimeABICType.intptr.rawValue
     }

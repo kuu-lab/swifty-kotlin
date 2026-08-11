@@ -30,12 +30,19 @@ struct ThrowablePrintStackTraceSyntheticTests {
             nullability: .nonNull
         )))
 
-        let printStackTraceSymbol = try #require(sema.symbols.lookup(
-            fqName: kotlinPackage + [interner.intern("Throwable"), interner.intern("printStackTrace")]
-        ))
+        let printStackTraceSymbol = try #require(
+            sema.symbols.lookupAll(
+                fqName: kotlinPackage + [interner.intern("printStackTrace")]
+            ).first { symbolID in
+                sema.symbols.symbol(symbolID)?.kind == .function
+                    && sema.symbols.functionSignature(for: symbolID)?.receiverType == throwableType
+            },
+            "Expected kotlin.Throwable.printStackTrace extension function"
+        )
         let signature = try #require(sema.symbols.functionSignature(for: printStackTraceSymbol))
 
-        #expect(sema.symbols.externalLinkName(for: printStackTraceSymbol) == "kk_throwable_printStackTrace")
+        let symbol = try #require(sema.symbols.symbol(printStackTraceSymbol))
+        #expect(!symbol.flags.contains(.synthetic))
         #expect(signature.receiverType == throwableType)
         #expect(signature.parameterTypes == [])
         #expect(signature.returnType == sema.types.unitType)

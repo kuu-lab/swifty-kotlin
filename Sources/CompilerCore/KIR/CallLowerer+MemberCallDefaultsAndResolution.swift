@@ -175,6 +175,19 @@ extension CallLowerer {
         arguments[2] = sizeExpr
     }
 
+    /// KSP-611: a member of an interface imported from a compiled library carries the
+    /// link name of the body emitted for it in that library. For an abstract member that
+    /// body is an empty stub, so honouring the link name would silently call nothing;
+    /// interface members must dispatch through the receiver's itable instead.
+    func isImportedInterfaceMember(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        guard let calleeSymbol = sema.symbols.symbol(callee),
+              calleeSymbol.flags.contains(.importedLibrary),
+              let parentID = sema.symbols.parentSymbol(for: callee),
+              let parentSymbol = sema.symbols.symbol(parentID)
+        else { return false }
+        return parentSymbol.kind == .interface
+    }
+
     /// Callees bridged to a C runtime function (such as kk_array_get) are
     /// never dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
@@ -190,7 +203,8 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
-        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema) else { return nil }
+        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            || isImportedInterfaceMember(chosenCallee, sema: sema) else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]
@@ -475,7 +489,7 @@ extension CallLowerer {
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_contains")
             }
-            return interner.intern("kk_range_contains")
+            return interner.intern("__kk_range_contains")
         case "isEmpty":
             if elementType == sema.types.uintType {
                 return interner.intern("kk_uint_range_isEmpty")
@@ -483,7 +497,7 @@ extension CallLowerer {
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_isEmpty")
             }
-            return interner.intern("kk_range_isEmpty")
+            return interner.intern("__kk_range_isEmpty")
         default:
             return nil
         }
