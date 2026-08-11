@@ -5,14 +5,18 @@ import Testing
 
 @Suite
 struct MathSyntheticTopLevelLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
@@ -41,7 +45,7 @@ struct MathSyntheticTopLevelLinkTests {
     }
 
     @Test func testMathTopLevelSymbolsLinkToRuntimeFunctions() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let expected: [String: String] = [
             "sqrt": "kk_math_sqrt",
@@ -58,7 +62,7 @@ struct MathSyntheticTopLevelLinkTests {
 
     // STDLIB-500..509: Float overloads resolve alongside Double overloads
     @Test func testFloatMathOverloadsHaveExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         // Each of these names should have at least two overloads registered
         // (Double and Float). Verify the Float variant has a link name.
@@ -224,7 +228,7 @@ struct MathSyntheticTopLevelLinkTests {
     }
 
     @Test func testMathExtensionPropertySymbolsUseOfficialShape() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let expected: [(String, TypeID, TypeID, String?)] = [
             ("absoluteValue", sema.types.doubleType, sema.types.doubleType, nil),
             ("absoluteValue", sema.types.floatType, sema.types.floatType, nil),

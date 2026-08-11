@@ -5,7 +5,7 @@ import Testing
 @Suite
 struct SyntheticStubSurfaceSpecTests {
     @Test func testDeclarativeCharSpecsKeepRadixOverloadParameterMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let digitToInt = try function(
             named: "digitToInt",
             ownerFQName: ["kotlin", "text"].map(interner.intern),
@@ -24,7 +24,9 @@ struct SyntheticStubSurfaceSpecTests {
         #expect(signature.valueParameterIsVararg == [false])
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -32,7 +34,9 @@ struct SyntheticStubSurfaceSpecTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func assertFunction(
