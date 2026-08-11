@@ -1765,21 +1765,10 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-TEXT-FN-115: CharSequence.withIndex() → Iterable<IndexedValue<Char>> ---
 
-        let kotlinCollectionsPkg: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-        ]
-        let indexedValueCharSymbol = registerSyntheticIndexedValueStub(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-        let indexedValueCharType = types.make(.classType(ClassType(
-            classSymbol: indexedValueCharSymbol,
-            args: [.out(charType)],
-            nullability: .nonNull
-        )))
+        // KSP-626: IndexedValue is bundled Kotlin source, so its symbol only
+        // exists after header collection. Register the element type as Any and
+        // patch it in `patchSourceBackedIndexedValueReturnType`.
+        let indexedValueCharType = types.anyType
         let iterableIndexedValueCharType = makeSyntheticIterableType(
             symbols: symbols,
             types: types,
@@ -2220,6 +2209,70 @@ extension DataFlowSemaPhase {
                     receiverType: signature.receiverType,
                     parameterTypes: signature.parameterTypes,
                     returnType: charIteratorType,
+                    isSuspend: signature.isSuspend,
+                    canThrow: signature.canThrow,
+                    valueParameterSymbols: signature.valueParameterSymbols,
+                    valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                    valueParameterIsVararg: signature.valueParameterIsVararg,
+                    typeParameterSymbols: signature.typeParameterSymbols,
+                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                    typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                    classTypeParameterCount: signature.classTypeParameterCount
+                ),
+                for: functionSymbol
+            )
+        }
+    }
+
+    /// KSP-626: `IndexedValue` is declared in bundled Kotlin source, so its
+    /// symbol does not exist while the `CharSequence.withIndex()` stub is
+    /// registered. Rewrite the placeholder `Iterable<Any>` return type once
+    /// header collection has defined the source-backed class.
+    func patchSourceBackedIndexedValueReturnType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let collectionsPkg = [interner.intern("kotlin"), interner.intern("collections")]
+        guard let indexedValueSymbol = symbols.lookup(fqName: collectionsPkg + [interner.intern("IndexedValue")]),
+              let iterableSymbol = symbols.lookup(fqName: collectionsPkg + [interner.intern("Iterable")])
+        else {
+            return
+        }
+        let indexedValueCharType = types.make(.classType(ClassType(
+            classSymbol: indexedValueSymbol,
+            args: [.out(types.charType)],
+            nullability: .nonNull
+        )))
+        let iterableIndexedValueCharType = types.make(.classType(ClassType(
+            classSymbol: iterableSymbol,
+            args: [.out(indexedValueCharType)],
+            nullability: .nonNull
+        )))
+
+        let stringType = types.stringType
+        let charSequenceType: TypeID? = types.charSequenceInterfaceSymbol.map { charSequenceSymbol in
+            types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        let withIndexFQName = [interner.intern("kotlin"), interner.intern("text"), interner.intern("withIndex")]
+        for functionSymbol in symbols.lookupAll(fqName: withIndexFQName) {
+            guard let signature = symbols.functionSignature(for: functionSymbol),
+                  signature.parameterTypes.isEmpty,
+                  let receiver = signature.receiverType,
+                  receiver == stringType || receiver == charSequenceType
+            else {
+                continue
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: signature.receiverType,
+                    parameterTypes: signature.parameterTypes,
+                    returnType: iterableIndexedValueCharType,
                     isSuspend: signature.isSuspend,
                     canThrow: signature.canThrow,
                     valueParameterSymbols: signature.valueParameterSymbols,

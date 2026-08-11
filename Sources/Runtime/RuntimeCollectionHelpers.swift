@@ -868,6 +868,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let ktypeBox = tryCast(ptr, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
+    if let rendered = runtimeRenderIndexedValueObject(elem, render: runtimeElementToString) {
+        return rendered
+    }
     return "\(elem)"
 }
 

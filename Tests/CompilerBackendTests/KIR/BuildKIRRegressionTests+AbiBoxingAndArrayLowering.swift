@@ -138,11 +138,14 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    /// KSP-626: `withIndex`/`forEachIndexed` are bundled Kotlin source, so they
+    /// must lower to the source-backed declaration instead of a runtime bridge.
     @Test
-    func testBuildKIRLowersListWithIndexToCollectionRuntimeCall() throws {
+    func testBuildKIRLowersListIndexedHelpersToBundledSourceCalls() throws {
         let source = """
         fun main(values: List<Int>) {
             values.withIndex()
+            values.forEachIndexed { index, value -> println(index + value) }
         }
         """
 
@@ -154,8 +157,10 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_list_withIndex"))
-            #expect(!(callNames.contains("withIndex")))
+            #expect(callNames.contains("withIndex"))
+            #expect(callNames.contains("forEachIndexed"))
+            #expect(!(callNames.contains("kk_list_withIndex")))
+            #expect(!(callNames.contains("kk_list_forEachIndexed")))
         }
     }
 

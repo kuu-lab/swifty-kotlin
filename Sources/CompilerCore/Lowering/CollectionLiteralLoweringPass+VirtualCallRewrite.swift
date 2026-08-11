@@ -883,25 +883,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         guard listExprIDs.contains(receiver.rawValue) else { return false }
 
-        if callee == lookup.withIndexName, arguments.isEmpty {
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWithIndexName,
-                arguments: [receiver],
-                result: hofResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                indexingIterableExprIDs.insert(result.rawValue)
-                indexingIterableExprIDs.insert(hofResult.rawValue)
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            return true
-        }
-
         if callee == lookup.zipName, arguments.count == 1 {
             let hofResult = module.arena.appendTemporary(type: nil
             )
@@ -991,7 +972,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        if callee == lookup.forEachIndexedName || callee == lookup.mapIndexedName
+        // KSP-626: withIndex / forEachIndexed are bundled Kotlin source, not bridges.
+        if callee == lookup.mapIndexedName
             || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName
             || callee == lookup.flatMapIndexedName,
             arguments.count == 1,
