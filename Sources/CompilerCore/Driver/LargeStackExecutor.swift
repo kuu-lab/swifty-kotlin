@@ -1,14 +1,15 @@
 import Foundation
 #if canImport(Darwin)
-import Darwin
+import Dispatch
 #elseif canImport(Glibc)
 import Glibc
 #endif
 
 /// Holds the closure and the captured result. Marked `@unchecked Sendable`
 /// because the result is produced on the spawned thread and consumed on the
-/// caller thread; `pthread_join` provides the synchronization that makes this
-/// safe.
+/// caller thread; the join back to the caller thread (a semaphore wait on
+/// Darwin, `pthread_join` elsewhere) provides the synchronization that makes
+/// this safe.
 private final class LargeStackWorkBox: @unchecked Sendable {
     let body: () throws -> Any
     var result: Result<Any, any Error>?
@@ -22,18 +23,7 @@ private final class LargeStackWorkBox: @unchecked Sendable {
     }
 }
 
-// Darwin's `pthread_create` expects a C function pointer taking a
-// non-optional `UnsafeMutableRawPointer`, while Glibc's expects an optional
-// one; the two platforms' pthread.h shims disagree on this despite POSIX
-// itself specifying a `void *` argument. Match each platform's expected
-// signature so the C function pointer conversion type-checks.
-#if canImport(Darwin)
-private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer? {
-    let box = Unmanaged<LargeStackWorkBox>.fromOpaque(arg).takeUnretainedValue()
-    box.run()
-    return nil
-}
-#elseif canImport(Glibc)
+#if !canImport(Darwin)
 private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
     let box = Unmanaged<LargeStackWorkBox>.fromOpaque(arg!).takeUnretainedValue()
     box.run()
@@ -67,6 +57,26 @@ enum LargeStackExecutor {
     ) throws -> T {
         let box = LargeStackWorkBox { try body() as Any }
 
+        #if canImport(Darwin)
+        // `pthread_t` has no zero-argument initializer on current Darwin SDKs
+        // (it's a bare `UnsafeMutablePointer`, unlike Glibc's integer typedef).
+        // A `var thread: pthread_t?` + `pthread_create(&thread, ...)` shape
+        // type-checks, but on this toolchain (Swift 6.3.3 / SDK MacOSX26.5)
+        // `swift-frontend` reliably crashes (SIGABRT) in the SIL
+        // `SendNonSendable` region-isolation pass when lowering that exact
+        // call pattern here -- reproduced across several refactorings of the
+        // surrounding code (BUG-192). `Foundation.Thread` honors `stackSize`
+        // on Darwin, so it sidesteps raw pthreads entirely rather than
+        // chasing `pthread_create`'s SDK-specific signature.
+        let done = DispatchSemaphore(value: 0)
+        let thread = Thread {
+            box.run()
+            done.signal()
+        }
+        thread.stackSize = stackSize
+        thread.start()
+        done.wait()
+        #else
         var attr = pthread_attr_t()
         guard pthread_attr_init(&attr) == 0 else {
             // If we cannot configure a large stack, run the work on the caller
@@ -79,14 +89,7 @@ enum LargeStackExecutor {
 
         _ = pthread_attr_setstacksize(&attr, stackSize)
 
-        // Darwin's `pthread_t` is an opaque pointer typealias with no default
-        // initializer (unlike Glibc's, which is an integer type), so it must
-        // start `nil` and be force-unwrapped after a successful `pthread_create`.
-        #if canImport(Darwin)
-        var thread: pthread_t?
-        #elseif canImport(Glibc)
         var thread = pthread_t()
-        #endif
         let boxPtr = Unmanaged.passUnretained(box).toOpaque()
 
         guard pthread_create(&thread, &attr, largeStackThreadEntry, boxPtr) == 0 else {
@@ -94,9 +97,6 @@ enum LargeStackExecutor {
             return try box.result!.get() as! T
         }
 
-        #if canImport(Darwin)
-        _ = pthread_join(thread!, nil)
-        #elseif canImport(Glibc)
         _ = pthread_join(thread, nil)
         #endif
         return try box.result!.get() as! T

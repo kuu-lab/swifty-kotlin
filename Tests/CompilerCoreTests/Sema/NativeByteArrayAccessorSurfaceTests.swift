@@ -7,14 +7,18 @@ private struct _TestHelperFailure: Error {}
 
 @Suite
 struct NativeByteArrayAccessorSurfaceTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -73,7 +77,7 @@ struct NativeByteArrayAccessorSurfaceTests {
     }
 
     @Test func testSignedByteArrayAccessorsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let expected: [(name: String, returnType: TypeID, linkName: String)] = [
             ("getByteAt", sema.types.intType, "kk_native_byteArray_getByteAt"),
             ("getShortAt", sema.types.intType, "kk_native_byteArray_getShortAt"),

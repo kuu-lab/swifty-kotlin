@@ -2,7 +2,7 @@
 import Testing
 @testable import Runtime
 
-/// BUG-162: a boxed `Double` holding `-0.0` must stay distinguishable from
+/// BUG-203: a boxed `Double` holding `-0.0` must stay distinguishable from
 /// `null`. `-0.0`'s IEEE754 bit pattern is `runtimeNullSentinelInt`
 /// (`Int64.min`), so the null-checking `kk_box_double` reports it as null;
 /// statically non-null sources route to `kk_box_double_nonnull` instead.

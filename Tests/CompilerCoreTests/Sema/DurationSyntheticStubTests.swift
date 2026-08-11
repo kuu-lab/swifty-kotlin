@@ -4,9 +4,18 @@ import Testing
 
 @Suite
 struct DurationSyntheticStubTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     @Test
     func testDurationOperatorBridgesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
         let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
@@ -54,7 +63,7 @@ struct DurationSyntheticStubTests {
     // functions/properties in Stdlib/kotlin/time/Duration.kt (no direct compat stubs).
     @Test
     func testDurationKotlinSourceOperatorsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
         let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
@@ -139,7 +148,7 @@ struct DurationSyntheticStubTests {
 
     @Test
     func testDurationIsoAndParseSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
         let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
@@ -216,7 +225,7 @@ struct DurationSyntheticStubTests {
 
     @Test
     func testDurationToComponentsOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
         let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
@@ -260,7 +269,7 @@ struct DurationSyntheticStubTests {
 
     @Test
     func testNumericToDurationExtensionsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
         let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))

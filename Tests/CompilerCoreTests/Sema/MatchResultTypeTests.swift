@@ -11,6 +11,15 @@ import Testing
 @Suite
 struct MatchResultTypeTests {
 
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner, CompilationContext)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner, CompilationContext) {
+        if let cached = Self._sharedSema { return cached }
+        let triple = try makeSema()
+        Self._sharedSema = triple
+        return triple
+    }
+
     private static let bundledSourcePath = "__bundled_kotlin/text/MatchResult.kt"
 
     // MARK: - Shared sema fixture
@@ -57,7 +66,7 @@ struct MatchResultTypeTests {
     // MARK: - 1. MatchResult class symbol
 
     @Test func testMatchResultClassSymbolIsRegistered() throws {
-        let (sema, interner, _) = try makeSema()
+        let (sema, interner, _) = try sharedSema()
         let fq = ["kotlin", "text", "MatchResult"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),
@@ -71,7 +80,7 @@ struct MatchResultTypeTests {
     // MARK: - 2. MatchResult.Destructured nested class
 
     @Test func testMatchResultDestructuredClassSymbolIsRegistered() throws {
-        let (sema, interner, _) = try makeSema()
+        let (sema, interner, _) = try sharedSema()
         let fq = ["kotlin", "text", "MatchResult", "Destructured"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),

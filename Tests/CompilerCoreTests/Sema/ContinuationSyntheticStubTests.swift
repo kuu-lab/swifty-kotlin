@@ -5,19 +5,23 @@ import Testing
 
 @Suite
 struct ContinuationSyntheticStubTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     @Test
     func testContinuationAndCoroutineContextStubsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let continuationFQName = ["kotlin", "coroutines", "Continuation"].map { interner.intern($0) }
         let continuationSymbol = try #require(
@@ -178,7 +182,7 @@ struct ContinuationSyntheticStubTests {
 
     @Test
     func testCreateCoroutineUninterceptedOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let createCoroutineFQName = ["kotlin", "coroutines", "intrinsics", "createCoroutineUnintercepted"].map { interner.intern($0) }
         let createCoroutineSymbols = sema.symbols.lookupAll(fqName: createCoroutineFQName)
@@ -193,7 +197,7 @@ struct ContinuationSyntheticStubTests {
 
     @Test
     func testCreateCoroutineOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let createCoroutineFQName = ["kotlin", "coroutines", "createCoroutine"].map { interner.intern($0) }
         let createCoroutineSymbols = sema.symbols.lookupAll(fqName: createCoroutineFQName)
@@ -209,7 +213,7 @@ struct ContinuationSyntheticStubTests {
 
     @Test
     func testStartCoroutineOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let startCoroutineFQName = ["kotlin", "coroutines", "startCoroutine"].map { interner.intern($0) }
         let startCoroutineSymbols = sema.symbols.lookupAll(fqName: startCoroutineFQName)
