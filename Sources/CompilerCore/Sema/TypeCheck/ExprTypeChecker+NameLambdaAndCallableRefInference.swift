@@ -1342,19 +1342,21 @@ extension ExprTypeChecker {
             // argument (`fun <T> runCatching(block: () -> T)`). Checking against
             // it would fail, and adopting it would hide the concrete type the
             // caller needs for inference, so report the reference's own type.
-            if let expectedFunctionType,
-               let concreteResult = expectedSamInterfaceType ?? expectedFunctionType,
-               !sema.types.typeContainsAnyTypeParam(concreteResult)
-            {
-                driver.emitSubtypeConstraint(
-                    left: inferredType,
-                    right: expectedFunctionType,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-                resultType = concreteResult
+            if let expectedFunctionType {
+                let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
+                if !sema.types.typeContainsAnyTypeParam(concreteResult) {
+                    driver.emitSubtypeConstraint(
+                        left: inferredType,
+                        right: expectedFunctionType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: sema,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    resultType = concreteResult
+                } else {
+                    resultType = inferredType
+                }
             } else {
                 resultType = inferredType
             }
