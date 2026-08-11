@@ -31,43 +31,7 @@ extension CallLowerer {
             return lateinitStatus
         }
 
-        // takeIf / takeUnless with safe call (STDLIB-160)
-        if sema.bindings.takeIfTakeUnlessKind(for: exprID) != nil {
-            let takeBoundType = boundType ?? sema.types.anyType
-            let result = arena.appendTemporary(type: takeBoundType
-            )
-            let loweredReceiver = driver.lowerExpr(
-                receiverExpr,
-                shared: shared,
-                emit: &instructions
-            )
-            let nonNullLabel = driver.ctx.makeLoopLabel()
-            let endLabel = driver.ctx.makeLoopLabel()
-            instructions.append(.jumpIfNotNull(value: loweredReceiver, target: nonNullLabel))
-            let nullVal = arena.appendExpr(.unit, type: takeBoundType)
-            instructions.append(.constValue(result: nullVal, value: .null))
-            instructions.append(.copy(from: nullVal, to: result))
-            instructions.append(.jump(endLabel))
-            instructions.append(.label(nonNullLabel))
-            if let takeResult = tryTakeIfTakeUnlessLowering(
-                exprID,
-                receiverExpr: receiverExpr,
-                args: args,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions.instructions,
-                precomputedReceiver: loweredReceiver
-            ) {
-                instructions.append(.copy(from: takeResult, to: result))
-            }
-            instructions.append(.label(endLabel))
-            return result
-        }
-
-        // Scope functions with safe call: ?.let, ?.run, etc. (STDLIB-004)
+        // Scope functions with safe call: ?.run, ?.apply, ?.use, etc. (STDLIB-004)
         if sema.bindings.scopeFunctionKind(for: exprID) != nil {
             let scopeBoundType = boundType ?? sema.types.anyType
             let nullableResultType = sema.types.makeNullable(scopeBoundType)
