@@ -80,7 +80,7 @@ extension DataFlowSemaPhase {
             ("end", "kk_uint_range_last"),
             ("first", "kk_uint_range_first"),
             ("last", "kk_uint_range_last"),
-            ("endExclusive", "kk_range_endExclusive"),
+            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -349,7 +349,7 @@ extension DataFlowSemaPhase {
             ("endInclusive", "kk_ulong_range_last"),
             ("first", "kk_ulong_range_first"),
             ("last", "kk_ulong_range_last"),
-            ("endExclusive", "kk_range_endExclusive"),
+            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,

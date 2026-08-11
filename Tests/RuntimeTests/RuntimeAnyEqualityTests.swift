@@ -39,5 +39,42 @@ struct RuntimeAnyEqualityTests {
         _ = kk_array_set(second, 0, 8, nil)
         #expect(!boolValue(kk_any_equals(first, 0, second, 0)))
     }
+
+    // Tuples allocated for Kotlin's `Pair`/`Triple` carry a nominal type ID, so
+    // they compare and hash by their components even when they reach the
+    // runtime through `Any` (set membership, map keys) rather than the Kotlin
+    // `equals` written in `Tuples.kt`.
+    @Test
+    func testTaggedPairAndTripleCompareAndHashStructurally() {
+        let first = kk_pair_new(1, 2)
+        let second = kk_pair_new(1, 2)
+        let different = kk_pair_new(1, 3)
+
+        #expect(boolValue(kk_any_equals(first, 0, second, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, different, 0)))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(second, 0))
+
+        let triple = kk_triple_new(1, 2, 3)
+        let sameTriple = kk_triple_new(1, 2, 3)
+        let otherTriple = kk_triple_new(1, 2, 4)
+
+        #expect(boolValue(kk_any_equals(triple, 0, sameTriple, 0)))
+        #expect(!boolValue(kk_any_equals(triple, 0, otherTriple, 0)))
+        #expect(kk_any_hashCode(triple, 0) == kk_any_hashCode(sameTriple, 0))
+
+        #expect(!boolValue(kk_any_equals(first, 0, triple, 0)))
+    }
+
+    // Pairs the runtime allocates for its own plumbing (comparator pairs and
+    // the like) stay untagged and keep reference identity, so they never look
+    // like a Kotlin `Pair` to `is`/`==`.
+    @Test
+    func testUntaggedRuntimePairKeepsReferenceIdentity() {
+        let first = registerRuntimeObject(RuntimePairBox(first: 1, second: 2))
+        let second = registerRuntimeObject(RuntimePairBox(first: 1, second: 2))
+
+        #expect(boolValue(kk_any_equals(first, 0, first, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, second, 0)))
+    }
 }
 #endif

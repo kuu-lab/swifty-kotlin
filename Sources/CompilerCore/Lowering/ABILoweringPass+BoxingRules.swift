@@ -50,8 +50,8 @@ extension ABILoweringPass {
     /// element inserted via `add`/`set` is boxed identically to one created by
     /// `listOf(...)` / `setOf(...)` / `toMutableList()`.
     static let typeParamBoxingBoundaryCallees: Set<String> = [
-        "kk_pair_new",
-        "kk_triple_new",
+        "__kk_pair_new",
+        "__kk_triple_new",
         "__kk_mutable_collection_add",
         "__kk_mutable_list_add",
         "__kk_mutable_list_add_at",

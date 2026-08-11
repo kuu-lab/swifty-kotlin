@@ -310,6 +310,45 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
+    /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
+    @Test
+    func testBitCountFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(255.countOneBits())
+                println((-1).countOneBits())
+                println(Int.MIN_VALUE.countLeadingZeroBits())
+                println(1.countLeadingZeroBits())
+                println(0.countTrailingZeroBits())
+                println(1024.countTrailingZeroBits())
+                println(255L.countOneBits())
+                println(Long.MAX_VALUE.countOneBits())
+                println(255L.countLeadingZeroBits())
+                println(0L.countLeadingZeroBits())
+                println(0L.countTrailingZeroBits())
+                println(1024L.countTrailingZeroBits())
+            }
+            """,
+            expectedOutput: """
+            8
+            32
+            0
+            31
+            32
+            10
+            8
+            63
+            56
+            64
+            64
+            10
+
+            """
+        )
+    }
+
     /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
     /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
@@ -561,6 +600,28 @@ struct BundledStdlibExecutionTests {
             2
 
             """
+        )
+    }
+
+    // Regression for a lambda-capture lowering bug: `let` / `?.let` blocks that
+    // capture an outer variable must forward the lambda parameter (`it`)
+    // correctly instead of shadowing it with the capture.
+    @Test
+    func testLetLambdaForwardsItWhenCapturingOuterVariable() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val outer = 10
+                val s: String = "hi"
+                val r = s.let { it + ":" + outer.toString() }
+                println(r)
+
+                val n: String? = "hello"
+                val q = n?.let { it + ":" + outer.toString() }
+                println(q ?: "null")
+            }
+            """,
+            expectedOutput: "hi:10\nhello:10\n"
         )
     }
 }

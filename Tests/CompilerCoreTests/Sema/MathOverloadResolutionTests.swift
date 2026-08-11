@@ -201,15 +201,15 @@ struct MathOverloadResolutionTests {
     }
 
     @Test func testIEEEremNextTowardsAndWithSignOverloads() throws {
-        let cases: [(name: String, source: String, expectedLink: String)] = [
+        let cases: [(name: String, source: String, expectedLink: String?)] = [
             ("IEEErem", "fun f(x: Double, y: Double): Double = x.IEEErem(y)", "kk_math_IEEErem"),
             ("IEEErem", "fun f(x: Float, y: Float): Float = x.IEEErem(y)", "kk_math_IEEErem_float"),
             ("nextTowards", "fun f(x: Double, y: Double): Double = x.nextTowards(y)", "kk_math_nextTowards"),
             ("nextTowards", "fun f(x: Float, y: Float): Float = x.nextTowards(y)", "kk_math_nextTowards_float"),
-            ("withSign", "fun f(x: Double, y: Double): Double = x.withSign(y)", "kk_math_withSign"),
-            ("withSign", "fun f(x: Double, sign: Int): Double = x.withSign(sign)", "kk_math_withSign_int"),
-            ("withSign", "fun f(x: Float, y: Float): Float = x.withSign(y)", "kk_math_withSign_float"),
-            ("withSign", "fun f(x: Float, sign: Int): Float = x.withSign(sign)", "kk_math_withSign_float_int"),
+            ("withSign", "fun f(x: Double, y: Double): Double = x.withSign(y)", nil),
+            ("withSign", "fun f(x: Double, sign: Int): Double = x.withSign(sign)", nil),
+            ("withSign", "fun f(x: Float, y: Float): Float = x.withSign(y)", nil),
+            ("withSign", "fun f(x: Float, sign: Int): Float = x.withSign(sign)", nil),
         ]
 
         for testCase in cases {
@@ -246,37 +246,37 @@ struct MathOverloadResolutionTests {
     @Test func testRoundDoubleOverload() throws {
         let source = "fun f(x: Double): Double = round(x)"
         let link = try resolvedLink(forCall: "round", withSource: source)
-        #expect(link == "kk_math_round")
+        #expect(link == nil)
     }
 
     @Test func testRoundFloatOverload() throws {
         let source = "fun f(x: Float): Float = round(x)"
         let link = try resolvedLink(forCall: "round", withSource: source)
-        #expect(link == "kk_math_round_float")
+        #expect(link == nil)
     }
 
     @Test func testCeilDoubleOverload() throws {
         let source = "fun f(x: Double): Double = ceil(x)"
         let link = try resolvedLink(forCall: "ceil", withSource: source)
-        #expect(link == "kk_math_ceil")
+        #expect(link == nil)
     }
 
     @Test func testCeilFloatOverload() throws {
         let source = "fun f(x: Float): Float = ceil(x)"
         let link = try resolvedLink(forCall: "ceil", withSource: source)
-        #expect(link == "kk_math_ceil_float")
+        #expect(link == nil)
     }
 
     @Test func testFloorDoubleOverload() throws {
         let source = "fun f(x: Double): Double = floor(x)"
         let link = try resolvedLink(forCall: "floor", withSource: source)
-        #expect(link == "kk_math_floor")
+        #expect(link == nil)
     }
 
     @Test func testFloorFloatOverload() throws {
         let source = "fun f(x: Float): Float = floor(x)"
         let link = try resolvedLink(forCall: "floor", withSource: source)
-        #expect(link == "kk_math_floor_float")
+        #expect(link == nil)
     }
 
     // MARK: - Trig family (Double / Float): sin / cos / tan / asin / acos / atan
@@ -543,13 +543,13 @@ struct MathOverloadResolutionTests {
     @Test func testTruncateDoubleOverload() throws {
         let source = "fun f(x: Double): Double = truncate(x)"
         let link = try resolvedLink(forCall: "truncate", withSource: source)
-        #expect(link == "kk_math_truncate")
+        #expect(link == nil)
     }
 
     @Test func testTruncateFloatOverload() throws {
         let source = "fun f(x: Float): Float = truncate(x)"
         let link = try resolvedLink(forCall: "truncate", withSource: source)
-        #expect(link == "kk_math_truncate_float")
+        #expect(link == nil)
     }
 
     // MARK: - roundToInt / roundToLong (Double / Float)

@@ -121,6 +121,33 @@ struct CodegenBackendInterfacePropertyDispatchTests {
         )
     }
 
+    // BUG-187: an implicit-receiver read inside an interface default method body
+    // (`value` meaning `this.value`) must dispatch through the itable as well;
+    // previously it called the interface's own abstract getter, whose placeholder
+    // body returns null, so the default method observed 0.
+    @Test
+    func testImplicitReceiverPropertyReadInsideInterfaceDefaultMethod() throws {
+        let source = """
+        interface Holder {
+            val value: Int
+            fun doubled(): Int = value * 2
+            fun sum(other: Holder): Int = value + other.value
+        }
+        class Impl : Holder { override val value: Int = 21 }
+        fun main() {
+            val holder: Holder = Impl()
+            println(holder.doubled())
+            println(holder.sum(Impl()))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "Bug187ImplicitReceiverInterfaceProperty",
+            expected: "42\n42\n"
+        )
+    }
+
     @Test
     func testCanonicalDiffCaseInterfaceStoredPropertyDispatch() throws {
         let root = URL(fileURLWithPath: #filePath)

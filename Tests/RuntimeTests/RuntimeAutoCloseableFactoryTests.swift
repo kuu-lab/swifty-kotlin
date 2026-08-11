@@ -41,10 +41,6 @@ private let autoCloseableThrowingCloseAction: @convention(c) (Int, UnsafeMutable
     return runtimeExceptionCaughtSentinel
 }
 
-private let autoCloseableUseBody: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
-    99
-}
-
 private func autoCloseableThrowableBox(from handle: Int) -> RuntimeThrowableBox? {
     guard handle != 0,
           handle != runtimeNullSentinelInt,
@@ -80,54 +76,39 @@ struct RuntimeAutoCloseableFactoryTests {
         #expect(snapshot.closureRaw == 41)
     }
 
-    @Test func useClosesFactoryResourceAfterBody() {
+    /// KSP-611: `close()` written against a `Closeable`-typed value dispatches through
+    /// kk_itable_lookup_dynamic, so the factory must also register the interface itself.
+    @Test func factoryRegistersCloseableInterfaceForDynamicDispatch() {
         let resourceRaw = kk_auto_closeable_create(
             unsafeBitCast(autoCloseableCloseAction, to: Int.self),
             77
         )
+        let closeableTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.io.Closeable"))
+        let closeFnPtr = kk_itable_lookup_dynamic(resourceRaw, closeableTypeID, 0)
+        #expect(closeFnPtr != 0)
 
+        let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
         var outThrown = 0
-        let result = kk_use(
-            resourceRaw,
-            unsafeBitCast(autoCloseableUseBody, to: Int.self),
-            0,
-            &outThrown
-        )
+        let result = closeFn(resourceRaw, &outThrown)
 
-        #expect(result == 99)
+        #expect(result == 0)
         #expect(outThrown == 0)
         let snapshot = autoCloseableFactoryState.snapshot()
         #expect(snapshot.count == 1)
         #expect(snapshot.closureRaw == 77)
     }
 
-    @Test func useAllowsNullResourceWithoutClose() {
-        var outThrown = 0
-        let result = kk_use(
-            0,
-            unsafeBitCast(autoCloseableUseBody, to: Int.self),
-            0,
-            &outThrown
-        )
-
-        #expect(result == 99)
-        #expect(outThrown == 0)
-        #expect(autoCloseableFactoryState.snapshot().count == 0)
-    }
-
-    @Test func usePropagatesFactoryCloseException() {
+    @Test func factoryClosePropagatesCloseException() {
         let resourceRaw = kk_auto_closeable_create(
             unsafeBitCast(autoCloseableThrowingCloseAction, to: Int.self),
             0
         )
+        let closeFnPtr = kk_itable_lookup(resourceRaw, 0, 0)
+        #expect(closeFnPtr != 0)
 
+        let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
         var outThrown = 0
-        let result = kk_use(
-            resourceRaw,
-            unsafeBitCast(autoCloseableUseBody, to: Int.self),
-            0,
-            &outThrown
-        )
+        let result = closeFn(resourceRaw, &outThrown)
 
         #expect(result == runtimeExceptionCaughtSentinel)
         #expect(autoCloseableThrowableBox(from: outThrown)?.message == autoCloseableCloseMessage)

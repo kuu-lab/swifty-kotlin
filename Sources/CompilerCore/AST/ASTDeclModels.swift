@@ -92,10 +92,18 @@ public struct SuperTypeEntry: Equatable, Codable {
     /// When present, this supertype (must be an interface) is implemented by
     /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
+    /// Arguments of the superclass constructor invocation in the class header
+    /// (`class Sub(n: Int) : Base(n)`). Empty for interfaces and for `Base()`.
+    public let constructorArgs: [CallArgument]
 
-    public init(typeRef: TypeRefID, delegateExpression: ExprID? = nil) {
+    public init(
+        typeRef: TypeRefID,
+        delegateExpression: ExprID? = nil,
+        constructorArgs: [CallArgument] = []
+    ) {
         self.typeRef = typeRef
         self.delegateExpression = delegateExpression
+        self.constructorArgs = constructorArgs
     }
 }
 

@@ -239,6 +239,35 @@ public extension RuntimeABISpec {
             section: "Duration",
             isThrowing: false
         ),
+        // KSP-649: TimeSource / Monotonic reading bridges and Clock factory.
+        RuntimeABIFunctionSpec(
+            name: "__kk_time_source_mark_now",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_time_source_monotonic_mark_now",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_time_source_as_clock",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "originRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration",
+            isThrowing: false
+        ),
         // STDLIB-TIME-TYPE-009: TestTimeSource
         RuntimeABIFunctionSpec(
             name: "kk_test_time_source_new",

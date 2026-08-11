@@ -819,34 +819,6 @@ final class CallTypeChecker {
             return sequenceType
         }
 
-        // --- Stdlib system timing calls: measureTimeMillis / measureTimeMicros / measureNanoTime ---
-        if let calleeName,
-           args.count == 1,
-           let timingKind = topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
-               locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ),
-           timingKind == .measureTimeMillis
-               || timingKind == .measureTimeMicros
-               || timingKind == .measureNanoTime
-        {
-            let longType = sema.types.longType
-            // Intentionally passing expectedType:nil: KIR lowering discards the
-            // lambda result and the synthetic stub enforces the () -> Unit shape.
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: nil
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: timingKind)
-            sema.bindings.bindExprType(id, type: longType)
-            return longType
-        }
-
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),

@@ -11,8 +11,9 @@
 /// `FileWalkDirection.TOP_DOWN` / `FileWalkDirection.BOTTOM_UP` or declares
 /// a parameter of type `FileWalkDirection`.
 ///
-/// Registration runs after `registerSyntheticFileIOStubs` (which ensures the
-/// `kotlin.io` package exists) so the parent link can always be resolved.
+/// Registration runs after `registerSyntheticFileIOStubs` in
+/// `HeaderHelpers+SyntheticTODOAndIOStubs.swift` (which ensures the `kotlin.io`
+/// package exists) so the parent link can always be resolved.
 extension DataFlowSemaPhase {
     func registerSyntheticFileWalkDirectionStubs(
         symbols: SymbolTable,

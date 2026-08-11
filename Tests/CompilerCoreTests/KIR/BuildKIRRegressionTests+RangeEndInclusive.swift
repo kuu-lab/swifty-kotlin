@@ -32,8 +32,8 @@ struct RangeEndInclusiveLoweringTests {
             """,
             function: "bounds"
         )
-        #expect(names.contains("kk_range_last"), "Expected kk_range_last for IntRange.endInclusive, got: \(names)")
-        #expect(names.contains("kk_range_first"), "Expected kk_range_first for IntRange.start, got: \(names)")
+        #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for IntRange.endInclusive, got: \(names)")
+        #expect(names.contains("__kk_range_first"), "Expected __kk_range_first for IntRange.start, got: \(names)")
         #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
     }
 
@@ -47,7 +47,7 @@ struct RangeEndInclusiveLoweringTests {
             """,
             function: "bounds"
         )
-        #expect(names.contains("kk_long_range_last"), "Expected kk_long_range_last for LongRange.endInclusive, got: \(names)")
+        #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for LongRange.endInclusive, got: \(names)")
         #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
     }
 }

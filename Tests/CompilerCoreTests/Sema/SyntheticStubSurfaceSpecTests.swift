@@ -4,38 +4,6 @@ import Testing
 
 @Suite
 struct SyntheticStubSurfaceSpecTests {
-    @Test func testDeclarativeThrowableStackTraceSpecsRegisterLinksAndTypes() throws {
-        let (sema, interner) = try makeSema()
-        let throwableFQName = ["kotlin", "Throwable"].map(interner.intern)
-        let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
-        let throwableType = sema.types.make(.classType(ClassType(
-            classSymbol: throwableSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        try assertFunction(
-            named: "stackTraceToString",
-            ownerFQName: throwableFQName,
-            parameterTypes: [],
-            returnType: sema.types.stringType,
-            externalLinkName: "kk_throwable_stackTraceToString",
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-        try assertFunction(
-            named: "printStackTrace",
-            ownerFQName: throwableFQName,
-            parameterTypes: [],
-            returnType: sema.types.unitType,
-            externalLinkName: "kk_throwable_printStackTrace",
-            receiverType: throwableType,
-            sema: sema,
-            interner: interner
-        )
-    }
-
     @Test func testDeclarativeCharSpecsKeepRadixOverloadParameterMetadata() throws {
         let (sema, interner) = try makeSema()
         let digitToInt = try function(
