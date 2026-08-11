@@ -763,15 +763,9 @@ final class CallLowerer {
         if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
             let sourceName = interner.resolve(sourceCalleeName)
             let builderRuntimeCallee: String? = switch builderKind {
+            // buildList is Kotlinized and no longer uses builder-DSL lowering (KSP-622).
             case .buildList:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("add", 1):
-                    "kk_builder_list_add"
-                case ("addAll", 1):
-                    "kk_builder_list_addAll"
-                default:
-                    nil
-                }
+                nil
             case .buildSet:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("add", 1):
