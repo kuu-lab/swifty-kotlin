@@ -1,14 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendSecureRandomTests {
+    private let pipelineHelper = CodegenBackendTestSupport()
+
     // Candidate-only: SecureRandom.getInstance() with no arguments (KSP-467) is a KSwiftK-only
     // convenience overload — real Java/Kotlin's SecureRandom.getInstance always requires an
     // algorithm name argument, so the JVM kotlinc reference can never compile this case (it
     // fails with "none of the following candidates is applicable"). Moved from
     // Scripts/diff_cases/secure_random.kt (DEBT-DIFF-005).
+    @Test
     func testCodegenCompilesSecureRandomNoArgGetInstance() throws {
         let source = """
         import java.security.SecureRandom
@@ -48,4 +53,27 @@ extension CodegenBackendIntegrationTests {
                 """ + "\n"
         )
     }
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try pipelineHelper.runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
 }
+#endif
