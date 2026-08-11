@@ -102,6 +102,9 @@ extension DataFlowSemaPhase {
                 if record.isValueClass {
                     flags.insert(.valueType)
                 }
+                if record.isFunInterface {
+                    flags.insert(.funInterface)
+                }
                 if record.isExpect {
                     flags.insert(.expectDeclaration)
                 }
@@ -235,6 +238,16 @@ extension DataFlowSemaPhase {
             }
         }
 
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            applyImportedNominalGenerics(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+
         // Resolve companion object references so ClassName.member() shorthand works.
         for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             if let companionFQName = binding.record.companionObjectFQName,
@@ -281,6 +294,83 @@ extension DataFlowSemaPhase {
             } else {
                 symbols.setSealedSubclasses([], for: binding.symbol)
             }
+        }
+    }
+
+    /// Restores the generic shape of an imported nominal type: its own type
+    /// parameters (with declared variance) and the type arguments it passes to
+    /// each generic supertype. Without them a `class Sub<T> : Base<T>` read back
+    /// from metadata behaves like a raw type, so `Sub<Int>` neither lifts to
+    /// `Base<Int>` nor substitutes `T` in its members' signatures.
+    private func applyImportedNominalGenerics(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let record = binding.record
+        let decode: (String) -> ClassType? = { token in
+            guard let decoded = self.decodeImportedTypeSignature(
+                token: token,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics,
+                metadataPath: binding.metadataPath,
+                ownerFQName: record.fqName,
+                allowPlaceholders: binding.isStdlibArtifact
+            ), case let .classType(classType) = types.kind(of: decoded) else {
+                return nil
+            }
+            return classType
+        }
+
+        if types.nominalTypeParameterSymbols(for: binding.symbol).isEmpty,
+           let selfSignature = record.nominalTypeParametersSignature,
+           let selfType = decode(selfSignature)
+        {
+            var typeParameterSymbols: [SymbolID] = []
+            var variances: [TypeVariance] = []
+            var isValid = true
+            arguments: for arg in selfType.args {
+                let argType: TypeID
+                switch arg {
+                case let .invariant(type):
+                    argType = type
+                    variances.append(.invariant)
+                case let .out(type):
+                    argType = type
+                    variances.append(.out)
+                case let .in(type):
+                    argType = type
+                    variances.append(.in)
+                case .star:
+                    isValid = false
+                    break arguments
+                }
+                guard case let .typeParam(typeParam) = types.kind(of: argType) else {
+                    isValid = false
+                    break arguments
+                }
+                typeParameterSymbols.append(typeParam.symbol)
+            }
+            if isValid && !typeParameterSymbols.isEmpty {
+                types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
+                if variances.contains(where: { $0 != .invariant }) {
+                    types.setNominalTypeParameterVariances(variances, for: binding.symbol)
+                }
+            }
+        }
+
+        for supertypeSignature in record.nominalSupertypeSignatures {
+            guard let supertype = decode(supertypeSignature),
+                  !supertype.args.isEmpty,
+                  types.nominalSupertypeTypeArgs(for: binding.symbol, supertype: supertype.classSymbol).isEmpty
+            else {
+                continue
+            }
+            types.setNominalSupertypeTypeArgs(supertype.args, for: binding.symbol, supertype: supertype.classSymbol)
         }
     }
 
@@ -412,6 +502,8 @@ extension DataFlowSemaPhase {
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
+        let nominalTypeParametersSignature: String?
+        let nominalSupertypeSignatures: [String]
         let constValueLiteral: String?
         /// Declaration-order type parameters of a nominal type, encoded as
         /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
@@ -435,21 +527,21 @@ extension DataFlowSemaPhase {
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
-            declaredInstanceSizeWords: Int? = nil,
-            declaredVtableSize: Int? = nil,
-            declaredItableSize: Int? = nil,
-            superFQName: [InternedString]? = nil,
-            superFQNames: [[InternedString]]? = nil,
+        declaredInstanceSizeWords: Int? = nil,
+        declaredVtableSize: Int? = nil,
+        declaredItableSize: Int? = nil,
+        superFQName: [InternedString]? = nil,
+        superFQNames: [[InternedString]]? = nil,
             companionObjectFQName: [InternedString]? = nil,
             fieldOffsets: [ImportedFieldOffsetEntry] = [],
             vtableSlots: [ImportedVTableSlotEntry] = [],
-            itableSlots: [ImportedITableSlotEntry] = [],
-            objectInitializerLinkName: String? = nil,
-            companionInitializerLinkName: String? = nil,
-            enumStaticInitLinkName: String? = nil,
-            isDataClass: Bool = false,
-            isSealedClass: Bool = false,
-            isFunInterface: Bool = false,
+        itableSlots: [ImportedITableSlotEntry] = [],
+        objectInitializerLinkName: String? = nil,
+        companionInitializerLinkName: String? = nil,
+        enumStaticInitLinkName: String? = nil,
+        isDataClass: Bool = false,
+        isSealedClass: Bool = false,
+        isFunInterface: Bool = false,
             isValueClass: Bool = false,
             isExpect: Bool = false,
             isActual: Bool = false,
@@ -461,6 +553,8 @@ extension DataFlowSemaPhase {
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
+            nominalTypeParametersSignature: String? = nil,
+            nominalSupertypeSignatures: [String] = [],
             constValueLiteral: String? = nil,
             nominalTypeParameters: String? = nil
         ) {
@@ -482,20 +576,20 @@ extension DataFlowSemaPhase {
             self.externalLinkName = externalLinkName
             self.declaredFieldCount = declaredFieldCount
             self.declaredInstanceSizeWords = declaredInstanceSizeWords
-            self.declaredVtableSize = declaredVtableSize
-            self.declaredItableSize = declaredItableSize
-            self.superFQName = superFQName
-            self.superFQNames = superFQNames
+        self.declaredVtableSize = declaredVtableSize
+        self.declaredItableSize = declaredItableSize
+        self.superFQName = superFQName
+        self.superFQNames = superFQNames
             self.companionObjectFQName = companionObjectFQName
             self.fieldOffsets = fieldOffsets
             self.vtableSlots = vtableSlots
             self.itableSlots = itableSlots
-            self.objectInitializerLinkName = objectInitializerLinkName
-            self.companionInitializerLinkName = companionInitializerLinkName
-            self.enumStaticInitLinkName = enumStaticInitLinkName
-            self.isDataClass = isDataClass
-            self.isSealedClass = isSealedClass
-            self.isFunInterface = isFunInterface
+        self.objectInitializerLinkName = objectInitializerLinkName
+        self.companionInitializerLinkName = companionInitializerLinkName
+        self.enumStaticInitLinkName = enumStaticInitLinkName
+        self.isDataClass = isDataClass
+        self.isSealedClass = isSealedClass
+        self.isFunInterface = isFunInterface
             self.isValueClass = isValueClass
             self.isExpect = isExpect
             self.isActual = isActual
@@ -507,6 +601,8 @@ extension DataFlowSemaPhase {
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
+            self.nominalTypeParametersSignature = nominalTypeParametersSignature
+            self.nominalSupertypeSignatures = nominalSupertypeSignatures
             self.constValueLiteral = constValueLiteral
             self.nominalTypeParameters = nominalTypeParameters
         }
@@ -713,6 +809,19 @@ extension DataFlowSemaPhase {
                 allowPlaceholders: isStdlibArtifact
             )
             symbols.setFunctionSignature(signature, for: symbol)
+            // Extension functions are represented as package-level FQ names in
+            // metadata, but source compilation attaches them to their nominal
+            // receiver for member fallback/dispatch lookup. Reconstruct that
+            // ownership from the decoded receiver type so imported stdlib
+            // extensions (for example Sequence.chunked/windowed) follow the
+            // same resolution path as bundled source declarations.
+            if let receiverType = signature.receiverType,
+               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
+               isNominalLayoutTargetSymbol(receiverSymbol.kind)
+            {
+                symbols.setParentSymbol(receiverSymbol.id, for: symbol)
+            }
             if let defaultStubLink = record.defaultStubExternalLinkName, !defaultStubLink.isEmpty,
                signature.valueParameterHasDefaultValues.contains(true)
             {
@@ -870,7 +979,6 @@ extension DataFlowSemaPhase {
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
             }
         }
-
         // Member and top-level properties with custom getters also carry a
         // precompiled getter link name. Restore a synthetic accessor so reads
         // route through it instead of through a global slot the artifact never
@@ -963,6 +1071,23 @@ extension DataFlowSemaPhase {
                 "Inline KIR path for '\(record.mangledName)' escapes inline directory",
                 range: nil
             )
+            return
+        }
+        guard FileManager.default.fileExists(atPath: inlinePath) else {
+            let recordFQName = record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            if binding.isStdlibArtifact {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0023",
+                    "Stdlib artifact is missing inline KIR for '" + recordFQName + "': " + inlinePath,
+                    range: nil
+                )
+            } else {
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0002",
+                    "Unable to read inline KIR artifact: " + inlinePath,
+                    range: nil
+                )
+            }
             return
         }
         guard let inlineFunction = parseImportedInlineFunction(

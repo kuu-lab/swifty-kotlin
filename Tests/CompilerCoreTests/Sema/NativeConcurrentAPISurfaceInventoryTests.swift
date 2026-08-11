@@ -34,14 +34,18 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     private static let packagePath = ["kotlin", "native", "concurrent"]
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     @Test
@@ -61,7 +65,7 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     @Test
     func testImplementedTopLevelEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let package = Self.packagePath.map { interner.intern($0) }
 
         for entry in Self.implementedTopLevelEntries {
@@ -78,7 +82,7 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     @Test
     func testCurrentPublishedTopLevelNamesStayWithinInventory() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let package = Self.packagePath.map { interner.intern($0) }
         let targetNames = Set(Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries).map(\.name))
         let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
@@ -96,7 +100,7 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     @Test
     func testKnownGapEntriesRemainAbsentUntilTheirTodoIsImplemented() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let package = Self.packagePath.map { interner.intern($0) }
 
         for entry in Self.knownGapTopLevelEntries {

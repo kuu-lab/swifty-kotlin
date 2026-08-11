@@ -46,6 +46,7 @@ enum CLIParser {
         var outputPath = "./a.out"
         var moduleName = "Main"
         var emitMode: EmitMode = .executable
+        var explicitEmitMode: EmitMode?
         var searchPaths: [String] = []
         var libraryPaths: [String] = []
         var linkLibraries: [String] = []
@@ -82,6 +83,7 @@ enum CLIParser {
                     throw CLIParseError.unsupportedEmitMode(value)
                 }
                 emitMode = mode
+                explicitEmitMode = mode
             case "-O0", "-O1", "-O2", "-O3":
                 if let level = parseOptimizationLevel(String(arg.dropFirst())) {
                     optLevel = level
@@ -137,7 +139,6 @@ enum CLIParser {
             case "--stdlib-only":
                 stdlibOnly = true
                 includeStdlib = true
-                emitMode = .library
             case "--stdlib-library":
                 let path = try requireValue(option: arg, args: args, index: &index)
                 stdlibLibraryPath = path
@@ -161,12 +162,17 @@ enum CLIParser {
             if stdlibLibraryPath != nil {
                 throw CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with --stdlib-library")
             }
-            if emitMode != .library {
+            if let explicitEmitMode, explicitEmitMode != .library {
                 throw CLIParseError.stdlibOnlyRequiresLibraryEmit
             }
+            emitMode = .library
             if moduleName == "Main" {
                 moduleName = "KSwiftKStdlib"
             }
+            // stdlib-only is defined as the bundled/residual stdlib build;
+            // keep a trailing --no-stdlib from silently producing an empty
+            // artifact.
+            includeStdlib = true
         }
 
         if stdlibLibraryPath != nil && explicitIncludeStdlib == true {

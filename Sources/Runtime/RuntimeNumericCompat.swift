@@ -356,27 +356,27 @@ public func kk_bits_to_double(_ value: Int) -> Double {
 
 @_cdecl("kk_int_to_float_bits")
 public func kk_int_to_float_bits(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_byte")
 public func kk_int_to_byte(_ value: Int) -> Int {
-    Int(Int8(truncatingIfNeeded: value))
+    Int(Int8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_short")
 public func kk_int_to_short(_ value: Int) -> Int {
-    Int(Int16(truncatingIfNeeded: value))
+    Int(Int16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_double_bits")
 public func kk_int_to_double_bits(_ value: Int) -> Int {
-    kk_double_to_bits(Double(value))
+    kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_float_to_double_bits")
@@ -971,37 +971,11 @@ public func kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
-// MARK: - STDLIB-NUM-130: Floating-point precision — isNaN / isInfinite / isFinite / toBits / fromBits
-
-@_cdecl("kk_double_isNaN")
-public func kk_double_isNaN(_ value: Int) -> Int {
-    kk_bits_to_double(value).isNaN ? 1 : 0
-}
-
-@_cdecl("kk_double_isInfinite")
-public func kk_double_isInfinite(_ value: Int) -> Int {
-    kk_bits_to_double(value).isInfinite ? 1 : 0
-}
-
-@_cdecl("kk_double_isFinite")
-public func kk_double_isFinite(_ value: Int) -> Int {
-    kk_bits_to_double(value).isFinite ? 1 : 0
-}
-
-@_cdecl("kk_float_isNaN")
-public func kk_float_isNaN(_ value: Int) -> Int {
-    kk_bits_to_float(value).isNaN ? 1 : 0
-}
-
-@_cdecl("kk_float_isInfinite")
-public func kk_float_isInfinite(_ value: Int) -> Int {
-    kk_bits_to_float(value).isInfinite ? 1 : 0
-}
-
-@_cdecl("kk_float_isFinite")
-public func kk_float_isFinite(_ value: Int) -> Int {
-    kk_bits_to_float(value).isFinite ? 1 : 0
-}
+// MARK: - STDLIB-NUM-130: Floating-point precision — toBits / fromBits
+//
+// KSP-646: isNaN / isInfinite / isFinite are implemented in bundled Kotlin
+// (Stdlib/kotlin/util/Numbers.kt) on top of toRawBits(), so no runtime export
+// remains for them.
 
 /// Double.toBits(): Long — returns IEEE 754 bit representation as Long.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
@@ -1182,8 +1156,7 @@ public func kk_float_to_long(_ value: Int) -> Int {
 }
 
 /// Long→* conversions: `Int` (intptr_t) is used for Long values.
-/// This is correct on 64-bit macOS where Int == Int64; see the note above
-/// kk_long_coerceIn for the full rationale.
+/// This is correct on 64-bit macOS where Int == Int64.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))

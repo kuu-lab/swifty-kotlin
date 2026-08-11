@@ -84,6 +84,14 @@ package struct MetadataRecord {
     let propertyGetterAbiReturnTypeSignature: String?
     /// True for `var` properties/fields.
     package let isMutable: Bool
+    /// Self type signature of a generic nominal declaration, carrying its type
+    /// parameters and their declared variance (e.g.
+    /// `Lkotlinx.coroutines.flow.SharedFlow<O<T8150>>;`).
+    let nominalTypeParametersSignature: String?
+    /// Type signatures of the generic direct supertypes of a nominal
+    /// declaration, with the child's type parameters substituted in (e.g.
+    /// `Lkotlinx.coroutines.flow.SharedFlow<T8154>;`).
+    let nominalSupertypeSignatures: [String]
     /// Encoded compile-time constant value of a `const val` property, so
     /// consumers can inline it instead of reading an uninitialized global slot
     /// (a precompiled library has no `main` to run top-level initializers).
@@ -136,6 +144,8 @@ package struct MetadataRecord {
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
         isMutable: Bool = false,
+        nominalTypeParametersSignature: String? = nil,
+        nominalSupertypeSignatures: [String] = [],
         constValueLiteral: String? = nil,
         nominalTypeParameters: String? = nil
     ) {
@@ -181,6 +191,8 @@ package struct MetadataRecord {
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
+        self.nominalTypeParametersSignature = nominalTypeParametersSignature
+        self.nominalSupertypeSignatures = nominalSupertypeSignatures
         self.constValueLiteral = constValueLiteral
         self.nominalTypeParameters = nominalTypeParameters
     }
@@ -326,6 +338,49 @@ package final class MetadataEncoder {
             records.append(built)
         }
         return records
+    }
+
+    /// Encodes the generic shape of a nominal declaration so consumers can
+    /// rebuild it: the declaration's own type parameters (with declared
+    /// variance) and the type arguments it passes to each generic direct
+    /// supertype. Without these, an imported `class Sub<T> : Base<T>` looks
+    /// like a raw `Sub` / `Base` pair and `Sub<Int>` no longer lifts to
+    /// `Base<Int>`.
+    private func nominalGenericSignatures(
+        symbol: SemanticSymbol,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        mangler: NameMangler,
+        interner: StringInterner
+    ) -> (selfSignature: String?, supertypeSignatures: [String]) {
+        let typeParameterSymbols = types.nominalTypeParameterSymbols(for: symbol.id)
+        guard !typeParameterSymbols.isEmpty else {
+            return (nil, [])
+        }
+        let variances = types.nominalTypeParameterVariances(for: symbol.id)
+        let selfArgs: [TypeArg] = typeParameterSymbols.enumerated().map { index, parameterSymbol in
+            let parameterType = types.make(.typeParam(TypeParamType(symbol: parameterSymbol, nullability: .nonNull)))
+            switch index < variances.count ? variances[index] : .invariant {
+            case .out: return .out(parameterType)
+            case .in: return .in(parameterType)
+            case .invariant: return .invariant(parameterType)
+            }
+        }
+        let encode: ([TypeArg], SymbolID) -> String = { args, classSymbol in
+            self.metadataTypeSignature(
+                types.make(.classType(ClassType(classSymbol: classSymbol, args: args, nullability: .nonNull))),
+                symbols: symbols,
+                types: types,
+                mangler: mangler,
+                nameResolver: { interner.resolve($0) }
+            )
+        }
+        let supertypeSignatures: [String] = symbols.directSupertypes(for: symbol.id).compactMap { superSymbol in
+            let superArgs = types.nominalSupertypeTypeArgs(for: symbol.id, supertype: superSymbol)
+            guard !superArgs.isEmpty else { return nil }
+            return encode(superArgs, superSymbol)
+        }
+        return (encode(selfArgs, symbol.id), supertypeSignatures)
     }
 
     private func metadataTypeSignature(
@@ -542,9 +597,30 @@ package final class MetadataEncoder {
         }()
 
         if metadataAnchorOnly {
-            // Synthetic nominal anchors need kind/mangledName/fqName/flags plus
-            // supertype edges to round-trip. Layout is omitted because the
-            // consumer already reconstructs the nominal layout for these anchors.
+            // Synthetic nominal anchors need their declared layout sizes as
+            // consumer-side synthesis hints. Do not serialize partial slot maps:
+            // their synthetic members are intentionally not exported and are
+            // re-registered by the consumer. Keeping only an inherited itable
+            // entry would install an incomplete layout and prevent synthesis from
+            // assigning slots to those re-registered members.
+            if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
+                return MetadataRecord(
+                    kind: symbol.kind,
+                    mangledName: mangled,
+                    fqName: fqName,
+                    declaredFieldCount: layout.instanceFieldCount,
+                    declaredInstanceSizeWords: layout.instanceSizeWords,
+                    declaredVtableSize: layout.vtableSize,
+                    declaredItableSize: layout.itableSize,
+                    superFQName: computedSuperFQName,
+                    isDataClass: symbol.flags.contains(.dataType),
+                    isSealedClass: symbol.flags.contains(.sealedType),
+                    isFunInterface: symbol.flags.contains(.funInterface),
+                    isValueClass: symbol.flags.contains(.valueType),
+                    isExpect: symbol.flags.contains(.expectDeclaration),
+                    isActual: symbol.flags.contains(.actualDeclaration)
+                )
+            }
             return MetadataRecord(
                 kind: symbol.kind,
                 mangledName: mangled,
@@ -702,10 +778,19 @@ package final class MetadataEncoder {
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
         var enumStaticInitLinkName: String?
+        var nominalTypeParametersSignature: String?
+        var nominalSupertypeSignatures: [String] = []
         var nominalTypeParameters: String?
 
         if Self.nominalKinds.contains(symbol.kind) {
             superFQName = computedSuperFQName
+            let generics = nominalGenericSignatures(
+                symbol: symbol,
+                symbols: symbols,
+                types: types,
+                mangler: mangler,
+                interner: interner
+            )
             nominalTypeParameters = serializeNominalTypeParameters(
                 for: symbol.id,
                 symbols: symbols,
@@ -713,6 +798,8 @@ package final class MetadataEncoder {
                 mangler: mangler,
                 interner: interner
             )
+            nominalTypeParametersSignature = generics.selfSignature
+            nominalSupertypeSignatures = generics.supertypeSignatures
             if let layout = symbols.nominalLayout(for: symbol.id) {
                 declaredInstanceSizeWords = layout.instanceSizeWords
                 declaredFieldCount = layout.instanceFieldCount
@@ -828,6 +915,8 @@ package final class MetadataEncoder {
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
             isMutable: isMutable,
+            nominalTypeParametersSignature: nominalTypeParametersSignature,
+            nominalSupertypeSignatures: nominalSupertypeSignatures,
             constValueLiteral: constValueLiteral,
             nominalTypeParameters: nominalTypeParameters
         )
@@ -974,6 +1063,12 @@ package final class MetadataEncoder {
                 if let superFq = record.superFQName {
                     fields.append("superFq=\(superFq)")
                 }
+                if let typeParamsSig = record.nominalTypeParametersSignature {
+                    fields.append("typeParamsSig=\(typeParamsSig)")
+                }
+                if !record.nominalSupertypeSignatures.isEmpty {
+                    fields.append("superSigs=\(record.nominalSupertypeSignatures.joined(separator: "|"))")
+                }
                 if let companionFq = record.companionObjectFQName {
                     fields.append("companionFq=\(companionFq)")
                 }
@@ -1096,6 +1191,9 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -1148,6 +1246,9 @@ package final class MetadataEncoder {
             }
             // ITable slot layout is part of the nominal type shape and must round-trip
             // completely, even for synthetic or non-public interface supertypes.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -1267,6 +1368,8 @@ final class MetadataDecoder {
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
                 isMutable: rec.isMutable,
+                nominalTypeParametersSignature: rec.nominalTypeParametersSignature,
+                nominalSupertypeSignatures: rec.nominalSupertypeSignatures,
                 constValueLiteral: rec.constValueLiteral,
                 nominalTypeParameters: rec.nominalTypeParameters
             ))
@@ -1318,6 +1421,8 @@ final class MetadataDecoder {
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
+        var nominalTypeParametersSignature: String?
+        var nominalSupertypeSignatures: [String] = []
         var constValueLiteral: String?
         var nominalTypeParameters: String?
         var schemaVersion: String?
@@ -1365,6 +1470,10 @@ final class MetadataDecoder {
             record.declaredItableSize = Int(value)
         case "superFq":
             record.superFQName = value.isEmpty ? nil : value
+        case "typeParamsSig":
+            record.nominalTypeParametersSignature = value.isEmpty ? nil : value
+        case "superSigs":
+            record.nominalSupertypeSignatures = value.split(separator: "|").map(String.init)
         case "companionFq":
             record.companionObjectFQName = value.isEmpty ? nil : value
         case "fieldOffsets":

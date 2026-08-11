@@ -6,6 +6,15 @@ import Testing
 /// `kk_*` external link name of their own.
 @Suite
 struct ThrowableMemberSourceTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -22,7 +31,7 @@ struct ThrowableMemberSourceTests {
 
     @Test
     func testMessageAndCauseAreSourceDeclaredMembers() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
         let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
         let nullableThrowableType = sema.types.make(.classType(ClassType(
@@ -46,7 +55,7 @@ struct ThrowableMemberSourceTests {
 
     @Test
     func testSuppressedExceptionsRootExtensionPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinPackage = ["kotlin"].map { interner.intern($0) }
         let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
 

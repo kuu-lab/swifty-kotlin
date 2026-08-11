@@ -184,7 +184,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testCurrentSyntheticMathNamesAreOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
             guard symbol.kind == .function || symbol.kind == .property,
@@ -214,7 +214,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testUnofficialRoundingHelpersAreNotPublished() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for name in Self.unofficialRoundingHelperNames.sorted() {
             let fqName = mathPrefix + [interner.intern(name)]
@@ -226,7 +226,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testImplementedInventoryEntriesResolveToSyntheticLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for (signature, expectedLink) in Self.implementedLinksBySignature {
             let name = Self.declarationName(signature)
@@ -240,7 +240,7 @@ struct MathAPITargetInventoryTests {
     }
 
     @Test func testSourceBackedInventoryEntriesHaveNoRuntimeMathLink() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for signature in Self.sourceBackedSignatures.sorted() {
             let name = Self.declarationName(signature)
@@ -302,14 +302,18 @@ struct MathAPITargetInventoryTests {
         return signature
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 }
 #endif

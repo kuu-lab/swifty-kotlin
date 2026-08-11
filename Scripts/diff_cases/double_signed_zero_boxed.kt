@@ -1,4 +1,4 @@
-// BUG-162: a boxed Double holding -0.0 must not be mistaken for null
+// BUG-203: a boxed Double holding -0.0 must not be mistaken for null
 // (-0.0's bit pattern is the runtime's null sentinel, Int64.min).
 fun main() {
     println(listOf(0.0, -0.0, 2.0).joinToString(","))

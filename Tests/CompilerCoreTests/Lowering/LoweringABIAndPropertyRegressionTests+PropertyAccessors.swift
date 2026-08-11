@@ -726,308 +726,284 @@ extension LoweringABIAndPropertyRegressionTests {
                       "constValue(.symbolRef) for a backed property with no emitted getter should NOT be rewritten")
     }
 
-    @Test
-    func testGetterOnlyComputedPropertyEmitsNoGlobal() throws {
-        let source = """
-        package test
-
-        class Widget {
-            val computed: String get() = "hello"
-
-            var backed: Int = 0
-                get() = field
-                set(value) { field = value }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        guard let module = ctx.kir else {
-            Issue.record("KIR module not available")
-            return
-        }
-
-        let interner = ctx.interner
-
-        var globalSymbols: [SymbolID] = []
-        for decl in module.arena.declarations {
-            if case let .global(global) = decl {
-                globalSymbols.append(global.symbol)
-            }
-        }
-
-        let computedName = interner.intern("computed")
-        let computedSymbols = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == computedName
-        }
-        #expect(computedSymbols.isEmpty,
-                      "Getter-only computed property should NOT have a KIRGlobal, found: \(computedSymbols)")
-
-        let backedName = interner.intern("backed")
-        let backedSymbols = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == backedName
-        }
-        #expect(!backedSymbols.isEmpty,
-                       "Var property with backing field should have a KIRGlobal")
-
-        let sema = try #require(ctx.sema, "Sema module not available")
-        let computedPropertySymbol = try #require(
-            sema.symbols.allSymbols().first(where: { symbol in
-                symbol.kind == .property && symbol.name == computedName
-            }),
-            "computed property symbol not found in sema"
-        )
-
-        let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: computedPropertySymbol.id)
-        let getterSymbols = findAllKIRFunctions(in: module).compactMap { kirFunc -> SymbolID? in
-            guard interner.resolve(kirFunc.name) == "get" else { return nil }
-            return kirFunc.symbol
-        }
-        #expect(getterSymbols.contains(expectedGetterSymbol),
-                      "Getter accessor symbol for computed property should be emitted. expected=\(expectedGetterSymbol), actual=\(getterSymbols)")
-    }
 
     @Test
-    func testGetterOnlyComputedPropertyOverrideEmitsAccessors() throws {
-        let source = """
-        package test
+    func testConsolidatedClassPropertyLoweringSourceScenarios() throws {
+        let sources: [String] = [
+            """
+            package test
 
-        open class Base {
-            open val label: String get() = "base"
-        }
+            class Widget {
+                val computed: String get() = "hello"
 
-        class Derived : Base() {
-            override val label: String get() = "derived"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        guard let module = ctx.kir else {
-            Issue.record("KIR module not available")
-            return
-        }
-
-        let interner = ctx.interner
-
-        let getName = interner.intern("get")
-        let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
-            kirFunc.name == getName
-        }
-
-        #expect(
-            getterFunctions.count >= 2,
-            "Both base and override should emit getter accessors, found: \(getterFunctions.count)"
-        )
-
-        let labelName = interner.intern("label")
-        var globalSymbols: [SymbolID] = []
-        for decl in module.arena.declarations {
-            if case let .global(global) = decl {
-                globalSymbols.append(global.symbol)
+                var backed: Int = 0
+                    get() = field
+                    set(value) { field = value }
             }
-        }
-        let labelGlobals = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == labelName
-        }
-        #expect(labelGlobals.isEmpty,
-                      "Getter-only computed property override should NOT have a KIRGlobal, found: \(labelGlobals)")
-    }
+            """,
+            """
+            package test
 
-    @Test
-    func testCustomGetterSetterPropertyEmitsAccessorsAndBackingField() throws {
-        let source = """
-        package test
-
-        class Counter {
-            var count: Int = 0
-                get() = field
-                set(value) { field = value }
-
-            val label: String get() = "Count"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        guard let module = ctx.kir else {
-            Issue.record("KIR module not available")
-            return
-        }
-
-        let interner = ctx.interner
-
-        var globalSymbols: [SymbolID] = []
-        for decl in module.arena.declarations {
-            if case let .global(global) = decl {
-                globalSymbols.append(global.symbol)
+            open class Base {
+                open val label: String get() = "base"
             }
-        }
 
-        let countName = interner.intern("count")
-        let countGlobals = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == countName
-        }
-        #expect(!countGlobals.isEmpty,
-                       "Var property with custom getter/setter should have a KIRGlobal")
-
-        let labelName = interner.intern("label")
-        let labelGlobals = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == labelName
-        }
-        #expect(labelGlobals.isEmpty,
-                      "Getter-only computed property should NOT have a KIRGlobal, found: \(labelGlobals)")
-
-        let getName = interner.intern("get")
-        let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
-            kirFunc.name == getName
-        }
-        #expect(
-            getterFunctions.count >= 1,
-            "Should have at least 1 getter accessor (for label)"
-        )
-    }
-
-    @Test
-    func testTopLevelGetterOnlyComputedPropertyEmitsNoGlobal() throws {
-        let source = """
-        package test
-
-        var stored: Int = 42
-        val computed: Int get() = stored
-
-        fun readComputed(): Int {
-            return computed
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        guard let module = ctx.kir else {
-            Issue.record("KIR module not available")
-            return
-        }
-
-        let interner = ctx.interner
-
-        var globalSymbols: [SymbolID] = []
-        for decl in module.arena.declarations {
-            if case let .global(global) = decl {
-                globalSymbols.append(global.symbol)
+            class Derived : Base() {
+                override val label: String get() = "derived"
             }
-        }
+            """,
+            """
+            package test
 
-        // Top-level "computed" should NOT have a KIRGlobal.
-        let computedName = interner.intern("computed")
-        let computedGlobals = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == computedName
-        }
-        #expect(
-            computedGlobals.isEmpty,
-            "Top-level getter-only computed property should NOT have a KIRGlobal"
-        )
+            class Counter {
+                var count: Int = 0
+                    get() = field
+                    set(value) { field = value }
 
-        // Top-level "stored" SHOULD have a KIRGlobal.
-        let storedName = interner.intern("stored")
-        let storedGlobals = globalSymbols.filter { sym in
-            ctx.sema?.symbols.symbol(sym)?.name == storedName
-        }
-        #expect(!storedGlobals.isEmpty,
-                       "Top-level stored property should have a KIRGlobal")
-
-        // Verify that readComputed() was lowered so that the read of
-        // "computed" became a getter accessor call (not loadGlobal).
-        let sema = try #require(ctx.sema)
-        let computedPropSym = try #require(
-            sema.symbols.allSymbols().first(where: {
-                $0.kind == .property && $0.name == computedName
-            }),
-            "computed property symbol not found"
-        )
-        let getterSym = SyntheticSymbolScheme
-            .propertyGetterAccessorSymbol(for: computedPropSym.id)
-
-        // Find readComputed and check its body for a getter call.
-        let readName = interner.intern("readComputed")
-        let readerFn = findAllKIRFunctions(in: module).first { kirFunc in
-            kirFunc.name == readName
-        }
-        let reader = try #require(readerFn, "readComputed not found")
-
-        let hasGetterCall = reader.body.contains { inst in
-            if case let .call(symbol, _, _, _, _, _, _, _) = inst {
-                return symbol == getterSym
+                val label: String get() = "Count"
             }
-            return false
-        }
-        #expect(
-            hasGetterCall,
-            "Read of top-level computed property should lower to getter call"
-        )
+            """
+        ]
 
-        // Verify no loadGlobal remains for the computed symbol.
-        let hasLoadGlobal = reader.body.contains { inst in
-            if case let .loadGlobal(_, sym) = inst {
-                return sym == computedPropSym.id
-            }
-            return false
-        }
-        #expect(
-            !hasLoadGlobal,
-            "loadGlobal for computed property should be rewritten"
-        )
-    }
-
-    @Test
-    func testTopLevelBackedGetterReadUsesAccessor() throws {
-        let source = """
-        package test
-
-        var doubled: Int = 5
-            get() = field * 2
-
-        fun readDoubled(): Int {
-            return doubled
-        }
-        """
-        let ctx = makeContextFromSource(source)
+        let ctx = makeContextFromSources(sources)
         try runToLowering(ctx)
 
         let module = try #require(ctx.kir, "KIR module not available")
-        let sema = try #require(ctx.sema, "Sema module not available")
         let interner = ctx.interner
-        let doubledName = interner.intern("doubled")
-        let propertySymbol = try #require(
-            sema.symbols.allSymbols().first {
-                $0.kind == .property && $0.name == doubledName
-            },
-            "top-level backed property symbol not found"
-        )
-        let getterSymbol = SyntheticSymbolScheme
-            .propertyGetterAccessorSymbol(for: propertySymbol.id)
-        let readerName = interner.intern("readDoubled")
-        let reader = try #require(
-            findAllKIRFunctions(in: module).first { $0.name == readerName },
-            "readDoubled function not found"
-        )
+        let sema = try #require(ctx.sema, "Sema module not available")
 
-        let hasGetterCall = reader.body.contains { instruction in
-            if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {
-                return symbol == getterSymbol && arguments.isEmpty
-            }
-            return false
-        }
-        #expect(hasGetterCall,
-                      "Read of a top-level backed property should invoke its getter")
+            // testGetterOnlyComputedPropertyEmitsNoGlobal
+            do {
+                    var globalSymbols: [SymbolID] = []
+                    for decl in module.arena.declarations {
+                        if case let .global(global) = decl {
+                            globalSymbols.append(global.symbol)
+                        }
+                    }
 
-        let hasPropertyLoad = reader.body.contains { instruction in
-            if case let .loadGlobal(_, symbol) = instruction {
-                return symbol == propertySymbol.id
+                    let computedName = interner.intern("computed")
+                    let computedSymbols = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == computedName
+                    }
+                    #expect(computedSymbols.isEmpty,
+                                  "Getter-only computed property should NOT have a KIRGlobal, found: \(computedSymbols)")
+
+                    let backedName = interner.intern("backed")
+                    let backedSymbols = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == backedName
+                    }
+                    #expect(!backedSymbols.isEmpty,
+                                   "Var property with backing field should have a KIRGlobal")
+                    let computedPropertySymbol = try #require(
+                        sema.symbols.allSymbols().first(where: { symbol in
+                            symbol.kind == .property && symbol.name == computedName
+                        }),
+                        "computed property symbol not found in sema"
+                    )
+
+                    let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: computedPropertySymbol.id)
+                    let getterSymbols = findAllKIRFunctions(in: module).compactMap { kirFunc -> SymbolID? in
+                        guard interner.resolve(kirFunc.name) == "get" else { return nil }
+                        return kirFunc.symbol
+                    }
+                    #expect(getterSymbols.contains(expectedGetterSymbol),
+                                  "Getter accessor symbol for computed property should be emitted. expected=\(expectedGetterSymbol), actual=\(getterSymbols)")
             }
-            return false
-        }
-        #expect(!hasPropertyLoad,
-                      "Top-level backed getter reads must not load the property global directly")
+            // testGetterOnlyComputedPropertyOverrideEmitsAccessors
+            do {
+                    let getName = interner.intern("get")
+                    let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
+                        kirFunc.name == getName
+                    }
+
+                    #expect(
+                        getterFunctions.count >= 2,
+                        "Both base and override should emit getter accessors, found: \(getterFunctions.count)"
+                    )
+
+                    let labelName = interner.intern("label")
+                    var globalSymbols: [SymbolID] = []
+                    for decl in module.arena.declarations {
+                        if case let .global(global) = decl {
+                            globalSymbols.append(global.symbol)
+                        }
+                    }
+                    let labelGlobals = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == labelName
+                    }
+                    #expect(labelGlobals.isEmpty,
+                                  "Getter-only computed property override should NOT have a KIRGlobal, found: \(labelGlobals)")
+            }
+            // testCustomGetterSetterPropertyEmitsAccessorsAndBackingField
+            do {
+                    var globalSymbols: [SymbolID] = []
+                    for decl in module.arena.declarations {
+                        if case let .global(global) = decl {
+                            globalSymbols.append(global.symbol)
+                        }
+                    }
+
+                    let countName = interner.intern("count")
+                    let countGlobals = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == countName
+                    }
+                    #expect(!countGlobals.isEmpty,
+                                   "Var property with custom getter/setter should have a KIRGlobal")
+
+                    let labelName = interner.intern("label")
+                    let labelGlobals = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == labelName
+                    }
+                    #expect(labelGlobals.isEmpty,
+                                  "Getter-only computed property should NOT have a KIRGlobal, found: \(labelGlobals)")
+
+                    let getName = interner.intern("get")
+                    let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
+                        kirFunc.name == getName
+                    }
+                    #expect(
+                        getterFunctions.count >= 1,
+                        "Should have at least 1 getter accessor (for label)"
+                    )
+            }
     }
+
+    @Test
+    func testConsolidatedTopLevelPropertyLoweringSourceScenarios() throws {
+        let sources: [String] = [
+            """
+            package test
+
+            var stored: Int = 42
+            val computed: Int get() = stored
+
+            fun readComputed(): Int {
+                return computed
+            }
+            """,
+            """
+            package test
+
+            var doubled: Int = 5
+                get() = field * 2
+
+            fun readDoubled(): Int {
+                return doubled
+            }
+            """
+        ]
+
+        let ctx = makeContextFromSources(sources)
+        try runToLowering(ctx)
+
+        let module = try #require(ctx.kir, "KIR module not available")
+        let interner = ctx.interner
+        let sema = try #require(ctx.sema, "Sema module not available")
+
+            // testTopLevelGetterOnlyComputedPropertyEmitsNoGlobal
+            do {
+                    var globalSymbols: [SymbolID] = []
+                    for decl in module.arena.declarations {
+                        if case let .global(global) = decl {
+                            globalSymbols.append(global.symbol)
+                        }
+                    }
+
+                    // Top-level "computed" should NOT have a KIRGlobal.
+                    let computedName = interner.intern("computed")
+                    let computedGlobals = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == computedName
+                    }
+                    #expect(
+                        computedGlobals.isEmpty,
+                        "Top-level getter-only computed property should NOT have a KIRGlobal"
+                    )
+
+                    // Top-level "stored" SHOULD have a KIRGlobal.
+                    let storedName = interner.intern("stored")
+                    let storedGlobals = globalSymbols.filter { sym in
+                        sema.symbols.symbol(sym)?.name == storedName
+                    }
+                    #expect(!storedGlobals.isEmpty,
+                                   "Top-level stored property should have a KIRGlobal")
+
+                    // Verify that readComputed() was lowered so that the read of
+                    // "computed" became a getter accessor call (not loadGlobal).
+                    let computedPropSym = try #require(
+                        sema.symbols.allSymbols().first(where: {
+                            $0.kind == .property && $0.name == computedName
+                        }),
+                        "computed property symbol not found"
+                    )
+                    let getterSym = SyntheticSymbolScheme
+                        .propertyGetterAccessorSymbol(for: computedPropSym.id)
+
+                    // Find readComputed and check its body for a getter call.
+                    let readName = interner.intern("readComputed")
+                    let readerFn = findAllKIRFunctions(in: module).first { kirFunc in
+                        kirFunc.name == readName
+                    }
+                    let reader = try #require(readerFn, "readComputed not found")
+
+                    let hasGetterCall = reader.body.contains { inst in
+                        if case let .call(symbol, _, _, _, _, _, _, _) = inst {
+                            return symbol == getterSym
+                        }
+                        return false
+                    }
+                    #expect(
+                        hasGetterCall,
+                        "Read of top-level computed property should lower to getter call"
+                    )
+
+                    // Verify no loadGlobal remains for the computed symbol.
+                    let hasLoadGlobal = reader.body.contains { inst in
+                        if case let .loadGlobal(_, sym) = inst {
+                            return sym == computedPropSym.id
+                        }
+                        return false
+                    }
+                    #expect(
+                        !hasLoadGlobal,
+                        "loadGlobal for computed property should be rewritten"
+                    )
+            }
+            // testTopLevelBackedGetterReadUsesAccessor
+            do {
+                    let doubledName = interner.intern("doubled")
+                    let propertySymbol = try #require(
+                        sema.symbols.allSymbols().first {
+                            $0.kind == .property && $0.name == doubledName
+                        },
+                        "top-level backed property symbol not found"
+                    )
+                    let getterSymbol = SyntheticSymbolScheme
+                        .propertyGetterAccessorSymbol(for: propertySymbol.id)
+                    let readerName = interner.intern("readDoubled")
+                    let reader = try #require(
+                        findAllKIRFunctions(in: module).first { $0.name == readerName },
+                        "readDoubled function not found"
+                    )
+
+                    let hasGetterCall = reader.body.contains { instruction in
+                        if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {
+                            return symbol == getterSymbol && arguments.isEmpty
+                        }
+                        return false
+                    }
+                    #expect(hasGetterCall,
+                                  "Read of a top-level backed property should invoke its getter")
+
+                    let hasPropertyLoad = reader.body.contains { instruction in
+                        if case let .loadGlobal(_, symbol) = instruction {
+                            return symbol == propertySymbol.id
+                        }
+                        return false
+                    }
+                    #expect(!hasPropertyLoad,
+                                  "Top-level backed getter reads must not load the property global directly")
+            }
+    }
+
 }
 #endif
