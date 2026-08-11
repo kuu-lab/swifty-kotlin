@@ -6,7 +6,8 @@ fun main() {
     println(ints.filterNot { it > 2 })
     println(ints.mapNotNull { if (it > 2) it else null })
     println(ints.flatMap { listOf(it, it * 10) })
-    ints.forEach { print("$it ") }
+    var first = true
+    ints.forEach { if (!first) print(" "); first = false; print(it) }
     println()
     println(ints.count { it > 2 })
     println("${ints.any { it > 4 }} ${ints.all { it > 0 }} ${ints.none { it > 9 }}")

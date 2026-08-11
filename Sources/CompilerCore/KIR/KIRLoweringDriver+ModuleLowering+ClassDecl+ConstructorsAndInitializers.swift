@@ -70,6 +70,10 @@ extension KIRLoweringDriver {
         }
         let isSecondary = sema.symbols.symbol(ctorSymbol)?.declSite != classDecl.range
         if !isSecondary {
+            emitSuperConstructorDelegation(
+                classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
+                shared: shared, compilationCtx: compilationCtx, body: &body
+            )
             emitPrimaryConstructorPropertyInitializers(
                 classDecl: classDecl,
                 shared: shared,
@@ -100,6 +104,61 @@ extension KIRLoweringDriver {
         }
         body.append(.endBlock)
         return body
+    }
+
+    /// Emits the implicit `super(...)` call of a primary constructor.
+    ///
+    /// Kotlin runs the superclass constructor before the subclass's own
+    /// initializers, so the superclass's property initializers and `init`
+    /// blocks — which write into the same object at the layout offsets the
+    /// subclass inherits — must execute here. Without this call a subclass
+    /// instance keeps the zeroed defaults for every inherited property
+    /// (BUG-155).
+    func emitSuperConstructorDelegation(
+        classDecl: ClassDecl,
+        ctorSymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        guard let receiverID = ctx.activeImplicitReceiverExprID(),
+              let superclassSymbol = sema.symbols.directSupertypes(for: ownerSymbol).first(where: {
+                  let kind = sema.symbols.symbol($0)?.kind
+                  return kind == .class || kind == .enumClass
+              }),
+              let superclassInfo = sema.symbols.symbol(superclassSymbol)
+        else {
+            return
+        }
+        let superCtorSymbol = sema.bindings.constructorDelegationTarget(for: ctorSymbol)
+            ?? sema.symbols
+            .lookupAll(fqName: superclassInfo.fqName + [compilationCtx.interner.intern("<init>")])
+            .first { $0 != ctorSymbol }
+        guard let superCtorSymbol,
+              sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+        else {
+            return
+        }
+
+        var argIDs: [KIRExprID] = [receiverID]
+        let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
+        for arg in superArgs {
+            argIDs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
+        }
+
+        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        body.append(.call(
+            symbol: superCtorSymbol,
+            callee: compilationCtx.interner.intern("<init>"),
+            arguments: argIDs,
+            result: resultID,
+            canThrow: false,
+            thrownResult: nil,
+            isSuperCall: false
+        ))
     }
 
     private func emitPrimaryConstructorPropertyInitializers(
@@ -443,6 +502,23 @@ extension KIRLoweringDriver {
                     compilationCtx: compilationCtx,
                     shared: shared,
                     body: &body
+                )
+            } else if !classDecl.hasPrimaryConstructorSyntax {
+                // No explicit delegation and no primary constructor to route
+                // through: the superclass constructor is invoked implicitly.
+                emitSuperConstructorDelegation(
+                    classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
+                    shared: shared, compilationCtx: compilationCtx, body: &body
+                )
+            }
+            // A class without a primary constructor runs its property
+            // initializers and `init` blocks inside every secondary
+            // constructor that reaches the superclass directly; constructors
+            // delegating to `this(...)` inherit them from the target instead.
+            if secondaryCtor.delegationCall?.kind != .this {
+                emitClassBodyInitializers(
+                    classDecl: classDecl, shared: shared,
+                    compilationCtx: compilationCtx, body: &body
                 )
             }
             switch secondaryCtor.body {

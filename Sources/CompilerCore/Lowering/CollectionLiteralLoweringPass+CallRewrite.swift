@@ -60,8 +60,8 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.forEachName
             // STDLIB-pipeline §5: take/drop have real require() validation in
             // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. A resolved call
-            // to that source declaration must not be short-circuited to the
-            // unchecked kk_sequence_take/drop runtime bridge.
+            // to that source declaration must not be short-circuited to a
+            // runtime bridge.
             || callee == lookup.takeName
             || callee == lookup.dropName
             // KSP-423: List search and predicate HOFs have Kotlin source implementations.
@@ -93,21 +93,13 @@ extension CollectionLiteralConstructionLoweringPass {
         guard sema.symbols.isSourceBackedSymbol(symbol) else {
             return false
         }
-        // STDLIB-pipeline §5 / KSP-441: take/drop have real require() validation
-        // in bundled source, but a runtime Sequence handle cannot be iterated by
-        // the source object-expression iterator. Allow the lowering pipeline to
-        // rewrite to kk_sequence_take/kk_sequence_drop when the receiver is known
-        // to be a runtime Sequence box.
-        //
-        // The same applies to map/filter: source Sequence.map walks a source
+        // STDLIB-pipeline §5 / KSP-441: source Sequence.map/filter walk a source
         // Sequence object via iterator(), but RuntimeSequenceBox (from
         // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
         // must go through kk_sequence_map/filter.
         if let receiverID = arguments.first,
            state.sequenceExprIDs.contains(receiverID.rawValue),
-           callee == lookup.takeName
-            || callee == lookup.dropName
-            || callee == lookup.mapName
+           callee == lookup.mapName
             || callee == lookup.filterName
         {
             return false

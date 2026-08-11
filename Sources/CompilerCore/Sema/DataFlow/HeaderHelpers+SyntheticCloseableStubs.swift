@@ -1,4 +1,4 @@
-/// Synthetic stdlib stubs for Closeable / AutoCloseable and the .use {} extension (STDLIB-520).
+/// Synthetic residuals for Closeable / AutoCloseable and the .use {} extension (STDLIB-520).
 ///
 /// Kotlin defines:
 ///   interface Closeable { fun close(): Unit }
@@ -6,6 +6,13 @@
 ///   fun AutoCloseable(closeAction: () -> Unit): AutoCloseable
 ///   inline fun <T : AutoCloseable?, R> T.use(block: (T) -> R): R
 ///   inline fun <T : Closeable?, R> T.use(block: (T) -> R): R
+///
+/// KSP-611: `kotlin.io.Closeable` (with `close()`), the `AutoCloseable {}` factory and
+/// `kotlin.io.use` are Kotlin source (Stdlib/kotlin/io/Closeable.kt). What remains here
+/// is the interface shell the source declaration reuses on bundle load (so
+/// `TypeSystem.closeableTypeID` stays stable for the `.use {}` inline lowering), the
+/// `kotlin.AutoCloseable` type alias, the `java.io.Closeable` compatibility anchor, and
+/// the common-range `kotlin.use` extension.
 ///
 /// The .use extension is inline-expanded by CallLowerer: no runtime call is needed.
 extension DataFlowSemaPhase {
@@ -61,9 +68,15 @@ extension DataFlowSemaPhase {
         )))
         types.closeableTypeID = closeableType
 
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
         let closeName = interner.intern("close")
         let closeFQName = closeableFQName + [closeName]
-        if symbols.lookup(fqName: closeFQName) == nil {
+        let hasSourceClose = bundledIndex.contains(
+            owner: closeableFQName,
+            name: closeName,
+            arity: 0
+        )
+        if !hasSourceClose, symbols.lookup(fqName: closeFQName) == nil {
             let closeSymbol = symbols.define(
                 kind: .function,
                 name: closeName,
@@ -97,49 +110,9 @@ extension DataFlowSemaPhase {
             )
             symbols.setTypeAliasUnderlyingType(closeableType, for: aliasSymbol)
         }
-        if symbols.lookupAll(fqName: autoCloseableFQName).allSatisfy({ symbols.symbol($0)?.kind != .function }) {
-            let closeActionType = types.make(.functionType(FunctionType(
-                params: [],
-                returnType: types.unitType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let closeActionParamName = interner.intern("closeAction")
-            let closeActionParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: closeActionParamName,
-                fqName: autoCloseableFQName + [closeActionParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let factorySymbol = symbols.define(
-                kind: .function,
-                name: autoCloseableName,
-                fqName: autoCloseableFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(packageSymbol, for: factorySymbol)
-            }
-            symbols.setParentSymbol(factorySymbol, for: closeActionParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: nil,
-                    parameterTypes: [closeActionType],
-                    returnType: closeableType,
-                    isSuspend: false,
-                    valueParameterSymbols: [closeActionParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: []
-                ),
-                for: factorySymbol
-            )
-            symbols.setExternalLinkName("kk_auto_closeable_create", for: factorySymbol)
-        }
+        // KSP-611: the `AutoCloseable { closeAction }` factory is Kotlin source
+        // (Stdlib/kotlin/io/Closeable.kt) delegating to the demoted
+        // __kk_auto_closeable_create bridge, so no synthetic factory is registered.
 
         // --- java.io.Closeable interface (mirrors kotlin.io.Closeable) ---
         // On Kotlin/JVM java.io.Closeable is the canonical type; kswiftc maps it
@@ -286,6 +259,10 @@ extension DataFlowSemaPhase {
         }
 
         registerUseFunction(in: kotlinPkg)
-        registerUseFunction(in: kotlinIOPkg)
+        // KSP-611: kotlin.io.use is Kotlin source (Stdlib/kotlin/io/Closeable.kt);
+        // the common-range kotlin.use stays a synthetic residual for now.
+        if !bundledIndex.contains(owner: kotlinIOPkg, name: useName, arity: 1) {
+            registerUseFunction(in: kotlinIOPkg)
+        }
     }
 }

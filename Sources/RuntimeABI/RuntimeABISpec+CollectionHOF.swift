@@ -43,8 +43,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let before = [
-            "kk_list_map", "kk_list_mapNotNull", "kk_list_forEach",
-            "kk_list_flatMap", "kk_list_flatMapIndexed",
+            "kk_list_forEach",
         ]
         let reduceOrNullSpec = hofSpec("kk_list_reduceOrNull")
         let scanSpec = RuntimeABIFunctionSpec(
@@ -92,24 +91,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let mapToSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("mapTo", arity: 2, fallback: "kk_list_mapTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let flatMapToSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("flatMapTo", arity: 2, fallback: "kk_list_flatMapTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let mapNotNullToSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("mapNotNullTo", arity: 2, fallback: "kk_list_mapNotNullTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
+
         let firstNotNullOfSpec = RuntimeABIFunctionSpec(
             name: "__kk_iterable_firstNotNullOf",
             parameters: [
@@ -163,24 +145,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let mapIndexedToSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("mapIndexedTo", arity: 2, fallback: "kk_list_mapIndexedTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let mapIndexedNotNullToSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("mapIndexedNotNullTo", arity: 2, fallback: "kk_list_mapIndexedNotNullTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let flatMapIndexedToSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("flatMapIndexedTo", arity: 2, fallback: "kk_list_flatMapIndexedTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
+
         let associateBySpec = RuntimeABIFunctionSpec(
             name: "kk_list_associateBy",
             parameters: [
@@ -366,28 +331,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let mapIndexedSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("mapIndexed", arity: 1, fallback: "kk_list_mapIndexed"),
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let mapIndexedNotNullSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_mapIndexedNotNull",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
+
         let sumOfSpec = RuntimeABIFunctionSpec(
             name: "kk_list_sumOf",
             parameters: [
@@ -601,9 +545,8 @@ public extension RuntimeABISpec {
         functions.append(contentsOf: before.map { hofSpec($0) })
         functions.append(contentsOf: [requireNoNullsSpec, foldSpec])
         functions.append(contentsOf: [
-                mapToSpec, flatMapToSpec,
-                mapNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
-                iterableAllSpec, iterableAnySpec, iterableLastSpec, mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
+                firstNotNullOfSpec, firstNotNullOfOrNullSpec,
+                iterableAllSpec, iterableAnySpec, iterableLastSpec,
             ])
         functions.append(
             contentsOf: genericAfter.flatMap { name in
@@ -669,21 +612,13 @@ public extension RuntimeABISpec {
             + [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
+                unzipSpec, withIndexSpec, forEachIndexedSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_flatten",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
+
                 RuntimeABIFunctionSpec(
                     name: "kk_list_binarySearchBy",
                     parameters: [
@@ -963,25 +898,14 @@ public extension RuntimeABISpec {
                 ),
                 // STDLIB-250: Closeable.use {}
                 RuntimeABIFunctionSpec(
-                    name: "kk_use",
-                    parameters: [
-                        RuntimeABIParameter(name: "resourceRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                // STDLIB-KOTLIN-ROOT-CLOSE-001: AutoCloseable { closeAction }
-                RuntimeABIFunctionSpec(
-                    name: "kk_auto_closeable_create",
+                    name: "__kk_auto_closeable_create",
                     parameters: [
                         RuntimeABIParameter(name: "fnPtr", type: .intptr),
                         RuntimeABIParameter(name: "closureRaw", type: .intptr),
                     ],
                     returnType: .intptr,
-                    section: "Collection"
+                    section: "Collection",
+                    isThrowing: false
                 ),
                 // STDLIB-533: List?.orEmpty()
                 RuntimeABIFunctionSpec(

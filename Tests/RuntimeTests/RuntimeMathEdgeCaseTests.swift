@@ -269,73 +269,73 @@ struct RuntimeMathEdgeCaseTests {
 
     @Test
     func testCeilDoubleNaN() {
-        #expect(doubleFromBits(kk_math_ceil(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_math_ceil(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test
     func testCeilDoubleInfinity() {
-        #expect(doubleFromBits(kk_math_ceil(doubleToBits(Double.infinity))).isInfinite)
-        #expect(doubleFromBits(kk_math_ceil(doubleToBits(-Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_ceil(doubleToBits(Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_ceil(doubleToBits(-Double.infinity))).isInfinite)
     }
 
     @Test
     func testCeilDoubleNegativeZero() {
         // ceil(-0.0) == -0.0
-        let result = doubleFromBits(kk_math_ceil(doubleToBits(-0.0)))
+        let result = doubleFromBits(__kk_math_ceil(doubleToBits(-0.0)))
         #expect(result == 0.0)
     }
 
     @Test
     func testFloorDoubleNaN() {
-        #expect(doubleFromBits(kk_math_floor(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_math_floor(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test
     func testFloorDoubleInfinity() {
-        #expect(doubleFromBits(kk_math_floor(doubleToBits(Double.infinity))).isInfinite)
-        #expect(doubleFromBits(kk_math_floor(doubleToBits(-Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_floor(doubleToBits(Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_floor(doubleToBits(-Double.infinity))).isInfinite)
     }
 
     @Test
     func testFloorDoubleNegativeZero() {
         // floor(-0.0) == -0.0 (IEEE 754 符号保持)
-        let result = doubleFromBits(kk_math_floor(doubleToBits(-0.0)))
+        let result = doubleFromBits(__kk_math_floor(doubleToBits(-0.0)))
         #expect(result == 0.0)
         #expect(result.sign == .minus)
     }
 
     @Test
     func testTruncateDoubleNaN() {
-        #expect(doubleFromBits(kk_math_truncate(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_math_truncate(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test
     func testTruncateDoubleInfinity() {
-        #expect(doubleFromBits(kk_math_truncate(doubleToBits(Double.infinity))).isInfinite)
-        #expect(doubleFromBits(kk_math_truncate(doubleToBits(-Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_truncate(doubleToBits(Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_truncate(doubleToBits(-Double.infinity))).isInfinite)
     }
 
     @Test
     func testTruncateDoubleRoundsTowardZero() {
-        #expect(doubleFromBits(kk_math_truncate(doubleToBits(2.9))) == 2.0)
-        #expect(doubleFromBits(kk_math_truncate(doubleToBits(-2.9))) == -2.0)
+        #expect(doubleFromBits(__kk_math_truncate(doubleToBits(2.9))) == 2.0)
+        #expect(doubleFromBits(__kk_math_truncate(doubleToBits(-2.9))) == -2.0)
     }
 
     @Test
     func testTruncateFloatRoundsTowardZero() {
-        #expect(floatFromBits(kk_math_truncate_float(floatToBits(2.9))) == 2.0)
-        #expect(floatFromBits(kk_math_truncate_float(floatToBits(-2.9))) == -2.0)
+        #expect(floatFromBits(__kk_math_truncate_float(floatToBits(2.9))) == 2.0)
+        #expect(floatFromBits(__kk_math_truncate_float(floatToBits(-2.9))) == -2.0)
     }
 
     @Test
     func testTruncateFloatNaN() {
-        #expect(floatFromBits(kk_math_truncate_float(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(__kk_math_truncate_float(floatToBits(Float.nan))).isNaN)
     }
 
     @Test
     func testTruncateDoubleNegativeZero() {
         // truncate(-0.0) == -0.0 (IEEE 754 符号保持)
-        let result = doubleFromBits(kk_math_truncate(doubleToBits(-0.0)))
+        let result = doubleFromBits(__kk_math_truncate(doubleToBits(-0.0)))
         #expect(result == 0.0)
         #expect(result.sign == .minus)
     }
@@ -343,14 +343,14 @@ struct RuntimeMathEdgeCaseTests {
     @Test
     func testTruncateDoublePositiveZeroSign() {
         // truncate(+0.0) == +0.0 (符号保持; -0.0 と対称)
-        let result = doubleFromBits(kk_math_truncate(doubleToBits(0.0)))
+        let result = doubleFromBits(__kk_math_truncate(doubleToBits(0.0)))
         #expect(result == 0.0)
         #expect(!(result.sign == .minus))
     }
 
     @Test
     func testTruncateFloatNegativeZero() {
-        let result = floatFromBits(kk_math_truncate_float(floatToBits(-0.0)))
+        let result = floatFromBits(__kk_math_truncate_float(floatToBits(-0.0)))
         #expect(result == 0.0)
         #expect(result.sign == .minus)
     }
@@ -359,29 +359,29 @@ struct RuntimeMathEdgeCaseTests {
 
     @Test
     func testCeilFloatNaN() {
-        #expect(floatFromBits(kk_math_ceil_float(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(__kk_math_ceil_float(floatToBits(Float.nan))).isNaN)
     }
 
     @Test
     func testCeilFloatInfinity() {
-        #expect(floatFromBits(kk_math_ceil_float(floatToBits(Float.infinity))).isInfinite)
-        #expect(floatFromBits(kk_math_ceil_float(floatToBits(-Float.infinity))).isInfinite)
+        #expect(floatFromBits(__kk_math_ceil_float(floatToBits(Float.infinity))).isInfinite)
+        #expect(floatFromBits(__kk_math_ceil_float(floatToBits(-Float.infinity))).isInfinite)
     }
 
     @Test
     func testFloorFloatNaN() {
-        #expect(floatFromBits(kk_math_floor_float(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(__kk_math_floor_float(floatToBits(Float.nan))).isNaN)
     }
 
     @Test
     func testFloorFloatInfinity() {
-        #expect(floatFromBits(kk_math_floor_float(floatToBits(Float.infinity))).isInfinite)
-        #expect(floatFromBits(kk_math_floor_float(floatToBits(-Float.infinity))).isInfinite)
+        #expect(floatFromBits(__kk_math_floor_float(floatToBits(Float.infinity))).isInfinite)
+        #expect(floatFromBits(__kk_math_floor_float(floatToBits(-Float.infinity))).isInfinite)
     }
 
     @Test
     func testFloorFloatNegativeZero() {
-        let result = floatFromBits(kk_math_floor_float(floatToBits(-0.0)))
+        let result = floatFromBits(__kk_math_floor_float(floatToBits(-0.0)))
         #expect(result == 0.0)
         #expect(result.sign == .minus)
     }
@@ -390,13 +390,13 @@ struct RuntimeMathEdgeCaseTests {
 
     @Test
     func testRoundDoubleInfinity() {
-        #expect(doubleFromBits(kk_math_round(doubleToBits(Double.infinity))).isInfinite)
-        #expect(doubleFromBits(kk_math_round(doubleToBits(-Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(Double.infinity))).isInfinite)
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(-Double.infinity))).isInfinite)
     }
 
     @Test
     func testRoundDoubleNegativeZero() {
-        let result = doubleFromBits(kk_math_round(doubleToBits(-0.0)))
+        let result = doubleFromBits(__kk_math_round(doubleToBits(-0.0)))
         #expect(result == 0.0)
     }
 
@@ -404,8 +404,8 @@ struct RuntimeMathEdgeCaseTests {
 
     @Test
     func testRoundFloatInfinity() {
-        #expect(floatFromBits(kk_math_round_float(floatToBits(Float.infinity))).isInfinite)
-        #expect(floatFromBits(kk_math_round_float(floatToBits(-Float.infinity))).isInfinite)
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(Float.infinity))).isInfinite)
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(-Float.infinity))).isInfinite)
     }
 
     // MARK: - hypot(Double) special cases
@@ -1305,42 +1305,6 @@ struct RuntimeMathEdgeCaseTests {
     @Test
     func testIEEEremFloatNaN() {
         #expect(floatFromBits(kk_math_IEEErem_float(floatToBits(Float.nan), floatToBits(1.0))).isNaN)
-    }
-
-    // MARK: - withSign (copysign) edge cases
-
-    @Test
-    func testWithSignDoublePositiveSign() {
-        // copysign(-3.0, +1.0) == +3.0
-        #expect(doubleFromBits(kk_math_withSign(doubleToBits(-3.0), doubleToBits(1.0))) == 3.0)
-    }
-
-    @Test
-    func testWithSignDoubleNegativeSign() {
-        #expect(doubleFromBits(kk_math_withSign(doubleToBits(3.0), doubleToBits(-1.0))) == -3.0)
-    }
-
-    @Test
-    func testWithSignDoubleNegativeZeroSign() {
-        // Sign of -0.0 is negative
-        let result = doubleFromBits(kk_math_withSign(doubleToBits(3.0), doubleToBits(-0.0)))
-        #expect(result == -3.0)
-    }
-
-    @Test
-    func testWithSignFloatPositiveSign() {
-        #expect(floatFromBits(kk_math_withSign_float(floatToBits(-3.0), floatToBits(1.0))) == 3.0)
-    }
-
-    @Test
-    func testWithSignFloatNegativeSign() {
-        #expect(floatFromBits(kk_math_withSign_float(floatToBits(3.0), floatToBits(-1.0))) == -3.0)
-    }
-
-    @Test
-    func testWithSignFloatIntSign() {
-        #expect(floatFromBits(kk_math_withSign_float_int(floatToBits(-3.0), 1)) == 3.0)
-        #expect(floatFromBits(kk_math_withSign_float_int(floatToBits(3.0), -1)) == -3.0)
     }
 
     // MARK: - nextTowards edge cases

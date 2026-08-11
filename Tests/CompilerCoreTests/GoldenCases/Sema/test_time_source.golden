@@ -3,7 +3,7 @@ symbol fq=__local_1.mark1 kind=local vis=private flags=_ type=kotlin.time.Compar
 symbol fq=__local_2.mark2 kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.time.ComparableTimeMark kind=class vis=public flags=synthetic
+symbol fq=kotlin.time.ComparableTimeMark kind=interface vis=public flags=synthetic
 symbol fq=kotlin.time.Duration kind=class vis=public flags=synthetic type=kotlin.time.Duration
 symbol fq=kotlin.time.TestTimeSource kind=class vis=public flags=synthetic
 symbol fq=kotlin.time.TestTimeSource.<init> kind=constructor vis=public flags=synthetic sig=recv=kotlin.time.TestTimeSource params=[] ret=kotlin.time.TestTimeSource
