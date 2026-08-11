@@ -1,12 +1,17 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendMultilineOperatorContinuationTests {
+    private let pipelineHelper = CodegenBackendTestSupport()
+
     /// A declaration whose line ends with a binary operator continues on the next
     /// line. The parser used to end the declaration at the newline, silently
     /// dropping the continuation (or turning it into a stray top-level statement).
+    @Test
     func testCodegenCompilesTopLevelDeclarationsWithTrailingOperatorContinuation() throws {
         let source = """
         val total: Int = 1 +
@@ -37,4 +42,27 @@ extension CodegenBackendIntegrationTests {
             expected: "6\n10\ntrue\nfalse\ntrue\n"
         )
     }
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try pipelineHelper.runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
 }
+#endif
