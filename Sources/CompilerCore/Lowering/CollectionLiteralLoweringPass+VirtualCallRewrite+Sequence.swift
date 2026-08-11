@@ -111,23 +111,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        // take(n) uses the direct kk_sequence_take shortcut only when the source
-        // declaration is not available (checked above).
-        if callee == lookup.takeName, arguments.count == 1 {
-            if sequenceExprIDs.contains(receiver.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSequenceTakeName,
-                    arguments: [receiver] + arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                if let result { sequenceExprIDs.insert(result.rawValue) }
-                return true
-            }
-        }
-
         if callee == lookup.takeName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
             let transformResult = module.arena.appendTemporary(type: nil
             )

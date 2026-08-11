@@ -39,10 +39,8 @@ extension CollectionLiteralConstructionLoweringPass {
     // a sequence expression so downstream map/filter/toList rewrites fire.
     if callee == lookup.kkListAsSequenceName || callee == lookup.kkArrayAsSequenceName
         || callee == lookup.kkSequenceMapName || callee == lookup.kkSequenceFilterName
-        || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceFlatMapName
+        || callee == lookup.kkSequenceFlatMapName
         || callee == lookup.kkSequenceFlatMapIndexedName
-        || callee == lookup.kkSequenceDropName || callee == lookup.kkSequenceDistinctName
-        || callee == lookup.kkSequenceZipName
         || callee == lookup.kkSequenceConstrainOnceName
         || callee == lookup.kkSequenceShuffledName || callee == lookup.kkSequenceShuffledRandomName
         || callee == lookup.kkSequencePlusName || callee == lookup.kkSequenceMinusName
@@ -203,21 +201,9 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // take(n) on sequence → kk_sequence_take
+    // take(n) on list → kk_list_take
     if callee == lookup.takeName, arguments.count == 2 {
         let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceTakeName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
         if state.listExprIDs.contains(receiverID.rawValue) {
             let transformResult = module.arena.appendTemporary(type: nil
             )
@@ -274,61 +260,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // zipWithNext on sequence → kk_sequence_zipWithNext / kk_sequence_zipWithNextTransform
-    if callee == lookup.zipWithNextName,
-       arguments.count == 1 || arguments.count == 2 || arguments.count == 3
-    {
-        let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            if arguments.count == 1 {
-                // zipWithNext() — no transform
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSequenceZipWithNextName,
-                    arguments: [receiverID],
-                    result: hofResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                if let result {
-                    state.sequenceExprIDs.insert(result.rawValue)
-                    state.sequenceExprIDs.insert(hofResult.rawValue)
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            } else {
-                // zipWithNext { a, b -> ... } — with transform
-                let lambdaID = arguments[1]
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSequenceZipWithNextTransformName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if let result {
-                    state.sequenceExprIDs.insert(result.rawValue)
-                    state.sequenceExprIDs.insert(hofResult.rawValue)
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
-        }
-    }
-
     // flatMap on sequence → kk_sequence_flatMap (STDLIB-095)
     if callee == lookup.flatMapName,
        arguments.count == 2 || arguments.count == 3
@@ -367,40 +298,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // drop(n) on sequence → kk_sequence_drop (STDLIB-096)
-    if callee == lookup.dropName, arguments.count == 2 {
-        let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceDropName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
-    }
-
-    // distinct() on sequence → kk_sequence_distinct (STDLIB-096)
-    if callee == lookup.distinctName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceDistinctName,
-                arguments: [receiverID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
-    }
-
     // shuffled([random]) on sequence -> kk_sequence_shuffled(_random)
     if callee == lookup.shuffledName, arguments.count == 1 || arguments.count == 2 {
         let receiverID = arguments[0]
@@ -411,23 +308,6 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: kkName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
-    }
-
-    // zip(other) on sequence → kk_sequence_zip (STDLIB-096)
-    if callee == lookup.zipName, arguments.count == 2 {
-        let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceZipName,
                 arguments: arguments,
                 result: result,
                 canThrow: false,
