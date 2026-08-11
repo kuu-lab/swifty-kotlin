@@ -46,6 +46,38 @@ public fun Throwable.getSuppressed(): Array<Throwable> = __kkThrowableSuppressed
 public val Throwable.suppressedExceptions: List<Throwable>
     get() = __kkThrowableSuppressedRaw(this).toList()
 
+public fun Throwable.stackTraceToString(): String {
+    val lines = mutableListOf<String>()
+    collectThrowableTraceLines(this, lines, null)
+    return lines.joinToString("\n")
+}
+
+private fun collectThrowableTraceLines(
+    throwable: Throwable,
+    lines: MutableList<String>,
+    prefix: String?
+) {
+    val frames = __kkThrowableRawStackFrames(throwable)
+    for (i in 0 until frames.size) {
+        val line = if (prefix != null && i == 0) prefix + frames[i] else frames[i]
+        lines.add(line)
+    }
+
+    val suppressed = throwable.getSuppressed()
+    for (i in 0 until suppressed.size) {
+        collectThrowableTraceLines(suppressed[i], lines, "Suppressed: ")
+    }
+
+    val cause = throwable.cause
+    if (cause != null) {
+        collectThrowableTraceLines(cause, lines, "Caused by: ")
+    }
+}
+
+public fun Throwable.printStackTrace() {
+    __kkPrintStderr(this.stackTraceToString() + "\n")
+}
+
 @KsSymbolName("__kk_throwable_message")
 internal external fun __kkThrowableMessage(throwable: Throwable): String?
 
@@ -60,3 +92,9 @@ internal external fun __kkThrowableAppendSuppressed(throwable: Throwable, except
 
 @KsSymbolName("__kk_throwable_suppressedRaw")
 internal external fun __kkThrowableSuppressedRaw(throwable: Throwable): Array<Throwable>
+
+@KsSymbolName("__kk_throwable_rawStackFrames")
+internal external fun __kkThrowableRawStackFrames(throwable: Throwable): Array<String>
+
+@KsSymbolName("__kk_printStderr")
+internal external fun __kkPrintStderr(message: String)

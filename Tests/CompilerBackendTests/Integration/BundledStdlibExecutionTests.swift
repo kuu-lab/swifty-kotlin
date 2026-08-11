@@ -563,4 +563,26 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // Regression for a lambda-capture lowering bug: `let` / `?.let` blocks that
+    // capture an outer variable must forward the lambda parameter (`it`)
+    // correctly instead of shadowing it with the capture.
+    @Test
+    func testLetLambdaForwardsItWhenCapturingOuterVariable() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val outer = 10
+                val s: String = "hi"
+                val r = s.let { it + ":" + outer.toString() }
+                println(r)
+
+                val n: String? = "hello"
+                val q = n?.let { it + ":" + outer.toString() }
+                println(q ?: "null")
+            }
+            """,
+            expectedOutput: "hi:10\nhello:10\n"
+        )
+    }
 }
