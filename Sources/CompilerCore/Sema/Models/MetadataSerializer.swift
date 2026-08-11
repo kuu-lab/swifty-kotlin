@@ -234,7 +234,11 @@ package final class MetadataEncoder {
                 // the class's public surface and are compiled into the artifact. Without
                 // them consumers cannot destructure or compare an imported data class.
                 let keepAsDataClassMember = !includeSynthetic
-                    && Self.isSourceBackedDataClassMember(symbol.id, symbols: symbols)
+                    && Self.isSourceBackedDataClassMember(
+                        symbol.id,
+                        symbols: symbols,
+                        excludedSourceFileIDs: excludeSourceFileIDs
+                    )
                 if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
@@ -865,13 +869,26 @@ package final class MetadataEncoder {
 
     /// True when `symbolID` is (or belongs to) a compiler-generated member of a
     /// source-backed data class (KSP-626).
-    private static func isSourceBackedDataClassMember(_ symbolID: SymbolID, symbols: SymbolTable) -> Bool {
+    private static func isSourceBackedDataClassMember(
+        _ symbolID: SymbolID,
+        symbols: SymbolTable,
+        excludedSourceFileIDs: Set<Int32>
+    ) -> Bool {
         var currentID = symbols.parentSymbol(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if nominalKinds.contains(parent.kind) {
-                return parent.flags.contains(.dataType)
-                    && !parent.flags.contains(.synthetic)
-                    && parent.declSite != nil
+                guard parent.flags.contains(.dataType),
+                      !parent.flags.contains(.synthetic),
+                      parent.declSite != nil
+                else {
+                    return false
+                }
+                if let sourceFileID = symbols.sourceFileID(for: parent.id),
+                   excludedSourceFileIDs.contains(sourceFileID.rawValue)
+                {
+                    return false
+                }
+                return true
             }
             currentID = symbols.parentSymbol(for: parentID)
         }
