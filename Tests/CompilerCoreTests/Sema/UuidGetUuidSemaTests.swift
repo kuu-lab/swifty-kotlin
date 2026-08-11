@@ -21,7 +21,9 @@ struct UuidGetUuidSemaTests {
         return try #require(result)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         let (_, sema, interner) = try makeSemaWithContext()
         return (sema, interner)
     }
@@ -53,7 +55,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidIsRegisteredInKotlinUuidPackage() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
         #expect(
             !sema.symbols.lookupAll(fqName: fq).isEmpty,
@@ -80,7 +82,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidHasByteBufferReceiverType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findGetUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
         )
@@ -105,7 +107,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidIndexOverloadHasOneIntParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findGetUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
         )
@@ -118,7 +120,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidNoArgOverloadHasNoParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findGetUuidSymbol(parameterCount: 0, sema: sema, interner: interner)
         )
@@ -132,7 +134,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidReturnsUuid() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findGetUuidSymbol(parameterCount: 0, sema: sema, interner: interner)
         )
@@ -154,7 +156,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidHasExperimentalUuidApiAnnotation() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findGetUuidSymbol(parameterCount: 0, sema: sema, interner: interner)
         )

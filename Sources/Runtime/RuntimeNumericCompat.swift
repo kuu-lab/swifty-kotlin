@@ -356,27 +356,27 @@ public func kk_bits_to_double(_ value: Int) -> Double {
 
 @_cdecl("kk_int_to_float_bits")
 public func kk_int_to_float_bits(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_byte")
 public func kk_int_to_byte(_ value: Int) -> Int {
-    Int(Int8(truncatingIfNeeded: value))
+    Int(Int8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_short")
 public func kk_int_to_short(_ value: Int) -> Int {
-    Int(Int16(truncatingIfNeeded: value))
+    Int(Int16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_double_bits")
 public func kk_int_to_double_bits(_ value: Int) -> Int {
-    kk_double_to_bits(Double(value))
+    kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_float_to_double_bits")
@@ -1156,8 +1156,7 @@ public func kk_float_to_long(_ value: Int) -> Int {
 }
 
 /// Long→* conversions: `Int` (intptr_t) is used for Long values.
-/// This is correct on 64-bit macOS where Int == Int64; see the note above
-/// kk_long_coerceIn for the full rationale.
+/// This is correct on 64-bit macOS where Int == Int64.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))

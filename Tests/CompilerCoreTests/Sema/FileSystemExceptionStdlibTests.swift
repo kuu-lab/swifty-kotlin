@@ -9,6 +9,15 @@ import Testing
 /// constructor arity binds to its own runtime storage entry point.
 @Suite
 struct FileSystemExceptionStdlibTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -73,7 +82,7 @@ struct FileSystemExceptionStdlibTests {
     }
 
     @Test func testHierarchyIsSourceBacked() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let exceptionSymbol = try classSymbol(["kotlin", "Exception"], sema, interner)
         let fileSystemSymbol = try classSymbol(["kotlin", "io", "FileSystemException"], sema, interner)
@@ -87,7 +96,7 @@ struct FileSystemExceptionStdlibTests {
     }
 
     @Test func testConstructorsBindToRuntimeStorage() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let cases: [([String], String)] = [
             (["kotlin", "io", "FileSystemException"], "__kk_file_system_exception"),

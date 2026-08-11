@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct PropertyDelegateProviderSyntheticStubTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -16,7 +25,7 @@ struct PropertyDelegateProviderSyntheticStubTests {
     }
 
     @Test func testPropertyDelegateProviderSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
         let providerFQName = propertiesFQName + [interner.intern("PropertyDelegateProvider")]
         let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }

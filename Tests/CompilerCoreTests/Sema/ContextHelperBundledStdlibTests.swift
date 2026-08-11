@@ -8,7 +8,7 @@ import Testing
 @Suite
 struct ContextHelperBundledStdlibTests {
     @Test func testContextHelperIsRegisteredWithContextFunctionBlock() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let contextSymbol = try #require(lookupSymbol(["kotlin", "context"], sema: sema, interner: interner))
         let symbol = try #require(sema.symbols.symbol(contextSymbol))
         let signature = try #require(sema.symbols.functionSignature(for: contextSymbol))
@@ -32,7 +32,7 @@ struct ContextHelperBundledStdlibTests {
     }
 
     @Test func testContextHelperRegistersOverloadsThroughAritySix() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let contextSymbols = sema.symbols.lookupAll(fqName: ["kotlin", "context"].map { interner.intern($0) })
         let arities = Set(contextSymbols.compactMap { symbolID -> Int? in
             guard let signature = sema.symbols.functionSignature(for: symbolID),
@@ -48,7 +48,7 @@ struct ContextHelperBundledStdlibTests {
     }
 
     @Test func testContextOfHelperIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let contextOfSymbol = try #require(lookupSymbol(["kotlin", "contextOf"], sema: sema, interner: interner))
         let symbol = try #require(sema.symbols.symbol(contextOfSymbol))
         let signature = try #require(sema.symbols.functionSignature(for: contextOfSymbol))
@@ -165,7 +165,9 @@ struct ContextHelperBundledStdlibTests {
         #expect(try #require(sema.symbols.functionSignature(for: callerContextSymbol)).returnType == sema.types.intType)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -173,7 +175,9 @@ struct ContextHelperBundledStdlibTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {

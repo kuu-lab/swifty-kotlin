@@ -238,6 +238,16 @@ extension DataFlowSemaPhase {
             }
         }
 
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            applyImportedNominalGenerics(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+
         // Resolve companion object references so ClassName.member() shorthand works.
         for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             if let companionFQName = binding.record.companionObjectFQName,
@@ -284,6 +294,83 @@ extension DataFlowSemaPhase {
             } else {
                 symbols.setSealedSubclasses([], for: binding.symbol)
             }
+        }
+    }
+
+    /// Restores the generic shape of an imported nominal type: its own type
+    /// parameters (with declared variance) and the type arguments it passes to
+    /// each generic supertype. Without them a `class Sub<T> : Base<T>` read back
+    /// from metadata behaves like a raw type, so `Sub<Int>` neither lifts to
+    /// `Base<Int>` nor substitutes `T` in its members' signatures.
+    private func applyImportedNominalGenerics(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let record = binding.record
+        let decode: (String) -> ClassType? = { token in
+            guard let decoded = self.decodeImportedTypeSignature(
+                token: token,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics,
+                metadataPath: binding.metadataPath,
+                ownerFQName: record.fqName,
+                allowPlaceholders: binding.isStdlibArtifact
+            ), case let .classType(classType) = types.kind(of: decoded) else {
+                return nil
+            }
+            return classType
+        }
+
+        if types.nominalTypeParameterSymbols(for: binding.symbol).isEmpty,
+           let selfSignature = record.nominalTypeParametersSignature,
+           let selfType = decode(selfSignature)
+        {
+            var typeParameterSymbols: [SymbolID] = []
+            var variances: [TypeVariance] = []
+            var isValid = true
+            arguments: for arg in selfType.args {
+                let argType: TypeID
+                switch arg {
+                case let .invariant(type):
+                    argType = type
+                    variances.append(.invariant)
+                case let .out(type):
+                    argType = type
+                    variances.append(.out)
+                case let .in(type):
+                    argType = type
+                    variances.append(.in)
+                case .star:
+                    isValid = false
+                    break arguments
+                }
+                guard case let .typeParam(typeParam) = types.kind(of: argType) else {
+                    isValid = false
+                    break arguments
+                }
+                typeParameterSymbols.append(typeParam.symbol)
+            }
+            if isValid && !typeParameterSymbols.isEmpty {
+                types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
+                if variances.contains(where: { $0 != .invariant }) {
+                    types.setNominalTypeParameterVariances(variances, for: binding.symbol)
+                }
+            }
+        }
+
+        for supertypeSignature in record.nominalSupertypeSignatures {
+            guard let supertype = decode(supertypeSignature),
+                  !supertype.args.isEmpty,
+                  types.nominalSupertypeTypeArgs(for: binding.symbol, supertype: supertype.classSymbol).isEmpty
+            else {
+                continue
+            }
+            types.setNominalSupertypeTypeArgs(supertype.args, for: binding.symbol, supertype: supertype.classSymbol)
         }
     }
 
@@ -415,6 +502,8 @@ extension DataFlowSemaPhase {
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
+        let nominalTypeParametersSignature: String?
+        let nominalSupertypeSignatures: [String]
         let constValueLiteral: String?
         /// Declaration-order type parameters of a nominal type, encoded as
         /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
@@ -464,6 +553,8 @@ extension DataFlowSemaPhase {
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
+            nominalTypeParametersSignature: String? = nil,
+            nominalSupertypeSignatures: [String] = [],
             constValueLiteral: String? = nil,
             nominalTypeParameters: String? = nil
         ) {
@@ -510,6 +601,8 @@ extension DataFlowSemaPhase {
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
+            self.nominalTypeParametersSignature = nominalTypeParametersSignature
+            self.nominalSupertypeSignatures = nominalSupertypeSignatures
             self.constValueLiteral = constValueLiteral
             self.nominalTypeParameters = nominalTypeParameters
         }
