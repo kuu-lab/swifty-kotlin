@@ -9,6 +9,15 @@ import Testing
 /// and is backed by the runtime entry point `kk_url_readBytes`.
 @Suite
 struct URLReadBytesFunctionTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
@@ -25,7 +34,7 @@ struct URLReadBytesFunctionTests {
 
     @Test
     func testURLReadBytesFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let urlSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("java"),
             interner.intern("net"),

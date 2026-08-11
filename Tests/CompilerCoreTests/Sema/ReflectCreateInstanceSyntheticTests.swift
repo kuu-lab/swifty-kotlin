@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct ReflectCreateInstanceSyntheticTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -19,7 +28,7 @@ struct ReflectCreateInstanceSyntheticTests {
     }
 
     @Test func testCreateInstanceSurfaceIsNotRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let functionFQName = ["kotlin", "reflect", "full", "createInstance"].map { interner.intern($0) }
         #expect(sema.symbols.lookupAll(fqName: functionFQName).isEmpty)
     }

@@ -4,18 +4,22 @@ import Testing
 
 @Suite
 struct RangeSyntheticInterfaceTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     @Test func testClosedRangeAndClosedFloatingPointRangeSymbolsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let rangesFQName = ["kotlin", "ranges"].map { interner.intern($0) }
         let closedRangeFQName = rangesFQName + [interner.intern("ClosedRange")]
@@ -147,7 +151,7 @@ struct RangeSyntheticInterfaceTests {
     /// synthetic shell symbols on bundle load, which clears the `.synthetic` flag, so the
     /// registered interfaces must be source-backed rather than synthetic.
     @Test func testRangeInterfaceDeclarationsAreSourceBacked() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let rangesFQName = ["kotlin", "ranges"].map { interner.intern($0) }
         for name in ["ClosedRange", "ClosedFloatingPointRange", "OpenEndRange"] {
@@ -170,7 +174,7 @@ struct RangeSyntheticInterfaceTests {
     }
 
     @Test func testOpenEndRangeSymbolIsRegisteredWithComparableUpperBound() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let openEndRangeFQName = ["kotlin", "ranges", "OpenEndRange"].map { interner.intern($0) }
         let comparableFQName = ["kotlin", "Comparable"].map { interner.intern($0) }

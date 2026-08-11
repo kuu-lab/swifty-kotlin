@@ -31,7 +31,9 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - Shared sema fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -39,7 +41,9 @@ struct ComparisonsAPISurfaceInventoryTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     // MARK: - Lookup helpers
@@ -127,19 +131,19 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 1. kotlin.Comparator interface
 
     @Test func testComparatorInterfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(symbolExists(fqPath: ["kotlin", "Comparator"], sema: sema, interner: interner), "kotlin.Comparator interface must be registered in symbol table")
     }
 
     @Test func testComparatorCompareMemberIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(symbolExists(fqPath: ["kotlin", "Comparator", "compare"], sema: sema, interner: interner), "kotlin.Comparator.compare must be registered")
     }
 
     // MARK: - 2. Comparator member: thenBy
 
     @Test func testComparatorThenByIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "thenBy",
             sema: sema,
@@ -150,7 +154,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 3. Comparator member: thenByDescending
 
     @Test func testComparatorThenByDescendingIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "thenByDescending",
             sema: sema,
@@ -161,7 +165,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 4. Comparator member: thenComparator
 
     @Test func testComparatorThenComparatorIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "thenComparator",
             sema: sema,
@@ -172,7 +176,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 5. Comparator member: thenDescending
 
     @Test func testComparatorThenDescendingIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "thenDescending",
             sema: sema,
@@ -183,7 +187,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 6. Comparator member: reversed
 
     @Test func testComparatorReversedIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "reversed",
             parameterCount: 0,
@@ -195,7 +199,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 7. Comparator member: nullsFirst
 
     @Test func testComparatorNullsFirstIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "nullsFirst",
             parameterCount: 0,
@@ -207,7 +211,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 8. Comparator member: nullsLast
 
     @Test func testComparatorNullsLastIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedComparatorExtension(
             "nullsLast",
             parameterCount: 0,
@@ -219,7 +223,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 9. Factory: compareBy (single-selector)
 
     @Test func testCompareByTopLevelIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareBy"],
             parameterCount: 1,
@@ -231,7 +235,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 10. Factory: compareBy primitive variant removed
 
     @Test func testCompareByPrimitiveVariantIsNotRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(!symbolExists(
             fqPath: ["kotlin", "comparisons", "compareByPrimitive"],
             sema: sema,
@@ -242,7 +246,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 11. Factory: compareByDescending (single-selector)
 
     @Test func testCompareByDescendingTopLevelIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareByDescending"],
             parameterCount: 1,
@@ -254,7 +258,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 12. Factory: compareBy with multi-selector (2 selectors)
 
     @Test func testCompareByTwoSelectorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareBy"],
             parameterCount: 2,
@@ -266,7 +270,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 13. Factory: compareBy with multi-selector (3 selectors)
 
     @Test func testCompareByThreeSelectorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareBy"],
             parameterCount: 3,
@@ -278,7 +282,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 14. Factory: naturalOrder
 
     @Test func testNaturalOrderIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "naturalOrder"],
             parameterCount: 0,
@@ -290,7 +294,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 15. Factory: reverseOrder
 
     @Test func testReverseOrderIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "reverseOrder"],
             parameterCount: 0,
@@ -302,7 +306,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 16. compareValues (2 nullable args -> Int)
 
     @Test func testCompareValuesIsRegisteredFromBundledStdlib() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValues"],
             parameterCount: 2,
@@ -314,7 +318,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 17. compareValuesBy (1 selector)
 
     @Test func testCompareValuesByArity1IsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
             parameterCount: 3,
@@ -326,7 +330,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 18. compareValuesBy (2 selectors)
 
     @Test func testCompareValuesByArity2IsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
             parameterCount: 4,
@@ -338,7 +342,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 19. compareValuesBy (3 selectors)
 
     @Test func testCompareValuesByArity3IsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
             parameterCount: 5,
@@ -375,19 +379,19 @@ struct ComparisonsAPISurfaceInventoryTests {
     }
 
     @Test func testMaxOfWithComparatorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasThreeParamComparatorOverload(comparisonsName: "maxOf", sema: sema, interner: interner), "kotlin.comparisons.maxOf must have a 3-param (a, b, Comparator<T>) overload")
     }
 
     @Test func testMinOfWithComparatorOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(hasThreeParamComparatorOverload(comparisonsName: "minOf", sema: sema, interner: interner), "kotlin.comparisons.minOf must have a 3-param (a, b, Comparator<T>) overload")
     }
 
     // MARK: - 21. coerceIn range overloads (kotlin.ranges cross-inventory)
 
     @Test func testCoerceInIntOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
@@ -397,7 +401,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     }
 
     @Test func testCoerceInLongOverloadIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
@@ -410,7 +414,7 @@ struct ComparisonsAPISurfaceInventoryTests {
         // MIGRATION-RANGE-003: Double.coerceIn(min,max) migrated to bundled Kotlin source
         // (RangeCoercion.kt). The synthetic stub with kk_double_coerceIn no longer exists;
         // verify no stale stub was left behind.
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
@@ -423,7 +427,7 @@ struct ComparisonsAPISurfaceInventoryTests {
         // MIGRATION-RANGE-003: Float.coerceIn(min,max) migrated to bundled Kotlin source
         // (RangeCoercion.kt). The synthetic stub with kk_float_coerceIn no longer exists;
         // verify no stale stub was left behind.
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
@@ -435,7 +439,7 @@ struct ComparisonsAPISurfaceInventoryTests {
     // MARK: - 22. Mandatory API completeness assertion
 
     @Test func testAllMandatoryComparatorAPISymbolsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let sourceBackedComparatorMembers = [
             "thenBy",

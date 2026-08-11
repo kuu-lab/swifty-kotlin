@@ -1,3 +1,5 @@
+import Foundation
+
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
@@ -571,6 +573,27 @@ extension CallTypeChecker {
                               let signature = sema.symbols.functionSignature(for: candidate),
                               let recv = signature.receiverType
                         else { return false }
+                        return extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionTypeForExtensionLookup,
+                            declaredReceiver: recv,
+                            sema: sema
+                        )
+                    }
+                }
+                if companionCandidates.isEmpty {
+                    // Precompiled library extensions are not inserted into
+                    // file scopes, because their receiver is resolved during
+                    // member-call inference. Recover those synthetic
+                    // declarations by short name for class-name receivers.
+                    companionCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              symbol.flags.contains(.synthetic),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let recv = signature.receiverType
+                        else {
+                            return false
+                        }
                         return extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: companionTypeForExtensionLookup,
                             declaredReceiver: recv,
