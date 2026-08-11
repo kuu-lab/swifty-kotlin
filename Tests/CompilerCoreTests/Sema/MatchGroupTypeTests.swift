@@ -11,6 +11,15 @@ import Testing
 @Suite
 struct MatchGroupTypeTests {
 
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner, CompilationContext)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner, CompilationContext) {
+        if let cached = Self._sharedSema { return cached }
+        let triple = try makeSema()
+        Self._sharedSema = triple
+        return triple
+    }
+
     // MARK: - Shared sema fixture
 
     private func makeSema() throws -> (SemaModule, StringInterner, CompilationContext) {
@@ -38,7 +47,7 @@ struct MatchGroupTypeTests {
     // MARK: - 1. Class symbol comes from bundled Kotlin source
 
     @Test func testMatchGroupClassSymbolComesFromBundledSource() throws {
-        let (sema, interner, ctx) = try makeSema()
+        let (sema, interner, ctx) = try sharedSema()
         let fq = ["kotlin", "text", "MatchGroup"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),
@@ -55,7 +64,7 @@ struct MatchGroupTypeTests {
     // MARK: - 2. value / range are plain source properties (no runtime link)
 
     @Test func testMatchGroupPropertiesAreSourceBacked() throws {
-        let (sema, interner, ctx) = try makeSema()
+        let (sema, interner, ctx) = try sharedSema()
         for propertyName in ["value", "range"] {
             let fq = ["kotlin", "text", "MatchGroup", propertyName].map { interner.intern($0) }
             let sym = try #require(
@@ -75,7 +84,7 @@ struct MatchGroupTypeTests {
     // MARK: - 3. MatchGroupCollection comes from bundled Kotlin source
 
     @Test func testMatchGroupCollectionComesFromBundledSource() throws {
-        let (sema, interner, ctx) = try makeSema()
+        let (sema, interner, ctx) = try sharedSema()
         let fq = ["kotlin", "text", "MatchGroupCollection"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),

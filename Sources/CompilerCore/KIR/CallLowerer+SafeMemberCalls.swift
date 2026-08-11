@@ -548,57 +548,6 @@ extension CallLowerer {
             }
         }
 
-        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
-        if interner.resolve(effectiveCalleeName) == "digitToChar",
-           args.count <= 1
-        {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType {
-                let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.charType)
-                let nullableResultType = sema.types.makeNullable(callResultType)
-                let callLabel = driver.ctx.makeLoopLabel()
-                let endLabel = driver.ctx.makeLoopLabel()
-                let nullExpr = arena.appendExpr(.unit, type: nullableResultType)
-                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                instructions.append(.constValue(result: nullExpr, value: .null))
-                instructions.append(.copy(from: nullExpr, to: result))
-                instructions.append(.jump(endLabel))
-                instructions.append(.label(callLabel))
-                let nonNullResult = arena.appendTemporary(type: callResultType)
-                if args.isEmpty {
-                    let radixExpr = arena.appendExpr(.intLiteral(10), type: intType)
-                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToChar_radix"),
-                        arguments: [loweredReceiverID, radixExpr],
-                        result: nonNullResult,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                } else {
-                    let loweredRadixArg = driver.lowerExpr(
-                        args[0].expr,
-                        shared: shared,
-                        emit: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToChar_radix"),
-                        arguments: [loweredReceiverID, loweredRadixArg],
-                        result: nonNullResult,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                }
-                instructions.append(.copy(from: nonNullResult, to: result))
-                instructions.append(.label(endLabel))
-                return result
-            }
-        }
-
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
@@ -698,141 +647,6 @@ extension CallLowerer {
             ))
             instructions.append(.label(endLabel))
             return result
-        }
-
-        // Numeric coercion: Int/Long/Double/Float.coerceIn/coerceAtLeast/coerceAtMost (STDLIB-150, STDLIB-500)
-        if args.count == 2, interner.resolve(effectiveCalleeName) == "coerceIn" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                let callLabel = driver.ctx.makeLoopLabel()
-                let endLabel = driver.ctx.makeLoopLabel()
-                let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                instructions.append(.constValue(result: nullExpr, value: .null))
-                instructions.append(.copy(from: nullExpr, to: result))
-                instructions.append(.jump(endLabel))
-                instructions.append(.label(callLabel))
-                let loweredCoerceArg0 = driver.lowerExpr(
-                    args[0].expr, shared: shared, emit: &instructions
-                )
-                let loweredCoerceArg1 = driver.lowerExpr(
-                    args[1].expr, shared: shared, emit: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(prefix + "_coerceIn"),
-                    arguments: [loweredReceiverID, loweredCoerceArg0, loweredCoerceArg1],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                instructions.append(.label(endLabel))
-                return result
-            }
-        }
-
-        // Int/Long/UInt/ULong.coerceIn(range) — single ClosedRange argument (STDLIB-525)
-        // Only integer-typed receivers are supported here; floating-point
-        // receivers must not enter this path because __kk_range_first/__kk_range_last
-        // return integer-typed bounds that would be incorrect for float coercion.
-        if args.count == 1, interner.resolve(effectiveCalleeName) == "coerceIn" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema),
-               prefix == "kk_int" || prefix == "kk_long" || prefix == "kk_uint" || prefix == "kk_ulong" {
-                let argExprID = args[0].expr
-                if let rangeElementType = coerceInRangeElementType(
-                    for: argExprID,
-                    sema: sema,
-                    interner: interner
-                ), rangeElementType == nonNullReceiverType
-                {
-                    let callLabel = driver.ctx.makeLoopLabel()
-                    let endLabel = driver.ctx.makeLoopLabel()
-                    let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                    instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                    instructions.append(.constValue(result: nullExpr, value: .null))
-                    instructions.append(.copy(from: nullExpr, to: result))
-                    instructions.append(.jump(endLabel))
-                    instructions.append(.label(callLabel))
-                    let loweredRangeArg = driver.lowerExpr(
-                        args[0].expr, shared: shared, emit: &instructions
-                    )
-                    emitCoerceInRange(
-                        prefix: prefix,
-                        receiverType: receiverType,
-                        loweredReceiverID: loweredReceiverID,
-                        loweredRangeArgID: loweredRangeArg,
-                        result: result,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions.instructions
-                    )
-                    instructions.append(.label(endLabel))
-                    return result
-                }
-            }
-        }
-        if args.count == 1 {
-            let calleeStr = interner.resolve(effectiveCalleeName)
-            if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                    // Check if this is range-based coercion (single range argument)
-                    if args.count == 1 {
-                        let argExprID = args[0].expr
-                        if sema.bindings.isRangeExpr(argExprID) {
-                            // Use range-based coercion functions
-                            let callLabel = driver.ctx.makeLoopLabel()
-                            let endLabel = driver.ctx.makeLoopLabel()
-                            let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                            instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                            instructions.append(.constValue(result: nullExpr, value: .null))
-                            instructions.append(.copy(from: nullExpr, to: result))
-                            instructions.append(.jump(endLabel))
-                            instructions.append(.label(callLabel))
-                            let loweredRangeArg = driver.lowerExpr(
-                                args[0].expr, shared: shared, emit: &instructions
-                            )
-                            let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast_range" : "_coerceAtMost_range"
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern(prefix + suffix),
-                                arguments: [loweredReceiverID, loweredRangeArg],
-                                result: result,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                            instructions.append(.label(endLabel))
-                            return result
-                        }
-                    }
-                    // Fallback to single-value coercion
-                    let callLabel = driver.ctx.makeLoopLabel()
-                    let endLabel = driver.ctx.makeLoopLabel()
-                    let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                    instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                    instructions.append(.constValue(result: nullExpr, value: .null))
-                    instructions.append(.copy(from: nullExpr, to: result))
-                    instructions.append(.jump(endLabel))
-                    instructions.append(.label(callLabel))
-                    let loweredCoerceArg = driver.lowerExpr(
-                        args[0].expr, shared: shared, emit: &instructions
-                    )
-                    let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast" : "_coerceAtMost"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(prefix + suffix),
-                        arguments: [loweredReceiverID, loweredCoerceArg],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    instructions.append(.label(endLabel))
-                    return result
-                }
-            }
         }
 
         // Primitive conversion: toInt(), toUInt(), toLong(), toULong(), toFloat(), toDouble(), toByte(), toShort() (TYPE-005, STDLIB-151)
@@ -1184,7 +998,7 @@ extension CallLowerer {
                 )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
-            let hasExternalLink = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }.map { !$0.isEmpty } ?? false
+            let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             if !isSuperCall,
                let chosen,
                !hasExternalLink,
@@ -1221,6 +1035,15 @@ extension CallLowerer {
         }
         instructions.append(.label(endLabel))
         return result
+    }
+
+    /// Whether a callee's external link name denotes a runtime bridge (a `kk_*`
+    /// entry point taking the runtime's argument shape) rather than an ordinary
+    /// Kotlin declaration. A declaration imported from a precompiled library
+    /// also carries a link name — its own `kk_fn_*` mangled definition — so the
+    /// link name, not the mere presence of one, decides.
+    func kirIsRuntimeBridgedCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
     }
 
     /// Determine if a callee method requires virtual dispatch.

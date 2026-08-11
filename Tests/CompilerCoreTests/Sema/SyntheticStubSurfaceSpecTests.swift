@@ -4,27 +4,31 @@ import Testing
 
 @Suite
 struct SyntheticStubSurfaceSpecTests {
-    @Test func testDeclarativeCharSpecsKeepRadixOverloadParameterMetadata() throws {
-        let (sema, interner) = try makeSema()
-        let digitToInt = try function(
-            named: "digitToInt",
+    // KSP-662: digitToInt(radix) moved to bundled Kotlin, so use the remaining
+    // one-argument declarative Char spec compareTo(other) to verify parameter metadata.
+    @Test func testDeclarativeCharSpecsKeepOverloadParameterMetadata() throws {
+        let (sema, interner) = try sharedSema()
+        let compareTo = try function(
+            named: "compareTo",
             ownerFQName: ["kotlin", "text"].map(interner.intern),
-            parameterTypes: [sema.types.intType],
+            parameterTypes: [sema.types.charType],
             receiverType: sema.types.charType,
             sema: sema,
             interner: interner
         )
-        #expect(sema.symbols.externalLinkName(for: digitToInt) == "kk_char_digitToInt_radix")
+        #expect(sema.symbols.externalLinkName(for: compareTo) == "kk_char_compareTo")
 
-        let signature = try #require(sema.symbols.functionSignature(for: digitToInt))
-        let radixSymbol = try #require(signature.valueParameterSymbols.first)
-        let radixInfo = try #require(sema.symbols.symbol(radixSymbol))
-        #expect(interner.resolve(radixInfo.name) == "radix")
+        let signature = try #require(sema.symbols.functionSignature(for: compareTo))
+        let otherSymbol = try #require(signature.valueParameterSymbols.first)
+        let otherInfo = try #require(sema.symbols.symbol(otherSymbol))
+        #expect(interner.resolve(otherInfo.name) == "other")
         #expect(signature.valueParameterHasDefaultValues == [false])
         #expect(signature.valueParameterIsVararg == [false])
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -32,7 +36,9 @@ struct SyntheticStubSurfaceSpecTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func assertFunction(

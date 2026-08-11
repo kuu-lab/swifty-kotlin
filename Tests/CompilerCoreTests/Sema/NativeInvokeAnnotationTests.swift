@@ -4,6 +4,15 @@ import Testing
 
 @Suite
 struct NativeInvokeAnnotationTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -25,7 +34,7 @@ struct NativeInvokeAnnotationTests {
 
     @Test
     func testNativeInvokeAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "js", "nativeInvoke"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -40,7 +49,7 @@ struct NativeInvokeAnnotationTests {
 
     @Test
     func testNativeInvokeCarriesExpectedMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "js", "nativeInvoke"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let target = try #require(

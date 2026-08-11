@@ -30,7 +30,9 @@ struct KotlinAnnotationAPIInventoryTests {
 
     // MARK: - Shared sema fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -38,7 +40,9 @@ struct KotlinAnnotationAPIInventoryTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     // MARK: - Lookup helpers
@@ -65,7 +69,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 1. Package hierarchy
 
     @Test func testKotlinAnnotationPackageIsPresent() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "annotation"].map { interner.intern($0) }
         #expect(
             sema.symbols.lookup(fqName: fq) != nil,
@@ -76,7 +80,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 2. Annotation classes
 
     @Test func testTargetAnnotationClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "Target"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.annotation.Target must be registered in symbol table")
         if let sym {
@@ -96,7 +100,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testRetentionAnnotationClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "Retention"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.annotation.Retention must be registered in symbol table")
         if let sym {
@@ -112,7 +116,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testRepeatableAnnotationClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "Repeatable"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.annotation.Repeatable must be registered in symbol table")
         if let sym {
@@ -128,7 +132,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testMustBeDocumentedAnnotationClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "MustBeDocumented"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.annotation.MustBeDocumented must be registered in symbol table")
         if let sym {
@@ -146,7 +150,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 3. @Target carries its own @Target(ANNOTATION_CLASS)
 
     @Test func testTargetAnnotationCarriesAnnotationClassTarget() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "Target"], sema: sema, interner: interner),
             "kotlin.annotation.Target must be present"
@@ -163,7 +167,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testRetentionAnnotationCarriesAnnotationClassTarget() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "Retention"], sema: sema, interner: interner),
             "kotlin.annotation.Retention must be present"
@@ -180,7 +184,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testRepeatableAnnotationCarriesAnnotationClassTarget() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "Repeatable"], sema: sema, interner: interner),
             "kotlin.annotation.Repeatable must be present"
@@ -197,7 +201,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testMustBeDocumentedAnnotationCarriesAnnotationClassTarget() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "MustBeDocumented"], sema: sema, interner: interner),
             "kotlin.annotation.MustBeDocumented must be present"
@@ -216,7 +220,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 4. AnnotationTarget enum class
 
     @Test func testAnnotationTargetEnumClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = symbol(
             fqPath: ["kotlin", "annotation", "AnnotationTarget"],
             sema: sema,
@@ -232,7 +236,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationTargetAllEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let entries = [
             "CLASS",
             "ANNOTATION_CLASS",
@@ -264,7 +268,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationTargetEntryCountIsExact() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let expectedEntries: Set<String> = [
             "CLASS", "ANNOTATION_CLASS", "TYPE_PARAMETER", "PROPERTY", "FIELD",
             "LOCAL_VARIABLE", "VALUE_PARAMETER", "CONSTRUCTOR", "FUNCTION",
@@ -282,7 +286,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationTargetEntriesHaveEnumType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let enumSym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationTarget"], sema: sema, interner: interner),
             "AnnotationTarget enum must be registered"
@@ -310,7 +314,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 5. AnnotationRetention enum class
 
     @Test func testAnnotationRetentionEnumClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = symbol(
             fqPath: ["kotlin", "annotation", "AnnotationRetention"],
             sema: sema,
@@ -326,7 +330,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationRetentionSourceEntryIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "SOURCE"], sema: sema, interner: interner) != nil,
             "AnnotationRetention.SOURCE must be registered"
@@ -334,7 +338,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationRetentionBinaryEntryIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "BINARY"], sema: sema, interner: interner) != nil,
             "AnnotationRetention.BINARY must be registered"
@@ -342,7 +346,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationRetentionRuntimeEntryIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         #expect(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "RUNTIME"], sema: sema, interner: interner) != nil,
             "AnnotationRetention.RUNTIME must be registered"
@@ -350,7 +354,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationRetentionAllEntriesPresent() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let expectedEntries: Set<String> = ["SOURCE", "BINARY", "RUNTIME"]
         let actualEntries = childNames(
             of: ["kotlin", "annotation", "AnnotationRetention"],
@@ -364,7 +368,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAnnotationRetentionEntriesHaveEnumType() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let enumSym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention"], sema: sema, interner: interner),
             "AnnotationRetention enum must be registered"
@@ -392,7 +396,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 6. @Retention carries default value property wired to RUNTIME
 
     @Test func testRetentionHasValuePropertyWithRuntimeDefault() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let valueSym = symbol(
             fqPath: ["kotlin", "annotation", "Retention", "value"],
             sema: sema,
@@ -429,7 +433,7 @@ struct KotlinAnnotationAPIInventoryTests {
     // MARK: - 7. Complete mandatory inventory assertion
 
     @Test func testAllMandatoryAnnotationAPISymbolsPresent() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let mandatorySymbols: [[String]] = [
             // annotation classes
@@ -574,7 +578,7 @@ struct KotlinAnnotationAPIInventoryTests {
     }
 
     @Test func testAllAnnotationRetentionEntriesResolveAsExpressions() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         for entry in ["SOURCE", "BINARY", "RUNTIME"] {
             let sym = symbol(
                 fqPath: ["kotlin", "annotation", "AnnotationRetention", entry],

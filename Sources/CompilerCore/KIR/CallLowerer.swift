@@ -31,35 +31,6 @@ final class CallLowerer {
         return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
     }
 
-    /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
-    /// symbol prefix (e.g. "kk_int", "kk_long", "kk_uint", "kk_ulong"),
-    /// or nil if the receiver is not one of the coercion-eligible numeric
-    /// types. Nullable receivers are normalized to non-nullable for dispatch.
-    /// Shared by both normal and safe-call member lowering paths.
-    func numericCoercionRuntimePrefix(
-        receiverType: TypeID,
-        sema: SemaModule
-    ) -> String? {
-        let nonNull = sema.types.makeNonNullable(receiverType)
-        let intType = sema.types.make(.primitive(.int, .nonNull))
-        let longType = sema.types.make(.primitive(.long, .nonNull))
-        let doubleType = sema.types.make(.primitive(.double, .nonNull))
-        let floatType = sema.types.make(.primitive(.float, .nonNull))
-        let ubyteType = sema.types.ubyteType
-        let ushortType = sema.types.ushortType
-        let uintType = sema.types.uintType
-        let ulongType = sema.types.ulongType
-        if nonNull == intType { return "kk_int" }
-        if nonNull == longType { return "kk_long" }
-        if nonNull == doubleType { return "kk_double" }
-        if nonNull == floatType { return "kk_float" }
-        if nonNull == ubyteType { return "kk_ubyte" }
-        if nonNull == ushortType { return "kk_ushort" }
-        if nonNull == uintType { return "kk_uint" }
-        if nonNull == ulongType { return "kk_ulong" }
-        return nil
-    }
-
     /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
     /// constructors, so callers can both gate on "is this a StringBuilder
     /// construction" and reuse the owner symbol for itable registration
@@ -279,47 +250,6 @@ final class CallLowerer {
         return result
     }
 
-    /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
-    /// Decomposes a range argument into first/last bounds and emits a call to
-    /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
-    /// paths to avoid duplication for the numeric types that expose range coercion.
-    func emitCoerceInRange(
-        prefix: String,
-        receiverType: TypeID,
-        loweredReceiverID: KIRExprID,
-        loweredRangeArgID: KIRExprID,
-        result: KIRExprID,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) {
-        // Use non-nullable receiver type for temporaries so Long receivers get
-        // Long-typed bounds instead of always Int.
-        let boundType = sema.types.makeNonNullable(receiverType)
-        let firstExpr = arena.appendTemporary(type: boundType)
-        let lastExpr = arena.appendTemporary(type: boundType)
-        emitNonThrowingCall(
-            callee: interner.intern("__kk_range_first"),
-            arg: loweredRangeArgID,
-            result: firstExpr,
-            into: &instructions
-        )
-        emitNonThrowingCall(
-            callee: interner.intern("__kk_range_last"),
-            arg: loweredRangeArgID,
-            result: lastExpr,
-            into: &instructions
-        )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern(prefix + "_coerceIn"),
-            arguments: [loweredReceiverID, firstExpr, lastExpr],
-            result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
-    }
 
     // swiftlint:disable:next cyclomatic_complexity
     func lowerCallExpr(

@@ -273,7 +273,9 @@ private func emitEnumOrdinalBoxCall(
         result: nameResult, canThrow: false, thrownResult: nil
     ))
 
-    let classID = symbols.map { RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner) } ?? 0
+    let classID = symbols.map {
+        RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner)
+    } ?? 0
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))

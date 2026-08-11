@@ -206,21 +206,21 @@ private func lazyPublicationInit() -> Int {
 
 private let lazyPublicationInitCConv: KKThunkEntryPoint = { _ in lazyPublicationInit() }
 
-private let observableNoopCallback: KKDelegateObserverEntryPoint = { _, _, _, _ in 0 }
-private let observableCaptureCallback: KKDelegateObserverEntryPoint = { _, old, new, _ in
+private let observableNoopCallback: KKFunctionEntryPoint3 = { _, _, _, _ in 0 }
+private let observableCaptureCallback: KKFunctionEntryPoint3 = { _, old, new, _ in
     gDelegateState.setObservableCaptured(old: old, new: new)
     return 0
 }
 
-private let observableOrderCallback: KKDelegateObserverEntryPoint = { _, _, _, _ in
+private let observableOrderCallback: KKFunctionEntryPoint3 = { _, _, _, _ in
     let handle = gDelegateState.observableHandleSnapshot()
     gDelegateState.setObservableValueInsideCallback(kk_observable_get_value(handle))
     return 0
 }
 
-private let vetoableAcceptCallback: KKDelegateObserverEntryPoint = { _, _, _, _ in 1 }
-private let vetoableRejectCallback: KKDelegateObserverEntryPoint = { _, _, _, _ in 0 }
-private let vetoableOrderCallback: KKDelegateObserverEntryPoint = { _, _, _, _ in
+private let vetoableAcceptCallback: KKFunctionEntryPoint3 = { _, _, _, _ in 1 }
+private let vetoableRejectCallback: KKFunctionEntryPoint3 = { _, _, _, _ in 0 }
+private let vetoableOrderCallback: KKFunctionEntryPoint3 = { _, _, _, _ in
     let handle = gDelegateState.vetoableHandleSnapshot()
     gDelegateState.setVetoableValueInsideCallback(kk_vetoable_get_value(handle))
     return 1

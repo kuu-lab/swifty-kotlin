@@ -25,6 +25,15 @@ import Testing
 
 @Suite
 struct ExperimentalMarkerStubTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     private struct ExperimentalPackageMarker: Hashable {
         let name: String
         let todo: String?
@@ -122,20 +131,20 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalUnsignedTypesIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalUnsignedTypes"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.ExperimentalUnsignedTypes must be registered in the symbol table")
     }
 
     @Test
     func testExperimentalUnsignedTypesIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalUnsignedTypes"], sema: sema, interner: interner)
     }
 
     @Test
     func testExperimentalUnsignedTypesHasRequiresOptIn() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "ExperimentalUnsignedTypes"],
             expectedSeverity: "ERROR",
@@ -148,20 +157,20 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalVersionOverloadingIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalVersionOverloading"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.ExperimentalVersionOverloading must be registered in the symbol table")
     }
 
     @Test
     func testExperimentalVersionOverloadingIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalVersionOverloading"], sema: sema, interner: interner)
     }
 
     @Test
     func testExperimentalVersionOverloadingHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "ExperimentalVersionOverloading"],
             expectedSeverity: "ERROR",
@@ -174,20 +183,20 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalContextParametersIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.ExperimentalContextParameters must be registered in the symbol table")
     }
 
     @Test
     func testExperimentalContextParametersIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner)
     }
 
     @Test
     func testExperimentalContextParametersHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "ExperimentalContextParameters"],
             expectedSeverity: "ERROR",
@@ -198,7 +207,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalContextParametersRequiresOptInMessageMentionsContextParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(lookupSymbol(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: sym)
         let requiresOptIn = try #require(annotations.first { $0.annotationFQName == "kotlin.RequiresOptIn" })
@@ -209,20 +218,20 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalUuidApiIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.uuid.ExperimentalUuidApi must be registered in the symbol table")
     }
 
     @Test
     func testExperimentalUuidApiIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"], sema: sema, interner: interner)
     }
 
     @Test
     func testExperimentalUuidApiHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"],
             expectedSeverity: "ERROR",
@@ -235,7 +244,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalEncodingApiIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(
             fqPath: ["kotlin", "io", "encoding", "ExperimentalEncodingApi"],
             sema: sema,
@@ -246,7 +255,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalEncodingApiIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(
             fqPath: ["kotlin", "io", "encoding", "ExperimentalEncodingApi"],
             sema: sema,
@@ -256,7 +265,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalEncodingApiHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "io", "encoding", "ExperimentalEncodingApi"],
             expectedSeverity: "ERROR",
@@ -267,7 +276,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testKotlinIoEncodingPackageIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "io", "encoding"].map { interner.intern($0) }
         #expect(sema.symbols.lookup(fqName: fq) != nil, "kotlin.io.encoding package must be present in the symbol table after sema")
     }
@@ -276,7 +285,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalPathApiIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(
             fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"],
             sema: sema,
@@ -287,7 +296,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalPathApiIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(
             fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"],
             sema: sema,
@@ -297,7 +306,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalPathApiHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"],
             expectedSeverity: "ERROR",
@@ -308,7 +317,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalPathApiHasOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(lookupSymbol(fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: sym)
         #expect(annotations.contains {
@@ -333,7 +342,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalAssociatedObjectsIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(
             fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"],
             sema: sema,
@@ -344,7 +353,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalAssociatedObjectsIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(
             fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"],
             sema: sema,
@@ -354,7 +363,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalAssociatedObjectsHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"],
             expectedSeverity: "ERROR",
@@ -365,7 +374,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalAssociatedObjectsHasBinaryRetention() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(lookupSymbol(fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: sym)
         #expect(annotations.contains {
@@ -378,20 +387,20 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalMultiplatformIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalMultiplatform"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.ExperimentalMultiplatform must be registered in the symbol table")
     }
 
     @Test
     func testExperimentalMultiplatformIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalMultiplatform"], sema: sema, interner: interner)
     }
 
     @Test
     func testExperimentalMultiplatformHasRequiresOptInWithErrorSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "ExperimentalMultiplatform"],
             expectedSeverity: "ERROR",
@@ -404,20 +413,20 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExperimentalSubclassOptInIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalSubclassOptIn"], sema: sema, interner: interner)
         #expect(sym != nil, "kotlin.ExperimentalSubclassOptIn must be registered in the symbol table")
     }
 
     @Test
     func testExperimentalSubclassOptInIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalSubclassOptIn"], sema: sema, interner: interner)
     }
 
     @Test
     func testExperimentalSubclassOptInHasRequiresOptInWithWarningSeverity() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         assertHasRequiresOptIn(
             fqPath: ["kotlin", "ExperimentalSubclassOptIn"],
             expectedSeverity: "WARNING",
@@ -430,7 +439,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testErrorAndWarningSeveritiesAreDistinctAcrossMarkers() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         func severity(fqPath: [String]) -> String? {
             guard let sym = lookupSymbol(fqPath: fqPath, sema: sema, interner: interner) else {
@@ -470,7 +479,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testImplementedKotlinExperimentalMarkersAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         for marker in Self.implementedExperimentalPackageMarkers {
             let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", marker.name], sema: sema, interner: interner))
@@ -480,7 +489,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testKnownGapKotlinExperimentalMarkersRemainAbsentUntilTheirTodoIsImplemented() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         for marker in Self.knownGapExperimentalPackageMarkers {
             let symbol = lookupSymbol(fqPath: ["kotlin", "experimental", marker.name], sema: sema, interner: interner)
@@ -496,7 +505,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testExpectRefinementCarriesClassTargetAndExperimentalMultiplatformMetadata() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", "ExpectRefinement"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: symbol)
 
@@ -616,7 +625,7 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testKotlinExperimentalOptInMarkersCarryRequiresOptInError() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         for marker in Self.optInExperimentalPackageMarkerNames {
             let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", marker], sema: sema, interner: interner))
