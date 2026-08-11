@@ -11,7 +11,7 @@ package kotlin.time
 
 import kotlin.internal.KsSymbolName
 
-@KsSymbolName("kk_system_nanoTime")
+@KsSymbolName("__kk_system_nanoTime")
 @PublishedApi
 internal external fun __kk_system_nanoTime(): Long
 

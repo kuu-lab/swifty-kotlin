@@ -7,14 +7,18 @@ struct CoercionSyntheticStubTests {
 
     // MARK: - Helpers
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func coercionSymbols(
@@ -76,7 +80,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testIntCoercionStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         // MIGRATION-RANGE-003: coerceIn(min,max)/coerceAtLeast/coerceAtMost migrated to
         // bundled Kotlin source (RangeCoercion.kt). Only coerceIn(range:) remains as a
@@ -103,7 +107,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testIntCoerceInSignatureHasTwoIntParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -121,7 +125,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testIntCoerceAtLeastSignatureHasOneIntParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtLeast", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -139,7 +143,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testIntCoerceAtMostSignatureHasOneIntParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtMost", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -159,7 +163,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testLongCoercionStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         // MIGRATION-RANGE-003: coerceIn(min,max)/coerceAtLeast/coerceAtMost migrated to
         // bundled Kotlin source (RangeCoercion.kt). Only coerceIn(range:) remains as a
@@ -186,7 +190,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testLongCoerceInSignatureHasTwoLongParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -204,7 +208,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testLongCoerceAtLeastSignatureHasOneLongParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtLeast", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -222,7 +226,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testLongCoerceAtMostSignatureHasOneLongParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtMost", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -245,7 +249,7 @@ struct CoercionSyntheticStubTests {
         // MIGRATION-RANGE-003: Double.coerceIn/coerceAtLeast/coerceAtMost migrated to
         // bundled Kotlin source (RangeCoercion.kt). No synthetic stubs remain for these
         // overloads, so this test now verifies that no stale stubs are registered.
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let migrated: [(member: String, paramTypes: [TypeID])] = [
             ("coerceIn", [sema.types.doubleType, sema.types.doubleType]),
@@ -268,7 +272,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testDoubleCoerceInSignatureHasTwoDoubleParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -286,7 +290,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testDoubleCoerceAtLeastSignatureHasOneDoubleParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtLeast", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -304,7 +308,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testDoubleCoerceAtMostSignatureHasOneDoubleParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtMost", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -327,7 +331,7 @@ struct CoercionSyntheticStubTests {
         // MIGRATION-RANGE-003: Float.coerceIn/coerceAtLeast/coerceAtMost migrated to
         // bundled Kotlin source (RangeCoercion.kt). No synthetic stubs remain for these
         // overloads, so this test now verifies that no stale stubs are registered.
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let migrated: [(member: String, paramTypes: [TypeID])] = [
             ("coerceIn", [sema.types.floatType, sema.types.floatType]),
@@ -350,7 +354,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testFloatCoerceInSignatureHasTwoFloatParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -368,7 +372,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testFloatCoerceAtLeastSignatureHasOneFloatParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtLeast", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -386,7 +390,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testFloatCoerceAtMostSignatureHasOneFloatParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtMost", sema: sema, interner: interner)
         let matchingSymbol = symbols.first { symbolID in
@@ -406,7 +410,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testUnsignedCoercionStubsHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let expected: [(member: String, receiverType: TypeID, parameterTypes: [TypeID], link: String)] = [
             ("coerceIn", sema.types.ubyteType, [sema.types.ubyteType, sema.types.ubyteType], "kk_ubyte_coerceIn"),
@@ -438,7 +442,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testUnsignedRangeCoerceInDoesNotRegisterSyntheticStubs() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let uintRangeType = try nominalRangeType(named: "UIntRange", sema: sema, interner: interner)
         let ulongRangeType = try nominalRangeType(named: "ULongRange", sema: sema, interner: interner)
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
@@ -459,7 +463,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testAllNumericTypesRegisterDistinctCoerceInOverloads() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
         let expectedReceiverTypes: Set<TypeID> = [
@@ -490,7 +494,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testAllNumericTypesRegisterDistinctCoerceAtLeastOverloads() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtLeast", sema: sema, interner: interner)
         let expectedReceiverTypes: Set<TypeID> = [
@@ -521,7 +525,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testAllNumericTypesRegisterDistinctCoerceAtMostOverloads() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let symbols = coercionSymbols(for: "coerceAtMost", sema: sema, interner: interner)
         let expectedReceiverTypes: Set<TypeID> = [
@@ -554,7 +558,7 @@ struct CoercionSyntheticStubTests {
 
     @Test
     func testKotlinRangesPackageIsParentedUnderKotlinPackage() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         _ = try #require(
             sema.symbols.lookup(fqName: [interner.intern("kotlin")])

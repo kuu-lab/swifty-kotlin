@@ -20,6 +20,22 @@ import Testing
 struct RegexAPISurfaceInventoryTests {
 
     // MARK: - Shared sema fixture
+
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
+    }
+
     // MARK: - Lookup helpers
 
     /// External link for a kotlin.text-level symbol (top-level or class member).
@@ -49,58 +65,58 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 1. Constructors
 
     @Test func testRegexSingleArgConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         // Regex(pattern: String) -> Regex
         let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "Regex"],
+            fqPath: ["kotlin", "text", "Regex", "<init>"],
             sema: sema,
             interner: interner
         )
         #expect(
-            links.contains("kk_regex_create_flat"),
-            "Regex(pattern) constructor must link to kk_regex_create_flat"
+            links.contains("__kk_regex_create_flat"),
+            "Regex(pattern) constructor must link to __kk_regex_create_flat"
         )
     }
 
     @Test func testRegexSingleOptionConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         // Regex(pattern: String, option: RegexOption) -> Regex
         let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "Regex"],
+            fqPath: ["kotlin", "text", "Regex", "<init>"],
             sema: sema,
             interner: interner
         )
         #expect(
-            links.contains("kk_regex_create_with_option_flat"),
-            "Regex(pattern, option) constructor must link to kk_regex_create_with_option_flat"
+            links.contains("__kk_regex_create_with_option_flat"),
+            "Regex(pattern, option) constructor must link to __kk_regex_create_with_option_flat"
         )
     }
 
     @Test func testRegexSetOptionsConstructorIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         // Regex(pattern: String, options: Set<RegexOption>) -> Regex
         let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "Regex"],
+            fqPath: ["kotlin", "text", "Regex", "<init>"],
             sema: sema,
             interner: interner
         )
         #expect(
-            links.contains("kk_regex_create_with_options_flat"),
-            "Regex(pattern, options) constructor must link to kk_regex_create_with_options_flat"
+            links.contains("__kk_regex_create_with_options_flat"),
+            "Regex(pattern, options) constructor must link to __kk_regex_create_with_options_flat"
         )
     }
 
     @Test func testAllThreeRegexConstructorOverloadsArePresent() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
-            fqPath: ["kotlin", "text", "Regex"],
+            fqPath: ["kotlin", "text", "Regex", "<init>"],
             sema: sema,
             interner: interner
         )
         let required: Set<String> = [
-            "kk_regex_create_flat",
-            "kk_regex_create_with_option_flat",
-            "kk_regex_create_with_options_flat",
+            "__kk_regex_create_flat",
+            "__kk_regex_create_with_option_flat",
+            "__kk_regex_create_with_options_flat",
         ]
         #expect(
             required.isSubset(of: links),
@@ -111,14 +127,14 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 2. RegexOption enum entries
 
     @Test func testRegexOptionEnumClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let sym = sema.symbols.lookup(fqName: fq)
         #expect(sym != nil, "kotlin.text.RegexOption enum class must exist in symbol table")
     }
 
     @Test func testRegexOptionAllEnumEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let entries = [
             "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL",
             "LITERAL", "UNIX_LINES", "COMMENTS", "CANON_EQ",
@@ -135,72 +151,74 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 3. Regex member functions
 
     @Test func testRegexMatchesIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "matches"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
+        #expect(link == "__kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
     }
 
     @Test func testRegexContainsMatchInIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "containsMatchIn"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_containsMatchIn_flat",
+        #expect(link == "__kk_regex_containsMatchIn_flat",
                        "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
     }
 
     @Test func testRegexFindIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "find"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_find_flat", "Regex.find must link to kk_regex_find")
+        #expect(link == "__kk_regex_find_flat", "Regex.find must link to kk_regex_find")
     }
 
     @Test func testRegexFindAllIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "findAll"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
+        #expect(link == "__kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
     }
 
     @Test func testRegexMatchEntireIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "matchEntire"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_matchEntire_flat",
+        #expect(link == "__kk_regex_matchEntire_flat",
                        "Regex.matchEntire must link to kk_regex_matchEntire")
     }
 
     @Test func testRegexReplaceWithLambdaIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
+        let (sema, interner) = try sharedSema()
+        let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex", "replace"],
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_replace_lambda",
-                       "Regex.replace(input, transform) must link to kk_regex_replace_lambda")
+        #expect(
+            links.contains("__kk_regex_replace_lambda"),
+            "Regex.replace(input, transform) must link to __kk_regex_replace_lambda"
+        )
     }
 
     // MARK: - 4. Regex properties (KSP-486: migrated to bundled Kotlin source)
 
     @Test func testRegexAccessorsAreNoLongerRuntimeLinked() throws {
-        let (sema, _) = try makeSema()
+        let (sema, _) = try sharedSema()
         let removed = ["kk_regex_pattern", "kk_regex_options", "kk_regex_group_names"]
         let present = registeredLinkNames(sema: sema).intersection(removed)
         #expect(
@@ -212,14 +230,14 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 5. Companion methods (fromLiteral)
 
     @Test func testRegexFromLiteralCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fq = ["kotlin", "text", "Regex", "Companion", "fromLiteral"]
             .map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         #expect(!(syms.isEmpty), "Regex.Companion.fromLiteral must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            links.contains("kk_regex_from_literal_flat"),
+            links.contains("__kk_regex_from_literal_flat"),
             Comment(rawValue: "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)")
         )
     }
@@ -230,7 +248,7 @@ struct RegexAPISurfaceInventoryTests {
     /// public layer lives in `__bundled_kotlin/text/MatchResult.kt`; only the raw
     /// match-position `__kk_*` bridges remain in the runtime.
     @Test func testMatchResultLayerIsNoLongerRuntimeLinked() throws {
-        let (sema, _) = try makeSema()
+        let (sema, _) = try sharedSema()
         var removed: Set<String> = [
             "kk_match_result_value",
             "kk_match_result_range",
@@ -259,7 +277,7 @@ struct RegexAPISurfaceInventoryTests {
 
     /// The remaining raw bridges must stay wired, since the Kotlin layer calls them.
     @Test func testRawMatchDataBridgesAreRegistered() throws {
-        let (sema, _) = try makeSema()
+        let (sema, _) = try sharedSema()
         let bridges: Set<String> = [
             "__kk_match_result_group_count",
             "__kk_match_result_group_value",
@@ -279,14 +297,14 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 9. String extension: replaceFirst / split with Regex
 
     @Test func testStringReplaceFirstWithRegexIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "replaceFirst"],
             sema: sema,
             interner: interner
         )
         #expect(
-            !links.contains("kk_string_replaceFirst_regex"),
+            !links.contains("__kk_string_replaceFirst_regex"),
             Comment(rawValue: "kotlin.text.replaceFirst(Regex, String) must be source-backed; found: \(links)")
         )
         let bridgeLink = externalLink(
@@ -295,20 +313,20 @@ struct RegexAPISurfaceInventoryTests {
             interner: interner
         )
         #expect(
-            bridgeLink == "kk_string_replaceFirst_regex",
-            Comment(rawValue: "StringSearchReplace bridge must link to kk_string_replaceFirst_regex; found: \(bridgeLink ?? "nil")")
+            bridgeLink == "__kk_string_replaceFirst_regex",
+            Comment(rawValue: "StringSearchReplace bridge must link to __kk_string_replaceFirst_regex; found: \(bridgeLink ?? "nil")")
         )
     }
 
     @Test func testStringSplitWithRegexIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "split"],
             sema: sema,
             interner: interner
         )
         #expect(
-            !links.contains("kk_string_split_regex_flat"),
+            !links.contains("__kk_string_split_regex_flat"),
             Comment(rawValue: "kotlin.text.split(Regex) must be source-backed; found: \(links)")
         )
         let bridgeLink = externalLink(
@@ -317,8 +335,8 @@ struct RegexAPISurfaceInventoryTests {
             interner: interner
         )
         #expect(
-            bridgeLink == "kk_string_split_regex_flat",
-            Comment(rawValue: "StringSearchReplace bridge must link to kk_string_split_regex_flat; found: \(bridgeLink ?? "nil")")
+            bridgeLink == "__kk_string_split_regex_flat",
+            Comment(rawValue: "StringSearchReplace bridge must link to __kk_string_split_regex_flat; found: \(bridgeLink ?? "nil")")
         )
     }
 
@@ -373,7 +391,7 @@ struct RegexAPISurfaceInventoryTests {
             let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_create_with_option_flat"
             )
         }
     }
@@ -399,7 +417,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat"
             )
         }
     }
@@ -425,7 +443,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_containsMatchIn_flat"
             )
         }
     }
@@ -452,7 +470,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_find_flat"
             )
         }
     }
@@ -479,7 +497,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matchEntire_flat"
             )
         }
     }
@@ -505,7 +523,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_from_literal_flat"
             )
         }
     }
@@ -595,33 +613,33 @@ struct RegexAPISurfaceInventoryTests {
     // MARK: - 15. Symbol table completeness: all mandatory API symbols present
 
     @Test func testMandatoryAPISymbolsAreAllRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         // Each (fqPath, expectedLinkName) pair must be present.
         // nil linkName means we only check symbol existence, not the link.
         let mandatoryLinks: [([String], String)] = [
-            // Constructors (top-level in kotlin.text)
-            (["kotlin", "text", "Regex"], "kk_regex_create_flat"),
-            (["kotlin", "text", "Regex"], "kk_regex_create_with_option_flat"),
-            (["kotlin", "text", "Regex"], "kk_regex_create_with_options_flat"),
+            // Constructors (class <init> in kotlin.text)
+            (["kotlin", "text", "Regex", "<init>"], "__kk_regex_create_flat"),
+            (["kotlin", "text", "Regex", "<init>"], "__kk_regex_create_with_option_flat"),
+            (["kotlin", "text", "Regex", "<init>"], "__kk_regex_create_with_options_flat"),
             // Member functions
-            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches_flat"),
-            (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn_flat"),
-            (["kotlin", "text", "Regex", "find"], "kk_regex_find_flat"),
-            (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll_flat"),
-            (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire_flat"),
-            (["kotlin", "text", "Regex", "replace"], "kk_regex_replace_lambda"),
+            (["kotlin", "text", "Regex", "matches"], "__kk_regex_matches_flat"),
+            (["kotlin", "text", "Regex", "containsMatchIn"], "__kk_regex_containsMatchIn_flat"),
+            (["kotlin", "text", "Regex", "find"], "__kk_regex_find_flat"),
+            (["kotlin", "text", "Regex", "findAll"], "__kk_regex_findAll_flat"),
+            (["kotlin", "text", "Regex", "matchEntire"], "__kk_regex_matchEntire_flat"),
+            (["kotlin", "text", "Regex", "replace"], "__kk_regex_replace_lambda"),
             // Companion
-            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal_flat"),
-            // String extensions
-            (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
-            (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
-            (["kotlin", "text", "__kk_replace_regex"], "kk_string_replace_regex"),
-            (["kotlin", "text", "__kk_replaceFirst_regex"], "kk_string_replaceFirst_regex"),
-            (["kotlin", "text", "__kk_split_regex"], "kk_string_split_regex_flat"),
-            (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
-            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
-            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),
+            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "__kk_regex_from_literal_flat"),
+            // String extension runtime bridges
+            (["kotlin", "text", "__kk_string_matches_regex"], "__kk_string_matches_regex_flat"),
+            (["kotlin", "text", "__kk_string_contains_regex"], "__kk_string_contains_regex_flat"),
+            (["kotlin", "text", "__kk_replace_regex"], "__kk_string_replace_regex"),
+            (["kotlin", "text", "__kk_replaceFirst_regex"], "__kk_string_replaceFirst_regex"),
+            (["kotlin", "text", "__kk_split_regex"], "__kk_string_split_regex_flat"),
+            (["kotlin", "text", "__kk_string_toRegex"], "__kk_string_toRegex_flat"),
+            (["kotlin", "text", "__kk_string_toRegex_with_option"], "__kk_string_toRegex_with_option_flat"),
+            (["kotlin", "text", "__kk_string_toRegex_with_options"], "__kk_string_toRegex_with_options_flat"),
         ]
 
         for (fqPath, expectedLink) in mandatoryLinks {
@@ -629,6 +647,21 @@ struct RegexAPISurfaceInventoryTests {
             #expect(
                 links.contains(expectedLink),
                 Comment(rawValue: "Missing API: \(fqPath.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
+            )
+        }
+
+        // Public source-backed symbols must also be present (they have no external link themselves).
+        let mandatoryPublicSymbols = [
+            ["kotlin", "text", "Regex"],
+            ["kotlin", "text", "matches"],
+            ["kotlin", "text", "contains"],
+            ["kotlin", "text", "toRegex"],
+        ]
+        for fqPath in mandatoryPublicSymbols {
+            let interned = fqPath.map { interner.intern($0) }
+            #expect(
+                sema.symbols.lookup(fqName: interned) != nil,
+                Comment(rawValue: "Missing public API symbol: \(fqPath.joined(separator: "."))")
             )
         }
     }

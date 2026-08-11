@@ -389,39 +389,11 @@ extension DataFlowSemaPhase {
 
         // MARK: - Throwable stack-trace members (STDLIB-127)
         //
-        // message / cause / initCause / addSuppressed / getSuppressed /
-        // suppressedExceptions are declared in bundled Kotlin source
-        // (`Stdlib/kotlin/Throwable.kt`, KSP-654); only the stack-trace
-        // rendering members remain synthetic here.
-
-        let throwableFQName = kotlinPkg + [interner.intern("Throwable")]
-        let throwableRef = SyntheticStubTypeRef.namedClass(["kotlin", "Throwable"])
-        let throwableContext = SyntheticStubRegistrationContext(
-            ownerFQName: throwableFQName,
-            parentSymbol: throwableSymbol
-        )
-        registerSyntheticFunctionStubs(
-            [
-                // stackTraceToString(): String
-                SyntheticFunctionStubSpec(
-                    name: "stackTraceToString",
-                    externalLinkName: "kk_throwable_stackTraceToString",
-                    receiverType: throwableRef,
-                    returnType: .string
-                ),
-                // printStackTrace(): Unit
-                SyntheticFunctionStubSpec(
-                    name: "printStackTrace",
-                    externalLinkName: "kk_throwable_printStackTrace",
-                    receiverType: throwableRef,
-                    returnType: .unit
-                ),
-            ],
-            context: throwableContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // stackTraceToString / printStackTrace are declared in bundled Kotlin
+        // source (`Stdlib/kotlin/Throwable.kt`, KSP-655). The runtime exposes
+        // raw stack frames via `__kk_throwable_rawStackFrames` and stderr output
+        // via `__kk_printStderr`; the Kotlin source walks cause/suppressed and
+        // formats the final text.
     }
 
     func registerSyntheticExceptionConstructors(

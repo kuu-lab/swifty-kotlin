@@ -26,31 +26,31 @@ struct RuntimeMathTests {
     }
 
     @Test func testCeilDouble() {
-        #expect(doubleFromBits(kk_math_ceil(doubleToBits(2.3))) == 3.0)
-        #expect(doubleFromBits(kk_math_ceil(doubleToBits(-2.3))) == -2.0)
+        #expect(doubleFromBits(__kk_math_ceil(doubleToBits(2.3))) == 3.0)
+        #expect(doubleFromBits(__kk_math_ceil(doubleToBits(-2.3))) == -2.0)
     }
 
     @Test func testFloorDouble() {
-        #expect(doubleFromBits(kk_math_floor(doubleToBits(2.3))) == 2.0)
-        #expect(doubleFromBits(kk_math_floor(doubleToBits(-2.3))) == -3.0)
+        #expect(doubleFromBits(__kk_math_floor(doubleToBits(2.3))) == 2.0)
+        #expect(doubleFromBits(__kk_math_floor(doubleToBits(-2.3))) == -3.0)
     }
 
     @Test func testRoundDouble() {
         // kotlin.math.round uses half-to-even (banker's rounding)
-        #expect(doubleFromBits(kk_math_round(doubleToBits(2.3))) == 2.0)
-        #expect(doubleFromBits(kk_math_round(doubleToBits(2.5))) == 2.0)  // half-to-even: rounds to 2
-        #expect(doubleFromBits(kk_math_round(doubleToBits(3.5))) == 4.0)  // half-to-even: rounds to 4
-        #expect(doubleFromBits(kk_math_round(doubleToBits(-0.5))) == 0.0) // half-to-even: rounds to 0 (not -1)
-        #expect(doubleFromBits(kk_math_round(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(2.3))) == 2.0)
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(2.5))) == 2.0)  // half-to-even: rounds to 2
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(3.5))) == 4.0)  // half-to-even: rounds to 4
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(-0.5))) == 0.0) // half-to-even: rounds to 0 (not -1)
+        #expect(doubleFromBits(__kk_math_round(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test func testRoundFloat() {
         // kotlin.math.round(Float) also uses half-to-even
-        #expect(floatFromBits(kk_math_round_float(floatToBits(2.3))) == Float(2.0))
-        #expect(floatFromBits(kk_math_round_float(floatToBits(2.5))) == Float(2.0))
-        #expect(floatFromBits(kk_math_round_float(floatToBits(3.5))) == Float(4.0))
-        #expect(floatFromBits(kk_math_round_float(floatToBits(-0.5))) == Float(0.0))
-        #expect(floatFromBits(kk_math_round_float(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(2.3))) == Float(2.0))
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(2.5))) == Float(2.0))
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(3.5))) == Float(4.0))
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(-0.5))) == Float(0.0))
+        #expect(floatFromBits(__kk_math_round_float(floatToBits(Float.nan))).isNaN)
     }
 
     // MARK: - roundToInt / roundToLong edge cases
@@ -183,13 +183,13 @@ struct RuntimeMathTests {
     }
 
     @Test func testCeilFloat() {
-        #expect(floatFromBits(kk_math_ceil_float(floatToBits(2.3))) == 3.0)
-        #expect(floatFromBits(kk_math_ceil_float(floatToBits(-2.3))) == -2.0)
+        #expect(floatFromBits(__kk_math_ceil_float(floatToBits(2.3))) == 3.0)
+        #expect(floatFromBits(__kk_math_ceil_float(floatToBits(-2.3))) == -2.0)
     }
 
     @Test func testFloorFloat() {
-        #expect(floatFromBits(kk_math_floor_float(floatToBits(2.3))) == 2.0)
-        #expect(floatFromBits(kk_math_floor_float(floatToBits(-2.3))) == -3.0)
+        #expect(floatFromBits(__kk_math_floor_float(floatToBits(2.3))) == 2.0)
+        #expect(floatFromBits(__kk_math_floor_float(floatToBits(-2.3))) == -3.0)
     }
 
     // MARK: - Float exp / ln / log / hypot (STDLIB-430)

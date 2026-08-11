@@ -4,22 +4,33 @@ import Testing
 
 @Suite
 struct NativeIdentityHashCodeSurfaceTests {
-    @Test func testIdentityHashCodeIsRegistered() throws {
-        let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-        import kotlin.native.identityHashCode
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
-        fun probe(value: Any?): Int = value.identityHashCode()
-        """
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
+    }
 
+    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Tests assert on collected diagnostics.
+        }
+        return ctx
+    }
 
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "Expected identityHashCode to resolve without errors, got \(errors)")
-
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
+    @Test
+    func testIdentityHashCodeIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
         let nativeFQName = ["kotlin", "native", "identityHashCode"].map { interner.intern($0) }
         let receiverType = sema.types.makeNullable(sema.types.anyType)
         let candidates = sema.symbols.lookupAll(fqName: nativeFQName)
@@ -32,6 +43,7 @@ struct NativeIdentityHashCodeSurfaceTests {
                 && signature.returnType == sema.types.intType
         }
         let symbol = try #require(match, "Expected kotlin.native.identityHashCode Any? extension")
+
         #expect(sema.symbols.externalLinkName(for: symbol) == "kk_native_identityHashCode")
         #expect(
             sema.symbols.annotations(for: symbol).contains {
@@ -41,11 +53,18 @@ struct NativeIdentityHashCodeSurfaceTests {
         )
     }
 
+    @Test
+    func testIdentityHashCodeResolvesInSourceWithOptIn() {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        import kotlin.native.identityHashCode
 
+        fun probe(value: Any?): Int = value.identityHashCode()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-
-
-
-
+        #expect(errors.isEmpty, "Expected identityHashCode to resolve without errors, got \(errors)")
+    }
 }
 #endif

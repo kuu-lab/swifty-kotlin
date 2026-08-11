@@ -14,118 +14,26 @@ import Testing
 
 @Suite
 struct NativeRefRuntimeSemaTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
-    @Test func testNativeRefRuntimeSemaSema() throws {
-        let sources: [String] = [
-            // testUsingWeakReferenceWithoutOptInProducesDiagnostic
-            """
-            package sample0
-                    import kotlin.native.ref.WeakReference
-
-                    fun probe(s: String): WeakReference<String> {
-                        return WeakReference(s)
-                    }
-
-            """,
-
-            // testUsingWeakReferenceWithOptInSuppressesDiagnostic
-            """
-            package sample1
-                    @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-                    import kotlin.native.ref.WeakReference
-
-                    fun probe(s: String): WeakReference<String> {
-                        return WeakReference(s)
-                    }
-
-            """,
-
-            // testUsingGCWithoutNativeRuntimeApiOptInProducesDiagnostic
-            """
-            package sample2
-                    import kotlin.native.runtime.GC
-
-                    fun probe() {
-                        GC.collect()
-                    }
-
-            """,
-
-            // testUsingGCWithNativeRuntimeApiOptInSuppressesDiagnostic
-            """
-            package sample3
-                    @file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class)
-                    import kotlin.native.runtime.GC
-
-                    fun probe() {
-                        GC.collect()
-                    }
-
-            """
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-
-            // testUsingWeakReferenceWithoutOptInProducesDiagnostic
-            do {
-                let samplePath = paths[0]
-                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
-
-                let optInDiagnostics = sampleDiags.filter {
-                    $0.code == "KSWIFTK-SEMA-OPT-IN"
-                }
-                #expect(
-                    !(optInDiagnostics.isEmpty),
-                    "Expected opt-in diagnostic for WeakReference usage without @OptIn"
-                )
-            }
-            // testUsingWeakReferenceWithOptInSuppressesDiagnostic
-            do {
-                let samplePath = paths[1]
-                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
-
-                let optInDiagnostics = sampleDiags.filter {
-                    $0.code == "KSWIFTK-SEMA-OPT-IN"
-                }
-                #expect(
-                    optInDiagnostics.isEmpty,
-                    "Expected no opt-in diagnostic when @OptIn(ExperimentalNativeApi::class) is present"
-                )
-            }
-            // testUsingGCWithoutNativeRuntimeApiOptInProducesDiagnostic
-            do {
-                let samplePath = paths[2]
-                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
-
-                let optInDiagnostics = sampleDiags.filter {
-                    $0.code == "KSWIFTK-SEMA-OPT-IN"
-                }
-                #expect(
-                    !(optInDiagnostics.isEmpty),
-                    "Expected opt-in diagnostic for GC usage without @OptIn(NativeRuntimeApi::class)"
-                )
-            }
-            // testUsingGCWithNativeRuntimeApiOptInSuppressesDiagnostic
-            do {
-                let samplePath = paths[3]
-                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
-
-                let optInDiagnostics = sampleDiags.filter {
-                    $0.code == "KSWIFTK-SEMA-OPT-IN"
-                }
-                #expect(
-                    optInDiagnostics.isEmpty,
-                    "Expected no opt-in diagnostic when @OptIn(NativeRuntimeApi::class) is present"
-                )
-            }
-
-        }
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
     }
 
-
     // MARK: - Shared helpers
+
+    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
+        let ctx = makeContextFromSource(source)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Individual tests assert on the resulting diagnostics.
+        }
+        return ctx
+    }
 
     private func hasOptInAnnotation(
         on symbol: SymbolID,
@@ -185,11 +93,9 @@ struct NativeRefRuntimeSemaTests {
 
     // MARK: - Package hierarchy
 
-
-
     @Test
     func testNativeRefPackageIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ref"].map { interner.intern($0) }
         #expect(
             sema.symbols.lookup(fqName: fqName) != nil,
@@ -197,10 +103,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testNativeRuntimePackageIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime"].map { interner.intern($0) }
         #expect(
             sema.symbols.lookup(fqName: fqName) != nil,
@@ -208,10 +113,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testNativeRuntimeApiMarkerIsRegisteredAsRequiresOptIn() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "NativeRuntimeApi"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -236,15 +140,11 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - WeakReference<T>
-
-
 
     @Test
     func testWeakReferenceClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -253,20 +153,18 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.symbol(symbol)?.kind == .class, "WeakReference should be a class")
     }
 
-
     @Test
     func testWeakReferenceHasTypeParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
         let typeParams = sema.types.nominalTypeParameterSymbols(for: classSymbol)
         #expect(typeParams.count == 1, "WeakReference should have exactly one type parameter")
     }
 
-
     @Test
     func testWeakReferenceHasGetMember() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let getMemberFQName = classFQName + [interner.intern("get")]
         let members = sema.symbols.lookupAll(fqName: getMemberFQName)
@@ -288,10 +186,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testWeakReferenceHasConstructor() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let ctorFQName = classFQName + [interner.intern("<init>")]
         let ctor = try #require(
@@ -308,10 +205,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testWeakReferenceHasClearMember() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let clearMemberFQName = classFQName + [interner.intern("clear")]
         let clearMember = try #require(
@@ -327,10 +223,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testWeakReferenceIsTaggedExperimentalNativeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         #expect(
@@ -339,24 +234,19 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - createCleaner
-
-
 
     @Test
     func testCreateCleanerFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
         let symbols = sema.symbols.lookupAll(fqName: fqName)
         #expect(!(symbols.isEmpty), "Expected kotlin.native.ref.createCleaner to be registered")
     }
 
-
     @Test
     func testCreateCleanerHasTwoParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
         let sym = try #require(sema.symbols.lookupAll(fqName: fqName).first)
         let signature = try #require(sema.symbols.functionSignature(for: sym))
@@ -367,10 +257,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testCreateCleanerIsTaggedExperimentalNativeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
         let sym = try #require(sema.symbols.lookupAll(fqName: fqName).first)
         #expect(
@@ -379,15 +268,11 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - GC object
-
-
 
     @Test
     func testGCObjectIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -396,10 +281,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.symbol(symbol)?.kind == .object, "GC should be an object")
     }
 
-
     @Test
     func testGCHasCollectMember() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let collectFQName = objectFQName + [interner.intern("collect")]
         let members = sema.symbols.lookupAll(fqName: collectFQName)
@@ -414,10 +298,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testGCHasScheduleMember() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let scheduleFQName = objectFQName + [interner.intern("schedule")]
         let members = sema.symbols.lookupAll(fqName: scheduleFQName)
@@ -429,10 +312,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testGCHasRuntimeTuningProperties() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let expected: [(name: String, type: TypeID, link: String)] = [
             ("targetHeapBytes", sema.types.longType, "kk_gc_target_heap_bytes"),
@@ -451,10 +333,9 @@ struct NativeRefRuntimeSemaTests {
         }
     }
 
-
     @Test
     func testGCIsTaggedNativeRuntimeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         #expect(
@@ -463,15 +344,11 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - RootSetStatistics class
-
-
 
     @Test
     func testRootSetStatisticsClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "RootSetStatistics"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -480,10 +357,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.symbol(symbol)?.kind == .class)
     }
 
-
     @Test
     func testRootSetStatisticsHasConstructorAndProperties() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "runtime", "RootSetStatistics"].map { interner.intern($0) }
         let expectedProperties = [
             "threadLocalReferences",
@@ -511,10 +387,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testRootSetStatisticsIsTaggedNativeRuntimeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "RootSetStatistics"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         #expect(
@@ -523,15 +398,11 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - SweepStatistics class
-
-
 
     @Test
     func testSweepStatisticsClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "SweepStatistics"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -540,10 +411,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.symbol(symbol)?.kind == .class)
     }
 
-
     @Test
     func testSweepStatisticsHasConstructorAndProperties() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "runtime", "SweepStatistics"].map { interner.intern($0) }
         let expectedProperties = [
             "sweptCount",
@@ -569,10 +439,9 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
     @Test
     func testSweepStatisticsIsTaggedNativeRuntimeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "SweepStatistics"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         #expect(
@@ -581,15 +450,11 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - GCInfo class
-
-
 
     @Test
     func testGCInfoClassIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -598,10 +463,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.symbol(symbol)?.kind == .class)
     }
 
-
     @Test
     func testGCInfoConstructorMatchesKotlinNativeSurface() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
         let ctorFQName = classFQName + [interner.intern("<init>")]
         let ctor = try #require(
@@ -628,10 +492,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(signature.parameterTypes[12] == sweepStatisticsType)
     }
 
-
     @Test
     func testGCInfoHasTimingProperties() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
         let longProperties = [
             "epoch",
@@ -666,10 +529,9 @@ struct NativeRefRuntimeSemaTests {
         }
     }
 
-
     @Test
     func testGCInfoHasSummaryProperties() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
 
         let rootSetSymbol = try #require(
@@ -712,10 +574,9 @@ struct NativeRefRuntimeSemaTests {
         }
     }
 
-
     @Test
     func testMemoryUsageSurfaceForGCInfoIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "runtime", "MemoryUsage"].map { interner.intern($0) }
         let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
         #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
@@ -736,10 +597,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(signature.parameterTypes == [sema.types.longType])
     }
 
-
     @Test
     func testGCInfoIsTaggedNativeRuntimeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         #expect(
@@ -748,15 +608,11 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - Debugging object
-
-
 
     @Test
     func testDebuggingObjectIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -765,10 +621,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.symbol(symbol)?.kind == .object, "Debugging should be an object")
     }
 
-
     @Test
     func testDebuggingHasIsThreadStateRunnableProperty() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let objectFQName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
         let propFQName = objectFQName + [interner.intern("isThreadStateRunnable")]
         let sym = try #require(
@@ -782,10 +637,9 @@ struct NativeRefRuntimeSemaTests {
         #expect(sema.symbols.externalLinkName(for: sym) == "kk_debugging_is_thread_state_runnable")
     }
 
-
     @Test
     func testDebuggingHasTrackingProperties() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let objectFQName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
         let expected: [(name: String, link: String)] = [
             ("gcSuspendCount", "kk_debugging_gc_suspend_count"),
@@ -807,10 +661,9 @@ struct NativeRefRuntimeSemaTests {
         }
     }
 
-
     @Test
     func testDebuggingIsTaggedNativeRuntimeApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         #expect(
@@ -819,10 +672,84 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
-
-
     // MARK: - Opt-in diagnostic integration
 
+    @Test
+    func testUsingWeakReferenceWithoutOptInProducesDiagnostic() {
+        let source = """
+        import kotlin.native.ref.WeakReference
 
+        fun probe(s: String): WeakReference<String> {
+            return WeakReference(s)
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+        #expect(
+            !(optInDiagnostics.isEmpty),
+            "Expected opt-in diagnostic for WeakReference usage without @OptIn"
+        )
+    }
+
+    @Test
+    func testUsingWeakReferenceWithOptInSuppressesDiagnostic() {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        import kotlin.native.ref.WeakReference
+
+        fun probe(s: String): WeakReference<String> {
+            return WeakReference(s)
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+        #expect(
+            optInDiagnostics.isEmpty,
+            "Expected no opt-in diagnostic when @OptIn(ExperimentalNativeApi::class) is present"
+        )
+    }
+
+    @Test
+    func testUsingGCWithoutNativeRuntimeApiOptInProducesDiagnostic() {
+        let source = """
+        import kotlin.native.runtime.GC
+
+        fun probe() {
+            GC.collect()
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+        #expect(
+            !(optInDiagnostics.isEmpty),
+            "Expected opt-in diagnostic for GC usage without @OptIn(NativeRuntimeApi::class)"
+        )
+    }
+
+    @Test
+    func testUsingGCWithNativeRuntimeApiOptInSuppressesDiagnostic() {
+        let source = """
+        @file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class)
+        import kotlin.native.runtime.GC
+
+        fun probe() {
+            GC.collect()
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+        #expect(
+            optInDiagnostics.isEmpty,
+            "Expected no opt-in diagnostic when @OptIn(NativeRuntimeApi::class) is present"
+        )
+    }
 }
 #endif

@@ -132,23 +132,10 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_kclass_register_annotation",
             // Kept in RuntimeABISpec for source-migration compatibility; the
             // runtime exports only the __kk_ bridge.
-            "kk_list_flatMap",
-            "kk_list_flatMapIndexed",
-            "kk_list_flatMapIndexedTo",
-            "kk_list_flatMapTo",
-            "kk_list_flatten",
             "kk_list_fold",
             "kk_list_foldIndexed",
             "kk_list_foldRight",
             "kk_list_foldRightIndexed",
-            "kk_list_map",
-            "kk_list_mapIndexed",
-            "kk_list_mapIndexedNotNull",
-            "kk_list_mapIndexedNotNullTo",
-            "kk_list_mapIndexedTo",
-            "kk_list_mapNotNull",
-            "kk_list_mapNotNullTo",
-            "kk_list_mapTo",
             "kk_list_reduceIndexedOrNull",
             "kk_list_reduceOrNull",
             "kk_list_runningFold",
@@ -231,7 +218,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_path_readAttributes_string",
             "kk_path_writeText_options",
             "kk_uri_toPath",
-            "kk_range_isEmpty",
         ]
     }
 

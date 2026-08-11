@@ -6,7 +6,7 @@ import kotlin.internal.KsSymbolName
 // contains(value) / isEmpty() for IntRange, LongRange, CharRange, IntProgression,
 // LongProgression, CharProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
-//   (kk_range_contains, kk_range_isEmpty, kk_char_range_isEmpty, kk_op_contains)
+//   (__kk_range_contains, __kk_range_isEmpty, kk_op_contains)
 //   Sources/Runtime/RuntimeRangeLongRange.swift
 //   (kk_long_range_contains, kk_long_range_isEmpty)
 // See RangeIterators.kt for the iterator() half of this migration.
@@ -83,21 +83,21 @@ private fun containsChar(value: Char, first: Char, last: Char, step: Int): Boole
     return (value - first) % step == 0
 }
 
-@KsSymbolName("kk_range_contains")
+@KsSymbolName("__kk_range_contains")
 public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, first, last, step)
 
-@KsSymbolName("kk_range_contains")
+@KsSymbolName("__kk_range_contains")
 public operator fun IntProgression.contains(value: Int): Boolean = containsInt(value, first, last, step)
 
-@KsSymbolName("kk_range_contains")
+@KsSymbolName("__kk_range_contains")
 public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step)
 
-@KsSymbolName("kk_range_contains")
+@KsSymbolName("__kk_range_contains")
 public operator fun LongProgression.contains(value: Long): Boolean =
     containsLong(value, first, last, step.toLong())
 
-@KsSymbolName("kk_range_contains")
+@KsSymbolName("__kk_range_contains")
 public operator fun CharRange.contains(value: Char): Boolean = containsChar(value, first, last, step)
 
-@KsSymbolName("kk_range_contains")
+@KsSymbolName("__kk_range_contains")
 public operator fun CharProgression.contains(value: Char): Boolean = containsChar(value, first, last, step)

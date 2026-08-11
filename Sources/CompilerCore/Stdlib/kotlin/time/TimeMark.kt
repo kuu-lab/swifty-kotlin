@@ -30,16 +30,16 @@ private external fun __kk_time_mark_from_reading_nanos(readingNanos: Long): Time
 @KsSymbolName("__kk_comparable_time_mark_from_reading_nanos")
 private external fun __kk_comparable_time_mark_from_reading_nanos(readingNanos: Long): ComparableTimeMark
 
-private fun timeMarkNegateNanos(value: Long): Long =
+internal fun timeMarkNegateNanos(value: Long): Long =
     if (value == Long.MIN_VALUE) Long.MAX_VALUE else -value
 
-private fun timeMarkAddNanos(lhs: Long, rhs: Long): Long {
+internal fun timeMarkAddNanos(lhs: Long, rhs: Long): Long {
     if (rhs > 0L && lhs > Long.MAX_VALUE - rhs) return Long.MAX_VALUE
     if (rhs < 0L && lhs < Long.MIN_VALUE - rhs) return Long.MIN_VALUE
     return lhs + rhs
 }
 
-private fun timeMarkElapsedNanos(readingNanos: Long): Long =
+internal fun timeMarkElapsedNanos(readingNanos: Long): Long =
     timeMarkAddNanos(__kk_time_mark_now_reading_nanos(), timeMarkNegateNanos(readingNanos))
 
 public fun TimeMark.elapsedNow(): Duration =

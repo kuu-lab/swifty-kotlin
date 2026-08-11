@@ -136,6 +136,28 @@ struct CodegenBackendMatchGroupCollectionTests {
         )
     }
 
+    // Regression for constructor-call lowering: Regex(pattern) must flatten
+    // its String argument and call the __kk_regex_create_flat factory directly.
+    @Test func testRegexConstructionFromStringLiteralAndBasicUse() throws {
+        let source = """
+        fun main() {
+            val r = Regex("\\\\w+")
+            println(r.containsMatchIn("hello world"))
+            println(r.matches("hello"))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RegexConstructionAndUse",
+            expected:
+                """
+                true
+                true
+                """ + "\n"
+        )
+    }
+
     @Test func testMatchGroupCollectionOutOfBoundsReturnsNull() throws {
         let source = """
         fun main() {

@@ -25,7 +25,9 @@ struct UuidPutUuidSemaTests {
         return try #require(result)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         let (_, sema, interner) = try makeSemaWithContext()
         return (sema, interner)
     }
@@ -79,7 +81,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidHasByteBufferReceiver() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let byteBufferSym = try #require(
             byteBufferSymbol(sema: sema, interner: interner),
             "java.nio.ByteBuffer must be registered"
@@ -98,7 +100,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidHasTwoParameters() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
         )
@@ -108,7 +110,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidFirstParameterIsInt() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
         )
@@ -118,7 +120,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidSecondParameterIsUuid() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
         )
@@ -135,7 +137,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidReturnsByteBuffer() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let byteBufferSym = try #require(byteBufferSymbol(sema: sema, interner: interner))
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
@@ -163,7 +165,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidSingleOverloadHasOneUuidParameter() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
         )
@@ -182,7 +184,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidIsTaggedExperimentalUuidApi() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let interned = ["kotlin", "uuid", "putUuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: interned)
         #expect(!syms.isEmpty, "putUuid must be registered")
@@ -200,7 +202,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidOverloadsAreDistinctSymbols() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let single = try #require(
             findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
         )

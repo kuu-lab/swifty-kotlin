@@ -4,22 +4,33 @@ import Testing
 
 @Suite
 struct NativeStackTraceAddressesSurfaceTests {
-    @Test func testGetStackTraceAddressesIsRegistered() throws {
-        let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-        import kotlin.native.getStackTraceAddresses
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
-        fun probe(): List<Long> = getStackTraceAddresses()
-        """
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
+    }
 
+    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Tests assert on collected diagnostics.
+        }
+        return ctx
+    }
 
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "Expected getStackTraceAddresses to resolve without errors, got \(errors)")
-
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
+    @Test
+    func testGetStackTraceAddressesIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
         let nativeFQName = ["kotlin", "native", "getStackTraceAddresses"].map { interner.intern($0) }
         let listFQName = ["kotlin", "collections", "List"].map { interner.intern($0) }
         let listSymbol = try #require(sema.symbols.lookup(fqName: listFQName))
@@ -38,6 +49,7 @@ struct NativeStackTraceAddressesSurfaceTests {
                 && signature.returnType == listLongType
         }
         let symbol = try #require(match, "Expected kotlin.native.getStackTraceAddresses")
+
         #expect(sema.symbols.externalLinkName(for: symbol) == "kk_native_getStackTraceAddresses")
         #expect(
             sema.symbols.annotations(for: symbol).contains {
@@ -47,11 +59,18 @@ struct NativeStackTraceAddressesSurfaceTests {
         )
     }
 
+    @Test
+    func testGetStackTraceAddressesResolvesInSourceWithOptIn() {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        import kotlin.native.getStackTraceAddresses
 
+        fun probe(): List<Long> = getStackTraceAddresses()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-
-
-
-
+        #expect(errors.isEmpty, "Expected getStackTraceAddresses to resolve without errors, got \(errors)")
+    }
 }
 #endif

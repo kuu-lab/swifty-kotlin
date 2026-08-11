@@ -10,10 +10,10 @@ import Testing
 //   3. Method dispatch for every Regex member (matches / containsMatchIn / find /
 //      findAll / matchEntire / replace)
 //   4. Named-capture-group access chains produce no sema errors and lower to KIR
-//   5. toRegex() String extension lowers to kk_string_toRegex_flat
+//   5. toRegex() String extension lowers to __kk_string_toRegex_flat
 //   6. String.split(Regex) and String.contains(Regex) lower to the correct KIR callees
-//   7. Regex.replace with lambda lowers to kk_regex_replace_lambda
-//   8. Regex.fromLiteral (companion) lowers to kk_regex_from_literal_flat in KIR
+//   7. Regex.replace with lambda lowers to __kk_regex_replace_lambda
+//   8. Regex.fromLiteral (companion) lowers to __kk_regex_from_literal_flat in KIR
 //
 // Scope: sema resolution + KIR lowering only. No runtime edits.
 // Does NOT overlap with STDLIB-REGEX-001 (API inventory) or STDLIB-REGEX-003 (runtime).
@@ -146,7 +146,7 @@ struct RegexSemaLoweringTests {
                 "Expected .matches(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches_flat")
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat")
         }
     }
 
@@ -171,7 +171,7 @@ struct RegexSemaLoweringTests {
                 "Expected .findAll(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_findAll_flat")
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_findAll_flat")
         }
     }
 
@@ -202,7 +202,7 @@ struct RegexSemaLoweringTests {
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_replace_lambda"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_replace_lambda"
             )
         }
     }
@@ -281,7 +281,7 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_regex_create_flat"),
+                callees.contains("__kk_regex_create_flat"),
                 Comment(rawValue: "KIR must contain kk_regex_create for single-arg constructor; found: \(callees)")
             )
         }
@@ -300,7 +300,7 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_regex_create_with_option_flat"),
+                callees.contains("__kk_regex_create_with_option_flat"),
                 Comment(rawValue: "KIR must contain kk_regex_create_with_option; found: \(callees)")
             )
         }
@@ -319,7 +319,7 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_regex_create_with_options_flat"),
+                callees.contains("__kk_regex_create_with_options_flat"),
                 Comment(rawValue: "KIR must contain kk_regex_create_with_options; found: \(callees)")
             )
         }
@@ -339,7 +339,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_matches_flat"), Comment(rawValue: "KIR must contain kk_regex_matches; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_matches_flat"), Comment(rawValue: "KIR must contain kk_regex_matches; found: \(callees)"))
         }
     }
 
@@ -355,7 +355,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_containsMatchIn_flat"), Comment(rawValue: "KIR must contain kk_regex_containsMatchIn; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_containsMatchIn_flat"), Comment(rawValue: "KIR must contain kk_regex_containsMatchIn; found: \(callees)"))
         }
     }
 
@@ -372,7 +372,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_find_flat"), Comment(rawValue: "KIR must contain kk_regex_find; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_find_flat"), Comment(rawValue: "KIR must contain kk_regex_find; found: \(callees)"))
         }
     }
 
@@ -388,7 +388,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_findAll_flat"), Comment(rawValue: "KIR must contain kk_regex_findAll; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_findAll_flat"), Comment(rawValue: "KIR must contain kk_regex_findAll; found: \(callees)"))
         }
     }
 
@@ -405,7 +405,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_matchEntire_flat"), Comment(rawValue: "KIR must contain kk_regex_matchEntire; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_matchEntire_flat"), Comment(rawValue: "KIR must contain kk_regex_matchEntire; found: \(callees)"))
         }
     }
 
@@ -422,7 +422,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_replace_lambda"), Comment(rawValue: "KIR must contain kk_regex_replace_lambda; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_replace_lambda"), Comment(rawValue: "KIR must contain __kk_regex_replace_lambda; found: \(callees)"))
         }
     }
 
@@ -440,7 +440,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_string_toRegex_flat"), Comment(rawValue: "KIR must contain kk_string_toRegex; found: \(callees)"))
+            #expect(callees.contains("__kk_string_toRegex_flat"), Comment(rawValue: "KIR must contain kk_string_toRegex; found: \(callees)"))
         }
     }
 
@@ -459,7 +459,7 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_string_toRegex_with_option_flat"),
+                callees.contains("__kk_string_toRegex_with_option_flat"),
                 Comment(rawValue: "KIR must contain kk_string_toRegex_with_option; found: \(callees)")
             )
         }
@@ -478,7 +478,7 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_string_toRegex_with_options_flat"),
+                callees.contains("__kk_string_toRegex_with_options_flat"),
                 Comment(rawValue: "KIR must contain kk_string_toRegex_with_options; found: \(callees)")
             )
         }
@@ -519,7 +519,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_string_contains_regex_flat"), Comment(rawValue: "KIR must contain kk_string_contains_regex; found: \(callees)"))
+            #expect(callees.contains("__kk_string_contains_regex_flat"), Comment(rawValue: "KIR must contain kk_string_contains_regex; found: \(callees)"))
         }
     }
 
@@ -537,7 +537,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_regex_from_literal_flat"), Comment(rawValue: "KIR must contain kk_regex_from_literal; found: \(callees)"))
+            #expect(callees.contains("__kk_regex_from_literal_flat"), Comment(rawValue: "KIR must contain kk_regex_from_literal; found: \(callees)"))
         }
     }
 

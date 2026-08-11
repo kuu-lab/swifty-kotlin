@@ -102,6 +102,9 @@ extension DataFlowSemaPhase {
                 if record.isValueClass {
                     flags.insert(.valueType)
                 }
+                if record.isFunInterface {
+                    flags.insert(.funInterface)
+                }
                 if record.isExpect {
                     flags.insert(.expectDeclaration)
                 }
@@ -435,21 +438,21 @@ extension DataFlowSemaPhase {
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
-            declaredInstanceSizeWords: Int? = nil,
-            declaredVtableSize: Int? = nil,
-            declaredItableSize: Int? = nil,
-            superFQName: [InternedString]? = nil,
-            superFQNames: [[InternedString]]? = nil,
+        declaredInstanceSizeWords: Int? = nil,
+        declaredVtableSize: Int? = nil,
+        declaredItableSize: Int? = nil,
+        superFQName: [InternedString]? = nil,
+        superFQNames: [[InternedString]]? = nil,
             companionObjectFQName: [InternedString]? = nil,
             fieldOffsets: [ImportedFieldOffsetEntry] = [],
             vtableSlots: [ImportedVTableSlotEntry] = [],
-            itableSlots: [ImportedITableSlotEntry] = [],
-            objectInitializerLinkName: String? = nil,
-            companionInitializerLinkName: String? = nil,
-            enumStaticInitLinkName: String? = nil,
-            isDataClass: Bool = false,
-            isSealedClass: Bool = false,
-            isFunInterface: Bool = false,
+        itableSlots: [ImportedITableSlotEntry] = [],
+        objectInitializerLinkName: String? = nil,
+        companionInitializerLinkName: String? = nil,
+        enumStaticInitLinkName: String? = nil,
+        isDataClass: Bool = false,
+        isSealedClass: Bool = false,
+        isFunInterface: Bool = false,
             isValueClass: Bool = false,
             isExpect: Bool = false,
             isActual: Bool = false,
@@ -482,20 +485,20 @@ extension DataFlowSemaPhase {
             self.externalLinkName = externalLinkName
             self.declaredFieldCount = declaredFieldCount
             self.declaredInstanceSizeWords = declaredInstanceSizeWords
-            self.declaredVtableSize = declaredVtableSize
-            self.declaredItableSize = declaredItableSize
-            self.superFQName = superFQName
-            self.superFQNames = superFQNames
+        self.declaredVtableSize = declaredVtableSize
+        self.declaredItableSize = declaredItableSize
+        self.superFQName = superFQName
+        self.superFQNames = superFQNames
             self.companionObjectFQName = companionObjectFQName
             self.fieldOffsets = fieldOffsets
             self.vtableSlots = vtableSlots
             self.itableSlots = itableSlots
-            self.objectInitializerLinkName = objectInitializerLinkName
-            self.companionInitializerLinkName = companionInitializerLinkName
-            self.enumStaticInitLinkName = enumStaticInitLinkName
-            self.isDataClass = isDataClass
-            self.isSealedClass = isSealedClass
-            self.isFunInterface = isFunInterface
+        self.objectInitializerLinkName = objectInitializerLinkName
+        self.companionInitializerLinkName = companionInitializerLinkName
+        self.enumStaticInitLinkName = enumStaticInitLinkName
+        self.isDataClass = isDataClass
+        self.isSealedClass = isSealedClass
+        self.isFunInterface = isFunInterface
             self.isValueClass = isValueClass
             self.isExpect = isExpect
             self.isActual = isActual
@@ -713,6 +716,19 @@ extension DataFlowSemaPhase {
                 allowPlaceholders: isStdlibArtifact
             )
             symbols.setFunctionSignature(signature, for: symbol)
+            // Extension functions are represented as package-level FQ names in
+            // metadata, but source compilation attaches them to their nominal
+            // receiver for member fallback/dispatch lookup. Reconstruct that
+            // ownership from the decoded receiver type so imported stdlib
+            // extensions (for example Sequence.chunked/windowed) follow the
+            // same resolution path as bundled source declarations.
+            if let receiverType = signature.receiverType,
+               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
+               isNominalLayoutTargetSymbol(receiverSymbol.kind)
+            {
+                symbols.setParentSymbol(receiverSymbol.id, for: symbol)
+            }
             if let defaultStubLink = record.defaultStubExternalLinkName, !defaultStubLink.isEmpty,
                signature.valueParameterHasDefaultValues.contains(true)
             {
@@ -870,7 +886,6 @@ extension DataFlowSemaPhase {
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
             }
         }
-
         // Member and top-level properties with custom getters also carry a
         // precompiled getter link name. Restore a synthetic accessor so reads
         // route through it instead of through a global slot the artifact never
@@ -963,6 +978,23 @@ extension DataFlowSemaPhase {
                 "Inline KIR path for '\(record.mangledName)' escapes inline directory",
                 range: nil
             )
+            return
+        }
+        guard FileManager.default.fileExists(atPath: inlinePath) else {
+            let recordFQName = record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            if binding.isStdlibArtifact {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0023",
+                    "Stdlib artifact is missing inline KIR for '" + recordFQName + "': " + inlinePath,
+                    range: nil
+                )
+            } else {
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0002",
+                    "Unable to read inline KIR artifact: " + inlinePath,
+                    range: nil
+                )
+            }
             return
         }
         guard let inlineFunction = parseImportedInlineFunction(

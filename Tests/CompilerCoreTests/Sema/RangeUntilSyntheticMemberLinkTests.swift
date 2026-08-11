@@ -4,6 +4,20 @@ import Testing
 
 @Suite
 struct RangeUntilSyntheticMemberLinkTests {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
+    }
+
     private func untilSymbols(for sema: SemaModule, interner: StringInterner) -> [SymbolID] {
         sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),
@@ -34,34 +48,19 @@ struct RangeUntilSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testUntilOverloadsAndCalls() throws {
-        let source = """
-        fun sample(b: Byte, s: Short, i: Int, l: Long) {
-            val byteRange = b until b
-            val shortRange = s until s
-            val intRange = i until i
-            val intLongRange = i until l
-            val longIntRange = l until i
-            val longRange = l until l
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let interner = ctx.interner
-        let sema = try #require(ctx.sema)
+    @Test func testUntilOverloadsHaveExpectedSignaturesAndLinks() throws {
+        let (sema, interner) = try sharedSema()
         let untilSymbolIDs = untilSymbols(for: sema, interner: interner)
 
         // Byte and Short collapse to intType internally; mixed Int/Long calls widen to Long.
-        let expectedSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID, link: String)] = [
+        let expected: [(receiver: TypeID, parameter: TypeID, returnType: TypeID, link: String)] = [
             (sema.types.intType, sema.types.intType, sema.types.intType, "kk_op_rangeUntil"),
             (sema.types.intType, sema.types.longType, sema.types.longType, "kk_op_rangeUntil"),
             (sema.types.longType, sema.types.intType, sema.types.longType, "kk_op_rangeUntil"),
             (sema.types.longType, sema.types.longType, sema.types.longType, "kk_op_rangeUntil"),
         ]
 
-        for entry in expectedSignatures {
+        for entry in expected {
             let matchingSymbol = untilSymbolIDs.first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
@@ -76,13 +75,30 @@ struct RangeUntilSyntheticMemberLinkTests {
                 Comment(rawValue: "Expected \(entry.receiver).until to link to \(entry.link)")
             )
         }
+    }
+
+    @Test func testUntilInfixCallsResolveToExpectedRuntimeLinksAndRangeKinds() throws {
+        let source = """
+        fun sample(b: Byte, s: Short, i: Int, l: Long) {
+            val byteRange = b until b
+            val shortRange = s until s
+            val intRange = i until i
+            val intLongRange = i until l
+            val longIntRange = l until i
+            val longRange = l until l
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
         let ast = try #require(ctx.ast)
-        let untilCalls = untilCallExprIDs(in: ast, interner: interner, sourceManager: ctx.sourceManager)
+        let sema = try #require(ctx.sema)
+        let untilCalls = untilCallExprIDs(in: ast, interner: ctx.interner, sourceManager: ctx.sourceManager)
 
         #expect(untilCalls.count == 6)
 
-        let expectedCalls: [(type: TypeID, link: String, isUIntRange: Bool, isULongRange: Bool)] = [
+        let expected: [(type: TypeID, link: String, isUIntRange: Bool, isULongRange: Bool)] = [
             (sema.types.intType, "kk_op_rangeUntil", false, false),
             (sema.types.intType, "kk_op_rangeUntil", false, false),
             (sema.types.intType, "kk_op_rangeUntil", false, false),
@@ -91,7 +107,7 @@ struct RangeUntilSyntheticMemberLinkTests {
             (sema.types.longType, "kk_op_rangeUntil", false, false),
         ]
 
-        for (exprID, entry) in zip(untilCalls, expectedCalls) {
+        for (exprID, entry) in zip(untilCalls, expected) {
             let binding = try #require(sema.bindings.callBinding(for: exprID))
             let chosen = binding.chosenCallee
             #expect(

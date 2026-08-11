@@ -35,6 +35,21 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
+        // BUG-190: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
+        // the fallback, so it must not run when lhs is already non-null.
+        if op == .elvis {
+            return lowerShortCircuitElvisExpr(
+                exprID,
+                lhs: lhs,
+                rhs: rhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let boundType: TypeID? = switch op {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             boolType
@@ -102,33 +117,66 @@ extension CallLowerer {
                 } else {
                     result
                 }
-                if isCompareToDesugaring,
-                   shouldLowerComparableTypeParamViaRuntime(
-                       chosenCallee: callBinding.chosenCallee,
-                       receiverExpr: lhs,
-                       sema: sema
-                   )
-                {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_compare_any"),
-                        arguments: [lhsID, rhsID],
-                        result: callResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    let cmpOp: KIRBinaryOp
-                    switch op {
-                    case .lessThan: cmpOp = .lessThan
-                    case .lessOrEqual: cmpOp = .lessOrEqual
-                    case .greaterThan: cmpOp = .greaterThan
-                    case .greaterOrEqual: cmpOp = .greaterOrEqual
-                    default: fatalError("Unreachable: erased Comparable runtime path only applies to comparison operators")
+                // Prefer concrete runtime helpers over bare `compareTo` when the
+                // chosen overload is the synthetic Comparable interface method
+                // (no externalLinkName). Passing Int as the operator call's
+                // expected type (STDLIB-SHARED-001) makes Sema bind String and
+                // other concrete receivers to Comparable.compareTo; without
+                // this rewrite, codegen would emit an undefined `_compareTo`.
+                if isCompareToDesugaring {
+                    let lhsTypeForCompare = sema.bindings.exprTypes[lhs]
+                    let rhsTypeForCompare = sema.bindings.exprTypes[rhs]
+                    let nullableString = sema.types.makeNullable(stringType)
+                    let lhsIsString = lhsTypeForCompare == stringType || lhsTypeForCompare == nullableString
+                    let rhsIsString = rhsTypeForCompare == stringType || rhsTypeForCompare == nullableString
+                    if lhsIsString, rhsIsString {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_string_compareTo_flat"),
+                            arguments: [lhsID, rhsID],
+                            result: callResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+                        instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                        let cmpOp: KIRBinaryOp
+                        switch op {
+                        case .lessThan: cmpOp = .lessThan
+                        case .lessOrEqual: cmpOp = .lessOrEqual
+                        case .greaterThan: cmpOp = .greaterThan
+                        case .greaterOrEqual: cmpOp = .greaterOrEqual
+                        default: fatalError("Unreachable: compareTo desugaring only applies to comparison operators")
+                        }
+                        instructions.append(.binary(op: cmpOp, lhs: callResult, rhs: zeroExpr, result: result))
+                        return result
                     }
-                    instructions.append(.binary(op: cmpOp, lhs: callResult, rhs: zeroExpr, result: result))
-                    return result
+                    if shouldLowerComparableViaRuntimeHelper(
+                        chosenCallee: callBinding.chosenCallee,
+                        receiverExpr: lhs,
+                        sema: sema
+                    ) {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_compare_any"),
+                            arguments: [lhsID, rhsID],
+                            result: callResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+                        instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                        let cmpOp: KIRBinaryOp
+                        switch op {
+                        case .lessThan: cmpOp = .lessThan
+                        case .lessOrEqual: cmpOp = .lessOrEqual
+                        case .greaterThan: cmpOp = .greaterThan
+                        case .greaterOrEqual: cmpOp = .greaterOrEqual
+                        default: fatalError("Unreachable: erased Comparable runtime path only applies to comparison operators")
+                        }
+                        instructions.append(.binary(op: cmpOp, lhs: callResult, rhs: zeroExpr, result: result))
+                        return result
+                    }
                 }
                 let normalizedResult = driver.callSupportLowerer.normalizedCallArguments(
                     providedArguments: [rhsID],
@@ -587,37 +635,7 @@ extension CallLowerer {
         case .logicalOr:
             kirOp = .logicalOr
         case .elvis:
-            if boundType == stringType {
-                let rawResult = arena.appendTemporary(type: sema.types.nullableAnyType)
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_op_elvis"),
-                    arguments: [lhsID, rhsID],
-                    result: rawResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
-                instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [rawResult, stringTag],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_op_elvis"),
-                arguments: [lhsID, rhsID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
+            preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
             let rangeToCallee = sema.bindings.isUIntRangeExpr(exprID)
                 ? interner.intern("kk_uint_rangeTo")
@@ -748,6 +766,98 @@ extension CallLowerer {
         return result
     }
 
+    /// Lowers `?:` with proper short-circuit control flow.
+    ///
+    /// `lhs ?: rhs` behaves like `if (lhs != null) lhs else rhs`, so rhs is
+    /// only lowered behind a branch that is skipped when lhs is non-null. The
+    /// previous strict lowering handed both operands to `kk_op_elvis`, which
+    /// evaluated the fallback unconditionally: `x ?: return -1` always
+    /// returned, `x ?: throw e` always threw, and any fallback with side
+    /// effects always ran (BUG-190).
+    ///
+    /// A `String`-typed result keeps the `kk_any_to_string` conversion the
+    /// strict lowering applied to `kk_op_elvis`'s result -- both operands reach
+    /// here as single-word values, while the result is the flat aggregate --
+    /// but now applies it per branch.
+    private func lowerShortCircuitElvisExpr(
+        _ exprID: ExprID,
+        lhs: ExprID,
+        rhs: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boundType = sema.bindings.exprTypes[exprID]
+        let result = arena.appendTemporary(type: boundType)
+        let producesString = boundType == sema.types.stringType
+        let lhsID = driver.lowerExpr(
+            lhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let notNullLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: lhsID, target: notNullLabel))
+
+        let rhsID = driver.lowerExpr(
+            rhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if !driver.controlFlowLowerer.isTerminatedExpr(rhsID, arena: arena, sema: sema) {
+            emitElvisBranchResult(
+                rhsID, into: result, producesString: producesString,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.jump(endLabel))
+        }
+
+        instructions.append(.label(notNullLabel))
+        emitElvisBranchResult(
+            lhsID, into: result, producesString: producesString,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
+        instructions.append(.label(endLabel))
+        return result
+    }
+
+    private func emitElvisBranchResult(
+        _ valueID: KIRExprID,
+        into result: KIRExprID,
+        producesString: Bool,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard producesString else {
+            instructions.append(.copy(from: valueID, to: result))
+            return
+        }
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
+        instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_any_to_string"),
+            arguments: [valueID, stringTag],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
     private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {
         switch types.kind(of: typeID) {
         case .primitive(.double, _), .primitive(.float, _): return true
@@ -755,21 +865,41 @@ extension CallLowerer {
         }
     }
 
+    /// Route `Comparable.compareTo` (synthetic interface method, no external
+    /// link) through `kk_compare_any` instead of emitting a bare `compareTo`
+    /// symbol. Covers type-parameter receivers and any other case where Sema
+    /// selected the interface member without a concrete runtime bridge.
+    private func shouldLowerComparableViaRuntimeHelper(
+        chosenCallee: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule
+    ) -> Bool {
+        // Prefer an explicit runtime bridge when present (e.g. concrete
+        // extension operators exported from a shared stdlib artifact).
+        if let linkName = sema.symbols.externalLinkName(for: chosenCallee), !linkName.isEmpty {
+            return false
+        }
+        guard let comparableSymbol = sema.types.comparableInterfaceSymbol,
+              sema.symbols.parentSymbol(for: chosenCallee) == comparableSymbol
+        else {
+            return false
+        }
+        // User-defined overrides live under their declaring class, not under
+        // Comparable, so they keep the symbol-based call path above.
+        _ = receiverExpr
+        return true
+    }
+
     private func shouldLowerComparableTypeParamViaRuntime(
         chosenCallee: SymbolID,
         receiverExpr: ExprID,
         sema: SemaModule
     ) -> Bool {
-        guard let comparableSymbol = sema.types.comparableInterfaceSymbol,
-              sema.symbols.parentSymbol(for: chosenCallee) == comparableSymbol,
-              let receiverType = sema.bindings.exprTypes[receiverExpr]
-        else {
-            return false
-        }
-        if case .typeParam = sema.types.kind(of: receiverType) {
-            return true
-        }
-        return false
+        shouldLowerComparableViaRuntimeHelper(
+            chosenCallee: chosenCallee,
+            receiverExpr: receiverExpr,
+            sema: sema
+        )
     }
 
     // MARK: - Array Operations

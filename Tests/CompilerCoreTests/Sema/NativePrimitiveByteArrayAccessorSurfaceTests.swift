@@ -6,51 +6,29 @@ private struct TestAbortError: Error {}
 
 @Suite
 struct NativePrimitiveByteArrayAccessorSurfaceTests {
-    @Test func testPrimitiveByteArrayAccessors() throws {
-        let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-        import kotlin.native.getCharAt
-        import kotlin.native.getFloatAt
-        import kotlin.native.getDoubleAt
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
-        fun probeChar(bytes: ByteArray): Char = bytes.getCharAt(0)
-        fun probeFloat(bytes: ByteArray): Float = bytes.getFloatAt(2)
-        fun probeDouble(bytes: ByteArray): Double = bytes.getDoubleAt(0)
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "Expected primitive ByteArray accessors to resolve without errors, got \(errors)")
-
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
-        let expected: [(name: String, returnType: TypeID, linkName: String)] = [
-            ("getCharAt", sema.types.charType, "kk_native_byteArray_getCharAt"),
-            ("getFloatAt", sema.types.floatType, "kk_native_byteArray_getFloatAt"),
-            ("getDoubleAt", sema.types.doubleType, "kk_native_byteArray_getDoubleAt"),
-        ]
-        for accessor in expected {
-            let (symbol, signature) = try nativeAccessorSignature(
-                named: accessor.name,
-                returnType: accessor.returnType,
-                sema: sema,
-                interner: interner
-            )
-            #expect(signature.valueParameterHasDefaultValues == [false])
-            #expect(sema.symbols.externalLinkName(for: symbol) == accessor.linkName)
-            #expect(
-                sema.symbols.annotations(for: symbol).contains {
-                    $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
-                },
-                "\(accessor.name) must carry ExperimentalNativeApi metadata"
-            )
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = (try #require(ctx.sema), ctx.interner)
         }
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
-
-
+    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
+        let ctx = makeContextFromSource(source)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Tests assert on collected diagnostics.
+        }
+        return ctx
+    }
 
     private func byteArrayType(
         sema: SemaModule,
@@ -93,8 +71,49 @@ struct NativePrimitiveByteArrayAccessorSurfaceTests {
         throw TestAbortError()
     }
 
+    @Test
+    func testPrimitiveByteArrayAccessorsAreRegistered() throws {
+        let (sema, interner) = try sharedSema()
+        let expected: [(name: String, returnType: TypeID, linkName: String)] = [
+            ("getCharAt", sema.types.charType, "kk_native_byteArray_getCharAt"),
+            ("getFloatAt", sema.types.floatType, "kk_native_byteArray_getFloatAt"),
+            ("getDoubleAt", sema.types.doubleType, "kk_native_byteArray_getDoubleAt"),
+        ]
 
+        for accessor in expected {
+            let (symbol, signature) = try nativeAccessorSignature(
+                named: accessor.name,
+                returnType: accessor.returnType,
+                sema: sema,
+                interner: interner
+            )
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(sema.symbols.externalLinkName(for: symbol) == accessor.linkName)
+            #expect(
+                sema.symbols.annotations(for: symbol).contains {
+                    $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
+                },
+                "\(accessor.name) must carry ExperimentalNativeApi metadata"
+            )
+        }
+    }
 
+    @Test
+    func testPrimitiveByteArrayAccessorsResolveInSourceWithOptIn() {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        import kotlin.native.getCharAt
+        import kotlin.native.getFloatAt
+        import kotlin.native.getDoubleAt
 
+        fun probeChar(bytes: ByteArray): Char = bytes.getCharAt(0)
+        fun probeFloat(bytes: ByteArray): Float = bytes.getFloatAt(2)
+        fun probeDouble(bytes: ByteArray): Double = bytes.getDoubleAt(0)
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+
+        #expect(errors.isEmpty, "Expected primitive ByteArray accessors to resolve without errors, got \(errors)")
+    }
 }
 #endif

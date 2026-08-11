@@ -7,7 +7,7 @@ import Testing
 ///
 /// Verifies that the synthetic `normalize` member registered on the
 /// `java.io.File` synthetic class (see
-/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`)
+/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift`)
 /// resolves through Sema and binds to the runtime helper `kk_file_normalize`
 /// listed in `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 @Suite

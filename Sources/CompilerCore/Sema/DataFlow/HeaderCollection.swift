@@ -1,7 +1,7 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    private func isValueClassDeclaration(_ classDecl: ClassDecl) -> Bool {
+    func isValueClassDeclaration(_ classDecl: ClassDecl) -> Bool {
         classDecl.modifiers.contains(.value) || classDecl.modifiers.contains(.inline)
     }
 
@@ -1062,7 +1062,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func reusableSyntheticDeclarationSymbol(
+    func reusableSyntheticDeclarationSymbol(
         kind: SymbolKind,
         fqName: [InternedString],
         file: ASTFile,
@@ -1070,7 +1070,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> SymbolID? {
-        guard kind == .class || kind == .interface else { return nil }
+        guard kind == .class || kind == .interface || kind == .object else { return nil }
         let reusableKeys = reusableSyntheticSourceDeclarationKeys(
             for: file,
             sourceManager: sourceManager,
@@ -1085,6 +1085,9 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The fully-qualified names a bundled source file is allowed to claim from
+    /// an earlier synthetic registration. A file may declare more than one such
+    /// nominal (`Tuples.kt` declares both `Pair` and `Triple`).
     private func reusableSyntheticSourceDeclarationKeys(
         for file: ASTFile,
         sourceManager: SourceManager,
@@ -1093,6 +1096,8 @@ extension DataFlowSemaPhase {
         let names: [[String]] = switch sourceManager.path(of: file.fileID) {
         case "__bundled_kotlin/Comparable.kt":
             [["kotlin", "Comparable"]]
+        case "__bundled_kotlin/io/Closeable.kt":
+            [["kotlin", "io", "Closeable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
             [["kotlin", "collections", "RandomAccess"]]
         case "__bundled_kotlin/collections/MutableIterable.kt":
@@ -1117,8 +1122,19 @@ extension DataFlowSemaPhase {
             [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":
             [["kotlin", "Throwable"]]
+        case "__bundled_kotlin/time/TimeSource.kt":
+            [
+                ["kotlin", "time", "TimeSource"],
+                ["kotlin", "time", "TimeSource", "WithComparableMarks"],
+                ["kotlin", "time", "TimeSource", "Monotonic"],
+            ]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
+        case "__bundled_kotlin/Tuples.kt":
+            [
+                ["kotlin", "Pair"],
+                ["kotlin", "Triple"],
+            ]
         case "__bundled_kotlin/ranges/Ranges.kt":
             [
                 ["kotlin", "ranges", "ClosedRange"],

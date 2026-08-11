@@ -66,16 +66,45 @@ func emitNonThrowingCall(
     callee: InternedString,
     arg: KIRExprID,
     result: KIRExprID,
+    symbol: SymbolID? = nil,
     into instructions: inout [KIRInstruction]
 ) {
     instructions.append(.call(
-        symbol: nil,
+        symbol: symbol,
         callee: callee,
         arguments: [arg],
         result: result,
         canThrow: false,
         thrownResult: nil
     ))
+}
+
+/// Resolve `componentN` for destructuring against `receiverType`.
+///
+/// External members lower to their runtime link name; the resolved symbol is
+/// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
+/// dispatch to the compiled function instead of a same-named runtime export,
+/// and so that ABI lowering can unbox generic component results.
+func resolveDestructuringComponentCallee(
+    componentName: InternedString,
+    receiverType: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> (symbol: SymbolID?, callee: InternedString) {
+    let chosen = TypeCheckHelpers().collectMemberFunctionCandidates(
+        named: componentName,
+        receiverType: receiverType,
+        sema: sema,
+        interner: interner
+    ).first
+    guard let chosen else {
+        return (nil, componentName)
+    }
+    let symbol = sema.symbols.isSourceBackedSymbol(chosen) ? chosen : nil
+    if let linkName = sema.symbols.externalLinkName(for: chosen), !linkName.isEmpty {
+        return (symbol, interner.intern(linkName))
+    }
+    return (symbol, componentName)
 }
 
 /// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete
@@ -244,7 +273,9 @@ private func emitEnumOrdinalBoxCall(
         result: nameResult, canThrow: false, thrownResult: nil
     ))
 
-    let classID = symbols.map { RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner) } ?? 0
+    let classID = symbols.map {
+        RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner)
+    } ?? 0
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))

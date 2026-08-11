@@ -6,7 +6,7 @@ import Testing
 // MARK: - STDLIB-IO-FN-038: File.toRelativeString(base: File): String
 //
 // Validates the synthetic `kotlin.io.File.toRelativeString` declaration registered
-// in `HeaderHelpers+SyntheticFileIOStubs.swift`. The expectations:
+// in `HeaderHelpers+SyntheticTODOAndIOStubs.swift`. The expectations:
 // 1. Calls of the form `file.toRelativeString(base)` resolve through Sema for
 //    plain `java.io.File` receivers and arguments.
 // 2. The call expression types as `String`, including when the result is fed

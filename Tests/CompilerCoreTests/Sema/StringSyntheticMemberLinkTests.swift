@@ -39,7 +39,9 @@ struct StringSyntheticMemberLinkTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -47,7 +49,9 @@ struct StringSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
@@ -62,7 +66,7 @@ struct StringSyntheticMemberLinkTests {
         return results
     }
     @Test func testStringSyntheticMemberLinkRegistrations() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         do {
             // Originally testExistingStringStubsRetainCorrectExternalLinks
@@ -143,7 +147,7 @@ struct StringSyntheticMemberLinkTests {
                             && !replaceLinks.contains("kk_string_replace_char_flat")
                             && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
                             && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
-                            && !replaceLinks.contains("kk_string_replace_regex"),
+                            && !replaceLinks.contains("__kk_string_replace_regex"),
                         "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
                     )
         }
