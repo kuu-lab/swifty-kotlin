@@ -195,12 +195,9 @@ struct CollectionLiteralLookupTables {
     var kkSetOfNotNullName: InternedString { setLookup.kkSetOfNotNullName }
     var kkSetSizeName: InternedString { setLookup.kkSetSizeName }
     var kkSetContainsName: InternedString { setLookup.kkSetContainsName }
-    var kkSetContainsAllName: InternedString { setLookup.kkSetContainsAllName }
     var kkSetIsEmptyName: InternedString { setLookup.kkSetIsEmptyName }
     var kkSetToStringName: InternedString { setLookup.kkSetToStringName }
     var kkIterableToMutableSetName: InternedString { setLookup.kkIterableToMutableSetName }
-    var kkSetToListName: InternedString { setLookup.kkSetToListName }
-    var kkSetSortedName: InternedString { setLookup.kkSetSortedName }
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
 
@@ -542,19 +539,6 @@ struct CollectionLiteralLookupTables {
     var kkFileListFilesName: InternedString { fileIOLookup.kkFileListFilesName }
     var walkName: InternedString { fileIOLookup.walkName }
     var kkFileWalkName: InternedString { fileIOLookup.kkFileWalkName }
-    var kkFileWalkWithDirectionName: InternedString { fileIOLookup.kkFileWalkWithDirectionName }
-    var walkTopDownName: InternedString { fileIOLookup.walkTopDownName }
-    var kkFileWalkTopDownName: InternedString { fileIOLookup.kkFileWalkTopDownName }
-    var walkBottomUpName: InternedString { fileIOLookup.walkBottomUpName }
-    var kkFileWalkBottomUpName: InternedString { fileIOLookup.kkFileWalkBottomUpName }
-    var kkFileTreeWalkMaxDepthName: InternedString { fileIOLookup.kkFileTreeWalkMaxDepthName }
-    var kkFileTreeWalkToListName: InternedString { fileIOLookup.kkFileTreeWalkToListName }
-    var kkFileTreeWalkOnEnterName: InternedString { fileIOLookup.kkFileTreeWalkOnEnterName }
-    var kkFileTreeWalkOnLeaveName: InternedString { fileIOLookup.kkFileTreeWalkOnLeaveName }
-    var kkFileTreeWalkOnFailName: InternedString { fileIOLookup.kkFileTreeWalkOnFailName }
-    var kkFileTreeWalkForEachName: InternedString { fileIOLookup.kkFileTreeWalkForEachName }
-    var kkFileTreeWalkFilterName: InternedString { fileIOLookup.kkFileTreeWalkFilterName }
-    var kkFileTreeWalkSortedByName: InternedString { fileIOLookup.kkFileTreeWalkSortedByName }
     var readBytesName: InternedString { fileIOLookup.readBytesName }
     var kkFileReadBytesName: InternedString { fileIOLookup.kkFileReadBytesName }
     var appendBytesName: InternedString { fileIOLookup.appendBytesName }

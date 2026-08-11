@@ -200,9 +200,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileWalkDirection") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileTreeWalk") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "OnErrorAction") { phase, symbols, types, interner, _ in
             phase.registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -246,9 +243,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         },
         SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "URL") { phase, symbols, types, interner in
             phase.registerSyntheticURLStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "LocaleConstructor") { phase, symbols, types, interner in
-            phase.registerSyntheticLocaleConstructorStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in
             phase.registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)

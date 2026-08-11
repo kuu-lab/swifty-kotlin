@@ -221,6 +221,25 @@ extension KIRLoweringDriver {
         }
     }
 
+    /// True when `symbol` is an extension whose receiver is `kotlin.collections.Set`.
+    private func isSetReceiverFunction(
+        symbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let receiverType = sema.symbols.functionSignature(for: symbol)?.receiverType,
+              case let .classType(classType) = sema.types.kind(of: receiverType),
+              let receiverName = sema.symbols.symbol(classType.classSymbol)?.fqName
+        else {
+            return false
+        }
+        return receiverName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Set"),
+        ]
+    }
+
     private func isRuntimeBackedBundledStdlibSourceFunction(
         symbol: SymbolID,
         sema: SemaModule,
@@ -264,9 +283,13 @@ extension KIRLoweringDriver {
             switch name {
             case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
                  "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
-                 "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
-                 "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
+                 "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 return true
+            case "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
+                // KSP-432: only the List overloads are lowered straight to the
+                // runtime; the Set overloads in SetHOF.kt are ordinary source
+                // declarations and must be emitted.
+                return !isSetReceiverFunction(symbol: symbol, sema: sema, interner: interner)
             default:
                 return false
             }

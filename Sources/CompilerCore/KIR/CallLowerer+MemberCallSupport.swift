@@ -286,7 +286,7 @@ extension CallLowerer {
         "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
         "sort", "sortWith", "sortBy", "sortByDescending",
         "onEach", "onEachIndexed",
-        "copyOf", "copyOfRange", "fill", "replaceAll", "removeIf",
+        "copyOf", "copyOfRange", "fill",
         "firstOrNull", "lastOrNull", "singleOrNull",
         "addAll", "removeAll", "retainAll",
         "intersect", "union", "subtract",

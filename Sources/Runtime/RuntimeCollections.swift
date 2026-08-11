@@ -461,17 +461,6 @@ public func kk_list_to_set(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(list.values)))
 }
 
-// MARK: - Set.toSet(), toMutableSet() (STDLIB-651)
-
-@_cdecl("kk_set_to_set")
-public func kk_set_to_set(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    // Return a defensive copy (Kotlin semantics: toSet() on Set returns a new Set)
-    return registerRuntimeObject(RuntimeSetBox(values: Array(set.values)))
-}
-
 @_cdecl("kk_list_to_mutable_set")
 public func kk_list_to_mutable_set(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -505,7 +494,7 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
     invalidContainerPanic(#function, "mutable collection")
 }
 
-@_cdecl("kk_mutable_collection_add")
+@_cdecl("__kk_mutable_collection_add")
 public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int {
     if let list = runtimeListBox(from: collectionRaw) {
         var values = list.values
@@ -523,7 +512,63 @@ public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int 
     return kk_box_bool(0)
 }
 
-@_cdecl("kk_mutable_collection_addAll")
+@_cdecl("__kk_mutable_collection_remove")
+public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> Int {
+    if let list = runtimeListBox(from: collectionRaw) {
+        guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
+            return kk_box_bool(0)
+        }
+        var values = list.values
+        values.remove(at: index)
+        list.values = values
+        return kk_box_bool(1)
+    }
+    if let set = runtimeSetBox(from: collectionRaw) {
+        guard let index = set.elements.firstIndex(where: { runtimeValuesEqual($0, elem) }) else {
+            return kk_box_bool(0)
+        }
+        set.elements.remove(at: index)
+        return kk_box_bool(1)
+    }
+    return kk_box_bool(0)
+}
+
+@_cdecl("__kk_mutable_collection_clear")
+public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
+    if let list = runtimeListBox(from: collectionRaw) {
+        list.values = []
+        return 0
+    }
+    if let set = runtimeSetBox(from: collectionRaw) {
+        set.elements = []
+        return 0
+    }
+    return 0
+}
+
+@_cdecl("__kk_mutable_collection_removeAll")
+public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
+    if runtimeListBox(from: collectionRaw) != nil {
+        return kk_mutable_list_removeAll(collectionRaw, elementsRaw)
+    }
+    if runtimeSetBox(from: collectionRaw) != nil {
+        return kk_mutable_set_removeAll(collectionRaw, elementsRaw)
+    }
+    return kk_box_bool(0)
+}
+
+@_cdecl("__kk_mutable_collection_retainAll")
+public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
+    if runtimeListBox(from: collectionRaw) != nil {
+        return kk_mutable_list_retainAll(collectionRaw, elementsRaw)
+    }
+    if runtimeSetBox(from: collectionRaw) != nil {
+        return kk_mutable_set_retainAll(collectionRaw, elementsRaw)
+    }
+    return kk_box_bool(0)
+}
+
+@_cdecl("__kk_mutable_collection_addAll")
 public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: elementsRaw) else {
         return kk_box_bool(0)
@@ -558,14 +603,6 @@ public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
         runtimeAppendToMutableCollection(destRaw, element)
     }
     return destRaw
-}
-
-@_cdecl("kk_set_to_mutable_set")
-public func kk_set_to_mutable_set(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
 }
 
 // MARK: - List intersect / union / subtract / toHashSet (STDLIB-510)
@@ -693,7 +730,7 @@ private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], 
     return RuntimeValue(raw: rawValue)
 }
 
-@_cdecl("kk_mutable_list_add")
+@_cdecl("__kk_mutable_list_add")
 public func kk_mutable_list_add(_ listRaw: Int, _ elem: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(0)
@@ -704,7 +741,7 @@ public func kk_mutable_list_add(_ listRaw: Int, _ elem: Int) -> Int {
     return kk_box_bool(1)
 }
 
-@_cdecl("kk_mutable_list_remove")
+@_cdecl("__kk_mutable_list_remove")
 public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
           let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) })
@@ -717,7 +754,7 @@ public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
     return kk_box_bool(1)
 }
 
-@_cdecl("kk_mutable_list_removeAt")
+@_cdecl("__kk_mutable_list_removeAt")
 public func kk_mutable_list_removeAt(_ listRaw: Int, _ index: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
           list.values.indices.contains(index)
@@ -730,7 +767,7 @@ public func kk_mutable_list_removeAt(_ listRaw: Int, _ index: Int) -> Int {
     return removed.legacyRawValue
 }
 
-@_cdecl("kk_mutable_list_removeFirst")
+@_cdecl("__kk_mutable_list_removeFirst")
 public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw),
@@ -745,7 +782,7 @@ public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutab
     return removed.legacyRawValue
 }
 
-@_cdecl("kk_mutable_list_removeFirstOrNull")
+@_cdecl("__kk_mutable_list_removeFirstOrNull")
 public func kk_mutable_list_removeFirstOrNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
           !list.values.isEmpty
@@ -758,7 +795,7 @@ public func kk_mutable_list_removeFirstOrNull(_ listRaw: Int) -> Int {
     return removed.legacyRawValue
 }
 
-@_cdecl("kk_mutable_list_removeLast")
+@_cdecl("__kk_mutable_list_removeLast")
 public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw),
@@ -773,7 +810,7 @@ public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutabl
     return removed.legacyRawValue
 }
 
-@_cdecl("kk_mutable_list_removeLastOrNull")
+@_cdecl("__kk_mutable_list_removeLastOrNull")
 public func kk_mutable_list_removeLastOrNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
           !list.values.isEmpty
@@ -786,7 +823,7 @@ public func kk_mutable_list_removeLastOrNull(_ listRaw: Int) -> Int {
     return removed.legacyRawValue
 }
 
-@_cdecl("kk_mutable_list_clear")
+@_cdecl("__kk_mutable_list_clear")
 public func kk_mutable_list_clear(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
@@ -795,21 +832,8 @@ public func kk_mutable_list_clear(_ listRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_list_fill")
-public func kk_mutable_list_fill(_ listRaw: Int, _ element: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return 0
-    }
-    var values = list.values
-    let filledValue = runtimeMutableListInsertedValue(for: values, rawValue: element)
-    for index in 0 ..< values.count {
-        values[index] = filledValue
-    }
-    list.values = values
-    return 0
-}
 
-@_cdecl("kk_mutable_list_add_at")
+@_cdecl("__kk_mutable_list_add_at")
 public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
@@ -828,7 +852,7 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
     return 0
 }
 
-@_cdecl("kk_mutable_list_set")
+@_cdecl("__kk_mutable_list_set")
 public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
@@ -850,7 +874,7 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
 
 // MARK: - MutableList shuffle/reverse (STDLIB-206)
 
-@_cdecl("kk_mutable_list_shuffle")
+@_cdecl("__kk_mutable_list_shuffle")
 public func kk_mutable_list_shuffle(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
@@ -867,7 +891,7 @@ public func kk_mutable_list_shuffle(_ listRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_list_reverse")
+@_cdecl("__kk_mutable_list_reverse")
 public func kk_mutable_list_reverse(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
@@ -878,7 +902,7 @@ public func kk_mutable_list_reverse(_ listRaw: Int) -> Int {
 
 // MARK: - MutableList bulk operations (STDLIB-207)
 
-@_cdecl("kk_mutable_list_addAll")
+@_cdecl("__kk_mutable_list_addAll")
 public func kk_mutable_list_addAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
     kk_mutable_collection_addAll(listRaw, collectionRaw)
 }
@@ -923,7 +947,7 @@ func runtimeMutableSetAddAllSequence(setRaw: Int, sequenceRaw: Int) -> Int {
     return runtimeMutableSetAddAllSequence(set: set, sequenceRaw: sequenceRaw)
 }
 
-@_cdecl("kk_mutable_collection_addAll_sequence")
+@_cdecl("__kk_mutable_collection_addAll_sequence")
 public func kk_mutable_collection_addAll_sequence(_ collectionRaw: Int, _ sequenceRaw: Int) -> Int {
     if let list = runtimeListBox(from: collectionRaw) {
         return runtimeMutableListAddAllSequence(list: list, sequenceRaw: sequenceRaw)
@@ -934,12 +958,12 @@ public func kk_mutable_collection_addAll_sequence(_ collectionRaw: Int, _ sequen
     return kk_box_bool(0)
 }
 
-@_cdecl("kk_mutable_list_addAll_sequence")
+@_cdecl("__kk_mutable_list_addAll_sequence")
 public func kk_mutable_list_addAll_sequence(_ listRaw: Int, _ sequenceRaw: Int) -> Int {
     return runtimeMutableListAddAllSequence(listRaw: listRaw, sequenceRaw: sequenceRaw)
 }
 
-@_cdecl("kk_mutable_collection_addAll_iterable")
+@_cdecl("__kk_mutable_collection_addAll_iterable")
 public func kk_mutable_collection_addAll_iterable(_ collectionRaw: Int, _ iterableRaw: Int) -> Int {
     guard let values = runtimeIterableValues(from: iterableRaw) else {
         return kk_box_bool(0)
@@ -962,12 +986,12 @@ public func kk_mutable_collection_addAll_iterable(_ collectionRaw: Int, _ iterab
     return kk_box_bool(0)
 }
 
-@_cdecl("kk_mutable_list_addAll_iterable")
+@_cdecl("__kk_mutable_list_addAll_iterable")
 public func kk_mutable_list_addAll_iterable(_ listRaw: Int, _ iterableRaw: Int) -> Int {
     kk_mutable_collection_addAll_iterable(listRaw, iterableRaw)
 }
 
-@_cdecl("kk_mutable_list_removeAll")
+@_cdecl("__kk_mutable_list_removeAll")
 public func kk_mutable_list_removeAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(0)
@@ -987,7 +1011,7 @@ public func kk_mutable_list_removeAll(_ listRaw: Int, _ collectionRaw: Int) -> I
     return kk_box_bool(list.elements.count != originalCount ? 1 : 0)
 }
 
-@_cdecl("kk_mutable_list_retainAll")
+@_cdecl("__kk_mutable_list_retainAll")
 public func kk_mutable_list_retainAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(0)
@@ -1007,46 +1031,7 @@ public func kk_mutable_list_retainAll(_ listRaw: Int, _ collectionRaw: Int) -> I
     return kk_box_bool(list.elements.count != originalCount ? 1 : 0)
 }
 
-@_cdecl("kk_mutable_list_replaceAll")
-public func kk_mutable_list_replaceAll(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return 0
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for index in 0 ..< list.elements.count {
-        var thrown = 0
-        let result = lambda(closureRaw, list.elements[index], &thrown)
-        if thrown != 0 {
-            return handleCollectionLambdaThrow(thrown, outThrown)
-        }
-        list.elements[index] = maybeUnbox(result)
-    }
-    return 0
-}
 
-@_cdecl("kk_mutable_list_removeIf")
-public func kk_mutable_list_removeIf(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var changed = false
-    var index = 0
-    while index < list.elements.count {
-        var thrown = 0
-        let result = lambda(closureRaw, list.elements[index], &thrown)
-        if thrown != 0 {
-            return handleCollectionLambdaThrow(thrown, outThrown)
-        }
-        if maybeUnbox(result) != 0 {
-            list.elements.remove(at: index)
-            changed = true
-        } else {
-            index += 1
-        }
-    }
-    return kk_box_bool(changed ? 1 : 0)
-}
 
 // MARK: - List binarySearch (STDLIB-214)
 
