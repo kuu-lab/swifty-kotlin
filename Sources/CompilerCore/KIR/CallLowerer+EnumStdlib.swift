@@ -86,6 +86,13 @@ extension CallLowerer {
 
         let stringType = sema.types.stringType
         let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: classType.classSymbol,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
         for (index, entry) in entries.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
@@ -93,9 +100,9 @@ extension CallLowerer {
             let nameExpr = arena.appendExpr(.stringLiteral(entry.name), type: stringType)
             instructions.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
 
-            // Box the ordinal (tagged with its declared name, see
-            // kk_enum_box_ordinal) instead of storing a pre-baked name
-            // string -- see the matching fix in
+            // Box the ordinal (tagged with its declared name and the enum
+            // class's stable nominal type ID, see kk_enum_box_ordinal) instead
+            // of storing a pre-baked name string -- see the matching fix in
             // DataEnumSealedSynthesisPass+EnumSynthesis.swift's
             // appendEnumOrdinalArrayCreation for the full rationale. This is
             // a separate, duplicated code path (enumValues<T>()/enumEntries<T>()
@@ -104,7 +111,7 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: boxOrdinalCallee,
-                arguments: [indexExpr, nameExpr],
+                arguments: [indexExpr, nameExpr, classIDExpr],
                 result: entryExpr,
                 canThrow: false,
                 thrownResult: nil
