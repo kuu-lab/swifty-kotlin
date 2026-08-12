@@ -397,7 +397,7 @@ struct NativeEmitter {
                 referencedSymbols.insert(symbol)
             }
         }
-        for symbol in referencedSymbols {
+        for symbol in referencedSymbols.sorted(by: { stableGlobalSlotName(for: $0) < stableGlobalSlotName(for: $1) }) {
             guard globalVariables[symbol] == nil,
                   shouldEmitImportedGlobalReference(for: symbol)
             else {
@@ -470,11 +470,15 @@ struct NativeEmitter {
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
+        var globalDecls: [(global: KIRGlobal, slotName: String)] = []
         for declaration in module.arena.declarations {
             guard case let .global(global) = declaration else {
                 continue
             }
-            let slotName = stableGlobalSlotName(for: global.symbol)
+            globalDecls.append((global, stableGlobalSlotName(for: global.symbol)))
+        }
+        globalDecls.sort { $0.slotName < $1.slotName }
+        for (global, slotName) in globalDecls {
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
@@ -518,6 +522,7 @@ struct NativeEmitter {
         var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
         var emittableFunctions: [(KIRFunction, String)] = []
 
+        var collectedFunctions: [(function: KIRFunction, name: String)] = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
                   !function.isInlineOnly
@@ -529,6 +534,11 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
+            collectedFunctions.append((function, functionName))
+        }
+        collectedFunctions.sort { $0.name < $1.name }
+
+        for (function, functionName) in collectedFunctions {
             let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
             var parameterTypes = function.params.map {
                 if usesRuntimeCallbackRawABI {
@@ -580,6 +590,10 @@ struct NativeEmitter {
                 )
                 : nil
 
+            // Module-level counter so that emitted string literal global names are
+            // deterministic and independent of KIR expression allocation order.
+            var generatedStringLiteralCount: Int32 = 0
+
             for (function, _) in emittableFunctions {
                 guard let llvmFunction = internalFunctions[function.symbol] else { continue }
                 do {
@@ -601,7 +615,8 @@ struct NativeEmitter {
                         runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
                         usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
                         returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
-                        diContext: diContext
+                        diContext: diContext,
+                        generatedStringLiteralCount: &generatedStringLiteralCount
                     )
                 } catch {
                     if let diContext {

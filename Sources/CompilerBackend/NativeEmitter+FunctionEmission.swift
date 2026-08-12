@@ -18,7 +18,8 @@ extension NativeEmitter {
         runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
         usesRuntimeCallbackRawABI: Bool = false,
         returnsRawStringRuntimeCallback: Bool = false,
-        diContext: DebugInfoContext? = nil
+        diContext: DebugInfoContext? = nil,
+        generatedStringLiteralCount: inout Int32
     ) throws {
         guard let builder = bindings.createBuilder(context: context) else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMCreateBuilderInContext returned null")
@@ -187,7 +188,6 @@ extension NativeEmitter {
             body: function.body,
             interner: interner
         )
-        var generatedStringLiteralCount: Int32 = 0
         let builderState = EmissionBuilderState(
             builder: builder,
             int64Type: int64Type,
@@ -198,6 +198,40 @@ extension NativeEmitter {
             entryBlock: entryBlock,
             allocaBuilder: allocaBuilder
         )
+
+        // Stable per-function slot numbers for IR names, independent of
+        // nondeterministic KIR expression or symbol allocation order.
+        var copySlotCounter: Int32 = 0
+        var copySlotByExprID: [Int32: Int32] = [:]
+        var localSlotCounter: Int32 = 0
+        var localSlotBySymbol: [Int32: Int32] = [:]
+
+        func copySlotName(for exprID: KIRExprID) -> String {
+            let raw = exprID.rawValue
+            if let slot = copySlotByExprID[raw] {
+                return "copy_slot_\(slot)"
+            }
+            copySlotCounter += 1
+            copySlotByExprID[raw] = copySlotCounter
+            return "copy_slot_\(copySlotCounter)"
+        }
+
+        func loadName(for exprID: KIRExprID) -> String {
+            if let slot = copySlotByExprID[exprID.rawValue] {
+                return "load_\(slot)"
+            }
+            return "load_\(exprID.rawValue)"
+        }
+
+        func localSlotName(for symbol: SymbolID) -> String {
+            let raw = symbol.rawValue
+            if let slot = localSlotBySymbol[raw] {
+                return "local_\(slot)"
+            }
+            localSlotCounter += 1
+            localSlotBySymbol[raw] = localSlotCounter
+            return "local_\(localSlotCounter)"
+        }
 
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
             switch instruction {
@@ -249,7 +283,7 @@ extension NativeEmitter {
                            lowering: typeLowering,
                            defaultType: int64Type
                        ),
-                       name: "copy_slot_\(target.rawValue)"
+                       name: copySlotName(for: target)
                    )
                 {
                     let initialValue = zeroLLVMValue(
@@ -1810,7 +1844,7 @@ extension NativeEmitter {
                     lowering: typeLowering,
                     defaultType: int64Type
                 )
-                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: "load_\(id.rawValue)")
+                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: loadName(for: id))
                     ?? (zeroLLVMValue(
                         for: module.arena.exprType(id),
                         lowering: typeLowering,
@@ -2133,7 +2167,7 @@ extension NativeEmitter {
                    case let .symbolRef(localSymbol) = value,
                    !parameterValues.keys.contains(localSymbol)
                 {
-                    let varName = "local_\(localSymbol.rawValue)"
+                    let varName = localSlotName(for: localSymbol)
                     var varLine: UInt32 = 0
                     if function.instructionLocations.count == function.body.count,
                        instructionIndex < function.instructionLocations.count,

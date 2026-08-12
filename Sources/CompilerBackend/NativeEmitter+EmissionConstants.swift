@@ -686,6 +686,11 @@ extension NativeEmitter {
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
+        func nextStringLiteralID() -> Int32 {
+            generatedStringLiteralCount += 1
+            return generatedStringLiteralCount
+        }
+
         func nullStringAggregateIfExpected() -> LLVMCAPIBindings.LLVMValueRef? {
             guard let expectedType,
                   let typeLowering = state.typeLowering,
@@ -697,7 +702,7 @@ extension NativeEmitter {
             return buildNullStringAggregate(
                 builder: state.builder,
                 lowering: typeLowering,
-                name: "null_string_\(expressionRawID ?? 0)"
+                name: "null_string_\(nextStringLiteralID())"
             )
         }
 
@@ -783,13 +788,7 @@ extension NativeEmitter {
             return bindings.constInt(state.int64Type, value: value ? 1 : 0) ?? state.zeroValue
         case let .stringLiteral(interned):
             let text = interner.resolve(interned)
-            let literalID: Int32
-            if let expressionRawID {
-                literalID = expressionRawID
-            } else {
-                literalID = generatedStringLiteralCount
-                generatedStringLiteralCount += 1
-            }
+            let literalID = nextStringLiteralID()
             guard let globalStringPointer = bindings.buildGlobalStringPtrNullSafe(
                 state.builder,
                 context: state.context,
