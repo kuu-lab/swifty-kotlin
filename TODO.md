@@ -489,7 +489,7 @@
   - テスト影響: diff case `files_utility.kt`、`file_isDirectory_test.kt` 等の整理
 - [x] CLEANUP-STUB-111: `HeaderHelpers+SyntheticJsFunctionStubs.swift`（77行）を削除する（`registerSyntheticJsFunctionStubs(...)` / `registerSyntheticJsFunction(...)` と Kotlin/JS `js(...)` 外部関数の synthetic 登録、`HeaderHelpers.swift` の中央呼び出しおよび `HeaderHelpers+SyntheticBucketedStubRegistry.swift` の `name: "JsFunction"` エントリを削除）
 - [x] CLEANUP-STUB-112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift`（401行）を削除する（`java.util.Locale` の member/companion 面（`language`/`country`/`variant`/`displayLanguage`/`hashCode`/`equals`/`getDefault`/`setDefault`/`getAvailableLocales`）と対応する `kk_locale_*` runtime export・ABI 登録を削除。`Locale` は locale 付き String/Char 演算のハンドルとしてのみ残し、コンストラクタ登録（`kk_locale_new_flat`/`kk_locale_new_language_country_flat`）は `+SyntheticStringStubs.swift` 側に既存のものを維持。diff case `locale_basic.kt` 削除、`i18n_common_edge_cases.kt` は locale 付き `lowercase`/`uppercase` に置換）
-- [ ] CLEANUP-STUB-113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` を削除する
+- [x] CLEANUP-STUB-113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`（85行）
   - 削除内容: `registerSyntheticNativeGetterStubs(...)` / `registerSyntheticNativeSetterStubs(...)` および `kotlin.js.nativeGetter`/`nativeSetter`/`nativeInvoke` 注釈クラスの登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:302`（`name: "NativeGetter"`）、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:281`（`name: "NativeSetter"`）を削除
