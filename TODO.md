@@ -169,8 +169,9 @@
 - [x] KSP-453: IntRange HOF を Kotlin 化（`RuntimeRangeIntRangeHOF.swift` の約 30 関数: `toList`, `forEach`, `map*`, `filter*`, `reduce*`, `fold*`, `find*`, `first/last(OrNull)(_predicate)`, `any`, `all`, `none`, `chunked`, `windowed`, `take`, `drop`, `average`, `sorted`, `toIntArray`）
   - 実装方針: `Iterable<Int>` の汎用 HOF へ委譲する形で個別 kk_* を不要化
 - [ ] KSP-454: LongRange/CharRange HOF を Kotlin 化（`RuntimeRangeLongRange.swift` の HOF 群 + `kk_char_range_toList/forEach/take/drop/sorted`）
-- [ ] KSP-455: UInt/ULong Range を Kotlin 化（`RuntimeRangeUIntULongRange.swift` の全 HOF/プロパティ約 80 関数）
-  - 前提: 符号なし型のジェネリクス/演算対応を着手時に確認。困難なら (b)→(c) 再分類を提案して中断
+- [x] KSP-455: UInt/ULong Range を Kotlin 化（`RuntimeRangeUIntULongRange.swift` の全 HOF/プロパティ約 80 関数）
+  - 実施: bundled `RangeHOF.kt`/`RangeMembership.kt`/`RangeIterators.kt` に `UIntRange`/`ULongRange`/`UIntProgression`/`ULongProgression` 用の `iterator()`/`isEmpty()`/`contains()`/`toList()`/`forEach()`/`map()`/`filter()`/`count()`/`sum()` および `reversed()` ブリッジを追加。符号なし型のジェネリクス/演算（`UInt + UInt` など）は動作確認済み。
+  - 残留: `kk_uint/ulong_range_*` ランタイム関数・合成 stub・ lowering 書き換えは range dispatch 配線の共有基盤（KSP-451/453/454 整備後に一括撤去）として残置。現 PR は canonical Kotlin ソース実装と Sema golden 更新まで。
 - [ ] KSP-456: progression 構築系を Kotlin 化（`step`, `downTo`, `until`, `*_progression_fromClosedRange`）
   - 削除 kk_*: `kk_op_step`, `kk_op_downTo`, `kk_op_rangeUntil`, `kk_int/long/uint/ulong/char_progression_fromClosedRange` ほか（`kk_op_rangeTo` は演算子コアのため残留可）
 - [ ] KSP-457: range random 系を Kotlin 化（前提: KSP-466。`kk_range_random*`, `kk_long_range_random*`, `kk_char_range_random*`, `kk_uint/ulong_range_random*`, `kk_random_nextInt/nextLong_rangeObject`）
