@@ -104,6 +104,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        patchSourceBackedPreconditionContractEffects(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
