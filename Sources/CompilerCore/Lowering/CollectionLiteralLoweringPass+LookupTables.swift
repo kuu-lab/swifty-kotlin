@@ -331,10 +331,7 @@ struct CollectionLiteralLookupTables {
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-    var kkListToUByteArrayName: InternedString { arrayLookup.kkListToUByteArrayName }
-    var kkListToUShortArrayName: InternedString { arrayLookup.kkListToUShortArrayName }
-    var kkListToUIntArrayName: InternedString { arrayLookup.kkListToUIntArrayName }
-    var kkListToULongArrayName: InternedString { arrayLookup.kkListToULongArrayName }
+
     var kkArrayMapName: InternedString { arrayLookup.kkArrayMapName }
     var kkArrayFilterName: InternedString { arrayLookup.kkArrayFilterName }
     var kkArrayForEachName: InternedString { arrayLookup.kkArrayForEachName }

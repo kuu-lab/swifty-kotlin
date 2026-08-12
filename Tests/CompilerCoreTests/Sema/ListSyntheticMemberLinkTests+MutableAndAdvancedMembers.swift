@@ -799,6 +799,46 @@ extension ListSyntheticMemberLinkTests {
                 expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("FloatArray")
             ),
+            .init(
+                source: """
+                fun convert(values: List<UByte>) {
+                    values.toUByteArray()
+                }
+                """,
+                memberName: "toUByteArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UByteArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UShort>) {
+                    values.toUShortArray()
+                }
+                """,
+                memberName: "toUShortArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UShortArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UInt>) {
+                    values.toUIntArray()
+                }
+                """,
+                memberName: "toUIntArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UIntArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<ULong>) {
+                    values.toULongArray()
+                }
+                """,
+                memberName: "toULongArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("ULongArray")
+            ),
         ]
 
         for testCase in cases {
