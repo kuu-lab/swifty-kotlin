@@ -83,6 +83,36 @@ private fun containsChar(value: Char, first: Char, last: Char, step: Int): Boole
     return (value - first) % step == 0
 }
 
+private fun rangeIsEmptyUInt(first: UInt, last: UInt, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+private fun rangeIsEmptyULong(first: ULong, last: ULong, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+private fun containsUInt(value: UInt, first: UInt, last: UInt, step: Int): Boolean {
+    if (step > 0) {
+        if (value < first || value > last) return false
+    } else if (step < 0) {
+        if (value > first || value < last) return false
+    } else {
+        return false
+    }
+    val diff = if (value >= first) value - first else first - value
+    return diff % step.toUInt() == 0u
+}
+
+private fun containsULong(value: ULong, first: ULong, last: ULong, step: Int): Boolean {
+    if (step > 0) {
+        if (value < first || value > last) return false
+    } else if (step < 0) {
+        if (value > first || value < last) return false
+    } else {
+        return false
+    }
+    val diff = if (value >= first) value - first else first - value
+    return diff % step.toULong() == 0uL
+}
+
 @KsSymbolName("__kk_range_contains")
 public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, first, last, step)
 
@@ -101,3 +131,20 @@ public operator fun CharRange.contains(value: Char): Boolean = containsChar(valu
 
 @KsSymbolName("__kk_range_contains")
 public operator fun CharProgression.contains(value: Char): Boolean = containsChar(value, first, last, step)
+
+public fun UIntRange.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
+public fun UIntProgression.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
+public fun ULongRange.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
+public fun ULongProgression.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
+
+@KsSymbolName("__kk_range_contains")
+public operator fun UIntRange.contains(value: UInt): Boolean = containsUInt(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
+public operator fun UIntProgression.contains(value: UInt): Boolean = containsUInt(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
+public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
+public operator fun ULongProgression.contains(value: ULong): Boolean = containsULong(value, first, last, step)
