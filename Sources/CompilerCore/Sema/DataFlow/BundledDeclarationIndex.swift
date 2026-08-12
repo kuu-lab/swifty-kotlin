@@ -845,6 +845,12 @@ struct BundledDeclarationIndex: Sendable {
             if path.count == 1, let defaultPackage = defaultImportedNameToPackage[first] {
                 return defaultPackage + path
             }
+            // Nested types of default-imported top-level nominals (e.g.
+            // CharProgression.Companion) must keep their default package prefix
+            // so bundled companion-object extensions are keyed under the real owner.
+            if path.count > 1, let defaultPackage = defaultImportedNameToPackage[first] {
+                return defaultPackage + path
+            }
             if path.count == 1 || topLevelNominalNames.contains(first) {
                 return packageFQName + path
             }

@@ -8,7 +8,8 @@ extension CallTypeChecker {
     ) {
         let interner = driver.interner
         let isRangeConstructor: Bool
-        if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
+        let externalLinkName = sema.symbols.externalLinkName(for: chosen)
+        if let externalLinkName, !CallLowerer.isSourceBackedLinkName(externalLinkName) {
             isRangeConstructor = [
                 "kk_op_rangeTo",
                 "__kk_op_rangeUntil",
@@ -23,7 +24,7 @@ extension CallTypeChecker {
             ].contains(externalLinkName)
         } else if let symbol = sema.symbols.symbol(chosen) {
             let name = interner.resolve(symbol.name)
-            isRangeConstructor = ["until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(name)
+            isRangeConstructor = ["rangeTo", "until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(name)
                 && driver.helpers.isRangeLikeType(returnType, sema: sema, interner: interner)
         } else {
             isRangeConstructor = false
