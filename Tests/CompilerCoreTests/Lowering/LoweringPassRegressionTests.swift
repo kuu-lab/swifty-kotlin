@@ -538,9 +538,10 @@ struct LoweringPassRegressionTests {
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
                     return false
                 }
-                return ctx.interner.resolve(callee) == "kk_println_any" && !arguments.isEmpty
+                let calleeName = ctx.interner.resolve(callee)
+                return (calleeName == "println" || calleeName == "kk_println_any") && !arguments.isEmpty
             }
-            let printlnCallInstruction = try #require(printlnCallIndex.map { mainBody[$0] }, "expected kk_println_any call in main")
+            let printlnCallInstruction = try #require(printlnCallIndex.map { mainBody[$0] }, "expected println call in main")
             guard case let .call(_, _, printlnArgs, _, _, _, _, _) = printlnCallInstruction else {
                 return
             }
