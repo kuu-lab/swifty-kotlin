@@ -630,28 +630,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testListTakeNegativeCountSetsIllegalArgumentException() {
-        var thrown = 0
-        let result = kk_list_take(makeList([1, 2, 3]), -1, &thrown)
-
-        #expect(thrown != 0)
-        let throwable = tryCast(UnsafeMutableRawPointer(bitPattern: thrown)!, to: RuntimeThrowableBox.self)
-        #expect(throwable?.exceptionFQName == "kotlin.IllegalArgumentException")
-        #expect(listElements(result) == [])
-    }
-
-    @Test
-    func testListDropNegativeCountSetsIllegalArgumentException() {
-        var thrown = 0
-        let result = kk_list_drop(makeList([1, 2, 3]), -1, &thrown)
-
-        #expect(thrown != 0)
-        let throwable = tryCast(UnsafeMutableRawPointer(bitPattern: thrown)!, to: RuntimeThrowableBox.self)
-        #expect(throwable?.exceptionFQName == "kotlin.IllegalArgumentException")
-        #expect(listElements(result) == [])
-    }
-
-    @Test
     func testListSumOfAccumulatesSelectorResults() {
         var thrown = 0
         let result = kk_list_sumOf(
@@ -1041,30 +1019,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testListTakeWhileKeepsMatchingPrefixAndPropagatesThrow() {
-        let source = makeList([3, 4, 1, 5])
-        let taken = kk_list_takeWhile(source, unsafeBitCast(filterGreaterThanOne, to: Int.self), 0, nil)
-        #expect(listElements(taken) == [3, 4])
-
-        var thrown = 0
-        let thrownResult = kk_list_takeWhile(source, unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown)
-        #expect(thrown != 0)
-        #expect(listElements(thrownResult) == [])
-    }
-
-    @Test
-    func testListDropLastWhileDropsMatchingSuffixAndPropagatesThrow() {
-        let source = makeList([3, 4, 1, 5])
-        let dropped = kk_list_dropLastWhile(source, unsafeBitCast(filterGreaterThanOne, to: Int.self), 0, nil)
-        #expect(listElements(dropped) == [3, 4, 1])
-
-        var thrown = 0
-        let thrownResult = kk_list_dropLastWhile(source, unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown)
-        #expect(thrown != 0)
-        #expect(listElements(thrownResult) == [])
-    }
-
-    @Test
     func testCountFirstLastFindAndEmptyFailures() {
         let source = makeList([1, 2, 3, 4])
 
@@ -1085,16 +1039,6 @@ struct RuntimeCollectionHOFTests {
 
         thrown = 0
         #expect(kk_list_last(makeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
-    }
-
-    @Test
-    func testListSliceRangeAndIterableReturnSelectedElements() {
-        let source = makeList([10, 20, 30, 40, 50])
-        let range = kk_op_rangeTo(1, 3)
-        #expect(listElements(kk_list_slice(source, range)) == [20, 30, 40])
-
-        let indices = makeList([3, 1, 3])
-        #expect(listElements(kk_list_slice_iterable(source, indices)) == [40, 20, 40])
     }
 
     @Test

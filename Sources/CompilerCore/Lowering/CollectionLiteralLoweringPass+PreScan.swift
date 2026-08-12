@@ -411,7 +411,6 @@ extension CollectionLiteralLoweringSupport {
             || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
             || callee == lookup.shuffledName
             || callee == lookup.scanName || callee == lookup.runningFoldName
-            || callee == lookup.kkListTakeName || callee == lookup.kkListDropName
             || callee == lookup.kkListReversedName || callee == lookup.kkListSortedName
             || callee == lookup.kkListDistinctName || callee == lookup.kkListShuffledName
             || callee == lookup.kkListShuffledRandomName,
@@ -502,7 +501,6 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
                 || callee == lookup.shuffledName
                 || callee == lookup.scanName || callee == lookup.runningFoldName
-                || callee == lookup.kkListTakeName || callee == lookup.kkListDropName
                 || callee == lookup.kkListReversedName || callee == lookup.kkListSortedName
                 || callee == lookup.kkListDistinctName || callee == lookup.kkListShuffledName
                 || callee == lookup.kkListShuffledRandomName
