@@ -4,9 +4,43 @@ import Testing
 
 @Suite
 struct NativeCInteropUIntArrayToCValuesFunctionTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlinx.cinterop.CValues
+        import kotlinx.cinterop.UIntVar
+        import kotlinx.cinterop.toCValues
+
+        fun toUInts(uints: UIntArray): CValues<UIntVar> {
+            return uints.toCValues()
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     @Test func testUIntArrayToCValuesFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected UIntArray.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -58,17 +92,8 @@ struct NativeCInteropUIntArrayToCValuesFunctionTests {
     }
 
     @Test func testUIntArrayToCValuesFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.CValues
-        import kotlinx.cinterop.UIntVar
-        import kotlinx.cinterop.toCValues
 
-        fun toUInts(uints: UIntArray): CValues<UIntVar> {
-            return uints.toCValues()
-        }
-        """)
-        try runSema(ctx)
-
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected UIntArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }

@@ -289,7 +289,7 @@ struct IntegerNarrowingPassTests {
         let v1 = arena.appendExpr(.temporary(1))
         let (module, _) = makeModule(
             body: [
-                .call(symbol: nil, callee: interner.intern("kk_println_any"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
                 .returnUnit,
             ],
             interner: interner,

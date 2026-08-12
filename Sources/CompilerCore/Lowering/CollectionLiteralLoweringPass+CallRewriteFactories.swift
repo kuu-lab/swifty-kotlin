@@ -689,11 +689,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // correct builder kind to avoid cross-kind rewrites.
         if let builderCallee = builderLambdaKinds[function.name] {
             var rewrittenCallee: InternedString?
-            if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkBuilderListAddName
-            } else if builderCallee == lookup.buildListName, callee == lookup.addAllName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkBuilderListAddAllName
-            } else if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {
+            if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderSetAddName
             } else if builderCallee == lookup.buildSetName, callee == lookup.addAllName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderSetAddAllName
@@ -711,40 +707,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-        }
-
-        // --- Rewrite `to` infix → Pair constructor (STDLIB-120) ---
-        if callee == lookup.toName, arguments.count == 2 {
-            let initFQName: [InternedString] = [
-                lookup.kotlinName, lookup.pairName, lookup.initName
-            ]
-            let initSymbol = ctx.sema?.symbols.lookup(fqName: initFQName)
-            loweredBody.append(.call(
-                symbol: initSymbol,
-                callee: lookup.kkPairNewName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return true
-        }
-
-        // --- Rewrite Triple(a, b, c) → Triple constructor (STDLIB-120) ---
-        if callee == lookup.tripleName, arguments.count == 3 {
-            let initFQName: [InternedString] = [
-                lookup.kotlinName, lookup.tripleName, lookup.initName
-            ]
-            let initSymbol = ctx.sema?.symbols.lookup(fqName: initFQName)
-            loweredBody.append(.call(
-                symbol: initSymbol,
-                callee: lookup.kkTripleNewName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return true
         }
 
         return false

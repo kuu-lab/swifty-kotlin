@@ -23,7 +23,7 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [(name: "condition", type: types.booleanType)],
             returnType: types.unitType,
-            externalLinkName: "kk_require",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
             contractNonNullParameterIndex: 0
@@ -37,7 +37,7 @@ extension DataFlowSemaPhase {
                 (name: "lazyMessage", type: lazyMessageType),
             ],
             returnType: types.unitType,
-            externalLinkName: "kk_require_lazy",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
             contractNonNullParameterIndex: 0
@@ -48,7 +48,7 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [(name: "condition", type: types.booleanType)],
             returnType: types.unitType,
-            externalLinkName: "kk_check",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
             contractNonNullParameterIndex: 0
@@ -62,7 +62,7 @@ extension DataFlowSemaPhase {
                 (name: "lazyMessage", type: lazyMessageType),
             ],
             returnType: types.unitType,
-            externalLinkName: "kk_check_lazy",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
             contractNonNullParameterIndex: 0
@@ -98,7 +98,7 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [(name: "message", type: types.anyType)],
             returnType: types.nothingType,
-            externalLinkName: "kk_error",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner
         )
@@ -110,7 +110,7 @@ extension DataFlowSemaPhase {
         packageSymbol: SymbolID,
         parameters: [(name: String, type: TypeID)],
         returnType: TypeID,
-        externalLinkName: String,
+        externalLinkName: String?,
         symbols: SymbolTable,
         interner: StringInterner,
         contractNonNullParameterIndex: Int? = nil
@@ -126,7 +126,7 @@ extension DataFlowSemaPhase {
                 && existingSignature.returnType == returnType
         }) {
             let existingFlags = symbols.symbol(existing)?.flags ?? []
-            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
+            if let externalLinkName, existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
                 symbols.setExternalLinkName(externalLinkName, for: existing)
             }
             setPreconditionContractEffect(
@@ -139,6 +139,8 @@ extension DataFlowSemaPhase {
         if hasSourceOrImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
+
+        guard let externalLinkName else { return }
 
         let functionSymbol = symbols.define(
             kind: .function,
@@ -183,6 +185,54 @@ extension DataFlowSemaPhase {
             parameterIndex: contractNonNullParameterIndex,
             symbols: symbols
         )
+    }
+
+    /// Source-backed `kotlin.require`/`kotlin.check` are collected after synthetic
+    /// registration runs, so their `ContractNonNullEffect` is patched once the
+    /// bundled declarations are in the symbol table.
+    func patchSourceBackedPreconditionContractEffects(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let lazyMessageType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let preconditionFunctions: [(name: String, parameterTypes: [TypeID])] = [
+            ("require", [types.booleanType]),
+            ("require", [types.booleanType, lazyMessageType]),
+            ("check", [types.booleanType]),
+            ("check", [types.booleanType, lazyMessageType]),
+        ]
+
+        for entry in preconditionFunctions {
+            let functionName = interner.intern(entry.name)
+            let functionFQName = kotlinPkg + [functionName]
+            guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let signature = symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.receiverType == nil
+                    && signature.parameterTypes == entry.parameterTypes
+                    && signature.returnType == types.unitType
+            }) else {
+                continue
+            }
+            setPreconditionContractEffect(
+                on: symbol,
+                parameterIndex: 0,
+                symbols: symbols
+            )
+        }
     }
 
     private func setPreconditionContractEffect(

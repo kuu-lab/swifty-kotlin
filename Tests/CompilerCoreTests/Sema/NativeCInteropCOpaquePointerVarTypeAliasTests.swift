@@ -4,9 +4,41 @@ import Testing
 
 @Suite
 struct NativeCInteropCOpaquePointerVarTypeAliasTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlinx.cinterop.COpaquePointerVar
+
+        fun pass(value: COpaquePointerVar): COpaquePointerVar {
+            return value
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     @Test func testCOpaquePointerVarTypeAliasSurface() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -33,15 +65,8 @@ struct NativeCInteropCOpaquePointerVarTypeAliasTests {
     }
 
     @Test func testCOpaquePointerVarResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.COpaquePointerVar
 
-        fun pass(value: COpaquePointerVar): COpaquePointerVar {
-            return value
-        }
-        """)
-        try runSema(ctx)
-
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }

@@ -746,11 +746,11 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkPrintlnAnySignature() throws {
-        let spec = try requireSpec("kk_println_any")
+    func kkPrintRawSignature() throws {
+        let spec = try requireSpec("__kk_print_raw")
         #expect(spec.returnType == .void)
         #expect(spec.parameters.count == 1)
-        #expect(spec.parameters[0].type == .nullableOpaquePointer)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
     @Test

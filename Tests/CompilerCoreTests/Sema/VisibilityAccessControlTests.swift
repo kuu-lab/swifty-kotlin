@@ -4,61 +4,73 @@ import Testing
 
 @Suite
 struct VisibilityAccessControlTests {
-    @Test
-    func testPublicFunctionAccessibleWithinSameFile() throws {
-        let source = """
-        package test
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         public fun greet(): Int = 1
         fun main(): Int = greet()
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisPub")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0041", in: ctx)
-        }
-    }
-
-    @Test
-    func testInternalFunctionAccessibleWithinSameFile() throws {
-        let source = """
-        package test
+        package sample1
         internal fun helper(): Int = 1
         fun main(): Int = helper()
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisInternal")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-        }
-    }
-
-    @Test
-    func testPrivateFunctionAccessibleWithinSameFile() throws {
-        let source = """
-        package test
+        package sample2
         private fun secret(): Int = 42
         fun main(): Int = secret()
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisPrivSame")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-        }
-    }
-
-    @Test
-    func testPrivatePropertyAccessibleWithinSameFile() throws {
-        let source = """
-        package test
+        package sample3
         private val secretVal: Int = 99
         fun main(): Int = secretVal
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisPrivPropSame")
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
+            result = ctx
         }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testPublicFunctionAccessibleWithinSameFile() throws {
+
+        let ctx = try sharedCtx()
+            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0041", in: ctx)
+
+    }
+
+    @Test func testInternalFunctionAccessibleWithinSameFile() throws {
+
+        let ctx = try sharedCtx()
+            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
+
+    }
+
+    @Test func testPrivateFunctionAccessibleWithinSameFile() throws {
+
+        let ctx = try sharedCtx()
+            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
+
+    }
+
+    @Test func testPrivatePropertyAccessibleWithinSameFile() throws {
+
+        let ctx = try sharedCtx()
+            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
+
     }
 
     private func defineSymbol(

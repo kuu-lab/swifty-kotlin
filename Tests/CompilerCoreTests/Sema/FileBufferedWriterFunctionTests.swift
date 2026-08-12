@@ -20,16 +20,75 @@ import Testing
 @Suite
 struct FileBufferedWriterFunctionTests {
 
-    // MARK: - Basic resolution
+    // MARK: - Shared Sema context
 
-    @Test func testFileBufferedWriterNoArgsResolves() throws {
-        let ctx = makeContextFromSource("""
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.BufferedWriter
         import java.io.File
 
         fun openWriter(file: File): BufferedWriter = file.bufferedWriter()
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        import java.io.BufferedWriter
+        import java.io.File
+
+        fun getWriter(file: File): BufferedWriter {
+            val w: BufferedWriter = file.bufferedWriter()
+            return w
+        }
+        """,
+        """
+        package sample2
+        import java.io.File
+
+        fun writeAndClose(file: File) {
+            val writer = file.bufferedWriter()
+            writer.write("hello")
+            writer.newLine()
+            writer.flush()
+            writer.close()
+        }
+        """,
+        """
+        package sample3
+        import java.io.File
+
+        fun writeOneLiner(file: File) {
+            file.bufferedWriter().use { it.write("one-liner") }
+        }
+        """,
+        """
+        package sample4
+        import java.io.BufferedWriter
+        import java.io.File
+
+        fun stub(file: File): BufferedWriter = file.bufferedWriter()
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    // MARK: - Basic resolution
+
+    @Test func testFileBufferedWriterNoArgsResolves() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -38,16 +97,8 @@ struct FileBufferedWriterFunctionTests {
     }
 
     @Test func testFileBufferedWriterReturnTypeIsBufferedWriter() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.BufferedWriter
-        import java.io.File
 
-        fun getWriter(file: File): BufferedWriter {
-            val w: BufferedWriter = file.bufferedWriter()
-            return w
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -58,18 +109,8 @@ struct FileBufferedWriterFunctionTests {
     // MARK: - Chained member calls
 
     @Test func testFileBufferedWriterChainedWriteFlushCloseResolve() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
 
-        fun writeAndClose(file: File) {
-            val writer = file.bufferedWriter()
-            writer.write("hello")
-            writer.newLine()
-            writer.flush()
-            writer.close()
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -78,14 +119,8 @@ struct FileBufferedWriterFunctionTests {
     }
 
     @Test func testFileBufferedWriterInlineChainedCallsResolve() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
 
-        fun writeOneLiner(file: File) {
-            file.bufferedWriter().use { it.write("one-liner") }
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -96,16 +131,8 @@ struct FileBufferedWriterFunctionTests {
     // MARK: - Sema surface inspection
 
     @Test func testFileBufferedWriterExtensionFunctionSurfaceIsRegistered() throws {
-        let source = """
-        import java.io.BufferedWriter
-        import java.io.File
 
-        fun stub(file: File): BufferedWriter = file.bufferedWriter()
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             #expect(
                 !ctx.diagnostics.hasError,
                 "File.bufferedWriter() should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
@@ -149,7 +176,7 @@ struct FileBufferedWriterFunctionTests {
             let signature = try #require(symbols.functionSignature(for: bufferedWriter))
             #expect(signature.valueParameterHasDefaultValues == [])
             #expect(signature.valueParameterIsVararg == [])
-        }
+
     }
 }
 #endif
