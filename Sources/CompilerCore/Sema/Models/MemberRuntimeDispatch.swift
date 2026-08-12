@@ -438,7 +438,7 @@ enum MemberRuntimeDispatch {
         longMember: String? = nil,
         charMember: String? = nil,
         charProgressionUsesChar: Bool = false
-    ) -> String {
+    ) -> String? {
         if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
             return "kk_char_range_\(charMember)"
         }
@@ -448,6 +448,27 @@ enum MemberRuntimeDispatch {
         if kind.isUIntRangeLike {
             return "kk_uint_range_\(member)"
         }
+
+        // KSP-453: IntRange/IntProgression HOFs are now implemented in bundled
+        // Kotlin source (RangeHOF.kt) and must not be routed to the legacy
+        // kk_range_* runtime entry points.
+        if kind == .intRange || kind == .intProgression {
+            let sourceBacked: Set<String> = [
+                "toList", "toIntArray", "forEach", "map", "mapIndexed", "mapNotNull",
+                "filter", "filterIndexed", "filterNot",
+                "reduce", "reduceIndexed", "fold", "foldIndexed",
+                "find", "findLast",
+                "first_predicate", "firstOrNull", "firstOrNull_predicate",
+                "last_predicate", "lastOrNull", "lastOrNull_predicate",
+                "any", "all", "none",
+                "chunked", "windowed",
+                "take", "drop", "average", "sorted",
+            ]
+            if sourceBacked.contains(member) {
+                return nil
+            }
+        }
+
         let migratedRangeMembers: Set<String> = ["first", "last", "count", "isEmpty", "reversed"]
         if migratedRangeMembers.contains(member) && !kind.isULongRangeLike && !kind.isUIntRangeLike {
             return "__kk_range_\(member)"

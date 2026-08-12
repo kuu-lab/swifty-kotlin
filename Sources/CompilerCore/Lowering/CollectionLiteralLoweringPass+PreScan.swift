@@ -307,6 +307,21 @@ extension CollectionLiteralLoweringSupport {
             sequenceExprIDs: &sequenceExprIDs,
             stringExprIDs: &stringExprIDs
         )
+        // KSP-453: Source-backed IntRange/IntProgression HOFs are emitted as
+        // ordinary .call instructions. Track their results so downstream list
+        // operations (size, isEmpty, etc.) still lower correctly.
+        if let result, !arguments.isEmpty, rangeExprIDs.contains(arguments[0].rawValue) {
+            let listProducingRangeHOFs: Set<InternedString> = [
+                lookup.toListName, lookup.mapName, lookup.mapIndexedName, lookup.mapNotNullName,
+                lookup.filterName, lookup.filterIndexedName, lookup.filterNotName,
+                lookup.chunkedName, lookup.windowedName, lookup.takeName, lookup.dropName, lookup.sortedName,
+            ]
+            if listProducingRangeHOFs.contains(callee) {
+                listExprIDs.insert(result.rawValue)
+            } else if callee == lookup.toIntArrayName {
+                arrayExprIDs.insert(result.rawValue)
+            }
+        }
         // STDLIB-565: Classify File constructor calls.
         // KNOWN LIMITATION: Only direct File("...") / kk_file_new constructor
         // calls are seeded here.  File receivers originating from function

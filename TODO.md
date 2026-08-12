@@ -166,7 +166,7 @@
   - 削除できなかった kk_*: `kk_range_iterator`/`kk_range_hasNext`/`kk_range_next`/`kk_long_range_iterator` は (1) list/set/String/IndexingIterable の iterator ブリッジ（`CollectionLiteralLoweringPass+CallRewriteIteratorBridge.swift` が `kk_range_iterator` を汎用 iterator 名として書き換え元に使う）(2) `kk_iterator_hasNext`/`next` の range iterator box 経路 (3) UInt/ULong range（KSP-455 まで従来経路）が参照しているため残置
   - 併せて修正: (1) 空の `a until b`（b ≤ a）はランタイム表現が step 0 のため遅延イテレータが 1 要素余分に回っていた（`random_*` diff 3 件の失敗で発覚。step 0 を空として扱うよう修正し、動的境界の空 until を diff ケースへ追加）(2) ループ本体で要求されるスタックスロット（thrown slot 等）が entry block ではなくループブロックに `alloca` され、長いループでスタックが枯渇して SIGSEGV になっていた (3) `kk_array_get_inbounds` が要素 1 個の読み出しごとに `elements`（配列全体のコピー）を作っていた
   - 性能: 3,000,000 回ループの簡易ベンチで 2.8s → 15.6s に退行（BUG-184 として報告）
-- [ ] KSP-453: IntRange HOF を Kotlin 化（`RuntimeRangeIntRangeHOF.swift` の約 30 関数: `toList`, `forEach`, `map*`, `filter*`, `reduce*`, `fold*`, `find*`, `first/last(OrNull)(_predicate)`, `any`, `all`, `none`, `chunked`, `windowed`, `take`, `drop`, `average`, `sorted`, `toIntArray`）
+- [x] KSP-453: IntRange HOF を Kotlin 化（`RuntimeRangeIntRangeHOF.swift` の約 30 関数: `toList`, `forEach`, `map*`, `filter*`, `reduce*`, `fold*`, `find*`, `first/last(OrNull)(_predicate)`, `any`, `all`, `none`, `chunked`, `windowed`, `take`, `drop`, `average`, `sorted`, `toIntArray`）
   - 実装方針: `Iterable<Int>` の汎用 HOF へ委譲する形で個別 kk_* を不要化
 - [ ] KSP-454: LongRange/CharRange HOF を Kotlin 化（`RuntimeRangeLongRange.swift` の HOF 群 + `kk_char_range_toList/forEach/take/drop/sorted`）
 - [ ] KSP-455: UInt/ULong Range を Kotlin 化（`RuntimeRangeUIntULongRange.swift` の全 HOF/プロパティ約 80 関数）
