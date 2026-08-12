@@ -1,11 +1,13 @@
 import Foundation
 
-/// Residual bundled Kotlin source for stdlib functions not yet migrated to
-/// standalone `.kt` files under `Sources/CompilerCore/Stdlib/`.
+/// Bundled stdlib source manifest and resource loading.
 ///
-/// As functions are migrated to `.kt` files (auto-discovered by
-/// `LoadSourcesPhase.injectBundledStdlib`), remove them from here.
-package enum BundledKotlinStdlib {
+/// `.kt` files under `Sources/CompilerCore/Stdlib/` are copied into the
+/// `CompilerCore` resource bundle and injected as virtual `__bundled_*.kt`
+/// source files before compilation. This type enumerates those resources and
+/// computes a stable manifest hash used by incremental builds and stdlib
+/// artifact validation.
+package enum BundledStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     ///
@@ -16,6 +18,8 @@ package enum BundledKotlinStdlib {
     static let excludedBundledStdlibFiles: Set<String> = [
     ]
 
+    // Legacy empty inline source markers. The actual implementations have been
+    // migrated to bundled `.kt` files under `Sources/CompilerCore/Stdlib/`.
     // count / any / all / none / contains / containsAll / lastIndexOf have been
     // migrated to ListSearchHOF.kt. sumOf / maxByOrNull / minByOrNull have been
     // migrated to ListAggregateHOF.kt (KSP-501). The remaining collection HOFs
@@ -31,18 +35,6 @@ package enum BundledKotlinStdlib {
     // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
     // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
     static let kotlinTextSource = ""
-
-    // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
-    // toList / toSet / toMutableList are resolved via synthetic Sequence member
-    // stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to the C-level
-    // kk_sequence_* entry points in RuntimeSequence.swift.  They are NOT included
-    // here as bundled source because source `for-in` cannot dispatch against
-    // runtime Sequence boxes produced by string.windowedSequence() and similar
-    // legacy runtime shortcuts.
-    //
-    // Terminal HOFs (first, last, single, count, any, all, none, …) are also
-    // resolved via synthetic stubs to keep dispatch consistent.
-    static let kotlinSequencesSource = ""
 
     /// Errors that can occur while loading bundled stdlib sources from the
     /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
@@ -67,31 +59,9 @@ package enum BundledKotlinStdlib {
         }
     }
 
-    private static let residualBundledStdlibFileNames: Set<String> = [
-        "__bundled_kotlin_collections_stdlib.kt",
-        "__bundled_kotlin_text_stdlib.kt",
-        "__bundled_kotlin_sequences_stdlib.kt",
-    ]
-
-    private static func residualBundledStdlibSources() -> [(path: String, contents: Data)] {
-        let residualSources: [(path: String, source: String)] = [
-            ("__bundled_kotlin_collections_stdlib.kt", Self.kotlinCollectionsSource),
-            ("__bundled_kotlin_text_stdlib.kt", Self.kotlinTextSource),
-            ("__bundled_kotlin_sequences_stdlib.kt", Self.kotlinSequencesSource),
-        ]
-        return residualSources.map { (path, source) in
-            (path: path, contents: Data(source.utf8))
-        }
-    }
-
-    internal static func isResidualBundledStdlibSource(_ path: String) -> Bool {
-        residualBundledStdlibFileNames.contains(path)
-    }
-
-    /// Collects bundled stdlib `.kt` sources from `resourcePath/Stdlib`, plus
-    /// the residual inline sources. Throws `LoadError` when the resource path
-    /// is missing, the `Stdlib` directory cannot be enumerated, or a `.kt` file
-    /// cannot be read.
+    /// Collects bundled stdlib `.kt` sources from `resourcePath/Stdlib`.
+    /// Throws `LoadError` when the resource path is missing, the `Stdlib`
+    /// directory cannot be enumerated, or a `.kt` file cannot be read.
     internal static func collectBundledStdlibSources(
         resourcePath: String? = Bundle.module.resourcePath
     ) throws -> [(path: String, contents: Data)] {
@@ -131,12 +101,11 @@ package enum BundledKotlinStdlib {
             bundledSources.append((path: bundledPath, contents: data))
         }
 
-        bundledSources.append(contentsOf: Self.residualBundledStdlibSources())
         return bundledSources.sorted(by: { $0.path < $1.path })
     }
 
     private static let _bundledStdlibSources: [(path: String, contents: Data)] =
-        (try? Self.collectBundledStdlibSources()) ?? Self.residualBundledStdlibSources()
+        (try? Self.collectBundledStdlibSources()) ?? []
 
     /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
     /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
