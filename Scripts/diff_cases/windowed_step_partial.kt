@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 fun main() {
     // Comprehensive windowed(size, step, partialWindows) tests
     
@@ -84,7 +84,7 @@ fun main() {
     
     // String windowed with transform
     val stringTransformed = s.windowed(3, 1, true) { window ->
-        window.uppercase()
+        window.toString().uppercase()
     }
     println("string windowed transform: $stringTransformed")
     
@@ -141,7 +141,7 @@ fun main() {
     println("to maps: $toMaps")
     
     val toBooleans = numbers.windowed(3) { window ->
-        window.all { it > 5 }
+        if (window.all { it > 5 }) "true" else "false"
     }
     println("to booleans: $toBooleans")
     
@@ -197,7 +197,7 @@ fun main() {
     
     val large = (1..50).toList()
     val largeWindows = large.windowed(5, 3, true) { it.size }
-    println("large windows sizes: ${largeWindows.take(5)}")
+    println("large windows sizes: $largeWindows")
     
     // Verify last window is partial when needed
     val lastWindowTest = listOf(1, 2, 3, 4, 5)

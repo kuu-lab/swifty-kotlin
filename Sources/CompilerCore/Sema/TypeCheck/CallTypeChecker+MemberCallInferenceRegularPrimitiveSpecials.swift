@@ -16,7 +16,6 @@ extension CallTypeChecker {
         let safeCall = request.safeCall
         let sema = ctx.sema
         let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
         if interner.resolve(calleeName) == "inv",
            args.isEmpty
         {
@@ -197,23 +196,6 @@ extension CallTypeChecker {
             default:
                 break
             }
-        }
-
-        // Stdlib infix function: Any.to(Any) → Pair<LHS, RHS> (FUNC-002)
-        if calleeName == knownNames.to,
-           args.count == 1
-        {
-            let rhsType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let resultType = makeSyntheticPairType(
-                symbols: sema.symbols,
-                types: sema.types,
-                interner: interner,
-                firstType: receiverType,
-                secondType: rhsType
-            )
-            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-            sema.bindings.bindExprType(id, type: finalType)
-            return finalType
         }
 
         // STDLIB-NUM-130 (previous fast-path) removed:
