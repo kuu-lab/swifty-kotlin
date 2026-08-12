@@ -93,7 +93,7 @@ extension DataFlowSemaPhase {
             typeParameterName: eName,
             extraParameterTypes: [types.intType],
             extraParameterNames: ["capacity"],
-            externalLinkName: "kk_build_list_with_capacity",
+            externalLinkName: "__kk_build_list_with_capacity",
             listSymbol: listSymbol,
             mutableListSymbol: mutableListSymbol,
             symbols: symbols,
@@ -120,6 +120,7 @@ extension DataFlowSemaPhase {
             return
         }
         let parameterCount = extraParameterTypes.count + 1
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
         let alreadyDefined = symbols.lookupAll(fqName: buildListFQName).contains { symbolID in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.kind == .function,
@@ -130,7 +131,7 @@ extension DataFlowSemaPhase {
             return signature.receiverType == nil
                 && signature.parameterTypes.count == parameterCount
                 && signature.typeParameterSymbols.count == 1
-        }
+        } || bundledIndex.contains(ownerFQName: packageFQName, name: buildListName, arity: parameterCount)
         if alreadyDefined {
             return
         }

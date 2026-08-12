@@ -1,7 +1,5 @@
 symbol fq=golden.sema.age kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic type=kotlin.properties.Delegates
 symbol fq=kotlin.properties.Delegates.vetoable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[kotlin.properties.Delegates.vetoable.T,(Any, kotlin.properties.Delegates.vetoable.T, kotlin.properties.Delegates.vetoable.T) -> Boolean] ret=kotlin.properties.ReadWriteProperty<in Any?, kotlin.properties.Delegates.vetoable.T> defaults=[0,1]
 symbol fq=kotlin.properties.Delegates.vetoable.T kind=typeParameter vis=private flags=synthetic

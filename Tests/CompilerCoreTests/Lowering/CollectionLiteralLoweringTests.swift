@@ -828,7 +828,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildList"), "buildList should be rewritten")
-        #expect(callees.contains("kk_build_list"), "buildList should become kk_build_list")
+        #expect(callees.contains("__kk_build_list"), "buildList should become __kk_build_list")
     }
 
     @Test
@@ -866,8 +866,8 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
         #expect(
-            callees.contains("kk_build_list_with_capacity"),
-            "buildList(capacity) should become kk_build_list_with_capacity"
+            callees.contains("__kk_build_list_with_capacity"),
+            "buildList(capacity) should become __kk_build_list_with_capacity"
         )
     }
 
@@ -947,7 +947,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
+    func testStringSplitResultIsTreatedAsListForToStringRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let sourceExpr = arena.appendExpr(.temporary(0))
@@ -970,7 +970,7 @@ struct CollectionLiteralLoweringTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_println_any"),
+                    callee: interner.intern("kk_any_to_string"),
                     arguments: [splitResult],
                     result: printlnResult,
                     canThrow: false,
@@ -994,11 +994,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testSourceBackedStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
+    func testSourceBackedStringSplitResultUsesGenericToStringBridge() throws {
         let source = """
         fun main() {
             val parts = "1,2,3".split(",")
-            println(parts)
+            println(parts.toString())
         }
         """
 
@@ -1019,14 +1019,14 @@ struct CollectionLiteralLoweringTests {
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(callees.contains("split"), "Expected public split to stay source-backed, got: \(callees)")
             #expect(
-                callees.contains("kk_list_to_string"),
-                "source-backed split result should still be recognized as list for println rewrite"
+                callees.contains("kk_any_member_to_string"),
+                "split result should render through the generic toString bridge, got: \(callees)"
             )
         }
     }
 
     @Test
-    func testListMinusCollectionResultIsTreatedAsListForPrintlnRewrite() throws {
+    func testListMinusCollectionResultIsTreatedAsListForToStringRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let listInput = arena.appendExpr(.temporary(0))
@@ -1058,7 +1058,7 @@ struct CollectionLiteralLoweringTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_println_any"),
+                    callee: interner.intern("kk_any_to_string"),
                     arguments: [minusResult],
                     result: printlnResult,
                     canThrow: false,

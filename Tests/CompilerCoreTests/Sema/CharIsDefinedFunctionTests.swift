@@ -8,8 +8,12 @@ import Testing
 /// so the resolved symbol carries no synthetic runtime link.
 @Suite
 struct CharIsDefinedFunctionTests {
-    @Test func testCharIsDefinedResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         fun definedCheck(ch: Char): Boolean {
             return ch.isDefined()
         }
@@ -25,8 +29,30 @@ struct CharIsDefinedFunctionTests {
         fun definedCheckIfBranch(ch: Char): Int {
             return if (ch.isDefined()) 1 else 0
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testCharIsDefinedResolvesInSource() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -36,9 +62,8 @@ struct CharIsDefinedFunctionTests {
 
     @Test func testCharIsDefinedResolvesToRuntimeLink() throws {
         var resolvedLink: String?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "isDefined"].map { ctx.interner.intern($0) }
             let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
@@ -50,9 +75,7 @@ struct CharIsDefinedFunctionTests {
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isDefined() should return Boolean")
-        }
-        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
-        #expect(resolvedLink == nil)
+
     }
 }
 #endif

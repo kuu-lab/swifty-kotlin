@@ -20,16 +20,67 @@ import Testing
 @Suite
 struct FileCopyToFunctionTests {
 
-    // MARK: - Single-argument overload (defaults for overwrite and bufferSize)
+    // MARK: - Shared Sema context
 
-    @Test func testFileCopyToWithJustTargetResolves() throws {
-        let ctx = makeContextFromSource("""
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.File
         import kotlin.io.copyTo
 
         fun copy(source: File, dest: File): File = source.copyTo(dest)
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        import java.io.File
+        import kotlin.io.copyTo
+
+        fun copy(source: File, dest: File): File = source.copyTo(dest, true)
+        """,
+        """
+        package sample2
+        import java.io.File
+        import kotlin.io.copyTo
+
+        fun copy(source: File, dest: File): File = source.copyTo(dest, false, 8 * 1024)
+        """,
+        """
+        package sample3
+        import java.io.File
+        import kotlin.io.copyTo
+
+        fun copy(source: File, dest: File): File =
+            source.copyTo(target = dest, bufferSize = 4096)
+        """,
+        """
+        package sample4
+        import java.io.File
+        import kotlin.io.copyTo
+
+        fun copy(source: File, dest: File): File = source.copyTo(dest, true, 4096)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    // MARK: - Single-argument overload (defaults for overwrite and bufferSize)
+
+    @Test func testFileCopyToWithJustTargetResolves() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -40,13 +91,8 @@ struct FileCopyToFunctionTests {
     // MARK: - Two-argument overload (overwrite supplied)
 
     @Test func testFileCopyToWithOverwriteFlagResolves() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
-        import kotlin.io.copyTo
 
-        fun copy(source: File, dest: File): File = source.copyTo(dest, true)
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -57,13 +103,8 @@ struct FileCopyToFunctionTests {
     // MARK: - Three-argument overload (all parameters supplied)
 
     @Test func testFileCopyToWithAllArgumentsResolves() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
-        import kotlin.io.copyTo
 
-        fun copy(source: File, dest: File): File = source.copyTo(dest, false, 8 * 1024)
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -74,14 +115,8 @@ struct FileCopyToFunctionTests {
     // MARK: - Named arguments via default values
 
     @Test func testFileCopyToWithNamedBufferSizeResolves() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
-        import kotlin.io.copyTo
 
-        fun copy(source: File, dest: File): File =
-            source.copyTo(target = dest, bufferSize = 4096)
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -92,16 +127,8 @@ struct FileCopyToFunctionTests {
     // MARK: - Sema surface inspection
 
     @Test func testFileCopyToExtensionFunctionSurfaceIsRegistered() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.copyTo
 
-        fun copy(source: File, dest: File): File = source.copyTo(dest, true, 4096)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             #expect(
                 !ctx.diagnostics.hasError,
                 "File.copyTo extension function in kotlin.io should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
@@ -138,7 +165,7 @@ struct FileCopyToFunctionTests {
             let signature = try #require(symbols.functionSignature(for: copyTo))
             #expect(signature.valueParameterHasDefaultValues == [false, true, true])
             #expect(signature.valueParameterIsVararg == [false, false, false])
-        }
+
     }
 }
 #endif
