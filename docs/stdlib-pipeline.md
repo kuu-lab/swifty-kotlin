@@ -488,7 +488,12 @@ Atomic の内訳:
   **KSP-675 で SharedFlow 側は (b) 確定**: `SharedFlow`/`MutableSharedFlow`/`Flow.shareIn` を bundled Kotlin source
   （`Stdlib/kotlinx/coroutines/flow/SharedFlow.kt`）へ移行し、replay buffer と eviction を `MutableList` 上の Kotlin
   状態遷移として表現。`kk_mutable_shared_flow_{create,emit,try_emit}` と `kk_flow_share_in` を削除。
-  `kk_shared_flow_{collect,replay_cache}` は StateFlow 用の残留ブリッジ（KSP-676 で解消予定）
+  **KSP-676 で StateFlow 側も (b) 確定**: `StateFlow`/`MutableStateFlow`/`Flow.stateIn` を bundled Kotlin source
+  （`Stdlib/kotlinx/coroutines/flow/StateFlow.kt`）へ移行。実装は `MutableList` を使った単一値 replay buffer
+  上の Kotlin 状態遷移。`StateFlow` は独立インターフェースとして定義し、`MutableStateFlow` が
+  `value` / `replayCache` / `collect` / `tryEmit` / `emit` を実装する。
+  `kk_mutable_state_flow_{create,emit,try_emit}` / `kk_state_flow_value` / `kk_flow_state_in` を削除。
+  `kk_flow_stopped` / `kk_flow_emit_with_timestamp` / `kk_flow_release` / `kk_flow_retain` は (c) 残留。
 - **Flow builder**: `kk_flow_{as_flow,empty,of}`（計3関数）。`kk_flow_create` + `kk_flow_emit` の合成で (b) 化できる
   可能性が高い。なお `channelFlow`/`callbackFlow` は Sema 側のみ登録されており Runtime 実装は未確認（Channel 実体を
   持つ可能性が高く (c) 濃厚）

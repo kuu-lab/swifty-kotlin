@@ -1368,4 +1368,74 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// KSP-676: `StateFlow`/`MutableStateFlow`/`Flow.stateIn` are bundled Kotlin source, so
+    /// they must keep working when the consumer only sees them through a prebuilt stdlib artifact.
+    /// This covers `value`, `tryEmit`, `emit`, `replayCache`, `collect`, and the `stateIn` extension
+    /// lowered to `kk_flow_collect` on an explicit local receiver.
+    func testStateFlowThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlinx.coroutines.runBlocking
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val state = MutableStateFlow(10)
+            println(state.value)
+
+            state.tryEmit(20)
+            println(state.value)
+
+            state.emit(30)
+            println(state.value)
+
+            val view: StateFlow<Int> = state
+            println(view.value)
+            println(view.replayCache)
+
+            val initial = 0
+            val stateFromFlow = flowOf(1, 2, 3).stateIn(initial)
+            println(stateFromFlow.value)
+
+            val shared = flowOf(4, 5, 6).shareIn(1)
+            println(shared.replayCache)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                10
+                20
+                30
+                30
+                [30]
+                3
+                [6]
+
+                """
+            )
+        }
+    }
 }
