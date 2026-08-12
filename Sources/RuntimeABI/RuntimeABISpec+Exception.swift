@@ -497,35 +497,6 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_require",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_check",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_require_lazy",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
         // KSP-618: synchronized(lock) { } is Kotlin source delegating to this
         // demoted bridge; the block arrives as a function pointer + closure
         // environment pair with the usual outThrown channel.
@@ -552,38 +523,7 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_check_lazy",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_precondition_assert",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_precondition_assert_lazy",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_assertions_enabled",
+            name: "__kk_assertions_enabled",
             parameters: [],
             returnType: .intptr,
             section: "Exception"
@@ -599,15 +539,6 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_assertions_reset",
             parameters: [],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_error",
-            parameters: [
-                RuntimeABIParameter(name: "message", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
             returnType: .intptr,
             section: "Exception"
         ),

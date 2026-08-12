@@ -397,7 +397,7 @@ public final class IncrementalCompilationCache {
                 stdlibManifestHash = "missing"
             }
         } else if options.includeStdlib || options.stdlibOnly {
-            stdlibManifestHash = BundledKotlinStdlib.manifestHash()
+            stdlibManifestHash = BundledStdlib.manifestHash()
         } else {
             stdlibManifestHash = ""
         }

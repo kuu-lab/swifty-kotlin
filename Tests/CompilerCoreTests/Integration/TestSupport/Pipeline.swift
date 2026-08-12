@@ -78,11 +78,12 @@ func runToLowering(_ ctx: CompilationContext) throws {
 
 func makeContextFromSource(
     _ source: String,
-    frontendFlags: [String] = []
+    frontendFlags: [String] = [],
+    emit: EmitMode = .kirDump
 ) -> CompilationContext {
     let fakePath = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString + ".kt").path
-    let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
+    let ctx = makeCompilationContext(inputs: [fakePath], emit: emit, frontendFlags: frontendFlags)
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     return ctx
 }

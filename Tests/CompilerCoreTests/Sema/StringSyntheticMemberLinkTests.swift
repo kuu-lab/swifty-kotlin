@@ -2058,7 +2058,7 @@ struct StringSyntheticMemberLinkTests {
                 #expect(callExprIDs.count == 3, "Expected two decodeToString range calls plus the bundled Base64 call")
 
                 // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
-                // defined in BundledKotlinStdlib Kotlin source (not synthetic stubs), so they have
+                // defined in BundledStdlib Kotlin source (not synthetic stubs), so they have
                 // no externalLinkName. The C bridge is called internally via __kk_decodeToString_range.
                 for (index, callExprID) in callExprIDs.enumerated() {
                     let chosenCallee = try #require(
