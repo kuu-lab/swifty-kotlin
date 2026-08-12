@@ -7,13 +7,41 @@ import Testing
 /// The predicate is implemented in bundled Kotlin (kotlin.text.CharPredicates).
 @Suite
 struct CharIsLowerCaseFunctionTests {
-    @Test func testIsLowerCaseResolvesOnCharLiteralReceiver() throws {
-        let ctx = makeContextFromSource("""
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         fun isLowerOfLiteral(): Boolean {
             return 'a'.isLowerCase()
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        fun isLower(ch: Char): Boolean {
+            return ch.isLowerCase()
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testIsLowerCaseResolvesOnCharLiteralReceiver() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -22,12 +50,8 @@ struct CharIsLowerCaseFunctionTests {
     }
 
     @Test func testIsLowerCaseResolvesOnCharParameterReceiver() throws {
-        let ctx = makeContextFromSource("""
-        fun isLower(ch: Char): Boolean {
-            return ch.isLowerCase()
-        }
-        """)
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
