@@ -700,24 +700,6 @@ extension CallTypeChecker {
                     return sliceArrayMatch
                 }
             }
-            if memberName == interner.intern("binarySearch") {
-                let hasLambdaArg = argExprs.first.map { sema.bindings.isCollectionHOFLambdaExpr($0) } ?? false
-                if argCount == 1,
-                   hasLambdaArg,
-                   let compareMatch = allCandidates.first(where: { candidate in
-                       sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_compare"
-                   })
-                {
-                    return compareMatch
-                }
-                if argCount >= 2,
-                   let comparatorMatch = allCandidates.first(where: { candidate in
-                       sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_comparator"
-                   })
-                {
-                    return comparatorMatch
-                }
-            }
             if memberName == interner.intern("addAll"),
                argCount == 1,
                let firstArgExpr = argExprs.first,
