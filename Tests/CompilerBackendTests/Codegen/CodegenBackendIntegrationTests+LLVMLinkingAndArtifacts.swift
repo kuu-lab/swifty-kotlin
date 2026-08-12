@@ -234,8 +234,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                ir.contains("@kk_println_string_flat"),
-                "Virtual dispatch String result should be passed to the flat-string println runtime"
+                ir.contains("@kk_fn_println"),
+                "KSP-614: the String result is passed to the bundled Kotlin `println` declaration"
             )
         }
     }
@@ -885,15 +885,17 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_isNullOrBlank_flat"))
         #expect(ir.contains("@kk_string_equals_flat"))
         #expect(!ir.contains("@kk_string_equals("))
-        #expect(ir.contains("@kk_println_string_flat"))
-        #expect(ir.contains("{ ptr, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
         #expect(ir.contains("@kk_coroutine_state_set_spill"))
         #expect(ir.contains("@kk_coroutine_state_get_spill"))
         #expect(ir.contains("@kk_coroutine_state_set_completion"))
         #expect(ir.contains("@kk_coroutine_state_get_completion"))
-        #expect(ir.contains("@kk_println_any"))
+        // KSP-614: `println` is an ordinary Kotlin function now, so the emitter
+        // must not rewrite it into a runtime print symbol of its own.
+        #expect(ir.contains("@println("))
+        #expect(!ir.contains("@kk_println_any"))
+        #expect(!ir.contains("@kk_println_string_flat"))
         #expect(ir.contains("@kk_register_frame_map"))
         #expect(ir.contains("@kk_push_frame"))
         #expect(ir.contains("@kk_pop_frame"))

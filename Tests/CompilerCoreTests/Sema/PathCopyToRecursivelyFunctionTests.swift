@@ -14,10 +14,12 @@ import Testing
 /// `Sources/RuntimeABI/RuntimeABISpec.swift`.
 @Suite
 struct PathCopyToRecursivelyFunctionTests {
-    // MARK: - overwrite overload
 
-    @Test func testPathCopyToRecursivelyOverwriteResolvesWithAllArguments() throws {
-        let source = """
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import kotlin.Exception
         import kotlin.io.path.OnErrorResult
         import kotlin.io.path.Path
@@ -26,24 +28,69 @@ struct PathCopyToRecursivelyFunctionTests {
         fun copyTree(source: Path, target: Path, onError: (Path, Path, Exception) -> OnErrorResult): Path {
             return source.copyToRecursively(target, onError, true, true)
         }
+        """,
         """
+        package sample1
+        fun noop() {}
+        """,
+        """
+        package sample2
+        import kotlin.Exception
+        import kotlin.io.path.CopyActionContext
+        import kotlin.io.path.CopyActionResult
+        import kotlin.io.path.OnErrorResult
+        import kotlin.io.path.Path
+        import kotlin.io.path.copyToRecursively
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        fun copyTree(
+            source: Path,
+            target: Path,
+            onError: (Path, Path, Exception) -> OnErrorResult,
+            copyAction: CopyActionContext.(Path, Path) -> CopyActionResult
+        ): Path {
+            return source.copyToRecursively(target, onError, true, copyAction)
+        }
+        """,
+        """
+        package sample3
+        fun noop() {}
+        """,
+        """
+        package sample4
+        fun noop() {}
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    // MARK: - overwrite overload
+
+    @Test func testPathCopyToRecursivelyOverwriteResolvesWithAllArguments() throws {
+
+        let ctx = try sharedCtx()
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(
                 errors.isEmpty,
                 "Path.copyToRecursively(target, onError, followLinks, overwrite) should resolve without errors, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
-        }
+
     }
 
     @Test func testPathCopyToRecursivelyOverwriteSignatureAndRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
 
+        let ctx = try sharedCtx()
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
@@ -93,46 +140,25 @@ struct PathCopyToRecursivelyFunctionTests {
             #expect(signature.receiverType == pathType)
             #expect(signature.returnType == pathType)
             #expect(signature.parameterTypes.count == 4)
-        }
+
     }
 
     // MARK: - copyAction overload
 
     @Test func testPathCopyToRecursivelyCopyActionResolvesWithAllArguments() throws {
-        let source = """
-        import kotlin.Exception
-        import kotlin.io.path.CopyActionContext
-        import kotlin.io.path.CopyActionResult
-        import kotlin.io.path.OnErrorResult
-        import kotlin.io.path.Path
-        import kotlin.io.path.copyToRecursively
 
-        fun copyTree(
-            source: Path,
-            target: Path,
-            onError: (Path, Path, Exception) -> OnErrorResult,
-            copyAction: CopyActionContext.(Path, Path) -> CopyActionResult
-        ): Path {
-            return source.copyToRecursively(target, onError, true, copyAction)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(
                 errors.isEmpty,
                 "Path.copyToRecursively(target, onError, followLinks, copyAction) should resolve without errors, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
-        }
+
     }
 
     @Test func testPathCopyToRecursivelyCopyActionSignatureAndRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
 
+        let ctx = try sharedCtx()
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
@@ -201,16 +227,14 @@ struct PathCopyToRecursivelyFunctionTests {
             #expect(signature.receiverType == pathType)
             #expect(signature.returnType == pathType)
             #expect(signature.parameterTypes.count == 4)
-        }
+
     }
 
     // MARK: - both overloads registered
 
     @Test func testBothCopyToRecursivelyOverloadsAreRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
 
+        let ctx = try sharedCtx()
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
@@ -232,7 +256,7 @@ struct PathCopyToRecursivelyFunctionTests {
                 linkNames.contains("kk_path_copyToRecursively_copyAction"),
                 "copyAction overload must be present"
             )
-        }
+
     }
 }
 #endif

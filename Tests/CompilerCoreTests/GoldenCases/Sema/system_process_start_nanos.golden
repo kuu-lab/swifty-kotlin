@@ -1,7 +1,5 @@
 symbol fq=__local_0.startNanos kind=local vis=private flags=_ type=Long
 symbol fq=__local_1.now kind=local vis=private flags=_ type=Long
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.system.System kind=object vis=public flags=synthetic type=kotlin.system.System
 symbol fq=kotlin.system.System.nanoTime kind=function vis=public flags=synthetic sig=recv=kotlin.system.System params=[] ret=Long
 symbol fq=kotlin.system.System.processStartNanos kind=function vis=public flags=synthetic sig=recv=kotlin.system.System params=[] ret=Long

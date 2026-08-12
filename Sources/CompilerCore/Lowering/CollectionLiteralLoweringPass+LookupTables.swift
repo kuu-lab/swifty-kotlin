@@ -447,8 +447,6 @@ struct CollectionLiteralLookupTables {
     var kkBuildMapName: InternedString { builderDSLLookup.kkBuildMapName }
     var addAllName: InternedString { builderDSLLookup.addAllName }
     var putName: InternedString { builderDSLLookup.putName }
-    var kkBuilderListAddName: InternedString { builderDSLLookup.kkBuilderListAddName }
-    var kkBuilderListAddAllName: InternedString { builderDSLLookup.kkBuilderListAddAllName }
     var kkBuilderSetAddName: InternedString { builderDSLLookup.kkBuilderSetAddName }
     var kkBuilderSetAddAllName: InternedString { builderDSLLookup.kkBuilderSetAddAllName }
     var kkBuilderMapPutName: InternedString { builderDSLLookup.kkBuilderMapPutName }
@@ -678,8 +676,6 @@ struct CollectionLiteralLookupTables {
     var hashMapOfFQName: [InternedString] { commonLookup.hashMapOfFQName }
     var linkedMapOfFQName: [InternedString] { commonLookup.linkedMapOfFQName }
     var listOfNotNullFQName: [InternedString] { commonLookup.listOfNotNullFQName }
-    var printlnName: InternedString { commonLookup.printlnName }
-    var kkPrintlnAnyName: InternedString { commonLookup.kkPrintlnAnyName }
     var kkAnyToStringName: InternedString { commonLookup.kkAnyToStringName }
     var kotlinName: InternedString { commonLookup.kotlinName }
     var initName: InternedString { commonLookup.initName }

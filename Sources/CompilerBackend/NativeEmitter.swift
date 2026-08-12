@@ -10,12 +10,6 @@ struct NativeEmitter {
     /// DW_ATE_signed – DWARF attribute encoding for signed integers.
     static let dwarfATESigned: UInt32 = 5
 
-    /// Known void, zero-argument runtime callees (hoisted to avoid repeated allocation).
-    static let knownVoidNoArgCallees: Set<String> = [
-        "kk_print_noarg",
-        "kk_println_newline",
-    ]
-
     /// Quick lookup for runtime ABI function specs by symbol name.
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })

@@ -1,61 +1,9 @@
 import Foundation
 
-// Runtime support for kotlin.require, kotlin.check, kotlin.error (STDLIB-062).
-// These functions throw IllegalArgumentException or IllegalStateException when conditions fail.
-
-@_cdecl("kk_require")
-public func kk_require(_ condition: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if condition == 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Failed requirement.")
-        return 0
-    }
-    return 0
-}
-
-@_cdecl("kk_check")
-public func kk_check(_ condition: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if condition == 0 {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Check failed.")
-        return 0
-    }
-    return 0
-}
-
-@_cdecl("kk_require_lazy")
-public func kk_require_lazy(
-    _ condition: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    preconditionWithLazyMessage(
-        condition,
-        fnPtr,
-        closureRaw,
-        outThrown,
-        defaultMessage: "Failed requirement.",
-        allocate: runtimeAllocateIllegalArgumentException
-    )
-}
-
-@_cdecl("kk_check_lazy")
-public func kk_check_lazy(
-    _ condition: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    preconditionWithLazyMessage(
-        condition,
-        fnPtr,
-        closureRaw,
-        outThrown,
-        defaultMessage: "Check failed.",
-        allocate: runtimeAllocateIllegalStateException
-    )
-}
+// Runtime support for kotlin.assert (STDLIB-258).
+// The require/check/error precondition family is implemented in bundled Kotlin
+// source (Stdlib/kotlin/Preconditions.kt) and lowered through the standard
+// exception allocation helpers below.
 
 // MARK: - assert (STDLIB-258)
 
@@ -103,53 +51,6 @@ public func kk_precondition_assert_lazy(
 
     let message = runtimePreconditionMessage(from: rawMessage)
     outThrown?.pointee = runtimeAllocateAssertionError(message: message)
-    return 0
-}
-
-@_cdecl("kk_error")
-public func kk_error(_ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let message = runtimePreconditionMessage(from: messageRaw)
-    outThrown?.pointee = runtimeAllocateIllegalStateException(message: message)
-    return 0
-}
-
-private func preconditionWithLazyMessage(
-    _ condition: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?,
-    defaultMessage: String,
-    allocate: (String, Int) -> Int
-) -> Int {
-    outThrown?.pointee = 0
-    guard condition == 0 else {
-        return 0
-    }
-
-    // No lazy message lambda provided — use the default message directly
-    guard fnPtr != 0 else {
-        outThrown?.pointee = allocate(defaultMessage, 0)
-        return 0
-    }
-
-    // Evaluate the lazy message lambda
-    var lazyThrown = 0
-    let rawMessage = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &lazyThrown)
-
-    if lazyThrown != 0 {
-        // Lazy message evaluation itself threw — wrap as precondition failure with cause.
-        // STDLIB-257: The precondition failure (IllegalArgumentException / IllegalStateException)
-        // is the primary exception; the lambda's exception is attached as the cause so callers
-        // can distinguish "precondition failed" from "lazy message evaluation failed".
-        outThrown?.pointee = allocate(defaultMessage, lazyThrown)
-        return 0
-    }
-
-    // Lazy message evaluated successfully — use it for the precondition failure.
-    // Kotlin's e.message returns only the user-provided message, not the exception type prefix.
-    let message = runtimePreconditionMessage(from: rawMessage)
-    outThrown?.pointee = allocate(message, 0)
     return 0
 }
 

@@ -4,10 +4,42 @@ import Testing
 
 @Suite
 struct NativeCInteropPinFunctionTests {
-    @Test
-    func testPinFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlinx.cinterop.Pinned
+        import kotlinx.cinterop.pin
+
+        fun pinString(value: String): Pinned<String> {
+            return value.pin()
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testPinFunctionSurfaceMatchesNativeShape() throws {
+
+        let ctx = try sharedCtx()
         #expect(!(
             ctx.diagnostics.hasError
         ), "Expected pin surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
@@ -70,18 +102,9 @@ struct NativeCInteropPinFunctionTests {
         #expect(sema.symbols.parentSymbol(for: pinSymbol) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
-    @Test
-    func testPinFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.Pinned
-        import kotlinx.cinterop.pin
+    @Test func testPinFunctionResolvesInSource() throws {
 
-        fun pinString(value: String): Pinned<String> {
-            return value.pin()
-        }
-        """)
-        try runSema(ctx)
-
+        let ctx = try sharedCtx()
         #expect(!(
             ctx.diagnostics.hasError
         ), "Expected pin to resolve, got: \(ctx.diagnostics.diagnostics)")

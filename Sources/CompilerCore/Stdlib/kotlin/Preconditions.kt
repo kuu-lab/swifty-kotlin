@@ -25,3 +25,26 @@ public fun TODO(): Nothing = throw NotImplementedError()
  */
 public fun TODO(reason: String): Nothing =
     throw NotImplementedError("An operation is not implemented: " + reason)
+
+/** Throws [IllegalArgumentException] if [value] is false. */
+public fun require(value: Boolean): Unit {
+    if (!value) throw IllegalArgumentException("Failed requirement.")
+}
+
+/** Throws [IllegalArgumentException] with the result of [lazyMessage] if [value] is false. */
+public fun require(value: Boolean, lazyMessage: () -> Any): Unit {
+    if (!value) throw IllegalArgumentException(lazyMessage().toString())
+}
+
+/** Throws [IllegalStateException] if [value] is false. */
+public fun check(value: Boolean): Unit {
+    if (!value) throw IllegalStateException("Check failed.")
+}
+
+/** Throws [IllegalStateException] with the result of [lazyMessage] if [value] is false. */
+public fun check(value: Boolean, lazyMessage: () -> Any): Unit {
+    if (!value) throw IllegalStateException(lazyMessage().toString())
+}
+
+/** Throws [IllegalStateException] with [message]. */
+public fun error(message: Any): Nothing = throw IllegalStateException(message.toString())

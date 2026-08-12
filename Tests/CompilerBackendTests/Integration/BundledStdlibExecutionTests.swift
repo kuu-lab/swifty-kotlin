@@ -310,6 +310,42 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-614: `print`/`println` are Kotlin declarations in
+    /// `Stdlib/kotlin/io/Console.kt` on top of the single `__kk_print_raw`
+    /// bridge; every overload (including the argument-less ones) must resolve
+    /// and the newline must be appended on the Kotlin side.
+    @Test
+    func testConsolePrintOverloadsAreKotlinBacked() throws {
+        try compileAndRunKotlin(
+            """
+            data class P(val a: Int)
+
+            fun main() {
+                println()
+                print()
+                print("a")
+                print(1)
+                println()
+                println("b")
+                println(2)
+                println(null)
+                println(P(3))
+                println(listOf(1, 2))
+            }
+            """,
+            expectedOutput: """
+
+            a1
+            b
+            2
+            null
+            P(a=3)
+            [1, 2]
+
+            """
+        )
+    }
+
     // KSP-625: The public ArrayDeque surface is bundled Kotlin. Empty and bounds checks
     // and toString stay in Kotlin; only ring-buffer mutation crosses the __kk_arraydeque_* bridges.
     @Test

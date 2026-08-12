@@ -345,6 +345,16 @@ enum ParserBoundaryPolicy {
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
     ]
 
+    /// Visibility/linkage modifiers that can only introduce a new declaration.
+    /// A body-less declaration (`external fun f(x: Any?)`, an abstract member,
+    /// an expression-bodied property, ...) ends its tail at the next line that
+    /// starts with one of these; without them the following declaration is
+    /// absorbed into the previous one's tail and silently disappears from the
+    /// symbol table.
+    private static let declarationLeadingModifierKeywords: Set<Keyword> = [
+        .public, .private, .internal, .protected, .external,
+    ]
+
     /// Keywords used as error-recovery synchronization points.
     /// Excludes `.enum` because `enum` is a soft modifier (always followed by `class`)
     /// and was not a synchronization point in the original implementation.
@@ -386,7 +396,8 @@ enum ParserBoundaryPolicy {
             return true
         case .symbol(.at):
             return !inBlock && hasLeadingNewline
-        case let .keyword(kw) where declarationBoundaryKeywords.contains(kw):
+        case let .keyword(kw) where declarationBoundaryKeywords.contains(kw)
+            || declarationLeadingModifierKeywords.contains(kw):
             return !inBlock && hasLeadingNewline
         default:
             return false
