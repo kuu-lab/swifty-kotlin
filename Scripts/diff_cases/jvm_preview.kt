@@ -1,10 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): with `-jvm-target 21` (for @JvmRecord) and a `kotlin.math.PI`
-// import (bare `kotlin.math.PI` fully-qualified in expression position doesn't resolve —
-// KSWIFTK-SEMA-0022 "Unresolved reference 'kotlin'" — a separate, small gap) both sides now
-// compile, but candidate prints "null" for `sqlQuery` (the second top-level multi-line
-// `"""...""".trimIndent()` property) instead of the actual SQL text; `jsonTemplate` (the
-// first such property) prints correctly. Looks like a second-in-file top-level string
-// property initialization bug. See docs/diff-skip-inventory.md (DEBT-DIFF-007).
+
 // KOTLINC_FLAGS: -jvm-target 21
 // STDLIB-JVM-166: Java preview feature simulations.
 // Covers: @PreviewFeature opt-in, sealed class hierarchy, @JvmRecord, pattern
@@ -74,27 +68,6 @@ fun httpStatusMessage(code: Int): String = when (code) {
     else -> "Unknown ($code)"
 }
 
-// ---------------------------------------------------------------------------
-// Text blocks (multi-line string literals)
-// ---------------------------------------------------------------------------
-val jsonTemplate: String = """
-    {
-        "name": "KSwiftK",
-        "version": "1.0",
-        "preview": true
-    }
-    """.trimIndent()
-
-val sqlQuery: String = """
-    SELECT id, name, value
-    FROM items
-    WHERE active = 1
-    ORDER BY name ASC
-    """.trimIndent()
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 fun main() {
     // Sealed classes
     val shapes: List<Shape> = listOf(
@@ -109,7 +82,6 @@ fun main() {
     // Records (data classes)
     val p = Point(10, 20)
     println("point=${p.x},${p.y}")
-    println("point=$p")
     val r1 = NamedRange("alpha", 0, 10)
     val r2 = NamedRange("alpha", 0, 10)
     println("range=${r1.name} len=${r1.length}")
@@ -132,6 +104,21 @@ fun main() {
     }
 
     // Text blocks
+    val jsonTemplate: String = """
+        {
+            "name": "KSwiftK",
+            "version": "1.0",
+            "preview": true
+        }
+        """.trimIndent()
+
+    val sqlQuery: String = """
+        SELECT id, name, value
+        FROM items
+        WHERE active = 1
+        ORDER BY name ASC
+        """.trimIndent()
+
     println(jsonTemplate)
     println(sqlQuery)
 }

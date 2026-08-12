@@ -1,8 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-005): source Sequence.flatten() object-expression cannot
-// dispatch .iterator() on nested runtime List/Sequence/RuntimeSequenceBox handles
-// (e.g. listOf(...) elements or sequence {} builder output). KSP-441 source
-// object pipeline and KSP-447 sequence {} builder need further runtime itable
-// bridging before this case can run end-to-end.
 fun main() {
     // Sequence flatten edge cases
     println("=== Sequence flatten edge cases ===")

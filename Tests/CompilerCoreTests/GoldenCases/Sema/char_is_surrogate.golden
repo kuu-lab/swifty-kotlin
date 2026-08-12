@@ -1,6 +1,5 @@
 symbol fq=charIsSurrogate kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Boolean
 symbol fq=charIsSurrogate.$0.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.isSurrogate kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
 file fchar_is_surrogate package=_
   decl charIsSurrogate fun charIsSurrogate sym=charIsSurrogate
 expr e@1:41 name(c) type=Char ref=charIsSurrogate.$0.c
