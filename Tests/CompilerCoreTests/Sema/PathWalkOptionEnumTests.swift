@@ -6,7 +6,7 @@ import Testing
 // MARK: - STDLIB-IO-PATH-FN-039: kotlin.io.path.PathWalkOption enum
 //
 // Focused coverage for the synthetic `kotlin.io.path.PathWalkOption` enum class.
-// The enum is registered by `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`
+// The enum is registered by `HeaderHelpers+SyntheticPathStubs.swift`
 // via `ensurePathWalkOptionEnum`, and its two entries (BREADTH_FIRST, FOLLOW_LINKS)
 // are exposed as fields whose `propertyType` is the enum class type itself so that
 // `PathWalkOption.BREADTH_FIRST`-style member references resolve through
