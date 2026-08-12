@@ -174,7 +174,7 @@ struct StdlibSurfaceSpecTests {
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
                 // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
                 // source, so it no longer registers a synthetic bridge member.
-                (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
+                // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
