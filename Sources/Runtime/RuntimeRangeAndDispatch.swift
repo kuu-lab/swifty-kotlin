@@ -471,16 +471,16 @@ public func kk_op_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
 }
 
-@_cdecl("kk_op_rangeUntil")
-public func kk_op_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_op_rangeUntil")
+public func __kk_op_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
     if rhs <= lhs {
         return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0))
     }
     return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1))
 }
 
-@_cdecl("kk_op_ulong_rangeUntil")
-public func kk_op_ulong_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_op_ulong_rangeUntil")
+public func __kk_op_ulong_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
     let lhsUnsigned = UInt(bitPattern: lhs)
     let rhsUnsigned = UInt(bitPattern: rhs)
     if rhsUnsigned <= lhsUnsigned {
@@ -489,13 +489,13 @@ public func kk_op_ulong_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
     return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1))
 }
 
-@_cdecl("kk_op_downTo")
-public func kk_op_downTo(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_op_downTo")
+public func __kk_op_downTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
 }
 
-@_cdecl("kk_op_step")
-public func kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_op_step")
+public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     // Kotlin spec: step() requires a strictly positive argument (STDLIB-022).
     guard stepValue > 0 else {
@@ -972,8 +972,8 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
 
 // MARK: - CharRange HOFs (STDLIB-290)
 
-@_cdecl("kk_char_range_step")
-public func kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_char_range_step")
+public func __kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard stepValue > 0 else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
@@ -1205,8 +1205,8 @@ func runtimeUnsignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
     return Int(bitPattern: endUnsigned &+ (distance % magnitude))
 }
 
-@_cdecl("kk_int_progression_fromClosedRange")
-public func kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
+@_cdecl("__kk_int_progression_fromClosedRange")
+public func __kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     // Validate step constraints
@@ -1222,8 +1222,8 @@ public func kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart:
     return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
 }
 
-@_cdecl("kk_long_progression_fromClosedRange")
-public func kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
+@_cdecl("__kk_long_progression_fromClosedRange")
+public func __kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     // For LongProgression, we use the same RuntimeRangeBox but treat values as Long
@@ -1240,8 +1240,8 @@ public func kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart
     return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
 }
 
-@_cdecl("kk_uint_progression_fromClosedRange")
-public func kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
+@_cdecl("__kk_uint_progression_fromClosedRange")
+public func __kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     // UIntProgression uses signed Int for step, UInt for range values
@@ -1257,8 +1257,8 @@ public func kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart
     return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
 }
 
-@_cdecl("kk_ulong_progression_fromClosedRange")
-public func kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
+@_cdecl("__kk_ulong_progression_fromClosedRange")
+public func __kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                  _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     // ULongProgression uses signed Int for step, ULong for range values
@@ -1274,8 +1274,8 @@ public func kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStar
     return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
 }
 
-@_cdecl("kk_char_progression_fromClosedRange")
-public func kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
+@_cdecl("__kk_char_progression_fromClosedRange")
+public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     guard step != 0 else {

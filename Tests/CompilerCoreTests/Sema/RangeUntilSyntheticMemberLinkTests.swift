@@ -54,10 +54,10 @@ struct RangeUntilSyntheticMemberLinkTests {
 
         // Byte and Short collapse to intType internally; mixed Int/Long calls widen to Long.
         let expected: [(receiver: TypeID, parameter: TypeID, returnType: TypeID, link: String)] = [
-            (sema.types.intType, sema.types.intType, sema.types.intType, "kk_op_rangeUntil"),
-            (sema.types.intType, sema.types.longType, sema.types.longType, "kk_op_rangeUntil"),
-            (sema.types.longType, sema.types.intType, sema.types.longType, "kk_op_rangeUntil"),
-            (sema.types.longType, sema.types.longType, sema.types.longType, "kk_op_rangeUntil"),
+            (sema.types.intType, sema.types.intType, sema.types.intType, "__kk_op_rangeUntil"),
+            (sema.types.intType, sema.types.longType, sema.types.longType, "__kk_op_rangeUntil"),
+            (sema.types.longType, sema.types.intType, sema.types.longType, "__kk_op_rangeUntil"),
+            (sema.types.longType, sema.types.longType, sema.types.longType, "__kk_op_rangeUntil"),
         ]
 
         for entry in expected {
@@ -99,12 +99,12 @@ struct RangeUntilSyntheticMemberLinkTests {
         #expect(untilCalls.count == 6)
 
         let expected: [(type: TypeID, link: String, isUIntRange: Bool, isULongRange: Bool)] = [
-            (sema.types.intType, "kk_op_rangeUntil", false, false),
-            (sema.types.intType, "kk_op_rangeUntil", false, false),
-            (sema.types.intType, "kk_op_rangeUntil", false, false),
-            (sema.types.longType, "kk_op_rangeUntil", false, false),
-            (sema.types.longType, "kk_op_rangeUntil", false, false),
-            (sema.types.longType, "kk_op_rangeUntil", false, false),
+            (sema.types.intType, "__kk_op_rangeUntil", false, false),
+            (sema.types.intType, "__kk_op_rangeUntil", false, false),
+            (sema.types.intType, "__kk_op_rangeUntil", false, false),
+            (sema.types.longType, "__kk_op_rangeUntil", false, false),
+            (sema.types.longType, "__kk_op_rangeUntil", false, false),
+            (sema.types.longType, "__kk_op_rangeUntil", false, false),
         ]
 
         for (exprID, entry) in zip(untilCalls, expected) {

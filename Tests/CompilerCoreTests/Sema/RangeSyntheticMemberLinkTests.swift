@@ -65,7 +65,7 @@ struct RangeSyntheticMemberLinkTests {
         )
         let fromClosedRangeSignature = try #require(sema.symbols.functionSignature(for: fromClosedRangeSymbol))
 
-        #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == "kk_char_progression_fromClosedRange")
+        #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == "__kk_char_progression_fromClosedRange")
         #expect(fromClosedRangeSignature.parameterTypes == [sema.types.charType, sema.types.charType, sema.types.intType])
         #expect(fromClosedRangeSignature.returnType == charProgressionType)
         let bundledToListName = ["kotlin", "ranges", "toList"].map { interner.intern($0) }
@@ -111,7 +111,7 @@ struct RangeSyntheticMemberLinkTests {
                 parameterCount: 1,
                 sema: sema,
                 interner: interner
-            ) == "kk_char_range_step"
+            ) == "__kk_char_range_step"
         )
     }
 

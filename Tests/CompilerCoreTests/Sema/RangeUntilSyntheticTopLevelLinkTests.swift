@@ -78,7 +78,7 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         let rangeUntilSymbol = try #require(candidates.first)
         let symbol = try #require(sema.symbols.symbol(rangeUntilSymbol))
         #expect(symbol.flags.contains(.operatorFunction))
-        #expect(sema.symbols.externalLinkName(for: rangeUntilSymbol) == "kk_op_rangeUntil")
+        #expect(sema.symbols.externalLinkName(for: rangeUntilSymbol) == "__kk_op_rangeUntil")
 
         let signature = try #require(sema.symbols.functionSignature(for: rangeUntilSymbol))
         #expect(signature.typeParameterSymbols.count == 1)
@@ -181,7 +181,7 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         }
 
         let links = Set(candidates.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(links == Set(["kk_op_rangeUntil"]), "All until overloads should link to kk_op_rangeUntil")
+        #expect(links == Set(["__kk_op_rangeUntil"]), "All until overloads should link to __kk_op_rangeUntil")
     }
 
     @Test func testMixedWidthUntilCallsResolveAndRemainRangeExpressions() throws {
@@ -248,8 +248,8 @@ struct RangeUntilSyntheticTopLevelLinkTests {
                     Comment(rawValue: "Unexpected until return type at index \(index)")
                 )
                 #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_op_rangeUntil",
-                    "until should lower to kk_op_rangeUntil"
+                    sema.symbols.externalLinkName(for: chosenCallee) == "__kk_op_rangeUntil",
+                    "until should lower to __kk_op_rangeUntil"
                 )
                 #expect(
                     sema.bindings.isRangeExpr(callExprID),

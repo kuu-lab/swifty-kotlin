@@ -206,7 +206,7 @@ struct RuntimeRangeHOFTests {
 
     @Test
     func testRangeWithNegativeStep() {
-        let range = kk_op_downTo(5, 1)
+        let range = __kk_op_downTo(5, 1)
         let mapped = kk_range_map(range, unsafeBitCast(rangeMapDouble, to: Int.self), 0, nil)
         #expect(listElements(mapped) == [10, 8, 6, 4, 2])
     }
@@ -252,7 +252,7 @@ struct RuntimeRangeHOFTests {
 
     @Test
     func testRangeForEachOnDescendingProgression() {
-        let range = kk_op_downTo(5, 3)
+        let range = __kk_op_downTo(5, 3)
         var sum = 0
         withUnsafeMutablePointer(to: &sum) { ptr in
             _ = kk_range_forEach(range, unsafeBitCast(rangeForEachAccumulate, to: Int.self), Int(bitPattern: ptr), nil)
@@ -346,7 +346,7 @@ struct RuntimeRangeHOFTests {
 
     @Test
     func testRangeSortedOnDescendingProgressionProducesAscendingList() {
-        let range = kk_op_downTo(5, 1)
+        let range = __kk_op_downTo(5, 1)
         let sorted = kk_range_sorted(range)
         #expect(listElements(sorted) == [1, 2, 3, 4, 5])
     }
@@ -381,7 +381,7 @@ struct RuntimeRangeHOFTests {
 
     @Test
     func testRangeMapIndexedOnDescendingProgression() {
-        let range = kk_op_downTo(5, 3)
+        let range = __kk_op_downTo(5, 3)
         let mapped = kk_range_mapIndexed(range, unsafeBitCast(rangeMapIndexedSum, to: Int.self), 0, nil)
         #expect(listElements(mapped) == [5, 5, 5])
     }
@@ -471,7 +471,7 @@ struct RuntimeRangeHOFTests {
 
     @Test
     func testRangeLastPredicateFindsLastMatchInDescendingProgression() {
-        let range = kk_op_downTo(5, 1)
+        let range = __kk_op_downTo(5, 1)
         let result = kk_range_last_predicate(range, unsafeBitCast(rangePredicateEven, to: Int.self), 0, nil)
         #expect(result == 2)
     }
@@ -520,7 +520,7 @@ struct RuntimeRangeHOFTests {
 
     @Test
     func testLongRangeSortedProducesAscendingList() {
-        let range = kk_op_downTo(4, 1)
+        let range = __kk_op_downTo(4, 1)
         let sorted = kk_long_range_sorted(range)
         #expect(listElements(sorted) == [1, 2, 3, 4])
     }

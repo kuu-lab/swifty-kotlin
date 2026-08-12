@@ -2582,14 +2582,14 @@ final class CallTypeChecker {
             if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                [
                    "kk_op_rangeTo",
-                   "kk_op_rangeUntil",
+                   "__kk_op_rangeUntil",
                    "kk_uint_rangeTo",
                    "kk_char_rangeTo",
-                   "kk_int_progression_fromClosedRange",
-                   "kk_long_progression_fromClosedRange",
-                   "kk_uint_progression_fromClosedRange",
-                   "kk_ulong_progression_fromClosedRange",
-                   "kk_op_ulong_rangeUntil",
+                   "__kk_int_progression_fromClosedRange",
+                   "__kk_long_progression_fromClosedRange",
+                   "__kk_uint_progression_fromClosedRange",
+                   "__kk_ulong_progression_fromClosedRange",
+                   "__kk_op_ulong_rangeUntil",
                ].contains(externalLinkName)
             {
                 markRangeCallBindings(id, chosen: chosen, returnType: adjustedReturnType, sema: sema)

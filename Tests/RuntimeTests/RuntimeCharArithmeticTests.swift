@@ -173,7 +173,7 @@ struct RuntimeCharArithmeticTests {
         let collect = makeCollector()
         var result: [Int] = []
         withUnsafeMutablePointer(to: &result) { buf in
-            let range = kk_op_downTo(kk_box_char(Int(Unicode.Scalar("e").value)),
+            let range = __kk_op_downTo(kk_box_char(Int(Unicode.Scalar("e").value)),
                                      kk_box_char(Int(Unicode.Scalar("a").value)))
             _ = kk_char_range_forEach(range, unsafeBitCast(collect, to: Int.self),
                                   Int(bitPattern: buf), nil)

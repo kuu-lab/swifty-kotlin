@@ -111,17 +111,17 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
 
-        // kk_op_rangeUntil backs the `until` infix function (registered in
+        // __kk_op_rangeUntil backs the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
         // used for range operators) but always returns a boxed RuntimeRangeBox
-        // reference at runtime (see kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // reference at runtime (see __kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
         // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
         // on the range object itself.
         let boxedReturnRangeCallees: Set<InternedString> = [
-            ctx.interner.intern("kk_op_rangeUntil"),
+            ctx.interner.intern("__kk_op_rangeUntil"),
         ]
 
         var signatureByName: [InternedString: FunctionSignature] = [:]

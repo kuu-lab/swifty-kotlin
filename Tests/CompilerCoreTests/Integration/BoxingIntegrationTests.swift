@@ -76,24 +76,23 @@ struct BoxingIntegrationTests {
         let module: KIRModule = try #require(ctx.kir)
         let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
 
-        // `until` is registered with a scalar Long return type (matching the
-        // isRangeExpr duck-typing convention used for range operators), but
-        // kk_op_rangeUntil always returns a boxed RuntimeRangeBox reference at
-        // runtime. Unlike `..`/`downTo`/`step`, the named `until` call carries a
-        // resolved Sema symbol, so a naive return-type-driven ABI lowering pass
-        // would unbox the range object itself as if it were a raw Long — see
-        // kk_unbox_long in RuntimeBoxing.swift, which prints a diagnostic and
-        // pollutes stdout when handed a non-LongBox object pointer.
+        // `until` is now a bundled Kotlin extension that returns LongRange, but
+        // the bridge `__kk_op_rangeUntil` still returns a boxed RuntimeRangeBox
+        // reference at runtime. Unlike `..`/`downTo`/`step`, the named `until`
+        // call carries a resolved Sema symbol, so a naive return-type-driven ABI
+        // lowering pass would unbox the range object itself as if it were a raw
+        // Long — see kk_unbox_long in RuntimeBoxing.swift, which prints a
+        // diagnostic and pollutes stdout when handed a non-LongBox object pointer.
         var rangeResults: Set<KIRExprID> = []
         for instruction in testFunc.body {
             if case let .call(_, callee, _, result, _, _, _, _) = instruction,
-               ctx.interner.resolve(callee) == "kk_op_rangeUntil",
+               ctx.interner.resolve(callee) == "__kk_op_rangeUntil",
                let result
             {
                 rangeResults.insert(result)
             }
         }
-        #expect(!rangeResults.isEmpty, "Expected a kk_op_rangeUntil call in the lowered body")
+        #expect(!rangeResults.isEmpty, "Expected a __kk_op_rangeUntil call in the lowered body")
 
         let erroneousUnboxCalls = testFunc.body.filter { instruction in
             if case let .call(_, callee, arguments, _, _, _, _, _) = instruction {
@@ -105,7 +104,7 @@ struct BoxingIntegrationTests {
         }
         #expect(
             erroneousUnboxCalls.isEmpty,
-            "kk_op_rangeUntil's boxed range result must not be unboxed. Found \(erroneousUnboxCalls.count) offending call(s)"
+            "__kk_op_rangeUntil's boxed range result must not be unboxed. Found \(erroneousUnboxCalls.count) offending call(s)"
         )
     }
 
