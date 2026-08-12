@@ -784,3 +784,251 @@ public fun CharProgression.sum(): Int {
 
 @KsSymbolName("__kk_range_reversed")
 public external fun CharProgression.reversed(): CharProgression
+
+// MARK: - UIntRange
+
+public fun UIntRange.forEach(action: (UInt) -> Unit) {
+    for (element in this) { action(element) }
+}
+
+public fun <R> UIntRange.map(transform: (UInt) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) { result.add(transform(element)) }
+    return result
+}
+
+public fun UIntRange.filter(predicate: (UInt) -> Boolean): List<UInt> {
+    val result = mutableListOf<UInt>()
+    for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun UIntRange.toList(): List<UInt> {
+    val result = mutableListOf<UInt>()
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toUInt()
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toUInt()
+        }
+    }
+    return result
+}
+
+@KsSymbolName("__kk_range_count")
+public fun UIntRange.count(): Int {
+    val count: UInt = if (step > 0) {
+        if (first > last) 0u else (last - first) / step.toUInt() + 1u
+    } else if (step < 0) {
+        if (first < last) 0u else (first - last) / (-step).toUInt() + 1u
+    } else {
+        0u
+    }
+    return count.toInt()
+}
+
+@KsSymbolName("__kk_range_sum")
+public fun UIntRange.sum(): UInt {
+    var sum = 0u
+    for (element in this) {
+        sum += element
+    }
+    return sum
+}
+
+@KsSymbolName("__kk_range_reversed")
+public external fun UIntRange.reversed(): UIntProgression
+
+// MARK: - UIntProgression
+
+public fun UIntProgression.forEach(action: (UInt) -> Unit) {
+    for (element in this) { action(element) }
+}
+
+public fun <R> UIntProgression.map(transform: (UInt) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) { result.add(transform(element)) }
+    return result
+}
+
+public fun UIntProgression.filter(predicate: (UInt) -> Boolean): List<UInt> {
+    val result = mutableListOf<UInt>()
+    for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun UIntProgression.toList(): List<UInt> {
+    val result = mutableListOf<UInt>()
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toUInt()
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toUInt()
+        }
+    }
+    return result
+}
+
+@KsSymbolName("__kk_range_count")
+public fun UIntProgression.count(): Int {
+    val count: UInt = if (step > 0) {
+        if (first > last) 0u else (last - first) / step.toUInt() + 1u
+    } else if (step < 0) {
+        if (first < last) 0u else (first - last) / (-step).toUInt() + 1u
+    } else {
+        0u
+    }
+    return count.toInt()
+}
+
+@KsSymbolName("__kk_range_sum")
+public fun UIntProgression.sum(): UInt {
+    var sum = 0u
+    for (element in this) {
+        sum += element
+    }
+    return sum
+}
+
+@KsSymbolName("__kk_range_reversed")
+public external fun UIntProgression.reversed(): UIntProgression
+
+// MARK: - ULongRange
+
+public fun ULongRange.forEach(action: (ULong) -> Unit) {
+    for (element in this) { action(element) }
+}
+
+public fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) { result.add(transform(element)) }
+    return result
+}
+
+public fun ULongRange.filter(predicate: (ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongRange.toList(): List<ULong> {
+    val result = mutableListOf<ULong>()
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toULong()
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toULong()
+        }
+    }
+    return result
+}
+
+@KsSymbolName("__kk_range_count")
+public fun ULongRange.count(): Int {
+    val count: ULong = if (step > 0) {
+        if (first > last) 0uL else (last - first) / step.toULong() + 1uL
+    } else if (step < 0) {
+        if (first < last) 0uL else (first - last) / (-step).toULong() + 1uL
+    } else {
+        0uL
+    }
+    return count.toInt()
+}
+
+@KsSymbolName("__kk_range_sum")
+public fun ULongRange.sum(): ULong {
+    var sum = 0uL
+    for (element in this) {
+        sum += element
+    }
+    return sum
+}
+
+@KsSymbolName("__kk_range_reversed")
+public external fun ULongRange.reversed(): ULongProgression
+
+// MARK: - ULongProgression
+
+public fun ULongProgression.forEach(action: (ULong) -> Unit) {
+    for (element in this) { action(element) }
+}
+
+public fun <R> ULongProgression.map(transform: (ULong) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) { result.add(transform(element)) }
+    return result
+}
+
+public fun ULongProgression.filter(predicate: (ULong) -> Boolean): List<ULong> {
+    val result = mutableListOf<ULong>()
+    for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongProgression.toList(): List<ULong> {
+    val result = mutableListOf<ULong>()
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toULong()
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step.toULong()
+        }
+    }
+    return result
+}
+
+@KsSymbolName("__kk_range_count")
+public fun ULongProgression.count(): Int {
+    val count: ULong = if (step > 0) {
+        if (first > last) 0uL else (last - first) / step.toULong() + 1uL
+    } else if (step < 0) {
+        if (first < last) 0uL else (first - last) / (-step).toULong() + 1uL
+    } else {
+        0uL
+    }
+    return count.toInt()
+}
+
+@KsSymbolName("__kk_range_sum")
+public fun ULongProgression.sum(): ULong {
+    var sum = 0uL
+    for (element in this) {
+        sum += element
+    }
+    return sum
+}
+
+@KsSymbolName("__kk_range_reversed")
+public external fun ULongProgression.reversed(): ULongProgression

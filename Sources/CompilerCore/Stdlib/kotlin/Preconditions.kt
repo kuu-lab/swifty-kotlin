@@ -49,6 +49,21 @@ public fun check(value: Boolean, lazyMessage: () -> Any): Unit {
 /** Throws [IllegalStateException] with [message]. */
 public fun error(message: Any): Nothing = throw IllegalStateException(message.toString())
 
+@KsSymbolName("__kk_assertions_enabled")
+private external fun __kk_assertions_enabled(): Boolean
+
+/** Throws [AssertionError] if [value] is false and assertions are enabled. */
+public fun assert(value: Boolean): Unit {
+    if (!__kk_assertions_enabled()) return
+    if (!value) throw AssertionError("Assertion failed")
+}
+
+/** Throws [AssertionError] with the result of [lazyMessage] if [value] is false and assertions are enabled. */
+public fun assert(value: Boolean, lazyMessage: () -> Any): Unit {
+    if (!__kk_assertions_enabled()) return
+    if (!value) throw AssertionError(lazyMessage().toString())
+}
+
 /** Throws [IllegalArgumentException] if [value] is null. Returns the non-null [value]. */
 public fun <T : Any> requireNotNull(value: T?): T {
     if (value == null) throw IllegalArgumentException("Required value was null.")

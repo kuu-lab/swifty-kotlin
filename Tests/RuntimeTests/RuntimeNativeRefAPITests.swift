@@ -28,7 +28,7 @@ import Testing
 //     - GC.maxHeapBytes            -> kk_gc_max_heap_bytes()
 //
 //   kotlin.native.runtime.Debugging (via kk_assertions_* entry points):
-//     - Debugging.areAssertionsEnabled    -> kk_assertions_enabled()
+//     - Debugging.areAssertionsEnabled    -> __kk_assertions_enabled()
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
 //     - Debugging.isThreadStateRunnable   -> kk_debugging_is_thread_state_runnable()
 //     - Debugging.gcSuspendCount          -> kk_debugging_gc_suspend_count()

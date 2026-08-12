@@ -25,14 +25,12 @@ symbol fq=kotlin.ranges.UIntProgression.Companion.fromClosedRange kind=function 
 symbol fq=kotlin.ranges.UIntProgression.Companion.fromClosedRange.rangeEnd kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.ranges.UIntProgression.Companion.fromClosedRange.rangeStart kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.ranges.UIntProgression.Companion.fromClosedRange.step kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.ranges.UIntProgression.toList kind=function vis=public flags=synthetic sig=recv=kotlin.ranges.UIntProgression params=[] ret=kotlin.collections.List<out UInt>
 symbol fq=kotlin.ranges.ULongProgression kind=class vis=public flags=synthetic
 symbol fq=kotlin.ranges.ULongProgression.Companion kind=object vis=public flags=synthetic|static
 symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange kind=function vis=public flags=synthetic|static sig=recv=kotlin.ranges.ULongProgression.Companion params=[ULong,ULong,Int] ret=kotlin.ranges.ULongProgression
 symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange.rangeEnd kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange.rangeStart kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange.step kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.ranges.ULongProgression.toList kind=function vis=public flags=synthetic sig=recv=kotlin.ranges.ULongProgression params=[] ret=kotlin.collections.List<out ULong>
 symbol fq=testCharProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Char>
 symbol fq=testCharProgressionStep kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Char>
 symbol fq=testIntProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
@@ -73,13 +71,13 @@ expr e@4:73 uint(1) type=UInt
 expr e@4:77 uint(10) type=UInt
 expr e@4:82 int(2) type=Int
 expr e@4:41#1 memberCall recv=e@4:41 callee=fromClosedRange args=[_:e@4:73,_:e@4:77,_:e@4:82] type=kotlin.ranges.UIntProgression call=kotlin.ranges.UIntProgression.Companion.fromClosedRange
-expr e@4:41#2 memberCall recv=e@4:41#1 callee=toList args=[] type=kotlin.collections.List<out UInt> call=kotlin.ranges.UIntProgression.toList
+expr e@4:41#2 memberCall recv=e@4:41#1 callee=toList args=[] type=kotlin.collections.List<UInt> call=kotlin.ranges.toList#6
 expr e@5:43 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression
 expr e@5:76 ulong(1) type=ULong
 expr e@5:81 ulong(10) type=ULong
 expr e@5:87 int(3) type=Int
 expr e@5:43#1 memberCall recv=e@5:43 callee=fromClosedRange args=[_:e@5:76,_:e@5:81,_:e@5:87] type=kotlin.ranges.ULongProgression call=kotlin.ranges.ULongProgression.Companion.fromClosedRange
-expr e@5:43#2 memberCall recv=e@5:43#1 callee=toList args=[] type=kotlin.collections.List<out ULong> call=kotlin.ranges.ULongProgression.toList
+expr e@5:43#2 memberCall recv=e@5:43#1 callee=toList args=[] type=kotlin.collections.List<ULong> call=kotlin.ranges.toList#8
 expr e@6:45 name(CharProgression) type=kotlin.ranges.CharProgression.Companion ref=kotlin.ranges.CharProgression
 expr e@6:77 char(97) type=Char
 expr e@6:82 char(104) type=Char
