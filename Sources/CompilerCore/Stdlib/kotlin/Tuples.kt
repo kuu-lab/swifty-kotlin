@@ -64,6 +64,11 @@ public class Pair<out A, out B> {
 }
 
 /**
+ * Creates a tuple of type [Pair] from this and [that].
+ */
+public inline infix fun <A, B> A.to(that: B): Pair<A, B> = Pair(this, that)
+
+/**
  * Represents a triad of values.
  */
 public class Triple<out A, out B, out C> {
