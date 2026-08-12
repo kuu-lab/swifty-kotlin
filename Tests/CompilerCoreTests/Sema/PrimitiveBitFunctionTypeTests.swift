@@ -3,9 +3,12 @@ import Testing
 
 @Suite
 struct PrimitiveBitFunctionTypeTests {
-    @Test
-    func testLongBitExtractionFunctionsPreserveLongResultType() throws {
-        let source = """
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         fun probe(value: Long): Long {
             val highest: Long = value.highestOneBit()
             val lowest: Long = value.lowestOneBit()
@@ -14,24 +17,9 @@ struct PrimitiveBitFunctionTypeTests {
             val bitCount: Int = value.countOneBits()
             return highest + lowest + takenHighest + takenLowest + bitCount.toLong()
         }
+        """,
         """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                Comment(rawValue: "Long bit functions should preserve their Kotlin result types, got: \(ctx.diagnostics.diagnostics)")
-            )
-        }
-    }
-
-    /// BUG-015: an arithmetic compound assignment used to demote the target local to
-    /// `Int`, so later `Long` member calls such as `value and 0xFFL` failed to resolve.
-    @Test
-    func testCompoundAssignmentPreservesNonIntNumericLocalTypes() throws {
-        let source = """
+        package sample1
         fun probe(value: Long, scale: Double): Long {
             var accumulated = value
             accumulated -= 1L
@@ -42,15 +30,41 @@ struct PrimitiveBitFunctionTypeTests {
             return (accumulated and 0xFFL) + scaled.toLong()
         }
         """
+    ]
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testLongBitExtractionFunctionsPreserveLongResultType() throws {
 
+        let ctx = try sharedCtx()
+            #expect(
+                ctx.diagnostics.diagnostics.isEmpty,
+                Comment(rawValue: "Long bit functions should preserve their Kotlin result types, got: \(ctx.diagnostics.diagnostics)")
+            )
+
+    }
+
+    /// BUG-015: an arithmetic compound assignment used to demote the target local to
+    /// `Int`, so later `Long` member calls such as `value and 0xFFL` failed to resolve.
+    @Test func testCompoundAssignmentPreservesNonIntNumericLocalTypes() throws {
+
+        let ctx = try sharedCtx()
             #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
                 Comment(rawValue: "Compound assignment should preserve Long/Double local types, got: \(ctx.diagnostics.diagnostics)")
             )
-        }
+
     }
 }

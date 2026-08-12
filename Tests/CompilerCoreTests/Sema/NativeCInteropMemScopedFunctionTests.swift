@@ -4,9 +4,43 @@ import Testing
 
 @Suite
 struct NativeCInteropMemScopedFunctionTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlinx.cinterop.memScoped
+
+        fun scopedValue(): Int {
+            return memScoped<Int> {
+                42
+            }
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     @Test func testMemScopedFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected memScoped surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -62,17 +96,8 @@ struct NativeCInteropMemScopedFunctionTests {
     }
 
     @Test func testMemScopedFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.memScoped
 
-        fun scopedValue(): Int {
-            return memScoped<Int> {
-                42
-            }
-        }
-        """)
-        try runSema(ctx)
-
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected memScoped to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }

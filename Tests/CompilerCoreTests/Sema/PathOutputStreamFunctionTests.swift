@@ -8,8 +8,12 @@ import Testing
 /// (registered in `Sources/RuntimeABI/RuntimeABISpec.swift`).
 @Suite
 struct PathOutputStreamFunctionTests {
-    @Test func testPathOutputStreamResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.OutputStream
         import java.nio.file.OpenOption
         import java.nio.file.StandardOpenOption
@@ -27,8 +31,30 @@ struct PathOutputStreamFunctionTests {
         fun openSinkWithStandardOptions(path: Path): OutputStream {
             return path.outputStream(StandardOpenOption.CREATE, StandardOpenOption.APPEND)
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testPathOutputStreamResolvesInSource() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -37,9 +63,8 @@ struct PathOutputStreamFunctionTests {
     }
 
     @Test func testPathOutputStreamResolvesToRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
@@ -64,7 +89,7 @@ struct PathOutputStreamFunctionTests {
             let signature = try #require(symbols.functionSignature(for: outputStream))
             #expect(signature.valueParameterHasDefaultValues == [false])
             #expect(signature.valueParameterIsVararg == [true])
-        }
+
     }
 }
 #endif
