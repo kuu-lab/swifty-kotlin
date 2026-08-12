@@ -32,6 +32,20 @@ public func kk_emptySet() -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []))
 }
 
+// BUG-196: Source-backed LinkedHashSet instances (and user subclasses) are
+// allocated as ordinary RuntimeObjectBox objects. Attach a backing RuntimeSetBox
+// during construction so MutableSet member calls operate on real storage.
+@_cdecl("__kk_linked_hash_set_init")
+public func kk_linked_hash_set_init(_ setRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
+          let objectBox = tryCast(ptr, to: RuntimeObjectBox.self)
+    else {
+        return 0
+    }
+    objectBox.backingSetBox = RuntimeSetBox(elements: [])
+    return 0
+}
+
 @_cdecl("__kk_set_size")
 public func kk_set_size(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {

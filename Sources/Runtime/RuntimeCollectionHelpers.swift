@@ -94,7 +94,14 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
     guard isObjectPointer else {
         return nil
     }
-    return tryCast(ptr, to: RuntimeSetBox.self)
+    if let setBox = tryCast(ptr, to: RuntimeSetBox.self) {
+        return setBox
+    }
+    if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self),
+       let backingSetBox = objectBox.backingSetBox {
+        return backingSetBox
+    }
+    return nil
 }
 
 func runtimeArrayDequeBox(from rawValue: Int) -> RuntimeArrayDequeBox? {
