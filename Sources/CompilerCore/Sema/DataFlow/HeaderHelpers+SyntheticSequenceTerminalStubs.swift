@@ -2512,7 +2512,20 @@ extension DataFlowSemaPhase {
         // unzip(): Pair<List<A>, List<B>> for Sequence<Pair<A, B>>
         let unzipName = interner.intern("unzip")
         let unzipFQName = sequenceFQName + [unzipName]
-        if symbols.lookup(fqName: unzipFQName) == nil {
+        let shouldSkipUnzip = if let bundledTypes = BundledSyntheticStubRegistration.types {
+            BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: sequenceFQName,
+                receiverType: receiverType,
+                name: unzipName,
+                arity: 0,
+                symbols: symbols,
+                types: bundledTypes,
+                interner: interner
+            )
+        } else {
+            false
+        }
+        if !shouldSkipUnzip, symbols.lookup(fqName: unzipFQName) == nil {
             let aName = interner.intern("A")
             let aSymbol = symbols.define(
                 kind: .typeParameter,

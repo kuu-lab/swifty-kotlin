@@ -147,7 +147,7 @@
   - 同時修正（コンパイラバグ）: `InlineLoweringPass` が inline 展開を 1 回しか回さず、外側 inline の展開で新たに露出した inline call が未展開のまま残って `undefined reference to 'map'` 等のリンクエラーになっていた。最大 4 ラウンドの固定点反復に変更（最小再現・回帰: `Scripts/diff_cases/sequence_nested_transform_lazy.kt`）。
 - [ ] KSP-442: Sequence terminal を Kotlin 化（`first*`, `last*`, `single*`, `elementAt*`, `find(Last)`, `contains`, `indexOf*`, `any`, `all`, `none`, `count`, `min*`, `max*`, `sum`, `average`）
   - 前提: KSP-441 / 既存 `SequenceAggregateHOF.kt` に追記
-- [ ] KSP-443: Sequence 変換・集合演算を Kotlin 化（`toList`, `toMutableList`, `toSet`, `toMutableSet`, `toHashSet`, `toSortedSet`, `toCollection`, `toMap`, `flatten`, `unzip`, `union`, `intersect`, `subtract`, `plus*`, `minus`, `ifEmpty`, `constrainOnce`, `orEmpty`）
+- [x] KSP-443: Sequence 変換・集合演算を Kotlin 化（`toList`, `toMutableList`, `toSet`, `toMutableSet`, `toHashSet`, `toSortedSet`, `toCollection`, `toMap`, `flatten`, `unzip`, `union`, `intersect`, `subtract`, `plus*`, `minus`, `ifEmpty`, `constrainOnce`, `orEmpty`）
   - 注意: インライン `kotlinSequencesSource`（toList/toMutableList/toSet）と統合（KSP-503 と調整）
 - [ ] KSP-444: Sequence association・minBy/maxBy を Kotlin 化（`associate*(To)`, `groupBy(To)`, `partition`, `joinTo(String)`, `sumOf/By(Double)`, `min/max(By/Of/With)(OrNull)`）
   - 削除 kk_*: `RuntimeSequenceAssociation.swift` の全関数（rg で列挙）

@@ -17,7 +17,7 @@ expr e@6:16 call callee=e@6:16#1 args=[_:e@6:21] type=java.io.File call=java.io.
 expr e@6:5 localDecl file mutable=0 type=_ init=e@6:16 type=Unit ref=__local_0.file
 expr e@7:12 name(file) type=java.io.File ref=__local_0.file
 expr e@8:9 name(lines) type=kotlin.collections.List<out String> ref=s-0
-expr e@8:9#1 memberCall recv=e@8:9 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.collections.toList#0
+expr e@8:9#1 memberCall recv=e@8:9 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.collections.toList#0 targs=[String]
 expr e@7:26 lambda params=[lines] body=e@8:9#1 label=useLines type=(kotlin.collections.List<out String>) -> kotlin.collections.List<String>
 expr e@7:12#1 memberCall recv=e@7:12 callee=useLines args=[_:e@7:26] type=kotlin.collections.List<String>
 expr e@7:5 return value=e@7:12#1 type=Nothing
