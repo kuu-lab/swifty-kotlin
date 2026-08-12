@@ -40,7 +40,10 @@ struct CodegenBackendSequenceLastIndexOfTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_sequence_lastIndexOf"))
+            XCTAssertFalse(
+                callees.contains("kk_sequence_lastIndexOf"),
+                "Expected Sequence.lastIndexOf to be backed by source, got callees: \(callees.sorted())"
+            )
         }
     }
 

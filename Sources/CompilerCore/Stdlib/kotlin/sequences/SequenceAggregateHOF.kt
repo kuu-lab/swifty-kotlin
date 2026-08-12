@@ -533,3 +533,313 @@ public fun <T> Sequence<T>.joinToString(
 public fun <T> Sequence<T>.joinToString(
     transform: (T) -> Any
 ): String = joinToString(", ", "", "", transform)
+// KSP-442: Sequence terminal operations migrated to Kotlin source.
+// Migration source: Sources/Runtime/RuntimeSequence.swift
+
+public fun <T> Sequence<T>.first(): T {
+    val elements = this.toList()
+    if (elements.size == 0) throw NoSuchElementException("Sequence is empty.")
+    return elements[0]
+}
+
+public fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        val element = elements[i]
+        if (predicate(element)) return element
+        i += 1
+    }
+    throw NoSuchElementException("Sequence contains no element matching the predicate.")
+}
+
+public fun <T> Sequence<T>.firstOrNull(): T? {
+    val elements = this.toList()
+    if (elements.size == 0) return null
+    return elements[0]
+}
+
+public fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        val element = elements[i]
+        if (predicate(element)) return element
+        i += 1
+    }
+    return null
+}
+
+public fun <T> Sequence<T>.find(predicate: (T) -> Boolean): T? = firstOrNull(predicate)
+
+public fun <T> Sequence<T>.last(): T {
+    val elements = this.toList()
+    if (elements.size == 0) throw NoSuchElementException("Sequence is empty.")
+    return elements[elements.size - 1]
+}
+
+public fun <T> Sequence<T>.last(predicate: (T) -> Boolean): T {
+    val elements = this.toList()
+    var i = elements.size - 1
+    while (i >= 0) {
+        val element = elements[i]
+        if (predicate(element)) return element
+        i -= 1
+    }
+    throw NoSuchElementException("Sequence contains no element matching the predicate.")
+}
+
+public fun <T> Sequence<T>.lastOrNull(): T? {
+    val elements = this.toList()
+    if (elements.size == 0) return null
+    return elements[elements.size - 1]
+}
+
+public fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
+    val elements = this.toList()
+    var i = elements.size - 1
+    while (i >= 0) {
+        val element = elements[i]
+        if (predicate(element)) return element
+        i -= 1
+    }
+    return null
+}
+
+public fun <T> Sequence<T>.findLast(predicate: (T) -> Boolean): T? = lastOrNull(predicate)
+
+public fun <T> Sequence<T>.single(): T {
+    val elements = this.toList()
+    val sz = elements.size
+    if (sz == 1) return elements[0]
+    if (sz == 0) throw NoSuchElementException("Sequence is empty.")
+    throw IllegalArgumentException("Sequence has more than one element.")
+}
+
+public fun <T> Sequence<T>.single(predicate: (T) -> Boolean): T {
+    val elements = this.toList()
+    var matchIndex = -1
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (predicate(elements[i])) {
+            if (matchIndex >= 0) {
+                throw IllegalArgumentException("Sequence contains more than one matching element.")
+            }
+            matchIndex = i
+        }
+        i += 1
+    }
+    if (matchIndex >= 0) return elements[matchIndex]
+    throw NoSuchElementException("Sequence contains no element matching the predicate.")
+}
+
+public fun <T> Sequence<T>.singleOrNull(): T? {
+    val elements = this.toList()
+    val sz = elements.size
+    if (sz == 1) return elements[0]
+    return null
+}
+
+public fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    val elements = this.toList()
+    var matchIndex = -1
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (predicate(elements[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i += 1
+    }
+    if (matchIndex >= 0) return elements[matchIndex]
+    return null
+}
+
+public fun <T> Sequence<T>.elementAt(index: Int): T {
+    val elements = this.toList()
+    if (index < 0 || index >= elements.size) {
+        throw IndexOutOfBoundsException("Index $index out of bounds for length ${elements.size}")
+    }
+    return elements[index]
+}
+
+public fun <T> Sequence<T>.elementAtOrNull(index: Int): T? {
+    val elements = this.toList()
+    if (index >= 0 && index < elements.size) {
+        return elements[index]
+    }
+    return null
+}
+
+public fun <T> Sequence<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+    val elements = this.toList()
+    if (index >= 0 && index < elements.size) {
+        return elements[index]
+    }
+    return defaultValue(index)
+}
+
+public fun <T> Sequence<T>.indexOf(element: T): Int {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (__valuesEqual(elements[i], element)) return i
+        i += 1
+    }
+    return -1
+}
+
+public fun <T> Sequence<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (predicate(elements[i])) return i
+        i += 1
+    }
+    return -1
+}
+
+public fun <T> Sequence<T>.indexOfLast(predicate: (T) -> Boolean): Int {
+    val elements = this.toList()
+    var i = elements.size - 1
+    while (i >= 0) {
+        if (predicate(elements[i])) return i
+        i -= 1
+    }
+    return -1
+}
+
+public fun <T> Sequence<T>.lastIndexOf(element: T): Int {
+    val elements = this.toList()
+    var i = elements.size - 1
+    while (i >= 0) {
+        if (__valuesEqual(elements[i], element)) return i
+        i -= 1
+    }
+    return -1
+}
+
+public operator fun <T> Sequence<T>.contains(element: T): Boolean = indexOf(element) >= 0
+
+public fun <T> Sequence<T>.any(): Boolean {
+    val elements = this.toList()
+    return elements.size > 0
+}
+
+public fun <T> Sequence<T>.any(predicate: (T) -> Boolean): Boolean {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (predicate(elements[i])) return true
+        i += 1
+    }
+    return false
+}
+
+public fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (!predicate(elements[i])) return false
+        i += 1
+    }
+    return true
+}
+
+public fun <T> Sequence<T>.none(): Boolean {
+    val elements = this.toList()
+    return elements.size == 0
+}
+
+public fun <T> Sequence<T>.none(predicate: (T) -> Boolean): Boolean {
+    val elements = this.toList()
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (predicate(elements[i])) return false
+        i += 1
+    }
+    return true
+}
+
+public fun <T> Sequence<T>.count(): Int {
+    val elements = this.toList()
+    return elements.size
+}
+
+public fun <T> Sequence<T>.count(predicate: (T) -> Boolean): Int {
+    val elements = this.toList()
+    var count = 0
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        if (predicate(elements[i])) count += 1
+        i += 1
+    }
+    return count
+}
+
+public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
+    val elements = this.toList()
+    var best: T? = null
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        val element = elements[i]
+        val current = best
+        if (current == null || element.compareTo(current) > 0) best = element
+        i += 1
+    }
+    return best
+}
+
+public fun <T : Comparable<T>> Sequence<T>.max(): T = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+public fun <T : Comparable<T>> Sequence<T>.minOrNull(): T? {
+    val elements = this.toList()
+    var best: T? = null
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        val element = elements[i]
+        val current = best
+        if (current == null || element.compareTo(current) < 0) best = element
+        i += 1
+    }
+    return best
+}
+
+public fun <T : Comparable<T>> Sequence<T>.min(): T = minOrNull() ?: throw NoSuchElementException("Sequence is empty.")
+
+public fun Sequence<Int>.sum(): Int {
+    val elements = this.toList()
+    var sum = 0
+    var i = 0
+    val sz = elements.size
+    while (i < sz) {
+        sum += elements[i]
+        i += 1
+    }
+    return sum
+}
+
+public fun Sequence<Int>.average(): Double {
+    val elements = this.toList()
+    val sz = elements.size
+    if (sz == 0) return 0.0 / 0.0
+    var sum = 0
+    var i = 0
+    while (i < sz) {
+        sum += elements[i]
+        i += 1
+    }
+    return sum.toDouble() / sz
+}
