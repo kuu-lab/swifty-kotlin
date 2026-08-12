@@ -1002,17 +1002,6 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
-        if let fallbackType = tryBindReadWriteLockReadFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
         if let fallbackType = tryBindComparatorMemberFallback(
             id,
             calleeName: calleeName,
