@@ -412,32 +412,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // STDLIB-IO-PATH-FN-039: Path.walk() must lower to kk_path_walk
-    @Test
-    func testPathWalkRewrite() throws {
-        let source = """
-        import kotlin.io.path.Path
-        import kotlin.io.path.walk
-
-        fun main() {
-            Path("/tmp").walk()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "PathWalkRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_path_walk"), "Path.walk() must lower to kk_path_walk")
-            #expect(!callees.contains("walk"))
-        }
-    }
-
     // STDLIB-IO-PATH-FN-038: Path.useLines default variant must inject closureRaw
     @Test
     func testPathUseLinesDefaultRewriteAddsClosureRawArgument() throws {

@@ -513,7 +513,7 @@
   - 残留: 非 generic の `readAttributes(String, vararg LinkOption)`（`kk_path_readAttributes_string`）は別登録のため残す。`File`/`BufferedReader` の `useLines`/`forEachLine` 特例も対象外
   - テスト影響: `PathUseLinesFunctionTests.swift` / `CodegenBackendIntegrationTests+PathUseLines.swift` / golden `path_use_lines`・`io_path_use_lines` を削除、`SemanticsAndUtilitiesRegressionTests.swift` から該当 4 テストを削除。回帰テストとして `PathGenericFunctionStubRemovalTests.swift` を追加
   - 検証: `swift build` / `--filter Golden` / `--filter 'Path|LoweringPassRegression|SemanticsAndUtilitiesRegression|KotlinIOCommonEdgeCase'` / `bash Scripts/validate_runtime_abi_links.sh` pass
-- [ ] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
+- [x] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`（315行）
   - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 599行付近の呼び出しを削除
