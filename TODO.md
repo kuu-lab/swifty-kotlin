@@ -290,7 +290,7 @@
   - 完了確認（2026-07-30、KSP-416 完了作業のついでに検証）: `repeat`/`reversed`/`padStart`/`padEnd` は `Stdlib/kotlin/text/StringBasics.kt`、`toByteArray`/`encodeToByteArray`×3/`decodeToString`×4/`Charsets` は `Stdlib/kotlin/text/StringEncoding.kt`、`indent`×2（+ KSP-302 分の `trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）は `Stdlib/kotlin/text/StringIndentFormat.kt` に実ロジックとして存在し、`BundledKotlinStdlib.kotlinTextSource` は空文字列、`excludedBundledStdlibFiles` にも非登録であることを確認済み
 - [x] KSP-503: `kotlinSequencesSource`/`kotlinTimeSource` を .kt 化し、`BundledStdlib.swift` と `FrontendPhases.swift` の `residualSources` 注入を削除する
   - 完了: `rg 'BundledKotlinStdlib' Sources` 0 件 + G
-- [ ] KSP-504: ルート `Stdlib/` 死蔵ツリー（35 ファイル）を整理する
+- [x] KSP-504: ルート `Stdlib/` 死蔵ツリー（35 ファイル）を整理する
   - 手順: (1) `Package.swift` の `resources: [.copy("Stdlib")]` が `Sources/CompilerCore/Stdlib` を指すこと（ルートではない）を確認 (2) 各 .kt を「対応 KSP タスクの下敷きに使う / 即削除」に分類（W3/W4 の該当タスクへ移設済みのものから削除） (3) `git rm -r Stdlib/`
   - 完了: ルート `Stdlib/` が存在しない + G
 - [ ] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃し、ファイル名を本家準拠へリネームする
