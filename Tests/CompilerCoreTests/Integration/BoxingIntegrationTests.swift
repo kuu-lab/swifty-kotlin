@@ -13,7 +13,9 @@ struct BoxingIntegrationTests {
         }
         """
 
-        let ctx = makeContextFromSource(source)
+        // Use .object so bundled stdlib source bodies (including the inline `to`
+        // in kotlin/Tuples.kt) are lowered and available for inlining.
+        let ctx = makeContextFromSource(source, emit: .object)
         try runToLowering(ctx)
 
         let module: KIRModule = try #require(ctx.kir)
