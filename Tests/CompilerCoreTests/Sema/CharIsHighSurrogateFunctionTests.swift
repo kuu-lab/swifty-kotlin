@@ -3,8 +3,9 @@
 import Testing
 
 /// STDLIB-TEXT-PROP-006: Validates that `Char.isHighSurrogate()` resolves through
-/// Sema for plain Char receivers as well as literal / branch contexts. The runtime
-/// link involved is `kk_char_isHighSurrogate` (see `Sources/Runtime/RuntimeChar.swift`).
+/// Sema for plain Char receivers as well as literal / branch contexts.
+/// KSP-663: This is now a bundled Kotlin source function in kotlin.text
+/// (no synthetic `kk_char_isHighSurrogate` runtime link).
 @Suite
 struct CharIsHighSurrogateFunctionTests {
 
@@ -59,22 +60,20 @@ struct CharIsHighSurrogateFunctionTests {
         )
     }
 
-    @Test func testCharIsHighSurrogateResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
-
+    @Test func testCharIsHighSurrogateResolvesToSourceFunction() throws {
         let ctx = try sharedCtx()
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "isHighSurrogate"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.charType
-                    && signature.parameterTypes.isEmpty
-            })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isHighSurrogate() should return Boolean")
-
+        let sema = try #require(ctx.sema)
+        let fq = ["kotlin", "text", "isHighSurrogate"].map { ctx.interner.intern($0) }
+        let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == sema.types.charType
+                && signature.parameterTypes.isEmpty
+        })
+        #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isHighSurrogate() should return Boolean")
+        #expect(sema.symbols.symbol(symbol)?.declSite != nil, "Char.isHighSurrogate() should be backed by Kotlin source")
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil, "Char.isHighSurrogate() should have no C external link")
     }
 }
 #endif
