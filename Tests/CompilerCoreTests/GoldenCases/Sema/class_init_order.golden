@@ -1,5 +1,3 @@
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=test.Foo kind=class vis=public flags=_
 file fclass_init_order package=test
   decl test.Foo class Foo sym=test.Foo

@@ -19,13 +19,9 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         module.ensureFeaturesScanned()
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
         let kkAnyMemberToStringCallee = ctx.interner.intern("kk_any_member_to_string")
         return module.usedCallees.contains(nameCallee)
             || module.usedCallees.contains(ordinalCallee)
-            || module.usedCallees.contains(printlnCallee)
-            || module.usedCallees.contains(kkPrintlnAnyCallee)
             || module.usedCallees.contains(kkAnyMemberToStringCallee)
     }
 
@@ -36,8 +32,6 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         }
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
         let kkAnyMemberToStringCallee = ctx.interner.intern("kk_any_member_to_string")
         let stringType = sema.types.stringType
         let intType = sema.types.intType
@@ -48,12 +42,9 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                 if let rewritten = rewriteEnumStringConversionCall(
                     instruction: instruction,
                     sema: sema,
-                    interner: ctx.interner,
                     arena: module.arena,
+                    interner: ctx.interner,
                     precedingInstructions: newBody,
-                    stringType: stringType,
-                    printlnCallee: printlnCallee,
-                    kkPrintlnAnyCallee: kkPrintlnAnyCallee,
                     kkAnyMemberToStringCallee: kkAnyMemberToStringCallee
                 ) {
                     newBody.append(contentsOf: rewritten)
@@ -161,28 +152,20 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// Rewrites the two ways an enum value reaches a string conversion still
-    /// holding its bare ordinal:
-    ///
-    /// - `println(enumValue)`, where the helper's result is printed instead;
-    /// - `enumValue.toString()`, which binds to `kotlin.Any.toString` (enum
-    ///   classes declare no `toString` of their own) and would otherwise render
-    ///   the ordinal as a number. Here the helper call *replaces* the
-    ///   conversion outright, since it already produces the entry name.
+    /// `enumValue.toString()` binds to `kotlin.Any.toString` (enum classes
+    /// declare no `toString` of their own) and would otherwise render the bare
+    /// ordinal as a number, so the conversion is replaced by the
+    /// `$enumOrdinalToName` helper, which already produces the entry name.
     private func rewriteEnumStringConversionCall(
         instruction: KIRInstruction,
         sema: SemaModule,
-        interner: StringInterner,
         arena: KIRArena,
+        interner: StringInterner,
         precedingInstructions: [KIRInstruction],
-        stringType: TypeID,
-        printlnCallee: InternedString,
-        kkPrintlnAnyCallee: InternedString,
         kkAnyMemberToStringCallee: InternedString
     ) -> [KIRInstruction]? {
-        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction,
-              callee == printlnCallee || callee == kkPrintlnAnyCallee
-              || callee == kkAnyMemberToStringCallee,
+        guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
+              callee == kkAnyMemberToStringCallee,
               arguments.count == 1,
               let classSymbol = enumClassSymbol(
                   for: arguments[0],
@@ -203,39 +186,15 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        if callee == kkAnyMemberToStringCallee {
-            return [.call(
-                symbol: helperSymbol,
-                callee: helperName,
-                arguments: [arguments[0]],
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            )]
-        }
-
-        let helperResult = arena.appendTemporary(type: stringType)
-        return [
-            .call(
-                symbol: helperSymbol,
-                callee: helperName,
-                arguments: [arguments[0]],
-                result: helperResult,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ),
-            .call(
-                symbol: symbol,
-                callee: callee,
-                arguments: [helperResult],
-                result: result,
-                canThrow: canThrow,
-                thrownResult: thrownResult,
-                isSuperCall: isSuperCall
-            ),
-        ]
+        return [.call(
+            symbol: helperSymbol,
+            callee: helperName,
+            arguments: [arguments[0]],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            isSuperCall: false
+        )]
     }
 
     private func enumClassSymbol(

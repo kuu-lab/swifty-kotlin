@@ -4,8 +4,6 @@ symbol fq=__local_2.combined kind=local vis=private flags=_ type=kotlin.sequence
 symbol fq=__local_3.combined2 kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>
 symbol fq=__local_4.withElement kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Int>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.plus#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[kotlin.sequences.Sequence<out Any>] ret=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T>

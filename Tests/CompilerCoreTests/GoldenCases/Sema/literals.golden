@@ -2,8 +2,6 @@ symbol fq=__local_0.x kind=local vis=private flags=_ type=Long
 symbol fq=__local_1.y kind=local vis=private flags=_ type=Float
 symbol fq=__local_2.z kind=local vis=private flags=_ type=Double
 symbol fq=__local_3.c kind=local vis=private flags=_ type=Char
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=printChar kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=printDouble kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=printFloat kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
