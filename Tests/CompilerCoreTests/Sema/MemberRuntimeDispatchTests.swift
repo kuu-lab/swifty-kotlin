@@ -137,8 +137,6 @@ struct MemberRuntimeDispatchTests {
     @Test func testStringRuntimeDispatchUsesFlatStringTable() {
         let cases: [(String, Int, String, Bool, MemberRuntimeArgumentMode, MemberRuntimeThrownResultMode)] = [
             ("lowercase", 0, "kk_string_lowercase_flat", false, .lowered, .none),
-            ("toInt", 0, "kk_string_toInt_flat", true, .lowered, .none),
-            ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
             ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
         ]
 
@@ -227,6 +225,29 @@ struct MemberRuntimeDispatchTests {
             #expect(
                 MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
                 "String.\(memberName)/\(arity) should be source-backed after KSP-410"
+            )
+        }
+        // KSP-414: integer and boolean string parsing members are bundled Kotlin source.
+        let ksp414Cases: [(String, Int)] = [
+            ("toInt", 0), ("toInt", 1),
+            ("toLong", 0),
+            ("toShort", 0),
+            ("toByte", 0), ("toByte", 1),
+            ("toIntOrNull", 0), ("toIntOrNull", 1),
+            ("toLongOrNull", 0),
+            ("toShortOrNull", 0),
+            ("toByteOrNull", 0),
+            ("toUByteOrNull", 0), ("toUByteOrNull", 1),
+            ("toUShortOrNull", 0), ("toUShortOrNull", 1),
+            ("toUIntOrNull", 0), ("toUIntOrNull", 1),
+            ("toULongOrNull", 0), ("toULongOrNull", 1),
+            ("toBoolean", 0), ("toBooleanStrict", 0), ("toBooleanStrictOrNull", 0),
+        ]
+        for (memberName, arity) in ksp414Cases {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
+                "String.\(memberName)/\(arity) should be source-backed after KSP-414"
             )
         }
     }

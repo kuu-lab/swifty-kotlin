@@ -70,86 +70,98 @@ struct StringSyntheticMemberLinkTests {
 
         do {
             // Originally testExistingStringStubsRetainCorrectExternalLinks
-                    let expected: [String: String] = [
-                        "toInt": "kk_string_toInt",
-                    ]
-
-                    for (member, expectedLink) in expected {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            links.contains(expectedLink),
-                            "String.\(member) should link to \(expectedLink), got \(links.sorted())"
-                        )
-                    }
-                    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
-                    // bundled Kotlin source (StringPrefixSuffix.kt) and carry no runtime link.
-                    for member in ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"] {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
-                            "String.\(member) should be source-backed after KSP-404, got \(links.sorted())"
-                        )
-                    }
-                    #expect(
-                        !externalLinks(for: "split", sema: sema, interner: interner)
-                            .contains("kk_string_split_flat"),
-                        "String.split(String) should be source-backed after RF-STDLIB-005"
-                    )
-                    #expect(
-                        externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
-                            .contains("__kk_string_split"),
-                        "String.__kk_string_split should bridge through the private __kk_string_split ABI alias"
-                    )
-                    #expect(
-                        externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
-                            .contains("__kk_string_split_limit"),
-                        "String.__kk_string_split_limit should bridge through the private __kk_string_split_limit ABI alias"
-                    )
-                    #expect(
-                        externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
-                            .contains("__kk_string_splitToSequence"),
-                        "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
-                    )
-                    #expect(
-                        externalLink(for: "findAnyOf", sema: sema, interner: interner) == nil,
-                        "CharSequence.findAnyOf should be source-backed after KSP-408"
-                    )
-                    #expect(
-                        externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == nil,
-                        "CharSequence.findLastAnyOf should be source-backed after KSP-408"
-                    )
-                    // KSP-407: substringBefore/After/BeforeLast/AfterLast and
-                    // replaceBefore/After/BeforeLast/AfterLast are now bundled Kotlin source
-                    // (StringSearchReplace.kt) and carry no runtime link.
-                    // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are now
-                    // bundled Kotlin source (StringIndexOf.kt) and carry no runtime link.
-                    for member in [
-                        "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast",
-                        "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
-                        "indexOfAny", "lastIndexOfAny",
-                    ] {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            links.isEmpty,
-                            "String.\(member) should be source-backed after KSP-407/KSP-408, got \(links.sorted())"
-                        )
-                    }
-                    // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
-                    #expect(
-                        externalLinks(for: "plus", sema: sema, interner: interner)
-                            .contains("kk_string_plus"),
-                        "String?.plus(other: Any?) should link to kk_string_plus"
-                    )
-                    // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
-                    let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
-                    #expect(
-                        !replaceLinks.contains("kk_string_replace_flat")
-                            && !replaceLinks.contains("kk_string_replace_char_flat")
-                            && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
-                            && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
-                            && !replaceLinks.contains("__kk_string_replace_regex"),
-                        "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
-                    )
+            // KSP-414: String.toInt is now bundled Kotlin source (StringNumberParsing.kt)
+            // and no longer exposes a public kk_ runtime link.
+            let toIntLinks = externalLinks(for: "toInt", sema: sema, interner: interner)
+            #expect(
+                !toIntLinks.contains("kk_string_toInt") && !toIntLinks.contains("__kk_string_toInt"),
+                "String.toInt should be source-backed after KSP-414, got \(toIntLinks.sorted())"
+            )
+            #expect(
+                externalLink(for: "toInt", receiverType: sema.types.stringType, parameterCount: 0, sema: sema, interner: interner) == nil,
+                "String.toInt() should have no C external link"
+            )
+            #expect(
+                externalLink(for: "toInt", receiverType: sema.types.stringType, parameterCount: 1, sema: sema, interner: interner) == nil,
+                "String.toInt(radix) should have no C external link"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toInt", sema: sema, interner: interner) == "__kk_string_toInt",
+                "Private __kk_string_toInt bridge should be registered"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toInt_radix", sema: sema, interner: interner) == "__kk_string_toInt_radix",
+                "Private __kk_string_toInt_radix bridge should be registered"
+            )
+            // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+            // bundled Kotlin source (StringPrefixSuffix.kt) and carry no runtime link.
+            for member in ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"] {
+                let links = externalLinks(for: member, sema: sema, interner: interner)
+                #expect(
+                    !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                    "String.\(member) should be source-backed after KSP-404, got \(links.sorted())"
+                )
+            }
+            #expect(
+                !externalLinks(for: "split", sema: sema, interner: interner)
+                    .contains("kk_string_split_flat"),
+                "String.split(String) should be source-backed after RF-STDLIB-005"
+            )
+            #expect(
+                externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
+                    .contains("__kk_string_split"),
+                "String.__kk_string_split should bridge through the private __kk_string_split ABI alias"
+            )
+            #expect(
+                externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
+                    .contains("__kk_string_split_limit"),
+                "String.__kk_string_split_limit should bridge through the private __kk_string_split_limit ABI alias"
+            )
+            #expect(
+                externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
+                    .contains("__kk_string_splitToSequence"),
+                "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
+            )
+            #expect(
+                externalLink(for: "findAnyOf", sema: sema, interner: interner) == nil,
+                "CharSequence.findAnyOf should be source-backed after KSP-408"
+            )
+            #expect(
+                externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == nil,
+                "CharSequence.findLastAnyOf should be source-backed after KSP-408"
+            )
+            // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+            // replaceBefore/After/BeforeLast/AfterLast are now bundled Kotlin source
+            // (StringSearchReplace.kt) and carry no runtime link.
+            // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are now
+            // bundled Kotlin source (StringIndexOf.kt) and carry no runtime link.
+            for member in [
+                "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast",
+                "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
+                "indexOfAny", "lastIndexOfAny",
+            ] {
+                let links = externalLinks(for: member, sema: sema, interner: interner)
+                #expect(
+                    links.isEmpty,
+                    "String.\(member) should be source-backed after KSP-407/KSP-408, got \(links.sorted())"
+                )
+            }
+            // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+            #expect(
+                externalLinks(for: "plus", sema: sema, interner: interner)
+                    .contains("kk_string_plus"),
+                "String?.plus(other: Any?) should link to kk_string_plus"
+            )
+            // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
+            let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
+            #expect(
+                !replaceLinks.contains("kk_string_replace_flat")
+                    && !replaceLinks.contains("kk_string_replace_char_flat")
+                    && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
+                    && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
+                    && !replaceLinks.contains("__kk_string_replace_regex"),
+                "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
+            )
         }
 
         do {
@@ -245,80 +257,97 @@ struct StringSyntheticMemberLinkTests {
 
         do {
             // Originally testNewNullableConversionStubsHaveCorrectExternalLinks
-                    #expect(
-                        externalLink(
-                            for: "toIntOrNull",
-                            receiverType: sema.types.stringType,
-                            parameterCount: 0,
-                            sema: sema,
-                            interner: interner
-                        ) == "kk_string_toIntOrNull_flat",
-                        "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
-                    )
-                    #expect(
-                        externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toIntOrNull_radix_flat"),
-                        "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
-                    )
-                    #expect(
-                        externalLink(for: "toUByteOrNull", sema: sema, interner: interner) == "kk_string_toUByteOrNull",
-                        "String.toUByteOrNull should link to kk_string_toUByteOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toUByteOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toUByteOrNull_radix"),
-                        "String.toUByteOrNull(radix) should link to kk_string_toUByteOrNull_radix"
-                    )
-                    #expect(
-                        externalLink(for: "toUShortOrNull", sema: sema, interner: interner) == "kk_string_toUShortOrNull",
-                        "String.toUShortOrNull should link to kk_string_toUShortOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toUShortOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toUShortOrNull_radix"),
-                        "String.toUShortOrNull(radix) should link to kk_string_toUShortOrNull_radix"
-                    )
-                    #expect(
-                        externalLink(for: "toUIntOrNull", sema: sema, interner: interner) == "kk_string_toUIntOrNull",
-                        "String.toUIntOrNull should link to kk_string_toUIntOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toUIntOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toUIntOrNull_radix"),
-                        "String.toUIntOrNull(radix) should link to kk_string_toUIntOrNull_radix"
-                    )
-                    #expect(
-                        externalLink(for: "toULongOrNull", sema: sema, interner: interner) == "kk_string_toULongOrNull",
-                        "String.toULongOrNull should link to kk_string_toULongOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toULongOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toULongOrNull_radix"),
-                        "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
-                    )
-                    #expect(
-                        !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
-                            .contains("__kk_string_toDoubleOrNull"),
-                        "String.toDoubleOrNull should be source-backed and not have a direct external link"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
-                    )
+            // KSP-414: integer and boolean parse members are now bundled Kotlin source
+            // (StringNumberParsing.kt) and bridge through private __kk_string_to* symbols.
+
+            let sourceBackedMembers: [(member: String, parameterCount: Int)] = [
+                ("toIntOrNull", 0),
+                ("toIntOrNull", 1),
+                ("toLong", 0),
+                ("toLongOrNull", 0),
+                ("toShort", 0),
+                ("toShortOrNull", 0),
+                ("toByte", 0),
+                ("toByte", 1),
+                ("toByteOrNull", 0),
+                ("toUByteOrNull", 0),
+                ("toUByteOrNull", 1),
+                ("toUShortOrNull", 0),
+                ("toUShortOrNull", 1),
+                ("toUIntOrNull", 0),
+                ("toUIntOrNull", 1),
+                ("toULongOrNull", 0),
+                ("toULongOrNull", 1),
+                ("toBooleanStrict", 0),
+                ("toBooleanStrictOrNull", 0),
+            ]
+            for item in sourceBackedMembers {
+                #expect(
+                    externalLink(for: item.member, receiverType: sema.types.stringType, parameterCount: item.parameterCount, sema: sema, interner: interner) == nil,
+                    "String.\(item.member)/\(item.parameterCount) should be source-backed after KSP-414"
+                )
+            }
+
+            // toBoolean has a nullable String receiver, so the generic receiverType match
+            // does not apply; verify through externalLinks instead.
+            let booleanLinks = externalLinks(for: "toBoolean", sema: sema, interner: interner)
+            #expect(
+                !booleanLinks.contains("kk_string_toBoolean") && !booleanLinks.contains("__kk_string_toBoolean"),
+                "String?.toBoolean should be source-backed after KSP-414, got \(booleanLinks.sorted())"
+            )
+
+            let privateBridges = [
+                "__kk_string_toIntOrNull",
+                "__kk_string_toIntOrNull_radix",
+                "__kk_string_toLong",
+                "__kk_string_toLongOrNull",
+                "__kk_string_toShort",
+                "__kk_string_toShortOrNull",
+                "__kk_string_toByte",
+                "__kk_string_toByte_radix",
+                "__kk_string_toByteOrNull",
+                "__kk_string_toUByteOrNull",
+                "__kk_string_toUByteOrNull_radix",
+                "__kk_string_toUShortOrNull",
+                "__kk_string_toUShortOrNull_radix",
+                "__kk_string_toUIntOrNull",
+                "__kk_string_toUIntOrNull_radix",
+                "__kk_string_toULongOrNull",
+                "__kk_string_toULongOrNull_radix",
+                "__kk_string_toBoolean",
+                "__kk_string_toBooleanStrict",
+                "__kk_string_toBooleanStrictOrNull",
+            ]
+            for bridge in privateBridges {
+                #expect(
+                    externalLink(for: bridge, sema: sema, interner: interner) == bridge,
+                    "\(bridge) private bridge should be registered"
+                )
+            }
+
+            #expect(
+                !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
+                    .contains("__kk_string_toDoubleOrNull"),
+                "String.toDoubleOrNull should be source-backed and not have a direct external link"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
+            )
         }
 
         do {
