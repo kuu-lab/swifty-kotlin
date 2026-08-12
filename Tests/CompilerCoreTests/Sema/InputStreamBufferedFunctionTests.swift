@@ -12,11 +12,11 @@ import Testing
 @Suite
 struct InputStreamBufferedFunctionTests {
 
-    // MARK: - Zero-arg overload
+    // MARK: - Shared Sema context
 
-    @Test
-    func testInputStreamBufferedNoArgsResolves() throws {
-        let ctx = makeContextFromSource("""
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.BufferedInputStream
         import java.io.File
         import java.io.InputStream
@@ -25,20 +25,9 @@ struct InputStreamBufferedFunctionTests {
             val raw: InputStream = file.inputStream()
             return raw.buffered()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected InputStream.buffered() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    // MARK: - bufferSize overload
-
-    @Test
-    func testInputStreamBufferedWithBufferSizeResolves() throws {
-        let ctx = makeContextFromSource("""
+        """,
+        """
+        package sample1
         import java.io.BufferedInputStream
         import java.io.File
         import java.io.InputStream
@@ -47,23 +36,9 @@ struct InputStreamBufferedFunctionTests {
             val raw: InputStream = file.inputStream()
             return raw.buffered(8 * 1024)
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected InputStream.buffered(bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    // MARK: - Returned BufferedInputStream usable as InputStream
-
-    @Test
-    func testBufferedInputStreamFlowsThroughInputStreamSurface() throws {
-        // BufferedInputStream extends InputStream, so all read/skip/available/close
-        // methods on InputStream remain callable via the buffered handle, and
-        // .use { } works because InputStream is a Closeable subtype.
-        let ctx = makeContextFromSource("""
+        """,
+        """
+        package sample2
         import java.io.BufferedInputStream
         import java.io.File
         import java.io.InputStream
@@ -81,8 +56,56 @@ struct InputStreamBufferedFunctionTests {
                 stream.read()
             }
         }
-        """)
-        try runSema(ctx)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    // MARK: - Zero-arg overload
+
+    @Test func testInputStreamBufferedNoArgsResolves() throws {
+
+        let ctx = try sharedCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected InputStream.buffered() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    // MARK: - bufferSize overload
+
+    @Test func testInputStreamBufferedWithBufferSizeResolves() throws {
+
+        let ctx = try sharedCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected InputStream.buffered(bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    // MARK: - Returned BufferedInputStream usable as InputStream
+
+    @Test func testBufferedInputStreamFlowsThroughInputStreamSurface() throws {
+        // BufferedInputStream extends InputStream, so all read/skip/available/close
+        // methods on InputStream remain callable via the buffered handle, and
+        // .use { } works because InputStream is a Closeable subtype.
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,

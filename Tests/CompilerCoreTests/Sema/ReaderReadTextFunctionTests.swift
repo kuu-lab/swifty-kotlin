@@ -18,12 +18,68 @@ import Testing
 @Suite
 struct ReaderReadTextFunctionTests {
 
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """,
+        """
+        package sample2
+        import java.io.File
+
+        fun loadAll(): String {
+            return File("/dev/null").bufferedReader().readText()
+        }
+        """,
+        """
+        package sample3
+        import java.io.File
+
+        fun loadAll(file: File): String {
+            val reader = file.bufferedReader()
+            val text: String = reader.readText()
+            reader.close()
+            return text
+        }
+        """,
+        """
+        package sample4
+        import java.io.File
+
+        fun loadAllSafely(file: File): String {
+            return file.bufferedReader().use { reader ->
+                reader.readText()
+            }
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     // MARK: - Symbol surface
 
     @Test func testReaderReadTextFunctionIsRegisteredOnReaderReceiver() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             #expect(
                 !(ctx.diagnostics.hasError),
                 Comment(rawValue: "Sema should succeed on a trivial program: " +
@@ -65,15 +121,14 @@ struct ReaderReadTextFunctionTests {
                 sema.symbols.externalLinkName(for: readTextSymbol) == "kk_reader_readText",
                 "Reader.readText() must lower to kk_reader_readText runtime entry"
             )
-        }
+
     }
 
     // MARK: - BufferedReader inherits from Reader
 
     @Test func testBufferedReaderIsRegisteredAsReaderSubtype() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+
+        let ctx = try sharedCtx()
             let sema = try #require(ctx.sema)
 
             let readerFQ = ["java", "io", "Reader"].map { ctx.interner.intern($0) }
@@ -85,20 +140,14 @@ struct ReaderReadTextFunctionTests {
                 directSupertypes.contains(readerSymbol),
                 Comment(rawValue: "BufferedReader must list Reader among its direct supertypes; got: \(directSupertypes)")
             )
-        }
+
     }
 
     // MARK: - Resolves end-to-end on BufferedReader chain
 
     @Test func testReaderReadTextResolvesOnBufferedReaderChain() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
 
-        fun loadAll(): String {
-            return File("/dev/null").bufferedReader().readText()
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -108,17 +157,8 @@ struct ReaderReadTextFunctionTests {
     }
 
     @Test func testReaderReadTextReturnsStringInVariableBinding() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
 
-        fun loadAll(file: File): String {
-            val reader = file.bufferedReader()
-            val text: String = reader.readText()
-            reader.close()
-            return text
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -130,16 +170,8 @@ struct ReaderReadTextFunctionTests {
     // MARK: - Works inside Closeable.use { } block
 
     @Test func testReaderReadTextWorksInsideUseBlock() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
 
-        fun loadAllSafely(file: File): String {
-            return file.bufferedReader().use { reader ->
-                reader.readText()
-            }
-        }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,

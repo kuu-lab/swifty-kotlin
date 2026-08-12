@@ -4,10 +4,41 @@ import Testing
 
 @Suite
 struct NativeCInteropCFunctionSurfaceTests {
-    @Test
-    func testCFunctionClassSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlinx.cinterop.CFunction
+
+        fun pass(value: CFunction<() -> Int>): CFunction<() -> Int> {
+            return value
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    @Test func testCFunctionClassSurfaceMatchesNativeShape() throws {
+
+        let ctx = try sharedCtx()
         #expect(
             !(ctx.diagnostics.hasError),
             "Expected CFunction surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
@@ -54,17 +85,9 @@ struct NativeCInteropCFunctionSurfaceTests {
         #expect(constructorSignature.valueParameterHasDefaultValues == [false])
     }
 
-    @Test
-    func testCFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.CFunction
+    @Test func testCFunctionResolvesInSource() throws {
 
-        fun pass(value: CFunction<() -> Int>): CFunction<() -> Int> {
-            return value
-        }
-        """)
-        try runSema(ctx)
-
+        let ctx = try sharedCtx()
         #expect(
             !(ctx.diagnostics.hasError),
             "Expected CFunction to resolve, got: \(ctx.diagnostics.diagnostics)"
