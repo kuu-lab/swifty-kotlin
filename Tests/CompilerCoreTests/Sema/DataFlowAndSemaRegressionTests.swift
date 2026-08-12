@@ -673,5 +673,21 @@ struct DataFlowAndSemaRegressionTests {
             assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         }
     }
+
+    // MARK: - BodyAnalysis: builtin class nested type resolution
+
+    @Test func testBuiltinCharCompanionTypeResolvesInExtensionSignature() throws {
+        // Regression for the KSP-663 fix: extension functions declared on
+        // `Char.Companion` (or other builtin primitive types with a synthetic
+        // class symbol) must not produce "Unresolved type 'Companion'".
+        let source = """
+        fun Char.Companion.foo(): Int = 0
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
+        }
+    }
 }
 #endif

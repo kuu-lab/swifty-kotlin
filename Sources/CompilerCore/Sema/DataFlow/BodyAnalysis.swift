@@ -168,6 +168,30 @@ extension DataFlowSemaPhase {
                 }
                 return types.make(.classType(ClassType(classSymbol: resolved.id, args: resolvedArgs, nullability: nullability)))
             }
+            if candidates.isEmpty,
+               let builtinNestedSymbol = resolveBuiltinClassNestedType(
+                   path: path,
+                   types: types,
+                   symbols: symbols,
+                   interner: interner
+               ),
+               isNominalTypeSymbol(builtinNestedSymbol.kind)
+            {
+                let resolvedArgs = resolveTypeArgRefs(
+                    argRefs,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth
+                )
+                return types.make(.classType(ClassType(classSymbol: builtinNestedSymbol.id, args: resolvedArgs, nullability: nullability)))
+            }
             let stringBuilderName = interner.intern("StringBuilder")
             let kotlinTextStringBuilderFQName = [
                 interner.intern("kotlin"),
@@ -868,6 +892,35 @@ extension DataFlowSemaPhase {
             guard let lastExprID = exprIDs.last else { return false }
             return isSelfRecursiveCall(lastExprID, functionName: functionName, ast: ast)
         }
+    }
+
+    /// Resolve a nested type reference (e.g. `Char.Companion`) inside a builtin
+    /// type's synthetic class symbol when normal nominal lookup fails.
+    private func resolveBuiltinClassNestedType(
+        path: [InternedString],
+        types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SemanticSymbol? {
+        guard path.count > 1, let first = path.first else { return nil }
+
+        let rootClassSymbol: SymbolID?
+        if first == interner.intern("Char") {
+            rootClassSymbol = types.charClassSymbol
+        } else if first == interner.intern("String") {
+            rootClassSymbol = types.stringClassSymbol
+        } else if first == interner.intern("Any") {
+            rootClassSymbol = types.anyClassSymbol
+        } else {
+            rootClassSymbol = nil
+        }
+
+        guard let root = rootClassSymbol, let rootInfo = symbols.symbol(root) else {
+            return nil
+        }
+        let nestedFQName = rootInfo.fqName + Array(path.dropFirst())
+        guard let symbolID = symbols.lookupAll(fqName: nestedFQName).first else { return nil }
+        return symbols.symbol(symbolID)
     }
 
     /// Check if the given expression is a call to a function with the given name.

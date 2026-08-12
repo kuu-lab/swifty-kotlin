@@ -1619,7 +1619,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // MARK: - MIGRATION-IO-001: Private C-bridge stubs called from BundledKotlinStdlib
+        // MARK: - MIGRATION-IO-001: Private C-bridge stubs called from BundledStdlib
 
         registerFileMemberFunction(
             named: "__kk_file_readText",

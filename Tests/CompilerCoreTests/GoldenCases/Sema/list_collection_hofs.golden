@@ -30,7 +30,7 @@ expr e@4:17 name(values) type=kotlin.collections.List<String> ref=transform.$0.v
 expr e@4:36 name(it) type=String ref=s-3
 expr e@4:42 name(it) type=String ref=s-3
 expr e@4:42#1 memberCall recv=e@4:42 callee=length args=[] type=Int call=kotlin.length.$get
-expr e@4:36#1 memberCall recv=e@4:36 callee=to args=[_:e@4:42#1] type=kotlin.Pair<String, Int>
+expr e@4:36#1 memberCall recv=e@4:36 callee=to args=[_:e@4:42#1] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@4:34 lambda params=[] body=e@4:36#1 label=associate type=(String) -> Any
 expr e@4:17#1 memberCall recv=e@4:17 callee=associate args=[_:e@4:34] type=kotlin.collections.Map<String, Int>
 expr e@4:5 localDecl assoc mutable=0 type=_ init=e@4:17#1 type=Unit ref=__local_2.assoc

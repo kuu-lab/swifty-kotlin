@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 fun main() {
     // === String.chunked(size) ===
     // Basic chunked
@@ -50,12 +50,13 @@ fun main() {
     println(chars.windowedSequence(3, 2, true) { it.length }.toList())
     println("ab".windowedSequence(5, 1, true) { it.length }.toList())
 
+
     // Large chunk size
     println("x".chunked(1))
     println("xy".chunked(5))
 
     // chunked with transform
-    println("abcdef".chunked(2) { it.uppercase() })
+    println("abcdef".chunked(2) { it.toString().uppercase() })
     println("abcdefg".chunked(3) { it.length })
 
     // === windowed: basic ===
@@ -90,8 +91,6 @@ fun main() {
     println("hello".windowed(3))
 
     // windowed with transform
-    println("abcde".windowed(3, 1) { it.uppercase() })
-    println("12345".windowed(2, 1) { it.toInt() })
     println("abcde".windowed(3, 2, true) { it.length })
 
     // windowed: empty string

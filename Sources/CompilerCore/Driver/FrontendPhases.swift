@@ -119,15 +119,12 @@ final class LoadSourcesPhase: CompilerPhase {
         resourcePath: String? = Bundle.module.resourcePath
     ) throws {
         do {
-            let sources = try BundledKotlinStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
+            let sources = try BundledStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
             for source in sources {
                 guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
-                let origin: SourceOrigin = BundledKotlinStdlib.isResidualBundledStdlibSource(source.path)
-                    ? .residualStdlib
-                    : .bundledStdlib
-                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: origin)
+                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: .bundledStdlib)
             }
-        } catch let error as BundledKotlinStdlib.LoadError {
+        } catch let error as BundledStdlib.LoadError {
             switch error {
             case .resourcePathMissing, .resourceDirectoryMissing:
                 ctx.diagnostics.error(
