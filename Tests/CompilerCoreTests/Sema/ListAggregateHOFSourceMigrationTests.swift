@@ -2,7 +2,7 @@
 import Testing
 
 /// KSP-501: sumOf / maxByOrNull / minByOrNull moved from the residual
-/// `BundledKotlinStdlib.kotlinCollectionsSource` string into
+/// `BundledStdlib.kotlinCollectionsSource` string into
 /// `Stdlib/kotlin/collections/ListAggregateHOF.kt`.
 @Suite
 struct ListAggregateHOFSourceMigrationTests {
@@ -11,7 +11,7 @@ struct ListAggregateHOFSourceMigrationTests {
 
     @Test
     func residualCollectionsSourceIsEmpty() {
-        #expect(BundledKotlinStdlib.kotlinCollectionsSource.isEmpty)
+        #expect(BundledStdlib.kotlinCollectionsSource.isEmpty)
     }
 
     @Test
