@@ -57,30 +57,14 @@ struct CharacterCodingExceptionTypeTests {
         Self._sharedCtx = ctx
         return ctx
     }
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
-
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
-        Self._sharedSema = pair
-        return pair
-    }
-
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
 
     // MARK: - Symbol surface
 
     @Test
     func testCharacterCodingExceptionIsRegisteredAsClassInKotlinTextPackage() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let fqName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let symbol = try #require(
@@ -92,7 +76,9 @@ struct CharacterCodingExceptionTypeTests {
 
     @Test
     func testCharacterCodingExceptionHasExceptionDirectSupertype() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let exceptionFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -108,7 +94,9 @@ struct CharacterCodingExceptionTypeTests {
 
     @Test
     func testCharacterCodingExceptionIsAssignableToExceptionAndThrowable() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let characterCodingFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let characterCodingSymbol = try #require(sema.symbols.lookup(fqName: characterCodingFQName))
@@ -148,7 +136,9 @@ struct CharacterCodingExceptionTypeTests {
 
     @Test
     func testCharacterCodingExceptionExposesNoArgAndMessageConstructors() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let exceptionFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))

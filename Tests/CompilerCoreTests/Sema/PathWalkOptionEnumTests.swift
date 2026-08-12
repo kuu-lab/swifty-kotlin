@@ -55,26 +55,14 @@ struct PathWalkOptionEnumTests {
 
     // MARK: Helpers
 
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
-
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        let semaResult = try #require(result)
-        Self._sharedSema = semaResult
-        return semaResult
-    }
-
     private static let allEntries = ["BREADTH_FIRST", "FOLLOW_LINKS"]
 
     // MARK: - Enum class declaration shape
 
     @Test func testPathWalkOptionIsRegisteredAsEnumClass() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fqName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -87,7 +75,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionIsParentedToKotlinIOPathPackage() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fqName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
 
@@ -104,7 +94,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionHasCorrectPropertyType() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fqName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let expectedType = sema.types.make(.classType(ClassType(
@@ -121,7 +113,9 @@ struct PathWalkOptionEnumTests {
     // MARK: - Enum entries
 
     @Test func testBothPathWalkOptionEntriesAreRegisteredAsFields() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         for entry in Self.allEntries {
             let fqName = ["kotlin", "io", "path", "PathWalkOption", entry].map { interner.intern($0) }
             let symbol = try #require(
@@ -136,7 +130,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionEntryPropertyTypesAreEnumType() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let enumFQName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
         let expectedType = sema.types.make(.classType(ClassType(
@@ -159,7 +155,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionEntriesAreParentedToEnumClass() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let enumFQName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
 
@@ -174,7 +172,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionHasExactlyTwoEntries() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let enumFQName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let children = sema.symbols.children(ofFQName: enumFQName)
         let fieldNames: Set<String> = Set(
