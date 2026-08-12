@@ -28,7 +28,6 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
         if isClassNameReceiver,
            args.isEmpty,
            let classNameReceiverNominalSymbol,
@@ -1216,18 +1215,6 @@ extension CallTypeChecker {
 
         if lookupReceiverType == sema.types.errorType {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-        }
-        // Kotlin infix `to` is effectively a universal extension used by
-        // destructuring-friendly literals (e.g. `1 to "a"`). Keep a
-        // lightweight fallback when no symbol candidate was discovered.
-        if !isClassNameReceiver,
-           args.count == 1,
-           calleeName == knownNames.to
-        {
-            let resultType = sema.types.anyType
-            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-            sema.bindings.bindExprType(id, type: finalType)
-            return finalType
         }
         if let firstInvisible = invisibleCandidates.first {
             driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.semaCtx.diagnostics)

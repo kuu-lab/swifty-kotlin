@@ -142,40 +142,38 @@ extension CallTypeChecker {
     }
 
     func inferSyntheticMapKeyValueTypes(
-        from args: [CallArgument],
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        from argTypes: [TypeID],
+        ctx: TypeInferenceContext
     ) -> (keyType: TypeID, valueType: TypeID)? {
         let sema = ctx.sema
         let interner = ctx.interner
-        let ast = ctx.ast
+        let pairFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("Pair"),
+        ]
+        guard let pairSymbol = sema.symbols.lookup(fqName: pairFQName) else {
+            return nil
+        }
+
         var keyTypes: [TypeID] = []
         var valueTypes: [TypeID] = []
-
-        for argument in args {
-            guard let expr = ast.arena.expr(argument.expr) else { return nil }
-            switch expr {
-            case let .memberCall(receiver, callee, _, pairArgs, _)
-                where callee == KnownCompilerNames(interner: interner).to && pairArgs.count == 1:
-                let keyType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
-                let valueType = driver.inferExpr(pairArgs[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-                keyTypes.append(keyType)
-                valueTypes.append(valueType)
-            case let .call(calleeExpr, _, pairArgs, _):
-                guard pairArgs.count == 2,
-                      let callee = ast.arena.expr(calleeExpr),
-                      case let .nameRef(name, _) = callee,
-                      name == KnownCompilerNames(interner: interner).to
-                else {
-                    return nil
-                }
-                let keyType = driver.inferExpr(pairArgs[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-                let valueType = driver.inferExpr(pairArgs[1].expr, ctx: ctx, locals: &locals, expectedType: nil)
-                keyTypes.append(keyType)
-                valueTypes.append(valueType)
-            default:
+        for type in argTypes {
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  classType.classSymbol == pairSymbol,
+                  classType.args.count == 2
+            else {
                 return nil
             }
+            func projected(_ arg: TypeArg) -> TypeID {
+                switch arg {
+                case let .invariant(t), let .out(t), let .in(t):
+                    return t
+                case .star:
+                    return sema.types.anyType
+                }
+            }
+            keyTypes.append(projected(classType.args[0]))
+            valueTypes.append(projected(classType.args[1]))
         }
 
         guard !keyTypes.isEmpty, !valueTypes.isEmpty else {
