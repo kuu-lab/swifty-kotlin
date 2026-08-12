@@ -130,21 +130,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_kclass_has_annotation",
             "kk_kclass_js",
             "kk_kclass_register_annotation",
-            // Kept in RuntimeABISpec for source-migration compatibility; the
-            // runtime exports only the __kk_ bridge.
-            "kk_list_fold",
-            "kk_list_foldIndexed",
-            "kk_list_foldRight",
-            "kk_list_foldRightIndexed",
-            "kk_list_reduceIndexedOrNull",
-            "kk_list_reduceOrNull",
-            "kk_list_runningFold",
-            "kk_list_runningFoldIndexed",
-            "kk_list_runningReduce",
-            "kk_list_runningReduceIndexed",
-            "kk_list_scan",
-            "kk_list_scanIndexed",
-            "kk_list_scanReduce",
             "kk_list_zip_transform",
             // KSP-430: Map higher-order functions are now source-backed in
             // bundled MapHOF.kt; these ABI entries remain for compatibility

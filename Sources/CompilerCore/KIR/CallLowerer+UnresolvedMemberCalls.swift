@@ -174,36 +174,6 @@ extension CallLowerer {
                 default:
                     break
                 }
-            case "reduce":
-                return interner.intern("kk_list_reduce")
-            case "reduceIndexed":
-                return interner.intern("kk_list_reduceIndexed")
-            case "reduceIndexedOrNull":
-                return interner.intern("kk_list_reduceIndexedOrNull")
-            case "foldRight":
-                return interner.intern("kk_list_foldRight")
-            case "foldRightIndexed":
-                return interner.intern("kk_list_foldRightIndexed")
-            case "reduceRight":
-                return interner.intern("kk_list_reduceRight")
-            case "reduceRightIndexed":
-                return interner.intern("kk_list_reduceRightIndexed")
-            case "reduceRightIndexedOrNull":
-                return interner.intern("kk_list_reduceRightIndexedOrNull")
-            case "reduceRightOrNull":
-                return interner.intern("kk_list_reduceRightOrNull")
-            case "runningFold":
-                return interner.intern("kk_list_runningFold")
-            case "runningReduce":
-                return interner.intern("kk_list_runningReduce")
-            case "scan":
-                return interner.intern("kk_list_scan")
-            case "runningFoldIndexed":
-                return interner.intern("kk_list_runningFoldIndexed")
-            case "runningReduceIndexed":
-                return interner.intern("kk_list_runningReduceIndexed")
-            case "scanIndexed":
-                return interner.intern("kk_list_scanIndexed")
             default:
                 break
             }
@@ -682,9 +652,7 @@ extension CallLowerer {
             case interner.intern("foldIndexed"):
                 return interner.intern("kk_sequence_foldIndexed")
             case interner.intern("runningFold"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_runningFold"
-                    : "kk_sequence_runningFold")
+                return interner.intern("kk_sequence_runningFold")
             case interner.intern("scan"):
                 return interner.intern("kk_sequence_scan")
             case interner.intern("runningFoldIndexed"):
@@ -702,13 +670,9 @@ extension CallLowerer {
             case interner.intern("reduceIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceIndexedOrNull")
             case interner.intern("reduceRightIndexed"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_reduceRightIndexed"
-                    : "kk_sequence_reduceRightIndexed")
+                return interner.intern("kk_sequence_reduceRightIndexed")
             case interner.intern("reduceRightOrNull"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_reduceRightOrNull"
-                    : "kk_sequence_reduceRightOrNull")
+                return interner.intern("kk_sequence_reduceRightOrNull")
             case interner.intern("reduceRightIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             case interner.intern("runningReduceIndexed"):
@@ -813,7 +777,7 @@ extension CallLowerer {
         case "reduce":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduce")
+                return interner.intern("kk_sequence_reduce")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -822,7 +786,7 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduce")
+                    return interner.intern("kk_sequence_reduce")
                 }
             }
         case "requireNoNulls":
@@ -835,7 +799,7 @@ extension CallLowerer {
         case "reduceRight":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRight")
+                return interner.intern("kk_sequence_reduceRight")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -844,13 +808,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRight")
+                    return interner.intern("kk_sequence_reduceRight")
                 }
             }
         case "reduceIndexed":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceIndexed")
+                return interner.intern("kk_sequence_reduceIndexed")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -859,13 +823,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceIndexed")
+                    return interner.intern("kk_sequence_reduceIndexed")
                 }
             }
         case "reduceRightIndexed":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightIndexed")
+                return interner.intern("kk_sequence_reduceRightIndexed")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -874,13 +838,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightIndexed")
+                    return interner.intern("kk_sequence_reduceRightIndexed")
                 }
             }
         case "reduceRightOrNull":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightOrNull")
+                return interner.intern("kk_sequence_reduceRightOrNull")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -889,13 +853,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightOrNull")
+                    return interner.intern("kk_sequence_reduceRightOrNull")
                 }
             }
         case "reduceRightIndexedOrNull":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightIndexedOrNull")
+                return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -904,7 +868,7 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightIndexedOrNull")
+                    return interner.intern("kk_sequence_reduceRightIndexedOrNull")
                 }
             }
         default:

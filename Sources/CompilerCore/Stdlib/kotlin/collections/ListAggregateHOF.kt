@@ -3,8 +3,8 @@ package kotlin.collections
 // MIGRATION-COL-004
 // List aggregate HOFs migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
-//   kk_list_fold, kk_list_foldRight, kk_list_reduce, kk_list_reduceOrNull,
-//   kk_list_scan, kk_list_runningFold
+// Fold/reduce/scan/running fold/reduce families (including indexed, right,
+// and OrNull variants) previously implemented by runtime bridges.
 
 public inline fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
     var accumulator = initial
