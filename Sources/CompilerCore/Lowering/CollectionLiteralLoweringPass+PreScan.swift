@@ -80,10 +80,8 @@ extension CollectionLiteralLoweringSupport {
         }
 
         if fqName[1] == collectionsName {
-            // buildList is fully Kotlinized (KSP-622); buildSet/buildMap still use
-            // builder DSL special handling until their own migration (KSP-623).
-            return callee == lookup.buildSetName
-                || callee == lookup.buildMapName
+            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
+            return false
         }
         return false
     }

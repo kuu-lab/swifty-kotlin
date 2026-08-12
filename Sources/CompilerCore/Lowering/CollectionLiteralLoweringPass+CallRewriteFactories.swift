@@ -684,31 +684,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // --- Rewrite builder member functions (STDLIB-002) ---
-        // Only rewrite add/put inside builder lambda functions matching the
-        // correct builder kind to avoid cross-kind rewrites.
-        if let builderCallee = builderLambdaKinds[function.name] {
-            var rewrittenCallee: InternedString?
-            if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkBuilderSetAddName
-            } else if builderCallee == lookup.buildSetName, callee == lookup.addAllName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkBuilderSetAddAllName
-            } else if builderCallee == lookup.buildMapName, callee == lookup.putName, arguments.count == 2 {
-                rewrittenCallee = lookup.kkBuilderMapPutName
-            }
-            if let target = rewrittenCallee {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: target,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                return true
-            }
-        }
-
         // --- Rewrite `to` infix → Pair constructor (STDLIB-120) ---
         if callee == lookup.toName, arguments.count == 2 {
             let initFQName: [InternedString] = [

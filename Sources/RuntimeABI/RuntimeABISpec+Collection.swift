@@ -1654,7 +1654,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_build_map",
+            name: "__kk_build_map",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -1663,30 +1663,13 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_build_set",
+            name: "__kk_build_set",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_builder_set_add",
-            parameters: [
-                RuntimeABIParameter(name: "elem", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_builder_set_addAll",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_list_add",
@@ -2021,15 +2004,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_builder_map_put",
-            parameters: [
-                RuntimeABIParameter(name: "key", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_map_put",
