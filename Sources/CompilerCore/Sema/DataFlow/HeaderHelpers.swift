@@ -1202,7 +1202,13 @@ extension DataFlowSemaPhase {
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticPreconditionStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
