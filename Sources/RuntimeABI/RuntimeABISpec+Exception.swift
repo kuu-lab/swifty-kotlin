@@ -523,27 +523,7 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_precondition_assert",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_precondition_assert_lazy",
-            parameters: [
-                RuntimeABIParameter(name: "condition", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_assertions_enabled",
+            name: "__kk_assertions_enabled",
             parameters: [],
             returnType: .intptr,
             section: "Exception"
