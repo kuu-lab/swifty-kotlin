@@ -25,9 +25,6 @@ struct SequenceLookupNames {
     let kkSequenceFlatMapIndexedName: InternedString
     let kkSequenceShuffledName: InternedString
     let kkSequenceShuffledRandomName: InternedString
-    let kkSequenceAssociateToName: InternedString
-    let kkSequenceAssociateByToName: InternedString
-    let kkSequenceAssociateWithToName: InternedString
     let kkSequenceForEachIndexedName: InternedString
     // STDLIB-558, 559, 560: Sequence scan / runningFold / runningReduce
     let kkSequenceScanName: InternedString
@@ -38,7 +35,6 @@ struct SequenceLookupNames {
     let kkSequenceToMapName: InternedString
     let kkSequenceToCollectionName: InternedString
     let kkSequenceGroupByName: InternedString
-    let kkSequenceGroupByToName: InternedString
     let kkSequenceMaxName: InternedString
     let kkSequenceMaxOrNullName: InternedString
     let kkSequenceMinOrNullName: InternedString
@@ -56,7 +52,6 @@ struct SequenceLookupNames {
     let kkSequenceMinusName: InternedString
     let kkSequenceOfSingleName: InternedString
     // STDLIB-SEQ-012: Sequence partition
-    let kkSequencePartitionName: InternedString
     // STDLIB-SEQ-021: Sequence destination-collection filter operations
     let kkSequenceFilterToName: InternedString
     let kkSequenceFilterNotToName: InternedString
@@ -123,9 +118,6 @@ struct SequenceLookupNames {
         kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")
         kkSequenceShuffledName = interner.intern("kk_sequence_shuffled")
         kkSequenceShuffledRandomName = interner.intern("kk_sequence_shuffled_random")
-        kkSequenceAssociateToName = interner.intern("kk_sequence_associateTo")
-        kkSequenceAssociateByToName = interner.intern("kk_sequence_associateByTo")
-        kkSequenceAssociateWithToName = interner.intern("kk_sequence_associateWithTo")
         kkSequenceForEachIndexedName = interner.intern("kk_sequence_forEachIndexed")
         kkSequenceScanName = interner.intern("kk_sequence_scan")
         kkSequenceRunningFoldName = interner.intern("kk_sequence_runningFold")
@@ -134,7 +126,6 @@ struct SequenceLookupNames {
         kkSequenceToMapName = interner.intern("kk_sequence_toMap")
         kkSequenceToCollectionName = interner.intern("kk_sequence_toCollection")
         kkSequenceGroupByName = interner.intern("kk_sequence_groupBy")
-        kkSequenceGroupByToName = interner.intern("kk_sequence_groupByTo")
         kkSequenceMaxName = interner.intern("kk_sequence_max")
         kkSequenceMaxOrNullName = interner.intern("kk_sequence_maxOrNull")
         kkSequenceMinOrNullName = interner.intern("kk_sequence_minOrNull")
@@ -150,7 +141,6 @@ struct SequenceLookupNames {
         kkSequencePlusElementName = interner.intern("kk_sequence_plus_element")
         kkSequenceMinusName = interner.intern("kk_sequence_minus")
         kkSequenceOfSingleName = interner.intern("kk_sequence_of_single")
-        kkSequencePartitionName = interner.intern("kk_sequence_partition")
         // STDLIB-SEQ-021: Sequence destination-collection filter operations
         kkSequenceFilterToName = interner.intern("kk_sequence_filterTo")
         kkSequenceFilterNotToName = interner.intern("kk_sequence_filterNotTo")

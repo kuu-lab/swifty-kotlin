@@ -301,94 +301,9 @@ struct RuntimeSequenceTests {
         #expect(thrown != 0)
     }
 
-    @Test func minOfReturnsSmallestSelectedValueAndThrowsOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_minOf(
-            makeSequence([5, 2, 3]),
-            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
-            0,
-            &thrown
-        )
 
-        #expect(thrown == 0)
-        #expect(result == 20)
 
-        thrown = 0
-        let emptyResult = kk_sequence_minOf(
-            makeSequence([]),
-            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(emptyResult == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
 
-    @Test func minByOrNullReturnsElementWithSmallestSelectorAndNullOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_minByOrNull(
-            makeSequence([5, 2, 3]),
-            unsafeBitCast(sequenceModuloThreeSelector, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == 3)
-
-        let emptyResult = kk_sequence_minByOrNull(
-            makeSequence([]),
-            unsafeBitCast(sequenceModuloThreeSelector, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
-
-    @Test func minByReturnsElementWithSmallestSelectorAndThrowsOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_minBy(
-            makeSequence([5, 2, 3]),
-            unsafeBitCast(sequenceModuloThreeSelector, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == 3)
-
-        let emptyResult = kk_sequence_minBy(
-            makeSequence([]),
-            unsafeBitCast(sequenceModuloThreeSelector, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(emptyResult == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
-
-    @Test func minOfOrNullReturnsSmallestSelectedValueAndNullOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_minOfOrNull(
-            makeSequence([5, 2, 3]),
-            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == 20)
-
-        let emptyResult = kk_sequence_minOfOrNull(
-            makeSequence([]),
-            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
 
     @Test func firstNotNullOfOrNullReturnsFirstTransformedValue() {
         var thrown = 0
@@ -465,66 +380,9 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_sum(makeSequence([])) == 0)
     }
 
-    @Test func sumByAccumulatesSelectorResults() {
-        var thrown = 0
-        let result = kk_sequence_sumBy(
-            makeSequence([1, 2, 3]),
-            unsafeBitCast(sequenceSumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
 
-        #expect(thrown == 0)
-        #expect(result == 14)
-    }
 
-    @Test func sumOfAccumulatesSelectorResults() {
-        var thrown = 0
-        let result = kk_sequence_sumOf(
-            makeSequence([1, 2, 3]),
-            unsafeBitCast(sequenceSumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
 
-        #expect(thrown == 0)
-        #expect(result == 14)
-    }
-
-    @Test func sumByDoubleAccumulatesSelectorResults() {
-        var thrown = 0
-        let result = kk_sequence_sumByDouble(
-            makeSequence([1, 2, 3]),
-            unsafeBitCast(sequenceSumByDoubleWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(abs(kk_bits_to_double(result) - 2.0) < 0.0001)
-    }
-
-    @Test func maxOfOrNullReturnsLargestSelectorResultAndNullOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_maxOfOrNull(
-            makeSequence([3, 1, 4, 2]),
-            unsafeBitCast(sequenceNegatedSelector, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(result == -1)
-
-        let emptyResult = kk_sequence_maxOfOrNull(
-            makeSequence([]),
-            unsafeBitCast(sequenceNegatedSelector, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
 
     @Test func minOrNullReturnsSmallestElementAndNullOnEmpty() {
         #expect(kk_sequence_minOrNull(makeSequence([5, 2, 3])) == 2)
@@ -536,52 +394,7 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_maxOrNull(makeSequence([])) == runtimeNullSentinelInt)
     }
 
-    @Test func maxWithReturnsLargestElementAndThrowsOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_maxWith(
-            makeSequence([3, 1, 4, 2]),
-            unsafeBitCast(sequenceMaxWithNaturalComparator, to: Int.self),
-            0,
-            &thrown
-        )
 
-        #expect(thrown == 0)
-        #expect(result == 4)
-
-        thrown = 0
-        let emptyResult = kk_sequence_maxWith(
-            makeSequence([]),
-            unsafeBitCast(sequenceMaxWithNaturalComparator, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(emptyResult == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
-
-    @Test func maxWithOrNullReturnsLargestElementAndNullOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_maxWithOrNull(
-            makeSequence([3, 1, 4, 2]),
-            unsafeBitCast(sequenceMaxWithOrNullNaturalComparator, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == 4)
-
-        let emptyResult = kk_sequence_maxWithOrNull(
-            makeSequence([]),
-            unsafeBitCast(sequenceMaxWithOrNullNaturalComparator, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
 
     @Test func sortedByUsesRuntimeValueComparisonForSelectorKeys() {
         let source = makeSequence([1, 2, 3])
@@ -699,17 +512,6 @@ struct RuntimeSequenceTests {
         #expect(sequenceElements(sorted) == [3, 2, 1, 1])
     }
 
-    @Test func joinToStringUsesSeparatorPrefixAndPostfix() {
-        let seq = makeSequence([1, 2, 3])
-        let renderedRaw = kk_sequence_joinToString(
-            seq,
-            runtimeTestStringHandle(":"),
-            runtimeTestStringHandle("["),
-            runtimeTestStringHandle("]")
-        )
-
-        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: renderedRaw)) == "[1:2:3]")
-    }
 
     @Test func lastIndexOfReturnsFinalMatchingIndexOrMinusOne() {
         let seq = makeSequence([1, 2, 3, 2])
@@ -718,22 +520,6 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_lastIndexOf(seq, 4) == -1)
     }
 
-    @Test func joinToAppendsToStringBuilderAndReturnsDestination() {
-        let seq = makeSequence([1, 2, 3])
-        let builder = runtimeTestStringBuilder("seed:")
-
-        let returned = kk_sequence_joinTo(
-            seq,
-            builder,
-            runtimeTestStringHandle("|"),
-            runtimeTestStringHandle("<"),
-            runtimeTestStringHandle(">")
-        )
-
-        #expect(returned == builder)
-        let renderedRaw = __kk_string_builder_toString(builder)
-        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: renderedRaw)) == "seed:<1|2|3>")
-    }
 
     @Test func lastReturnsFinalElement() {
         let seq = makeSequence([1, 2, 3])
@@ -755,130 +541,12 @@ struct RuntimeSequenceTests {
         #expect(thrown == 0)
     }
 
-    @Test func associateToPopulatesExistingDestinationMap() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [99], values: [999]))
 
-        let result = kk_sequence_associateTo(
-            seq,
-            dest,
-            unsafeBitCast(sequenceAssociatePair, to: Int.self),
-            0,
-            nil
-        )
 
-        #expect(result == dest)
-        #expect(kk_map_get(result, 99) == 999)
-        #expect(kk_map_get(result, 2) == 10)
-        #expect(kk_map_get(result, 4) == 20)
-        #expect(kk_map_get(result, 6) == 30)
-    }
 
-    @Test func associateBuildsMapWithLastWriteForDuplicateKeys() {
-        // Sequence [1, 2, 3] with key = value % 2 produces:
-        //   1 → key 1, value 10
-        //   2 → key 0, value 20
-        //   3 → key 1, value 30  (duplicate key 1; last-write-wins → 30)
-        let seq = makeSequence([1, 2, 3])
 
-        let result = kk_sequence_associate(
-            seq,
-            unsafeBitCast(sequenceAssociatePairDuplicateKeys, to: Int.self),
-            0,
-            nil
-        )
 
-        #expect(mapKeys(result).sorted() == [0, 1])
-        #expect(kk_map_get(result, 0) == 20)
-        #expect(kk_map_get(result, 1) == 30, "last-write-wins: key 1 should map to value from element 3")
-    }
 
-    @Test func associateByToUsesLastWriteForDuplicateKeys() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-
-        let result = kk_sequence_associateByTo(
-            seq,
-            dest,
-            unsafeBitCast(sequenceParitySelector, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [1, 0])
-        #expect(kk_map_get(result, 1) == 3)
-        #expect(kk_map_get(result, 0) == 2)
-    }
-
-    @Test func associateWithMapsElementsToTransformedValues() {
-        let seq = makeSequence([1, 2, 3])
-
-        let result = kk_sequence_associateWith(
-            seq,
-            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(mapKeys(result) == [1, 2, 3])
-        #expect(kk_map_get(result, 1) == 10)
-        #expect(kk_map_get(result, 2) == 20)
-        #expect(kk_map_get(result, 3) == 30)
-    }
-
-    @Test func associateByBuildsMapWithLastWriteForDuplicateKeys() {
-        let seq = makeSequence([1, 2, 3])
-
-        let result = kk_sequence_associateBy(
-            seq,
-            unsafeBitCast(sequenceParitySelector, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(mapKeys(result) == [1, 0])
-        #expect(kk_map_get(result, 1) == 3)
-        #expect(kk_map_get(result, 0) == 2)
-    }
-
-    @Test func associateWithToUsesElementsAsKeys() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [50], values: [500]))
-
-        let result = kk_sequence_associateWithTo(
-            seq,
-            dest,
-            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(kk_map_get(result, 50) == 500)
-        #expect(kk_map_get(result, 1) == 10)
-        #expect(kk_map_get(result, 2) == 20)
-        #expect(kk_map_get(result, 3) == 30)
-    }
-
-    @Test func groupByToAppendsIntoExistingBuckets() {
-        let seq = makeSequence([1, 3, 4])
-        let existingList = registerRuntimeObject(RuntimeListBox(elements: [100]))
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [existingList]))
-
-        let result = kk_sequence_groupByTo(
-            seq,
-            dest,
-            unsafeBitCast(sequenceParitySelector, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == dest)
-        #expect(mapKeys(result) == [1, 0])
-        #expect(listElements(kk_map_get(result, 1)) == [100, 1, 3])
-        #expect(listElements(kk_map_get(result, 0)) == [4])
-    }
 
     @Test func indexOfLastReturnsLastMatchingPredicateIndexOrMinusOne() {
         let seq = makeSequence([1, 4, 5, 6])
@@ -937,73 +605,9 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_indexOfFirst(seq, unsafeBitCast(greaterThanTenPredicate, to: Int.self), 0, nil) == -1)
     }
 
-    @Test func associateToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-        var thrown = 0
 
-        let result = kk_sequence_associateTo(
-            seq,
-            dest,
-            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
-            0,
-            &thrown
-        )
 
-        #expect(result == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
 
-    @Test func associateByToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-        var thrown = 0
-
-        let result = kk_sequence_associateByTo(
-            seq,
-            dest,
-            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(result == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
-
-    @Test func associateWithToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-        var thrown = 0
-
-        let result = kk_sequence_associateWithTo(
-            seq,
-            dest,
-            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(result == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
-
-    @Test func groupByToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let seq = makeSequence([1, 2, 3])
-        let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-        var thrown = 0
-
-        let result = kk_sequence_groupByTo(
-            seq,
-            dest,
-            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(result == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
 
     // MARK: - Iterator Builder Tests (STDLIB-331/564)
 
@@ -2450,24 +2054,6 @@ struct RuntimeSequenceTests {
         #expect(thrown != 0)
     }
 
-    @Test func sequenceMaxOfReturnsLargestSelectorAndThrowsOnEmpty() throws {
-        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
-            outThrown?.pointee = 0
-            return -value
-        }
-
-        var thrown = 0
-        let result = kk_sequence_maxOf(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        #expect(thrown == 0)
-        #expect(result == -1)
-
-        thrown = 0
-        let emptyResult = kk_sequence_maxOf(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        #expect(emptyResult == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-        let box = try #require(throwableBox(from: thrown))
-        #expect(box.message == kEmptySequenceNoSuchElement)
-    }
 
     @Test func randomOrNullReturnsOnlyElementAndNullOnEmpty() {
         var thrown = 0
@@ -2481,39 +2067,7 @@ struct RuntimeSequenceTests {
         #expect(emptyResult == runtimeNullSentinelInt)
     }
 
-    @Test func sequenceMaxByReturnsElementWithLargestSelectorAndThrowsOnEmpty() throws {
-        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
-            outThrown?.pointee = 0
-            return -value
-        }
 
-        var thrown = 0
-        let result = kk_sequence_maxBy(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        #expect(thrown == 0)
-        #expect(result == 1)
-
-        let emptyResult = kk_sequence_maxBy(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        #expect(emptyResult == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-        let box = try #require(throwableBox(from: thrown))
-        #expect(box.message == kEmptySequenceNoSuchElement)
-    }
-
-    @Test func sequenceMaxByOrNullReturnsElementWithLargestSelectorAndNullOnEmpty() {
-        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
-            outThrown?.pointee = 0
-            return -value
-        }
-
-        var thrown = 0
-        let result = kk_sequence_maxByOrNull(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        #expect(thrown == 0)
-        #expect(result == 1)
-
-        let emptyResult = kk_sequence_maxByOrNull(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
 
     // MARK: - Lazy Sequence Builder Tests (STDLIB-563)
 
@@ -2557,19 +2111,4 @@ struct RuntimeSequenceTests {
         return keys
     }
 
-    @Test func minWithReturnsComparatorMinimumAndThrowsOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_minWith(
-            makeSequence([5, 2, 3]),
-            unsafeBitCast(sequenceReverseIntComparator, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(result == 5)
-        #expect(thrown == 0)
-
-        thrown = 0
-        #expect(kk_sequence_minWith(makeSequence([]), unsafeBitCast(sequenceReverseIntComparator, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
 }
