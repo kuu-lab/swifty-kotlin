@@ -154,8 +154,8 @@
 - [ ] KSP-445: Sequence fold/scan を Kotlin 化（`fold(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `scan(Indexed)`, `runningFold/Reduce(Indexed)`, `sorted*`）
   - 削除 kk_*: `RuntimeSequenceFoldScan.swift` の全関数
 - [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
-- [ ] KSP-447: sequence{}/iterator{} ビルダーを (c) 残留分類として確定する
-  - coroutine 機構と不可分（`kk_sequence_builder_*`, `kk_iterator_builder_*` 11 関数）。`__kk_` 降格 + `docs/stdlib-pipeline.md` §9 の (c) 表へ記載のみ。Kotlin 化はしない
+- [x] KSP-447: sequence{}/iterator{} ビルダーを (c) 残留分類として確定する
+  - coroutine 機構と不可分（`__kk_sequence_builder_*`, `__kk_iterator_builder_*` 11 関数）。`__kk_` 降格 + `docs/stdlib-pipeline.md` §9 の (c) 表へ記載のみ。Kotlin 化はしない
 
 #### kotlin.ranges [M6 実行体]（前提: KSP-312）
 

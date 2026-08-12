@@ -87,14 +87,7 @@ public extension RuntimeABISpec {
         ),
         // Sequence builder
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_create",
-            parameters: [],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_yield",
+            name: "__kk_sequence_builder_yield",
             parameters: [
                 RuntimeABIParameter(name: "builderRaw", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -105,7 +98,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-553: yieldAll(iterable)
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_yieldAll",
+            name: "__kk_sequence_builder_yieldAll",
             parameters: [
                 RuntimeABIParameter(name: "builderRaw", type: .intptr),
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
@@ -114,7 +107,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_build",
+            name: "__kk_sequence_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
@@ -124,7 +117,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_build_coro",
+            name: "__kk_sequence_builder_build_coro",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "functionID", type: .intptr),
@@ -136,7 +129,7 @@ public extension RuntimeABISpec {
         ),
         // Iterator builder (STDLIB-331/564)
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_build",
+            name: "__kk_iterator_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
             ],
@@ -145,7 +138,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_build_coro",
+            name: "__kk_iterator_builder_build_coro",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "functionID", type: .intptr),
@@ -156,7 +149,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_yield",
+            name: "__kk_iterator_builder_yield",
             parameters: [
                 RuntimeABIParameter(name: "builderRaw", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -165,7 +158,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_hasNext",
+            name: "__kk_iterator_builder_hasNext",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],
@@ -173,7 +166,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_next",
+            name: "__kk_iterator_builder_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],
@@ -182,7 +175,7 @@ public extension RuntimeABISpec {
         ),
         // CORO-004 Phase 2: suspension-aware consumer API
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_hasNext_coro",
+            name: "__kk_iterator_builder_hasNext_coro",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuationRaw", type: .intptr),
@@ -191,7 +184,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_next_coro",
+            name: "__kk_iterator_builder_next_coro",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],

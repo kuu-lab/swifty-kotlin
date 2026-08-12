@@ -48,7 +48,7 @@ public func kk_uint_range_iterator(_ rangeRaw: Int) -> Int {
 
 @_cdecl("kk_uint_range_hasNext")
 public func kk_uint_range_hasNext(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return kk_iterator_builder_hasNext(iterRaw) }
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return __kk_iterator_builder_hasNext(iterRaw) }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else { return 0 }
     let current = UInt(bitPattern: iterator.current)
     let last = UInt(bitPattern: iterator.last)
@@ -59,7 +59,7 @@ public func kk_uint_range_hasNext(_ iterRaw: Int) -> Int {
 
 @_cdecl("kk_uint_range_next")
 public func kk_uint_range_next(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return kk_iterator_builder_next(iterRaw) }
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return __kk_iterator_builder_next(iterRaw) }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else { return 0 }
     let current = iterator.current
     let uCurrent = UInt(bitPattern: current)

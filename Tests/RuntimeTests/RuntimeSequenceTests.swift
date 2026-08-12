@@ -48,26 +48,26 @@ private func appendLazySequenceOnEachIndexedTrace(_ value: Int) {
 
 private let lazyYieldAllInnerThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
     _lazyTestYieldCounter += 1
-    _ = kk_sequence_builder_yield(builderRaw, 10)
+    _ = __kk_sequence_builder_yield(builderRaw, 10)
     _lazyTestYieldCounter += 1
-    _ = kk_sequence_builder_yield(builderRaw, 20)
+    _ = __kk_sequence_builder_yield(builderRaw, 20)
     _lazyTestYieldCounter += 1
-    _ = kk_sequence_builder_yield(builderRaw, 30)
+    _ = __kk_sequence_builder_yield(builderRaw, 30)
     _lazyTestYieldCounter += 1
-    _ = kk_sequence_builder_yield(builderRaw, 40)
+    _ = __kk_sequence_builder_yield(builderRaw, 40)
     _lazyTestYieldCounter += 1
-    _ = kk_sequence_builder_yield(builderRaw, 50)
+    _ = __kk_sequence_builder_yield(builderRaw, 50)
     return 0
 }
 
 private let lazyYieldAllInnerSequenceRaw: Int = {
     let innerFnPtr = unsafeBitCast(lazyYieldAllInnerThunk, to: Int.self)
-    return kk_sequence_builder_build(innerFnPtr)
+    return __kk_sequence_builder_build(innerFnPtr)
 }()
 
 let lazyYieldAllOuterThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-    _ = kk_sequence_builder_yieldAll(builderRaw, lazyYieldAllInnerSequenceRaw)
-    _ = kk_sequence_builder_yield(builderRaw, 99)
+    _ = __kk_sequence_builder_yieldAll(builderRaw, lazyYieldAllInnerSequenceRaw)
+    _ = __kk_sequence_builder_yield(builderRaw, 99)
     return 0
 }
 
@@ -1010,21 +1010,21 @@ struct RuntimeSequenceTests {
     @Test func iteratorBuilderBuildYieldsElementsInOrder() {
         // Closure thunk: yields 10, 20, 30 to the builder
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 10)
-            _ = kk_sequence_builder_yield(builderRaw, 20)
-            _ = kk_sequence_builder_yield(builderRaw, 30)
+            _ = __kk_sequence_builder_yield(builderRaw, 10)
+            _ = __kk_sequence_builder_yield(builderRaw, 20)
+            _ = __kk_sequence_builder_yield(builderRaw, 30)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 10)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 20)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 30)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 10)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 20)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 30)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     @Test func iteratorBuilderEmptyHasNextReturnsFalse() {
@@ -1032,37 +1032,37 @@ struct RuntimeSequenceTests {
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     @Test func iteratorBuilderYieldDirectlyAppendsToBuilder() {
-        // Test kk_iterator_builder_yield works directly with RuntimeIteratorBuilderBox
+        // Test __kk_iterator_builder_yield works directly with RuntimeIteratorBuilderBox
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
-            _ = kk_iterator_builder_yield(builderRaw, 100)
-            _ = kk_iterator_builder_yield(builderRaw, 200)
+            _ = __kk_iterator_builder_yield(builderRaw, 100)
+            _ = __kk_iterator_builder_yield(builderRaw, 200)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
-        #expect(kk_iterator_builder_next(iterHandle) == 100)
-        #expect(kk_iterator_builder_next(iterHandle) == 200)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_next(iterHandle) == 100)
+        #expect(__kk_iterator_builder_next(iterHandle) == 200)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     @Test func iteratorBuilderSingleElement() {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 42)
+            _ = __kk_sequence_builder_yield(builderRaw, 42)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 42)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 42)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     // MARK: - Lazy / Continuation-based Iterator Tests (STDLIB-564)
@@ -1079,70 +1079,70 @@ struct RuntimeSequenceTests {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
             // Yield 5 values.  Each yield suspends the producer until the
             // consumer calls next(), so the producer can never run ahead.
-            _ = kk_iterator_builder_yield(builderRaw, 1)
-            _ = kk_iterator_builder_yield(builderRaw, 2)
-            _ = kk_iterator_builder_yield(builderRaw, 3)
-            _ = kk_iterator_builder_yield(builderRaw, 4)
-            _ = kk_iterator_builder_yield(builderRaw, 5)
+            _ = __kk_iterator_builder_yield(builderRaw, 1)
+            _ = __kk_iterator_builder_yield(builderRaw, 2)
+            _ = __kk_iterator_builder_yield(builderRaw, 3)
+            _ = __kk_iterator_builder_yield(builderRaw, 4)
+            _ = __kk_iterator_builder_yield(builderRaw, 5)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
         // Consume only the first 3 elements; the producer should not have
         // produced elements 4 and 5 yet (lazy).
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 1)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 2)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 3)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 1)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 2)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 3)
 
         // Now consume the rest.
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 4)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 5)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 4)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 5)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     /// Verifies that calling next() without hasNext() works correctly
     /// (the continuation advances the producer automatically).
     @Test func iteratorBuilderNextWithoutHasNext() {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
-            _ = kk_iterator_builder_yield(builderRaw, 10)
-            _ = kk_iterator_builder_yield(builderRaw, 20)
-            _ = kk_iterator_builder_yield(builderRaw, 30)
+            _ = __kk_iterator_builder_yield(builderRaw, 10)
+            _ = __kk_iterator_builder_yield(builderRaw, 20)
+            _ = __kk_iterator_builder_yield(builderRaw, 30)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
         // Call next() directly without hasNext().
-        #expect(kk_iterator_builder_next(iterHandle) == 10)
-        #expect(kk_iterator_builder_next(iterHandle) == 20)
-        #expect(kk_iterator_builder_next(iterHandle) == 30)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_next(iterHandle) == 10)
+        #expect(__kk_iterator_builder_next(iterHandle) == 20)
+        #expect(__kk_iterator_builder_next(iterHandle) == 30)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     /// Verifies that calling hasNext() multiple times without next() is
     /// idempotent (returns the same result without advancing the iterator).
     @Test func iteratorBuilderHasNextIsIdempotent() {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
-            _ = kk_iterator_builder_yield(builderRaw, 42)
+            _ = __kk_iterator_builder_yield(builderRaw, 42)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
         // Multiple hasNext() calls should all return 1.
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 42)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 42)
         // After consuming, multiple hasNext() calls should all return 0.
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
     /// Verifies that the iterator builder works with a computed sequence
@@ -1151,33 +1151,33 @@ struct RuntimeSequenceTests {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
             // Yield squares: 1, 4, 9, 16, 25
             for i in 1 ... 5 {
-                _ = kk_iterator_builder_yield(builderRaw, i * i)
+                _ = __kk_iterator_builder_yield(builderRaw, i * i)
             }
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let iterHandle = kk_iterator_builder_build(fnPtr)
+        let iterHandle = __kk_iterator_builder_build(fnPtr)
 
         var results: [Int] = []
-        while kk_iterator_builder_hasNext(iterHandle) == 1 {
-            results.append(kk_iterator_builder_next(iterHandle))
+        while __kk_iterator_builder_hasNext(iterHandle) == 1 {
+            results.append(__kk_iterator_builder_next(iterHandle))
         }
         #expect(results == [1, 4, 9, 16, 25])
     }
 
     // Backwards-compatibility: older lowering paths may pass a RuntimeListIteratorBox
-    // to kk_iterator_builder_hasNext / kk_iterator_builder_next.
+    // to __kk_iterator_builder_hasNext / __kk_iterator_builder_next.
     @Test func iteratorBuilderBackwardsCompatWithListIterator() {
         let listHandle = makeList([10, 20, 30])
         let iterHandle = kk_list_iterator(listHandle)
 
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 10)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 20)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 1)
-        #expect(kk_iterator_builder_next(iterHandle) == 30)
-        #expect(kk_iterator_builder_hasNext(iterHandle) == 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 10)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 20)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 30)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
 
         // STDLIB-538: Test backward iteration with hasPrevious()/previous()
         #expect(kk_list_iterator_hasPrevious(iterHandle) == 1)
