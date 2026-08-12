@@ -748,7 +748,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testIterableSumByResolvesToListRuntime() throws {
+    func testIterableSumByResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int {
             return values.sumBy { value ->
@@ -772,11 +772,13 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.sumBy surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "sumBy"]
-                .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_sumBy")
-            #expect(sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" }, "Iterable.sumBy should carry Deprecated metadata")
+            let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                named: "sumBy",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
+            #expect(sema.symbols.annotations(for: memberSymbol).contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) }, "Iterable.sumBy should carry Deprecated metadata")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -789,12 +791,14 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_sumBy" }.count == 2)
+            // KSP-632: Iterable.sumBy is bundled Kotlin source, so no public
+            // kk_list_sumBy runtime bridge remains.
+            #expect(callLinks.filter { $0 == "kk_list_sumBy" }.count == 0)
         }
     }
 
     @Test
-    func testIterableSumByDoubleResolvesToListRuntime() throws {
+    func testIterableSumByDoubleResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Double {
             return values.sumByDouble { value ->
@@ -818,11 +822,13 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "sumByDouble"]
-                .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_sumByDouble")
-            #expect(sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" }, "Iterable.sumByDouble should carry Deprecated metadata")
+            let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                named: "sumByDouble",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
+            #expect(sema.symbols.annotations(for: memberSymbol).contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) }, "Iterable.sumByDouble should carry Deprecated metadata")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -835,7 +841,9 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_sumByDouble" }.count == 2)
+            // KSP-632: Iterable.sumByDouble is bundled Kotlin source, so no public
+            // kk_list_sumByDouble runtime bridge remains.
+            #expect(callLinks.filter { $0 == "kk_list_sumByDouble" }.count == 0)
         }
     }
 
@@ -914,7 +922,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testIterableMinusElementResolvesToListRuntime() throws {
+    func testIterableMinusElementResolvesToSourceBacked() throws {
         let source = """
         fun removeValue(values: Iterable<Int>): List<Int> {
             return values.minusElement(2)
@@ -934,12 +942,15 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.minusElement surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "minusElement"]
-                .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_minus_element")
+            let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                named: "minusElement",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
+            #expect(signature.parameterTypes.count == 1)
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
             else {
@@ -950,12 +961,14 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_minus_element" }.count == 2)
+            // KSP-632: Iterable.minusElement is bundled Kotlin source, so no public
+            // kk_list_minus_element runtime bridge remains.
+            #expect(callLinks.filter { $0 == "kk_list_minus_element" }.count == 0)
         }
     }
 
     @Test
-    func testIterableReduceRightIndexedResolvesToListRuntime() throws {
+    func testIterableReduceRightIndexedResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int {
             return values.reduceRightIndexed { index, value, acc ->
@@ -979,10 +992,12 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.reduceRightIndexed surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightIndexed"]
-                .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_reduceRightIndexed")
+            let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                named: "reduceRightIndexed",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -999,14 +1014,14 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            // List.reduceRightIndexed is now source-backed; only the Iterable
-            // call resolves to the retained runtime bridge.
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexed" }.count == 1)
+            // KSP-632: both Iterable and List reduceRightIndexed are bundled Kotlin
+            // source, so no public kk_list_reduceRightIndexed runtime bridge remains.
+            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexed" }.count == 0)
         }
     }
 
     @Test
-    func testIterableReduceRightIndexedOrNullResolvesToListRuntime() throws {
+    func testIterableReduceRightIndexedOrNullResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int? {
             return values.reduceRightIndexedOrNull { index, value, acc ->
@@ -1030,10 +1045,12 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.reduceRightIndexedOrNull surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightIndexedOrNull"]
-                .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_reduceRightIndexedOrNull")
+            let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                named: "reduceRightIndexedOrNull",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -1050,14 +1067,15 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            // List.reduceRightIndexedOrNull is now source-backed; only the Iterable
-            // call resolves to the retained runtime bridge.
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexedOrNull" }.count == 1)
+            // KSP-632: both Iterable and List reduceRightIndexedOrNull are bundled
+            // Kotlin source, so no public kk_list_reduceRightIndexedOrNull runtime
+            // bridge remains.
+            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexedOrNull" }.count == 0)
         }
     }
 
     @Test
-    func testIterableReduceRightOrNullResolvesToListRuntime() throws {
+    func testIterableReduceRightOrNullResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int? {
             return values.reduceRightOrNull { value, acc ->
@@ -1081,10 +1099,12 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.reduceRightOrNull surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightOrNull"]
-                .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_reduceRightOrNull")
+            let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                named: "reduceRightOrNull",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -1096,9 +1116,9 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            // List.reduceRightOrNull is now source-backed; only the Iterable
-            // call resolves to the retained runtime bridge.
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightOrNull" }.count == 1)
+            // KSP-632: both Iterable and List reduceRightOrNull are bundled Kotlin
+            // source, so no public kk_list_reduceRightOrNull runtime bridge remains.
+            #expect(callLinks.filter { $0 == "kk_list_reduceRightOrNull" }.count == 0)
         }
     }
 
@@ -2615,4 +2635,26 @@ func assertListType(
     let elementType = try projectedType(try #require(listType.args.first), file: file, line: line)
     #expect(elementType == expectedElementType)
 }
+private func sourceBackedIterableExtensionSymbol(
+    named name: String,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID? {
+    let iterableFQName: [InternedString] = [
+        interner.intern("kotlin"),
+        interner.intern("collections"),
+        interner.intern("Iterable")
+    ]
+    guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else { return nil }
+    let shortName = interner.intern(name)
+    return sema.symbols.lookupByShortName(shortName).first { candidate in
+        guard sema.symbols.isSourceBackedSymbol(candidate),
+              let signature = sema.symbols.functionSignature(for: candidate),
+              let receiverType = signature.receiverType,
+              case let .classType(classType) = sema.types.kind(of: receiverType)
+        else { return false }
+        return classType.classSymbol == iterableSymbol
+    }
+}
+
 #endif

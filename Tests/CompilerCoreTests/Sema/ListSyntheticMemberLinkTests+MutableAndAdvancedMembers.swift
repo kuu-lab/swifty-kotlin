@@ -112,12 +112,14 @@ extension ListSyntheticMemberLinkTests {
                     ]))
                     #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 } else {
-                    // Exclude bundled stdlib files (FileIDs 0 and 1) to avoid matching
-                    // internal calls like `result.add(element)` inside bundled Set HOFs.
+                    // Exclude bundled stdlib files to avoid matching internal calls
+                    // like `result.add(element)` or `this.toMutableList()` inside
+                    // bundled Iterable/Set HOFs.
                     let callExpr = try #require(firstExprID(in: ast) { id, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         guard ctx.interner.resolve(callee) == memberName else { return false }
-                        if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
+                        if let range = ast.arena.exprRange(id),
+                           ctx.sourceManager.origin(of: range.start.file)?.isBundledStdlib == true {
                             return false
                         }
                         return true

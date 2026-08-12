@@ -269,11 +269,11 @@ struct BundledDeclarationIndex: Sendable {
         // implementations are only valid for concrete List receivers. Keep the
         // runtime bridge for nominal Iterable<T> receivers until they get their
         // own Kotlin source. joinTo/joinToString/any/all/last/... moved to
-        // Stdlib/kotlin/collections/Iterables.kt in KSP-435.
+        // Stdlib/kotlin/collections/Iterables.kt in KSP-435; reduceRight*
+        // and the remaining Iterable HOFs moved in KSP-632.
         switch interner.resolve(key.name) {
         case "filter",
-             "reduce", "reduceIndexed",
-             "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
+             "reduce", "reduceIndexed":
             return key.arity == 1
         default:
             return false
