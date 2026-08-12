@@ -690,7 +690,6 @@ struct CollectionLiteralLookupTables {
     var hashMapOfFQName: [InternedString] { commonLookup.hashMapOfFQName }
     var linkedMapOfFQName: [InternedString] { commonLookup.linkedMapOfFQName }
     var listOfNotNullFQName: [InternedString] { commonLookup.listOfNotNullFQName }
-    var kkAnyToStringName: InternedString { commonLookup.kkAnyToStringName }
     var kotlinName: InternedString { commonLookup.kotlinName }
     var initName: InternedString { commonLookup.initName }
     var toName: InternedString { commonLookup.toName }

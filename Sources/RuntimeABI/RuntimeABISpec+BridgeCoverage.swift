@@ -312,14 +312,6 @@ public extension RuntimeABISpec {
                     ("outThrown", .nullableIntptrPointer),
                 ]
             ),
-            bridgeSpec("kk_println_char", section: "ConsolePrint", params: ["value"], returnType: .void,
-            isThrowing: false),
-            bridgeSpec("kk_println_double", section: "ConsolePrint", params: ["value"], returnType: .void,
-            isThrowing: false),
-            bridgeSpec("kk_println_float", section: "ConsolePrint", params: ["value"], returnType: .void,
-            isThrowing: false),
-            bridgeSpec("kk_println_long", section: "ConsolePrint", params: ["value"], returnType: .void,
-            isThrowing: false),
         ]
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =

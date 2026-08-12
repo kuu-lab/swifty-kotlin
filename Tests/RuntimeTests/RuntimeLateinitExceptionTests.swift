@@ -39,6 +39,14 @@ struct RuntimeLateinitExceptionTests {
         return Int(nominalBase | (typeID << payloadShift))
     }
 
+    private func kk_println_any(_ value: Int) {
+        __kk_print_raw(makeRuntimeString(runtimeRenderAnyForPrint(value) + "\n"))
+    }
+
+    private func kk_println_any(_ value: UnsafeMutableRawPointer?) {
+        kk_println_any(Int(bitPattern: value))
+    }
+
     @Test func lateinitGetOrThrowReturnsInitializedValue() {
         var thrown = 0
         let initialized = kk_box_int(42)

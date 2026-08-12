@@ -16,29 +16,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_println_string_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_print_string_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_from_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
