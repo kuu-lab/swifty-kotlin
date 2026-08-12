@@ -853,7 +853,7 @@ extension CallLowerer {
             )
         }
 
-        let legacyNames: Set = ["kk_require_lazy", "kk_check_lazy", "kk_precondition_assert_lazy", "kk_sequence_generate"]
+        let legacyNames: Set = ["kk_precondition_assert_lazy", "kk_sequence_generate"]
         if legacyNames.contains(externalLinkName), loweredArguments.count == 2 {
             var seedArgument = loweredArguments[0]
             if externalLinkName == "kk_sequence_generate",
