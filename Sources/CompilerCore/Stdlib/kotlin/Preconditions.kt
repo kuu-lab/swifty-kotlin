@@ -63,3 +63,27 @@ public fun assert(value: Boolean, lazyMessage: () -> Any): Unit {
     if (!__kk_assertions_enabled()) return
     if (!value) throw AssertionError(lazyMessage().toString())
 }
+
+/** Throws [IllegalArgumentException] if [value] is null. Returns the non-null [value]. */
+public fun <T : Any> requireNotNull(value: T?): T {
+    if (value == null) throw IllegalArgumentException("Required value was null.")
+    return value as T
+}
+
+/** Throws [IllegalArgumentException] with the result of [lazyMessage] if [value] is null. Returns the non-null [value]. */
+public fun <T : Any> requireNotNull(value: T?, lazyMessage: () -> Any): T {
+    if (value == null) throw IllegalArgumentException(lazyMessage().toString())
+    return value as T
+}
+
+/** Throws [IllegalStateException] if [value] is null. Returns the non-null [value]. */
+public fun <T : Any> checkNotNull(value: T?): T {
+    if (value == null) throw IllegalStateException("Required value was null.")
+    return value as T
+}
+
+/** Throws [IllegalStateException] with the result of [lazyMessage] if [value] is null. Returns the non-null [value]. */
+public fun <T : Any> checkNotNull(value: T?, lazyMessage: () -> Any): T {
+    if (value == null) throw IllegalStateException(lazyMessage().toString())
+    return value as T
+}
