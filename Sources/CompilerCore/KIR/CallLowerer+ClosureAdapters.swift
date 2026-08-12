@@ -842,7 +842,7 @@ extension CallLowerer {
         // sequence { ... } builder: expand the receiver lambda to (fnPtr, closureRaw).
         // Capturing builder lambdas need the same closure-aware adapter shape as
         // collection HOFs so the runtime can call (closureRaw, builderRaw, outThrown).
-        if externalLinkName == "kk_sequence_builder_build", loweredArguments.count == 1 {
+        if externalLinkName == "__kk_sequence_builder_build", loweredArguments.count == 1 {
             return makeCollectionHOFExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,

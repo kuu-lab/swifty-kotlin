@@ -398,7 +398,7 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 従来どおり `HeaderHelpers+SyntheticAtomicStubs.swift`（2541 行、上表で (b) 計上済み）に分離されている。
 **KSP-499 以降が触るスタブファイルはこの2つのみ**（棚卸し時点の分割ファイル群は現存しない）。
 
-#### (c) 残留（`__kk_` 降格のみ）— 107 関数
+#### (c) 残留（`__kk_` 降格のみ）— 118 関数
 
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
@@ -409,6 +409,7 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 | 同期プリミティブ（カーネルコア c-soft 残留） | `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`, `kk_read_write_lock_{read,write}` | 6 | Sync | KSP-677 再監査で (b) 9 関数を分離（下記） |
 | context | `kk_context_*`(9), `kk_coroutine_name_{create,get}`, `kk_dispatcher_{default,io,main}`, `kk_with_context{,_full}`, `kk_coroutine_{current_context,cancel,cancel_current,check_cancellation}` | 20 | Context / Coroutine |
 | Flow ブリッジ（cold Flow の最小核） | `kk_flow_create`, `kk_flow_emit`, `kk_flow_collect` | 3 | Flow |
+| sequence / iterator builder | `__kk_sequence_builder_{yield,yieldAll,build,build_coro}`, `__kk_iterator_builder_{build,build_coro,yield,hasNext,next,hasNext_coro,next_coro}` | 11 | Sequence |
 | （参考・別系統だが同性質）GC root 登録 | `kk_register_coroutine_root`, `kk_unregister_coroutine_root` | 2 | GC |
 
 ##### 同期プリミティブ 再監査記録（KSP-677, 2026-07-24）

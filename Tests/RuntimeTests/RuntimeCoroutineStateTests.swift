@@ -949,7 +949,7 @@ struct RuntimeCoroutineStateTests {
     @Test func testSequenceCoroutineNextElementAsyncResumesCallerWithoutBlockingWaiter() {
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             Thread.sleep(forTimeInterval: 0.05)
-            _ = kk_sequence_builder_yield(builderRaw, 41)
+            _ = __kk_sequence_builder_yield(builderRaw, 41)
             return 0
         }
         let coroutine = RuntimeSequenceCoroutine(fnPtr: unsafeBitCast(thunk, to: Int.self), closureRaw: 0)
@@ -979,7 +979,7 @@ struct RuntimeCoroutineStateTests {
     @Test func testIteratorBuilderHasNextAsyncResumesCallerWithoutBlockingWaiter() {
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
             Thread.sleep(forTimeInterval: 0.05)
-            _ = kk_iterator_builder_yield(builderRaw, 17)
+            _ = __kk_iterator_builder_yield(builderRaw, 17)
             return 0
         }
         let builder = RuntimeIteratorBuilderBox(fnPtr: unsafeBitCast(thunk, to: Int.self))
