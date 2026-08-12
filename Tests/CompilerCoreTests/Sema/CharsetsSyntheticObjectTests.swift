@@ -11,6 +11,47 @@ import Testing
 @Suite
 struct CharsetsSyntheticObjectTests {
 
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        import kotlin.text.Charsets
+        import kotlin.text.Charset
+
+        fun utf8(): Charset = Charsets.UTF_8
+        fun iso88591(): Charset = Charsets.ISO_8859_1
+        fun usAscii(): Charset = Charsets.US_ASCII
+        fun utf16(): Charset = Charsets.UTF_16
+        fun utf16be(): Charset = Charsets.UTF_16BE
+        fun utf16le(): Charset = Charsets.UTF_16LE
+        fun utf32(): Charset = Charsets.UTF_32
+        fun utf32be(): Charset = Charsets.UTF_32BE
+        fun utf32le(): Charset = Charsets.UTF_32LE
+
+        fun encode(s: String) = s.toByteArray(Charsets.UTF_8)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     private let charsetConstants = [
         "UTF_8", "ISO_8859_1", "US_ASCII",
         "UTF_16", "UTF_16BE", "UTF_16LE",
@@ -18,9 +59,8 @@ struct CharsetsSyntheticObjectTests {
     ]
 
     @Test func testCharsetsAndConstantsAreRegistered() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
 
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
@@ -60,24 +100,8 @@ struct CharsetsSyntheticObjectTests {
     }
 
     @Test func testCharsetsResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.Charsets
-        import kotlin.text.Charset
 
-        fun utf8(): Charset = Charsets.UTF_8
-        fun iso88591(): Charset = Charsets.ISO_8859_1
-        fun usAscii(): Charset = Charsets.US_ASCII
-        fun utf16(): Charset = Charsets.UTF_16
-        fun utf16be(): Charset = Charsets.UTF_16BE
-        fun utf16le(): Charset = Charsets.UTF_16LE
-        fun utf32(): Charset = Charsets.UTF_32
-        fun utf32be(): Charset = Charsets.UTF_32BE
-        fun utf32le(): Charset = Charsets.UTF_32LE
-
-        fun encode(s: String) = s.toByteArray(Charsets.UTF_8)
-        """)
-
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,

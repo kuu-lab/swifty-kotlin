@@ -1,6 +1,6 @@
 import RuntimeABI
 
-/// Synthetic stdlib stubs for kotlin's not-yet-implemented helper, kotlin.io.println (0-arg), and kotlin.io.readLine (STDLIB-063).
+/// Synthetic stdlib stubs for kotlin's not-yet-implemented helper and kotlin.io.readLine (STDLIB-063).
 /// These stubs enable name resolution and type checking; runtime behavior is implemented in Runtime.
 extension DataFlowSemaPhase {
     func registerSyntheticTODOAndIOStubs(
@@ -26,43 +26,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticTopLevelFunction(
-            named: "println",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_println_newline",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "println",
-            packageFQName: kotlinIOPkg,
-            parameters: [(name: "message", type: types.makeNullable(types.anyType))],
-            returnType: types.unitType,
-            externalLinkName: "kk_println_any",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "print",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_print_noarg",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "print",
-            packageFQName: kotlinIOPkg,
-            parameters: [(name: "message", type: types.makeNullable(types.anyType))],
-            returnType: types.unitType,
-            externalLinkName: "kk_print_any",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-614: print / println are implemented in Stdlib/kotlin/io/Console.kt.
 
         registerSyntheticTopLevelFunction(
             named: "readLine",

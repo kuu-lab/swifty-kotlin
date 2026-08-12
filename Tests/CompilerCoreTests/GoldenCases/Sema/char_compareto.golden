@@ -1,7 +1,5 @@
 symbol fq=__local_0.result kind=local vis=private flags=_ type=Int
 symbol fq=charCompareToDemo kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.compareTo#0 kind=function vis=public flags=synthetic sig=recv=Char params=[Char] ret=Int
 symbol fq=kotlin.text.compareTo.other kind=valueParameter vis=private flags=synthetic
 file fchar_compareto package=_

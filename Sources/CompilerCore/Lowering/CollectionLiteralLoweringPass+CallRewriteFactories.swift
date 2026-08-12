@@ -689,11 +689,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // correct builder kind to avoid cross-kind rewrites.
         if let builderCallee = builderLambdaKinds[function.name] {
             var rewrittenCallee: InternedString?
-            if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkBuilderListAddName
-            } else if builderCallee == lookup.buildListName, callee == lookup.addAllName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkBuilderListAddAllName
-            } else if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {
+            if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderSetAddName
             } else if builderCallee == lookup.buildSetName, callee == lookup.addAllName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderSetAddAllName

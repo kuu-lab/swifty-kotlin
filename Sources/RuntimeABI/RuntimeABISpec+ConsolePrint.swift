@@ -4,18 +4,9 @@
 public extension RuntimeABISpec {
     static let consolePrintFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_print_any",
+            name: "__kk_print_raw",
             parameters: [
-                RuntimeABIParameter(name: "obj", type: .nullableOpaquePointer),
-            ],
-            returnType: .void,
-            section: "Print",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_println_any",
-            parameters: [
-                RuntimeABIParameter(name: "obj", type: .nullableOpaquePointer),
+                RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .void,
             section: "Print",
@@ -37,20 +28,6 @@ public extension RuntimeABISpec {
             returnType: .void,
             section: "Print",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_print_noarg",
-            parameters: [],
-            returnType: .void,
-            section: "Print",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_println_newline",
-            parameters: [],
-            returnType: .void,
-            section: "Print",
-            isThrowing: false,
         ),
     ]
 }
