@@ -177,9 +177,9 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //
 //        RuntimeIteratorBuilderBox: probeHasNextAsync(callerState:) installs a
 //        resume continuation in consumerGate so no GCD thread is held while the
-//        producer runs.  New C entry points kk_iterator_builder_hasNext_coro /
-//        kk_iterator_builder_next_coro expose this for coroutine-aware callers.
-//        Existing kk_iterator_builder_hasNext / kk_iterator_builder_next are
+//        producer runs.  New C entry points __kk_iterator_builder_hasNext_coro /
+//        __kk_iterator_builder_next_coro expose this for coroutine-aware callers.
+//        Existing __kk_iterator_builder_hasNext / __kk_iterator_builder_next are
 //        unchanged — callers do not yet check for COROUTINE_SUSPENDED.
 //
 //        RuntimeSequenceCoroutine: awaitProducerYieldAsync(callerState:) and

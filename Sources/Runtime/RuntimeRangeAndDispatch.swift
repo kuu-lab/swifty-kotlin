@@ -611,7 +611,7 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
 @_cdecl("kk_range_hasNext")
 public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
-        return kk_iterator_builder_hasNext(iterRaw)
+        return __kk_iterator_builder_hasNext(iterRaw)
     }
     if runtimeListIteratorBox(from: iterRaw) != nil {
         return kk_list_iterator_hasNext(iterRaw)
@@ -631,7 +631,7 @@ public func kk_range_hasNext(_ iterRaw: Int) -> Int {
 @_cdecl("kk_range_next")
 public func kk_range_next(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
-        return kk_iterator_builder_next(iterRaw)
+        return __kk_iterator_builder_next(iterRaw)
     }
     if runtimeListIteratorBox(from: iterRaw) != nil {
         return kk_list_iterator_next(iterRaw)
@@ -647,7 +647,7 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
 @_cdecl("kk_iterator_hasNext")
 public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
-        return kk_iterator_builder_hasNext(iterRaw)
+        return __kk_iterator_builder_hasNext(iterRaw)
     }
     if runtimeRangeIteratorBox(from: iterRaw) != nil {
         return kk_range_hasNext(iterRaw)
@@ -673,7 +673,7 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
 @_cdecl("kk_iterator_next")
 public func kk_iterator_next(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
-        return kk_iterator_builder_next(iterRaw)
+        return __kk_iterator_builder_next(iterRaw)
     }
     if runtimeRangeIteratorBox(from: iterRaw) != nil {
         return kk_range_next(iterRaw)
