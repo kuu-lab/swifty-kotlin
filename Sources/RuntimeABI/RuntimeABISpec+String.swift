@@ -1432,43 +1432,9 @@ public extension RuntimeABISpec {
             section: "ByteArray"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_isSupplementaryCodePoint",
-            parameters: [
-                RuntimeABIParameter(name: "codepoint", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_isSurrogatePair",
-            parameters: [
-                RuntimeABIParameter(name: "high", type: .intptr),
-                RuntimeABIParameter(name: "low", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_char_isIdentifierIgnorable",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_toChars",
-            parameters: [
-                RuntimeABIParameter(name: "codePoint", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_toCodePoint",
-            parameters: [
-                RuntimeABIParameter(name: "high", type: .intptr),
-                RuntimeABIParameter(name: "low", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
