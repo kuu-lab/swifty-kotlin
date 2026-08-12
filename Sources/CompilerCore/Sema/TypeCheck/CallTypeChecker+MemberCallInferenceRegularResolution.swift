@@ -1565,7 +1565,9 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         switch interner.resolve(calleeName) {
-        case "contains", "isEmpty", "iterator":
+        case "contains", "isEmpty", "iterator",
+             "toList", "forEach", "map", "filter",
+             "take", "drop", "sorted", "average":
             return true
         default:
             return false
