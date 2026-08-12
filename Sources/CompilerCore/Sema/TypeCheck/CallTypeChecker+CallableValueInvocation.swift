@@ -6,38 +6,66 @@ extension CallTypeChecker {
         returnType: TypeID,
         sema: SemaModule
     ) {
-        guard let externalLinkName = sema.symbols.externalLinkName(for: chosen) else {
-            return
-        }
-        guard [
-            "kk_op_rangeTo",
-            "__kk_op_rangeUntil",
-            "__kk_op_ulong_rangeUntil",
-            "kk_uint_rangeTo",
-            "kk_char_rangeTo",
-            "__kk_int_progression_fromClosedRange",
-            "__kk_long_progression_fromClosedRange",
-            "__kk_uint_progression_fromClosedRange",
-            "__kk_ulong_progression_fromClosedRange",
-            "__kk_char_progression_fromClosedRange",
-        ].contains(externalLinkName) else {
-            return
+        let interner = driver.interner
+        let isRangeConstructor: Bool
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
+            isRangeConstructor = [
+                "kk_op_rangeTo",
+                "__kk_op_rangeUntil",
+                "__kk_op_ulong_rangeUntil",
+                "kk_uint_rangeTo",
+                "kk_char_rangeTo",
+                "__kk_int_progression_fromClosedRange",
+                "__kk_long_progression_fromClosedRange",
+                "__kk_uint_progression_fromClosedRange",
+                "__kk_ulong_progression_fromClosedRange",
+                "__kk_char_progression_fromClosedRange",
+            ].contains(externalLinkName)
+        } else if let symbol = sema.symbols.symbol(chosen) {
+            let name = interner.resolve(symbol.name)
+            isRangeConstructor = ["until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(name)
+                && driver.helpers.isRangeLikeType(returnType, sema: sema, interner: interner)
+        } else {
+            isRangeConstructor = false
         }
 
+        guard isRangeConstructor else { return }
+
         sema.bindings.markRangeExpr(id)
-        if externalLinkName == "kk_uint_rangeTo"
-            || externalLinkName == "__kk_uint_progression_fromClosedRange"
-            || (externalLinkName == "__kk_op_rangeUntil" && returnType == sema.types.uintType)
-        {
-            sema.bindings.markUIntRangeExpr(id)
+
+        // Classify the concrete range/progression kind for UInt/ULong/Char dispatch.
+        if let (_, symbol) = resolveClassTypeSymbol(returnType, sema: sema) {
+            let className = interner.resolve(symbol.name)
+            switch className {
+            case "UIntRange", "UIntProgression":
+                sema.bindings.markUIntRangeExpr(id)
+            case "ULongRange", "ULongProgression":
+                sema.bindings.markULongRangeExpr(id)
+            case "CharRange", "CharProgression":
+                sema.bindings.markCharRangeExpr(id)
+            default:
+                break
+            }
         }
-        if externalLinkName == "kk_char_rangeTo" {
-            sema.bindings.markCharRangeExpr(id)
-        }
-        if externalLinkName == "__kk_ulong_progression_fromClosedRange"
-            || externalLinkName == "__kk_op_ulong_rangeUntil"
-        {
-            sema.bindings.markULongRangeExpr(id)
+
+        // Preserve the legacy external-link-name fast paths for the residual
+        // synthetic/runtime-backed operators (rangeTo, old signed rangeUntil,
+        // etc.) whose return type may still be the scalar handle.
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
+            if externalLinkName == "kk_uint_rangeTo"
+                || externalLinkName == "__kk_uint_progression_fromClosedRange"
+                || (externalLinkName == "__kk_op_rangeUntil" && returnType == sema.types.uintType)
+            {
+                sema.bindings.markUIntRangeExpr(id)
+            }
+            if externalLinkName == "kk_char_rangeTo" {
+                sema.bindings.markCharRangeExpr(id)
+            }
+            if externalLinkName == "__kk_ulong_progression_fromClosedRange"
+                || externalLinkName == "__kk_op_ulong_rangeUntil"
+            {
+                sema.bindings.markULongRangeExpr(id)
+            }
         }
     }
 
