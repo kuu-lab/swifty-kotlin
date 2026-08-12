@@ -27,36 +27,7 @@ extension DataFlowSemaPhase {
         )
 
         // KSP-614: print / println are implemented in Stdlib/kotlin/io/Console.kt.
-
-        registerSyntheticTopLevelFunction(
-            named: "readLine",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.makeNullable(types.stringType),
-            externalLinkName: "kk_readline",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "readln",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.stringType,
-            externalLinkName: "kk_readln",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "readlnOrNull",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.makeNullable(types.stringType),
-            externalLinkName: "kk_readlnOrNull",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-615: readLine / readln / readlnOrNull are implemented in Stdlib/kotlin/io/Console.kt.
 
         // --- Sequence factory functions (STDLIB-097) ---
         let kotlinSequencesPkg = ensureSyntheticPackageHierarchy(

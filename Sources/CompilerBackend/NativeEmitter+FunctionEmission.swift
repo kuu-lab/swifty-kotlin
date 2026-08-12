@@ -3320,7 +3320,8 @@ extension NativeEmitter {
         case "__intLowestOneBit": "kk_int_lowestOneBit"
         case "__longHighestOneBit": "kk_long_highestOneBit"
         case "__longLowestOneBit": "kk_long_lowestOneBit"
-        case "__readlnOrNull": "kk_readlnOrNull"
+        case "__assert": "kk_precondition_assert"
+        case "__assertLazy": "kk_precondition_assert_lazy"
         default: nil
         }
     }
