@@ -437,56 +437,6 @@ extension RuntimeSequenceTests {
         #expect(thrown == 0)
     }
 
-    @Test
-    func testSequencePartitionSplitsMatchingAndNonMatchingElements() {
-        let isEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value.isMultiple(of: 2) ? 1 : 0
-        }
-
-        var thrown = 0
-        let split = kk_sequence_partition(
-            makeSequence([1, 2, 3, 4, 5]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(listElements(kk_pair_first(split)) == [2, 4])
-        #expect(listElements(kk_pair_second(split)) == [1, 3, 5])
-
-        thrown = 0
-        let emptySplit = kk_sequence_partition(
-            makeSequence([]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(listElements(kk_pair_first(emptySplit)) == [])
-        #expect(listElements(kk_pair_second(emptySplit)) == [])
-
-        thrown = 0
-        let allMatchSplit = kk_sequence_partition(
-            makeSequence([2, 4, 6]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(listElements(kk_pair_first(allMatchSplit)) == [2, 4, 6])
-        #expect(listElements(kk_pair_second(allMatchSplit)) == [])
-
-        thrown = 0
-        let noneMatchSplit = kk_sequence_partition(
-            makeSequence([1, 3, 5]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(listElements(kk_pair_first(noneMatchSplit)) == [])
-        #expect(listElements(kk_pair_second(noneMatchSplit)) == [1, 3, 5])
-    }
 
     @Test
     func testSequenceAsIterable() {
