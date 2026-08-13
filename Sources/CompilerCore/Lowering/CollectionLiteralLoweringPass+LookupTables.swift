@@ -224,9 +224,6 @@ struct CollectionLiteralLookupTables {
     var kkSequenceFlatMapIndexedName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedName }
     var kkSequenceShuffledName: InternedString { sequenceLookup.kkSequenceShuffledName }
     var kkSequenceShuffledRandomName: InternedString { sequenceLookup.kkSequenceShuffledRandomName }
-    var kkSequenceAssociateToName: InternedString { sequenceLookup.kkSequenceAssociateToName }
-    var kkSequenceAssociateByToName: InternedString { sequenceLookup.kkSequenceAssociateByToName }
-    var kkSequenceAssociateWithToName: InternedString { sequenceLookup.kkSequenceAssociateWithToName }
     var kkSequenceForEachIndexedName: InternedString { sequenceLookup.kkSequenceForEachIndexedName }
     var kkSequenceScanName: InternedString { sequenceLookup.kkSequenceScanName }
     var kkSequenceRunningFoldName: InternedString { sequenceLookup.kkSequenceRunningFoldName }
@@ -235,7 +232,6 @@ struct CollectionLiteralLookupTables {
     var kkSequenceToMapName: InternedString { sequenceLookup.kkSequenceToMapName }
     var kkSequenceToCollectionName: InternedString { sequenceLookup.kkSequenceToCollectionName }
     var kkSequenceGroupByName: InternedString { sequenceLookup.kkSequenceGroupByName }
-    var kkSequenceGroupByToName: InternedString { sequenceLookup.kkSequenceGroupByToName }
     var kkSequenceMaxName: InternedString { sequenceLookup.kkSequenceMaxName }
     var kkSequenceMaxOrNullName: InternedString { sequenceLookup.kkSequenceMaxOrNullName }
     var kkSequenceMinOrNullName: InternedString { sequenceLookup.kkSequenceMinOrNullName }
@@ -251,7 +247,6 @@ struct CollectionLiteralLookupTables {
     var kkSequencePlusElementName: InternedString { sequenceLookup.kkSequencePlusElementName }
     var kkSequenceMinusName: InternedString { sequenceLookup.kkSequenceMinusName }
     var kkSequenceOfSingleName: InternedString { sequenceLookup.kkSequenceOfSingleName }
-    var kkSequencePartitionName: InternedString { sequenceLookup.kkSequencePartitionName }
     var kkSequenceFilterToName: InternedString { sequenceLookup.kkSequenceFilterToName }
     var kkSequenceFilterNotToName: InternedString { sequenceLookup.kkSequenceFilterNotToName }
     var kkSequenceMapToName: InternedString { sequenceLookup.kkSequenceMapToName }

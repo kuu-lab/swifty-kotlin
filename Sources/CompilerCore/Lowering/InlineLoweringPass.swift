@@ -40,8 +40,8 @@ final class InlineLoweringPass: LoweringPass {
             return (function.symbol, function)
         })
         if let imported = ctx.sema?.importedInlineFunctions {
-            for (symbol, function) in imported where inlineFunctionsBySymbol[symbol] == nil {
-                inlineFunctionsBySymbol[symbol] = function
+            for symbol in imported.keys.sorted(by: { $0.rawValue < $1.rawValue }) where inlineFunctionsBySymbol[symbol] == nil {
+                inlineFunctionsBySymbol[symbol] = imported[symbol]
             }
         }
         // Build a lookup of all KIR functions by symbol so that lambda bodies
@@ -76,7 +76,8 @@ final class InlineLoweringPass: LoweringPass {
             unitType: unitType
         )
 
-        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+        let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
+        let inlineFunctionsByName = Dictionary(grouping: sortedInlineFunctions, by: \.name)
 
         module.arena.transformFunctions { [self] function in
             inlineTransform(
@@ -107,40 +108,28 @@ final class InlineLoweringPass: LoweringPass {
     ) {
         guard !bodylessInlineSymbols.isEmpty else { return }
         var originals = allFunctionsBySymbol
-        for (symbol, function) in inlineFunctionsBySymbol where originals[symbol] == nil {
+        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue }) where originals[symbol] == nil {
             originals[symbol] = function
         }
         var expandedBySymbol: [SymbolID: KIRFunction] = [:]
 
         for _ in 0 ..< 4 {
-            let pending = originals.values.filter { function in
-                let current = expandedBySymbol[function.symbol] ?? function
-                return current.body.contains { instruction in
-                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
-                          let symbol, symbol != function.symbol
-                    else {
-                        return false
+            let pending = originals.values
+                .filter { function in
+                    let current = expandedBySymbol[function.symbol] ?? function
+                    return current.body.contains { instruction in
+                        guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                              let symbol, symbol != function.symbol
+                        else {
+                            return false
+                        }
+                        return bodylessInlineSymbols.contains(symbol)
                     }
-                    return bodylessInlineSymbols.contains(symbol)
                 }
-            }.sorted(by: { lhs, rhs in
-                let lhsName = ctx.interner.resolve(lhs.name)
-                let rhsName = ctx.interner.resolve(rhs.name)
-                if lhsName != rhsName { return lhsName < rhsName }
-                if lhs.params.count != rhs.params.count { return lhs.params.count < rhs.params.count }
-                if let lhsRange = lhs.sourceRange, let rhsRange = rhs.sourceRange {
-                    if lhsRange.start.file.rawValue != rhsRange.start.file.rawValue {
-                        return lhsRange.start.file.rawValue < rhsRange.start.file.rawValue
-                    }
-                    if lhsRange.start.offset != rhsRange.start.offset {
-                        return lhsRange.start.offset < rhsRange.start.offset
-                    }
-                    return lhsRange.end.offset < rhsRange.end.offset
-                }
-                return false
-            })
+                .sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
             guard !pending.isEmpty else { return }
-            let byName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+            let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
+            let byName = Dictionary(grouping: sortedInlineFunctions, by: \.name)
             for function in pending {
                 let expanded = inlineTransform(
                     function: function,

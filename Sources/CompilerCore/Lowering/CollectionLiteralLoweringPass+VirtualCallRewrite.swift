@@ -818,7 +818,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         // arguments: [destination, lambda] or [destination, lambda, closureRaw]
         guard arguments.count == 2 || arguments.count == 3,
-              listExprIDs.contains(receiver.rawValue) || sequenceExprIDs.contains(receiver.rawValue)
+              listExprIDs.contains(receiver.rawValue)
         else { return false }
 
         let destID = arguments[0]
@@ -833,14 +833,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             closureRawExpr = zeroExpr
         }
 
-        let isSequenceReceiver = sequenceExprIDs.contains(receiver.rawValue)
         let kkName: InternedString = switch callee {
-        case lookup.associateByToName:
-            isSequenceReceiver ? lookup.kkSequenceAssociateByToName : lookup.kkListAssociateByToName
-        case lookup.associateWithToName:
-            isSequenceReceiver ? lookup.kkSequenceAssociateWithToName : lookup.kkListAssociateWithToName
-        case lookup.groupByToName:
-            isSequenceReceiver ? lookup.kkSequenceGroupByToName : lookup.kkListGroupByToName
+        case lookup.associateByToName: lookup.kkListAssociateByToName
+        case lookup.associateWithToName: lookup.kkListAssociateWithToName
+        case lookup.groupByToName: lookup.kkListGroupByToName
         default: callee
         }
 

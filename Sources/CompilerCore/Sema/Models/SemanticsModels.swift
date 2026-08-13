@@ -747,9 +747,9 @@ public final class SymbolTable {
         delegatedInterfacesByClass[classSymbol, default: []].insert(interfaceSymbol)
     }
 
-    /// CLASS-008: Return the set of interface symbols that a class delegates to.
-    public func delegatedInterfaces(forClass classSymbol: SymbolID) -> Set<SymbolID> {
-        delegatedInterfacesByClass[classSymbol] ?? []
+    /// CLASS-008: Return the interface symbols that a class delegates to in a stable order.
+    public func delegatedInterfaces(forClass classSymbol: SymbolID) -> [SymbolID] {
+        (delegatedInterfacesByClass[classSymbol] ?? []).sorted(by: { $0.rawValue < $1.rawValue })
     }
 
     /// CLASS-008: Map from (classSymbol, interfaceSymbol) to the delegate field symbol.

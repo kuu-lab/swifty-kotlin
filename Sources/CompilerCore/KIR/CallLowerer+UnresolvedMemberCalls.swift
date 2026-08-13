@@ -431,15 +431,8 @@ extension CallLowerer {
             let sortedWithName = interner.intern("sortedWith")
             let sortedByDescendingName = interner.intern("sortedByDescending")
             let sortedDescendingName = interner.intern("sortedDescending")
-            let joinToName = interner.intern("joinTo")
-            let joinToStringName = interner.intern("joinToString")
-            let sumOfName = interner.intern("sumOf")
-            let sumByName = interner.intern("sumBy")
-            let sumByDoubleName = interner.intern("sumByDouble")
             let firstNotNullOfName = interner.intern("firstNotNullOf")
             let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
-            let associateName = interner.intern("associate")
-            let associateByName = interner.intern("associateBy")
             let firstName = interner.intern("first")
             let firstOrNullName = interner.intern("firstOrNull")
             let lastName = interner.intern("last")
@@ -482,34 +475,10 @@ extension CallLowerer {
                 default:
                     return nil
                 }
-            case joinToName:
-                return interner.intern("kk_sequence_joinTo")
-            case joinToStringName:
-                return interner.intern("kk_sequence_joinToString")
-            case sumOfName:
-                return interner.intern("kk_sequence_sumOf")
-            case sumByName:
-                return interner.intern("kk_sequence_sumBy")
-            case sumByDoubleName:
-                return interner.intern("kk_sequence_sumByDouble")
             case firstNotNullOfName:
                 return interner.intern("kk_sequence_firstNotNullOf")
             case firstNotNullOfOrNullName:
                 return interner.intern("kk_sequence_firstNotNullOfOrNull")
-            case associateName:
-                return interner.intern("kk_sequence_associate")
-            case associateByName:
-                return interner.intern("kk_sequence_associateBy")
-            case interner.intern("associateTo"):
-                return interner.intern("kk_sequence_associateTo")
-            case interner.intern("associateByTo"):
-                return interner.intern("kk_sequence_associateByTo")
-            case interner.intern("associateWith"):
-                return interner.intern("kk_sequence_associateWith")
-            case interner.intern("associateWithTo"):
-                return interner.intern("kk_sequence_associateWithTo")
-            case interner.intern("groupByTo"):
-                return interner.intern("kk_sequence_groupByTo")
             case interner.intern("flatMapIndexedTo"):
                 return interner.intern("kk_sequence_flatMapIndexedTo")
             case interner.intern("flatMapTo"):
@@ -619,34 +588,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toSortedSet")
             case interner.intern("toHashSet"):
                 return interner.intern("kk_sequence_toHashSet")
-            case interner.intern("partition"):
-                return interner.intern("kk_sequence_partition")
-            case interner.intern("minBy"):
-                return interner.intern("kk_sequence_minBy")
             case interner.intern("min"):
                 return interner.intern("kk_sequence_min")
-            case interner.intern("maxBy"):
-                return interner.intern("kk_sequence_maxBy")
-            case interner.intern("minByOrNull"):
-                return interner.intern("kk_sequence_minByOrNull")
-            case interner.intern("maxByOrNull"):
-                return interner.intern("kk_sequence_maxByOrNull")
-            case interner.intern("maxWith"):
-                return interner.intern("kk_sequence_maxWith")
-            case interner.intern("maxWithOrNull"):
-                return interner.intern("kk_sequence_maxWithOrNull")
-            case interner.intern("minOf"):
-                return interner.intern("kk_sequence_minOf")
-            case interner.intern("minOfOrNull"):
-                return interner.intern("kk_sequence_minOfOrNull")
-            case interner.intern("maxOfOrNull"):
-                return interner.intern("kk_sequence_maxOfOrNull")
-            case interner.intern("minWithOrNull"):
-                return interner.intern("kk_sequence_minWithOrNull")
-            case interner.intern("minWith"):
-                return interner.intern("kk_sequence_minWith")
-            case interner.intern("maxOf"):
-                return interner.intern("kk_sequence_maxOf")
             case interner.intern("unzip"):
                 return interner.intern("kk_sequence_unzip")
             case interner.intern("foldIndexed"):

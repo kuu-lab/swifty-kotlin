@@ -311,7 +311,7 @@ extension ListSyntheticMemberLinkTests {
                 return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_joinToString")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected Sequence.joinToString to have no bundled external link")
         }
     }
 
