@@ -10,7 +10,7 @@ struct RuntimeRangeStepTests {
     @Test func testStepAlignmentPositiveStep() {
         // (1..10) step 3 -> elements: 1, 4, 7, 10; last aligned to 10
         let range = kk_op_rangeTo(1, 10)
-        let stepped = kk_op_step(range, 3, nil)
+        let stepped = __kk_op_step(range, 3, nil)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
         #expect(kk_range_count(stepped) == 4)
@@ -19,7 +19,7 @@ struct RuntimeRangeStepTests {
     @Test func testStepAlignmentPositiveStepUneven() {
         // (1..9) step 2 -> elements: 1, 3, 5, 7, 9; last aligned to 9
         let range = kk_op_rangeTo(1, 9)
-        let stepped = kk_op_step(range, 2, nil)
+        let stepped = __kk_op_step(range, 2, nil)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 9)
         #expect(kk_range_count(stepped) == 5)
@@ -28,7 +28,7 @@ struct RuntimeRangeStepTests {
     @Test func testStepAlignmentPositiveStepAlignedDown() {
         // (1..10) step 4 -> elements: 1, 5, 9; last aligned to 9
         let range = kk_op_rangeTo(1, 10)
-        let stepped = kk_op_step(range, 4, nil)
+        let stepped = __kk_op_step(range, 4, nil)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 9)
         #expect(kk_range_count(stepped) == 3)
@@ -38,8 +38,8 @@ struct RuntimeRangeStepTests {
 
     @Test func testStepAlignmentNegativeStep() {
         // (10 downTo 1) step 3 -> elements: 10, 7, 4, 1; last aligned to 1
-        let range = kk_op_downTo(10, 1)
-        let stepped = kk_op_step(range, 3, nil)
+        let range = __kk_op_downTo(10, 1)
+        let stepped = __kk_op_step(range, 3, nil)
         #expect(kk_range_first(stepped) == 10)
         #expect(kk_range_last(stepped) == 1)
         #expect(kk_range_count(stepped) == 4)
@@ -47,8 +47,8 @@ struct RuntimeRangeStepTests {
 
     @Test func testStepAlignmentNegativeStepAlignedUp() {
         // (10 downTo 1) step 4 -> elements: 10, 6, 2; last aligned to 2
-        let range = kk_op_downTo(10, 1)
-        let stepped = kk_op_step(range, 4, nil)
+        let range = __kk_op_downTo(10, 1)
+        let stepped = __kk_op_step(range, 4, nil)
         #expect(kk_range_first(stepped) == 10)
         #expect(kk_range_last(stepped) == 2)
         #expect(kk_range_count(stepped) == 3)
@@ -58,8 +58,8 @@ struct RuntimeRangeStepTests {
 
     @Test func testEmptyProgressionPositiveStep() {
         // (10 until 10) step 2 -> empty; first=10, last=9 (from rangeUntil)
-        let range = kk_op_rangeUntil(10, 10)
-        let stepped = kk_op_step(range, 2, nil)
+        let range = __kk_op_rangeUntil(10, 10)
+        let stepped = __kk_op_step(range, 2, nil)
         #expect(kk_range_first(stepped) == 10)
         #expect(kk_range_last(stepped) == 9)
         #expect(kk_range_count(stepped) == 0)
@@ -68,14 +68,14 @@ struct RuntimeRangeStepTests {
     @Test func testEmptyProgressionPositiveStepReversed() {
         // (5..3) step 2 -> empty (first > last for positive step)
         let range = kk_op_rangeTo(5, 3)
-        let stepped = kk_op_step(range, 2, nil)
+        let stepped = __kk_op_step(range, 2, nil)
         #expect(kk_range_count(stepped) == 0)
     }
 
     @Test func testEmptyProgressionNegativeStep() {
         // (1 downTo 3) step 3 -> empty (first < last for negative step)
-        let range = kk_op_downTo(1, 3)
-        let stepped = kk_op_step(range, 3, nil)
+        let range = __kk_op_downTo(1, 3)
+        let stepped = __kk_op_step(range, 3, nil)
         #expect(kk_range_count(stepped) == 0)
     }
 
@@ -95,7 +95,7 @@ struct RuntimeRangeStepTests {
     @Test func testExtremeRangeStepDoesNotTrap() {
         // (Int.min..Int.max) step 2 should not trap
         let range = kk_op_rangeTo(Int.min, Int.max)
-        let stepped = kk_op_step(range, 2, nil)
+        let stepped = __kk_op_step(range, 2, nil)
         // Should not crash; just verify we get a valid range back
         _ = kk_range_first(stepped)
         _ = kk_range_last(stepped)
@@ -103,8 +103,8 @@ struct RuntimeRangeStepTests {
 
     @Test func testExtremeRangeDownToDoesNotTrap() {
         // (Int.max downTo Int.min) step 2 should not trap
-        let range = kk_op_downTo(Int.max, Int.min)
-        let stepped = kk_op_step(range, 2, nil)
+        let range = __kk_op_downTo(Int.max, Int.min)
+        let stepped = __kk_op_step(range, 2, nil)
         _ = kk_range_first(stepped)
         _ = kk_range_last(stepped)
     }
@@ -112,7 +112,7 @@ struct RuntimeRangeStepTests {
     @Test func testStepSingleElementRange() {
         // (5..5) step 1 -> [5]
         let range = kk_op_rangeTo(5, 5)
-        let stepped = kk_op_step(range, 1, nil)
+        let stepped = __kk_op_step(range, 1, nil)
         #expect(kk_range_first(stepped) == 5)
         #expect(kk_range_last(stepped) == 5)
         #expect(kk_range_count(stepped) == 1)
@@ -121,7 +121,7 @@ struct RuntimeRangeStepTests {
     @Test func testRangeToListWithStep() {
         // (1..10) step 3 -> [1, 4, 7, 10]
         let range = kk_op_rangeTo(1, 10)
-        let stepped = kk_op_step(range, 3, nil)
+        let stepped = __kk_op_step(range, 3, nil)
         let list = kk_range_toList(stepped)
         #expect(kk_list_size(list) == 4)
         #expect(kk_list_get(list, 0) == 1)
@@ -132,8 +132,8 @@ struct RuntimeRangeStepTests {
 
     @Test func testDownToToListWithStep() {
         // (10 downTo 1) step 3 -> [10, 7, 4, 1]
-        let range = kk_op_downTo(10, 1)
-        let stepped = kk_op_step(range, 3, nil)
+        let range = __kk_op_downTo(10, 1)
+        let stepped = __kk_op_step(range, 3, nil)
         let list = kk_range_toList(stepped)
         #expect(kk_list_size(list) == 4)
         #expect(kk_list_get(list, 0) == 10)
@@ -144,7 +144,7 @@ struct RuntimeRangeStepTests {
 
     @Test func testEmptyRangeToListIsEmpty() {
         // (10 until 10) -> empty
-        let range = kk_op_rangeUntil(10, 10)
+        let range = __kk_op_rangeUntil(10, 10)
         let list = kk_range_toList(range)
         #expect(kk_list_size(list) == 0)
     }
@@ -182,21 +182,21 @@ struct RuntimeRangeStepTests {
     // MARK: - Progression fromClosedRange tests (STDLIB-RANGE-039)
 
     @Test func testIntProgressionFromClosedRange() {
-        let progression = kk_int_progression_fromClosedRange(0, 1, 10, 2, nil)
+        let progression = __kk_int_progression_fromClosedRange(0, 1, 10, 2, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 9)
         #expect(kk_range_count(progression) == 5) // 1,3,5,7,9
     }
 
     @Test func testLongProgressionFromClosedRange() {
-        let progression = kk_long_progression_fromClosedRange(0, 1, 10, 3, nil)
+        let progression = __kk_long_progression_fromClosedRange(0, 1, 10, 3, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 10)
         #expect(kk_range_count(progression) == 4) // 1,4,7,10
     }
 
     @Test func testUIntProgressionFromClosedRange() {
-        let progression = kk_uint_progression_fromClosedRange(0, 1, 10, 2, nil)
+        let progression = __kk_uint_progression_fromClosedRange(0, 1, 10, 2, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 9)
         let list = kk_uint_range_toList(progression)
@@ -204,7 +204,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongProgressionFromClosedRange() {
-        let progression = kk_ulong_progression_fromClosedRange(0, 1, 10, 3, nil)
+        let progression = __kk_ulong_progression_fromClosedRange(0, 1, 10, 3, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 10)
         let list = kk_ulong_range_toList(progression)
@@ -222,7 +222,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testUIntDownTo() {
-        let range = kk_uint_downTo(10, 1)
+        let range = __kk_uint_downTo(10, 1)
         #expect(kk_range_first(range) == 10)
         #expect(kk_range_last(range) == 1)
         #expect(kk_range_count(range) == 10)
@@ -230,7 +230,7 @@ struct RuntimeRangeStepTests {
 
     @Test func testUIntStep() {
         let range = kk_uint_rangeTo(1, 10)
-        let stepped = kk_uint_step(range, 3)
+        let stepped = __kk_uint_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
         let list = kk_uint_range_toList(stepped)
@@ -260,7 +260,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testUIntRangeToUIntArray() {
-        let range = kk_uint_step(kk_uint_rangeTo(1, 7), 3)
+        let range = __kk_uint_step(kk_uint_rangeTo(1, 7), 3)
         let array = kk_uint_range_toUIntArray(range)
         #expect(kk_list_size(array) == 3)
         #expect(kk_list_get(array, 0) == 1)
@@ -283,7 +283,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testUIntUntilToList() {
-        let range = kk_uint_step(kk_op_rangeUntil(1, 5), 1)
+        let range = __kk_uint_step(__kk_op_rangeUntil(1, 5), 1)
         let list = kk_uint_range_toList(range)
         #expect(kk_list_size(list) == 4)
         #expect(kk_list_get(list, 0) == 1)
@@ -301,7 +301,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongDownTo() {
-        let range = kk_ulong_downTo(10, 1)
+        let range = __kk_ulong_downTo(10, 1)
         #expect(kk_range_first(range) == 10)
         #expect(kk_range_last(range) == 1)
         #expect(kk_range_count(range) == 10)
@@ -309,7 +309,7 @@ struct RuntimeRangeStepTests {
 
     @Test func testULongStep() {
         let range = kk_ulong_rangeTo(1, 10)
-        let stepped = kk_ulong_step(range, 3)
+        let stepped = __kk_ulong_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
         let list = kk_ulong_range_toList(stepped)
@@ -325,7 +325,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongRangeToULongArray() {
-        let range = kk_ulong_step(kk_ulong_rangeTo(1, 7), 3)
+        let range = __kk_ulong_step(kk_ulong_rangeTo(1, 7), 3)
         let array = kk_ulong_range_toULongArray(range)
         #expect(kk_list_size(array) == 3)
         #expect(kk_list_get(array, 0) == 1)
@@ -345,7 +345,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testRangeContainsWithStep() {
-        let range = kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
+        let range = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
         #expect(kk_range_contains(range, 1) == 1)
         #expect(kk_range_contains(range, 4) == 1)
         #expect(kk_range_contains(range, 7) == 1)
@@ -355,7 +355,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testRangeContainsNegativeStep() {
-        let range = kk_op_downTo(10, 1)
+        let range = __kk_op_downTo(10, 1)
         #expect(kk_range_contains(range, 10) == 1)
         #expect(kk_range_contains(range, 5) == 1)
         #expect(kk_range_contains(range, 1) == 1)
@@ -364,7 +364,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testRangeContainsWithNegativeStep() {
-        let range = kk_op_step(kk_op_downTo(10, 1), 3, nil)
+        let range = __kk_op_step(__kk_op_downTo(10, 1), 3, nil)
         #expect(kk_range_contains(range, 10) == 1)
         #expect(kk_range_contains(range, 7) == 1)
         #expect(kk_range_contains(range, 4) == 1)
@@ -380,13 +380,13 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testRangeStartEndWithDownTo() {
-        let range = kk_op_downTo(8, 2)
+        let range = __kk_op_downTo(8, 2)
         #expect(kk_range_first(range) == 8)
         #expect(kk_range_last(range) == 2)
     }
 
     @Test func testRangeReversedWithStep() {
-        let range = kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
+        let range = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
         let reversed = kk_range_reversed(range)
         #expect(kk_range_first(reversed) == 10)
         #expect(kk_range_last(reversed) == 1)
@@ -401,7 +401,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testRangeReversedWithNegativeStep() {
-        let range = kk_op_step(kk_op_downTo(10, 1), 3, nil)
+        let range = __kk_op_step(__kk_op_downTo(10, 1), 3, nil)
         let reversed = kk_range_reversed(range)
         #expect(kk_range_first(reversed) == 1)
         #expect(kk_range_last(reversed) == 10)
@@ -422,7 +422,7 @@ struct RuntimeRangeStepTests {
         // "Step must be positive, was: 0."
         var thrown = 0
         let range = kk_op_rangeTo(1, 10)
-        _ = kk_op_step(range, 0, &thrown)
+        _ = __kk_op_step(range, 0, &thrown)
         #expect(thrown != 0, "step=0 must throw IllegalArgumentException (STDLIB-022)")
     }
 
@@ -431,22 +431,22 @@ struct RuntimeRangeStepTests {
         // (downTo handles descending ranges internally using a negative internal step)
         var thrown = 0
         let range = kk_op_rangeTo(1, 10)
-        _ = kk_op_step(range, -1, &thrown)
+        _ = __kk_op_step(range, -1, &thrown)
         #expect(thrown != 0, "step=-1 must throw IllegalArgumentException (STDLIB-022)")
     }
 
     @Test func testStepNegativeLargeThrowsIllegalArgumentException() {
         var thrown = 0
         let range = kk_op_rangeTo(1, 100)
-        _ = kk_op_step(range, -5, &thrown)
+        _ = __kk_op_step(range, -5, &thrown)
         #expect(thrown != 0, "step=-5 must throw IllegalArgumentException (STDLIB-022)")
     }
 
     @Test func testStepZeroOnDownToRangeThrowsIllegalArgumentException() {
         // step=0 on a descending (downTo) range should also throw
         var thrown = 0
-        let range = kk_op_downTo(10, 1)
-        _ = kk_op_step(range, 0, &thrown)
+        let range = __kk_op_downTo(10, 1)
+        _ = __kk_op_step(range, 0, &thrown)
         #expect(thrown != 0, "step=0 on downTo range must throw IllegalArgumentException (STDLIB-022)")
     }
 
@@ -454,15 +454,15 @@ struct RuntimeRangeStepTests {
         // Positive step must not set outThrown
         var thrown = 0
         let range = kk_op_rangeTo(1, 10)
-        _ = kk_op_step(range, 2, &thrown)
+        _ = __kk_op_step(range, 2, &thrown)
         #expect(thrown == 0, "Positive step must not throw")
     }
 
     @Test func testStepDownToPositiveStepDoesNotThrow() {
         // downTo with positive step value must not throw
         var thrown = 0
-        let range = kk_op_downTo(10, 1)
-        _ = kk_op_step(range, 3, &thrown)
+        let range = __kk_op_downTo(10, 1)
+        _ = __kk_op_step(range, 3, &thrown)
         #expect(thrown == 0, "downTo with positive step must not throw")
     }
 }
