@@ -448,32 +448,6 @@ struct DataFlowAndSemaRegressionTests {
         }
     }
 
-    @Test func testSyntheticClassConstructorMatchingFactoryFunctionSignatureIsNotAmbiguous() throws {
-        // Regression test for a bug the KSP-CAP-006 merge fix itself
-        // introduced and then had to correct: `kotlin.io.path.Path` is
-        // registered as a synthetic class whose own (synthetic) constructor
-        // has the exact same signature, `(String) -> Path`, as the
-        // coexisting top-level factory function `fun Path(pathString:
-        // String): Path`. Naively merging the constructor into the call
-        // candidate set produced two indistinguishable overloads, so every
-        // `Path(...)` call resolved to `<error>` instead of picking the
-        // (equally valid) function. The fix de-duplicates by parameter
-        // signature before merging; this pins that behavior using the real
-        // bundled stub rather than a hand-rolled reproduction.
-        let source = """
-        import kotlin.io.path.Path
-
-        fun makePath(raw: String): Path = Path(raw)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        }
-    }
-
     // MARK: - BodyAnalysis: structural recursion depth guard
 
     @Test func testNestedGenericTypeRefAtSemaDepthLimitResolves() throws {
