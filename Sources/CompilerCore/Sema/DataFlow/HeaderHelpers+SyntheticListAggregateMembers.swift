@@ -426,47 +426,6 @@ extension DataFlowSemaPhase {
         // lookup that would otherwise find both Kotlin-source overloads,
         // permanently hiding the predicate overload.
 
-        let predicateType = types.make(.functionType(FunctionType(
-            params: [listTypeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-        // takeWhile / dropWhile / takeLastWhile / dropLastWhile (STDLIB-440)
-        for (funcName, linkName, canThrow) in [
-            ("takeWhile", "kk_list_takeWhile", true),
-            ("dropWhile", "kk_list_dropWhile", false),
-            ("takeLastWhile", "kk_list_takeLastWhile", false),
-            ("dropLastWhile", "kk_list_dropLastWhile", true),
-        ] {
-            let name = interner.intern(funcName)
-            let fqName = listFQName + [name]
-            if symbols.lookup(fqName: fqName) == nil {
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: name,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .inlineFunction]
-                )
-                symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName(linkName, for: memberSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [predicateType],
-                        returnType: receiverType,
-                        canThrow: canThrow,
-                        typeParameterSymbols: [listTypeParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-        }
-
         let sumOfName = interner.intern("sumOf")
         let sumOfFQName = listFQName + [sumOfName]
         let shouldSkipSumOf: Bool

@@ -46,11 +46,13 @@ extension CallLowerer {
         let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
         let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
         let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+        let byteType = sema.types.byteType
+        let shortType = sema.types.shortType
         var receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         if nullableReceiverAllowed {
             receiverType = sema.types.makeNonNullable(receiverType)
         }
-        return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType
+        return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType || receiverType == byteType || receiverType == shortType
     }
 
     func appendReceiverToMemberArguments(
@@ -328,13 +330,6 @@ extension CallLowerer {
         {
             finalArguments.insert(receiver.loweredID, at: 0)
         }
-        if loweredCallee == interner.intern("kk_char_digitToChar_radix"),
-           finalArguments.count == 1
-        {
-            let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
-            instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
-            finalArguments.append(radixExpr)
-        }
         // Array.count() with no predicate: kk_array_count's native signature always
         // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
         // lambda argument, finalArguments only has the receiver. Without this padding,
@@ -607,11 +602,8 @@ extension CallLowerer {
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
         if loweredCallee == interner.intern("kk_list_sumOf")
-            || loweredCallee == interner.intern("kk_sequence_sumOf")
             || loweredCallee == interner.intern("kk_list_sumBy")
-            || loweredCallee == interner.intern("kk_list_sumByDouble")
-            || loweredCallee == interner.intern("kk_sequence_sumBy")
-            || loweredCallee == interner.intern("kk_sequence_sumByDouble"),
+            || loweredCallee == interner.intern("kk_list_sumByDouble"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -623,25 +615,7 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_sequence_associate")
-            || loweredCallee == interner.intern("kk_sequence_associateBy")
-            || loweredCallee == interner.intern("kk_sequence_associateWith"),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
-        if loweredCallee == interner.intern("kk_sequence_associateTo")
-            || loweredCallee == interner.intern("kk_sequence_associateByTo")
-            || loweredCallee == interner.intern("kk_sequence_associateWithTo")
-            || loweredCallee == interner.intern("kk_sequence_groupByTo")
-            || loweredCallee == interner.intern("kk_sequence_flatMapIndexedTo"),
+        if loweredCallee == interner.intern("kk_sequence_flatMapIndexedTo"),
            finalArguments.count == 3
         {
             let firstArg = finalArguments[1]
@@ -753,10 +727,6 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
-            interner.intern("kk_sequence_maxWith"),
-            interner.intern("kk_sequence_maxWithOrNull"),
-            interner.intern("kk_sequence_minWithOrNull"),
-            interner.intern("kk_sequence_minWith"),
             interner.intern("kk_list_sortedWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
@@ -787,105 +757,22 @@ extension CallLowerer {
         // The Mutex/Semaphore helpers compose lock()/unlock() and acquire()/release();
         // Lock.withLock delegates to the demoted __kk_lock_withLock bridge via the general
         // closure-taking ABI, so none of them need a dedicated closure-conversion branch.
-        // kk_read_write_lock_read(handle, actionFnPtr, actionEnvPtr) and
-        // kk_read_write_lock_write(handle, actionFnPtr, actionEnvPtr): split the
-        // lambda argument at index 1 into a function pointer and environment pointer.
-        if loweredCallee == interner.intern("kk_read_write_lock_read")
-            || loweredCallee == interner.intern("kk_read_write_lock_write"),
-           finalArguments.count == 2
-        {
-            let lambdaID = finalArguments[1]
-            let fnPtrExpr: KIRExprID
-            let envPtrExpr: KIRExprID
-            if let callableInfo = driver.ctx.callableValueInfo(for: lambdaID) {
-                fnPtrExpr = arena.appendExpr(
-                    .symbolRef(callableInfo.symbol),
-                    type: sema.types.anyType
-                )
-                instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-                if callableInfo.captureArguments.count >= 2 {
-                    // Multi-capture: pack captures into a closure object.
-                    // The lambda has been generated to unpack them via kk_array_get_inbounds.
-                    let intType = sema.types.intType
-                    let anyType = sema.types.anyType
-                    let kkObjectNew = interner.intern("kk_object_new")
-                    let kkArraySet = interner.intern("kk_array_set")
-                    let slotCount = Int64(2 + callableInfo.captureArguments.count)
-                    let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
-                    instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
-                    let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
-                    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-                    let closureObjExpr = arena.appendTemporary(type: anyType)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: kkObjectNew,
-                        arguments: [slotCountExpr, classIDExpr],
-                        result: closureObjExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    for (captureIndex, captureArg) in callableInfo.captureArguments.enumerated() {
-                        let fieldOffset = Int64(captureIndex + 2)
-                        let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)
-                        instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
-                        let unusedResult = arena.appendTemporary(type: anyType)
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: kkArraySet,
-                            arguments: [closureObjExpr, offsetExpr, captureArg],
-                            result: unusedResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                    }
-                    envPtrExpr = closureObjExpr
-                } else if let closureRaw = callableInfo.captureArguments.first {
-                    envPtrExpr = closureRaw
-                } else {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    envPtrExpr = zeroExpr
-                }
-            } else {
-                // Fallback when callableValueInfo is unavailable (e.g. stored lambda /
-                // function reference): treat lambdaID as the function pointer and pass
-                // zero as the environment pointer so the argument count always matches
-                // the 3-parameter ABI (handle, actionFnPtr, actionEnvPtr).
-                fnPtrExpr = lambdaID
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                envPtrExpr = zeroExpr
-            }
-            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
-        // ReentrantReadWriteLock.read(handle, actionFnPtr, actionEnvPtr): split the lambda in
-        // the same way as kk_read_write_lock_read, but leave the continuation out because the
-        // call is synchronous and throw-only.
-        if loweredCallee == interner.intern("kk_reentrant_read_write_lock_read"),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
-        // Virtual dispatch is only correct when no remapping occurred.
-        // KSP-611: an imported interface member is also "remapped" to its own link
-        // name, which for an abstract member is an empty stub, so itable dispatch
-        // must still be attempted in that case; tryEmitVirtualDispatch falls back to
-        // the link name when the receiver has no resolvable itable entry.
-        let isImportedInterfaceMemberLink = chosenCallee.map { callee in
-            isImportedInterfaceMember(callee, sema: sema)
-                && sema.symbols.externalLinkName(for: callee)
-                    .map { interner.intern($0) == loweredCallee } ?? false
+        // Virtual dispatch is only correct when no remapping occurred; a
+        // declaration imported from a precompiled library is always named by
+        // its own mangled link name, which is not such a remapping. KSP-611: for
+        // an abstract imported interface member that link name is an empty stub,
+        // so itable dispatch must be attempted there as well;
+        // tryEmitVirtualDispatch falls back to the link name when the receiver
+        // has no resolvable itable entry.
+        let isImportedLibraryLink = chosenCallee.map { symbol in
+            (!kirIsRuntimeBridgedCallee(symbol, sema: sema)
+                || isImportedInterfaceMember(symbol, sema: sema))
+                && sema.symbols.externalLinkName(for: symbol)
+                    .map { interner.intern($0) == loweredCallee } == true
         } ?? false
-        if loweredCallee == calleeName || isImportedInterfaceMemberLink,
+        if loweredCallee == calleeName || isImportedLibraryLink,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
@@ -963,10 +850,7 @@ extension CallLowerer {
     private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
         Set([
             interner.intern("kk_list_random"),
-            interner.intern("kk_list_take"),
-            interner.intern("kk_list_takeLast"),
             interner.intern("kk_sequence_takeLast"),
-            interner.intern("kk_list_drop"),
             interner.intern("kk_list_max"),
             interner.intern("kk_list_minBy"),
             interner.intern("kk_list_min"),
@@ -977,31 +861,10 @@ extension CallLowerer {
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_maxOfWith"),
             interner.intern("kk_list_minOfWith"),
-            interner.intern("kk_list_fold"),
-            interner.intern("kk_list_foldRight"),
-            interner.intern("kk_list_reduce"),
-            interner.intern("kk_list_reduceRight"),
-            interner.intern("kk_list_reduceRightIndexed"),
-            interner.intern("kk_list_reduceRightIndexedOrNull"),
-            interner.intern("kk_list_reduceRightOrNull"),
-            interner.intern("kk_list_reduceOrNull"),
-            interner.intern("kk_list_scan"),
-            interner.intern("kk_list_runningFold"),
-            interner.intern("kk_list_runningReduce"),
-            interner.intern("kk_list_scanReduce"),
-            interner.intern("kk_list_foldIndexed"),
-            interner.intern("kk_list_foldRightIndexed"),
-            interner.intern("kk_list_reduceIndexed"),
-            interner.intern("kk_list_reduceIndexedOrNull"),
-            interner.intern("kk_list_runningFoldIndexed"),
-            interner.intern("kk_list_runningReduceIndexed"),
-            interner.intern("kk_list_scanIndexed"),
             interner.intern("kk_list_sumOf"),
             interner.intern("kk_list_sumBy"),
             interner.intern("kk_list_sumByDouble"),
             interner.intern("kk_list_distinctBy"),
-            interner.intern("kk_list_takeWhile"),
-            interner.intern("kk_list_dropLastWhile"),
             interner.intern("__kk_iterable_firstNotNullOf"),
             interner.intern("__kk_iterable_firstNotNullOfOrNull"),
             interner.intern("__kk_iterable_any"),
@@ -1024,10 +887,13 @@ extension CallLowerer {
             interner.intern("kk_uint_range_random_random"),
             interner.intern("kk_ulong_range_random"),
             interner.intern("kk_ulong_range_random_random"),
-            interner.intern("kk_int_progression_fromClosedRange"),
-            interner.intern("kk_long_progression_fromClosedRange"),
-            interner.intern("kk_uint_progression_fromClosedRange"),
-            interner.intern("kk_ulong_progression_fromClosedRange"),
+            interner.intern("__kk_int_progression_fromClosedRange"),
+            interner.intern("__kk_long_progression_fromClosedRange"),
+            interner.intern("__kk_uint_progression_fromClosedRange"),
+            interner.intern("__kk_ulong_progression_fromClosedRange"),
+            interner.intern("__kk_char_progression_fromClosedRange"),
+            interner.intern("__kk_op_step"),
+            interner.intern("__kk_char_range_step"),
             interner.intern("kk_sequence_foldIndexed"),
             interner.intern("kk_sequence_reduceOrNull"),
             interner.intern("kk_sequence_reduceRight"),
@@ -1043,18 +909,11 @@ extension CallLowerer {
             interner.intern("kk_sequence_sortedBy"),
             interner.intern("kk_sequence_sortedWith"),
             interner.intern("kk_sequence_sortedByDescending"),
-            interner.intern("kk_sequence_sumOf"),
-            interner.intern("kk_sequence_sumBy"),
-            interner.intern("kk_sequence_sumByDouble"),
             interner.intern("kk_sequence_takeLastWhile"),
             interner.intern("kk_sequence_firstNotNullOf"),
             interner.intern("kk_sequence_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_indexOfFirst"),
             interner.intern("kk_sequence_indexOfLast"),
-            interner.intern("kk_sequence_associate"),
-            interner.intern("kk_sequence_associateBy"),
-            interner.intern("kk_sequence_associateTo"),
-            interner.intern("kk_sequence_associateByTo"),
             interner.intern("kk_map_mapKeysTo"),
             interner.intern("kk_map_mapValuesTo"),
             interner.intern("kk_sequence_mapNotNull"),
@@ -1065,23 +924,7 @@ extension CallLowerer {
             interner.intern("kk_sequence_filterIndexed"),
             interner.intern("kk_sequence_findLast"),
             interner.intern("kk_sequence_elementAt"),
-            interner.intern("kk_sequence_minBy"),
             interner.intern("kk_sequence_min"),
-            interner.intern("kk_sequence_maxBy"),
-            interner.intern("kk_sequence_minByOrNull"),
-            interner.intern("kk_sequence_maxByOrNull"),
-            interner.intern("kk_sequence_maxWith"),
-            interner.intern("kk_sequence_maxWithOrNull"),
-            interner.intern("kk_sequence_minOf"),
-            interner.intern("kk_sequence_minOfOrNull"),
-            interner.intern("kk_sequence_maxOfOrNull"),
-            interner.intern("kk_sequence_minWithOrNull"),
-            interner.intern("kk_sequence_minWith"),
-            interner.intern("kk_sequence_maxOf"),
-            interner.intern("kk_sequence_partition"),
-            interner.intern("kk_sequence_associateWith"),
-            interner.intern("kk_sequence_associateWithTo"),
-            interner.intern("kk_sequence_groupByTo"),
             interner.intern("kk_sequence_flatMapIndexedTo"),
             interner.intern("kk_sequence_flatMapTo"),
             interner.intern("kk_sequence_ifEmpty"),
@@ -1102,7 +945,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
             interner.intern("kk_array_copyOf_newSize_init"),
-            interner.intern("kk_reentrant_read_write_lock_read"),
         ])
     }
 

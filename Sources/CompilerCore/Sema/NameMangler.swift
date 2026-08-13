@@ -189,6 +189,10 @@ package final class NameMangler {
                 "UB"
             case .ushort:
                 "US"
+            case .byte:
+                "B"
+            case .short:
+                "S"
             case .float:
                 "F"
             case .double:

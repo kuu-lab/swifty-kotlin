@@ -44,6 +44,46 @@ private func isBundledStdlibFile(_ fileID: FileID, sourceManager: SourceManager)
     sourceManager.origin(of: fileID)?.isBundledStdlib == true
 }
 
+private func remapTokenKind(
+    _ kind: TokenKind,
+    localToShared: [InternedString]
+) -> TokenKind {
+    func remap(_ value: InternedString) -> InternedString {
+        let index = Int(value.rawValue)
+        precondition(index >= 0 && index < localToShared.count, "Invalid lexer-local interned string ID.")
+        return localToShared[index]
+    }
+
+    switch kind {
+    case let .identifier(value):
+        return .identifier(remap(value))
+    case let .backtickedIdentifier(value):
+        return .backtickedIdentifier(remap(value))
+    case let .stringSegment(value):
+        return .stringSegment(remap(value))
+    case let .missing(expected):
+        return .missing(expected: remapTokenKind(expected, localToShared: localToShared))
+    default:
+        return kind
+    }
+}
+
+private func remapTokens(
+    _ tokens: [Token],
+    localStrings: [String],
+    into sharedInterner: StringInterner
+) -> [Token] {
+    let localToShared = localStrings.map(sharedInterner.intern)
+    return tokens.map { token in
+        Token(
+            kind: remapTokenKind(token.kind, localToShared: localToShared),
+            range: token.range,
+            leadingTrivia: token.leadingTrivia,
+            trailingTrivia: token.trailingTrivia
+        )
+    }
+}
+
 private func collectPerFileResultsWithBundledStdlibTiming<Result: Sendable>(
     fileIDs: [FileID],
     sourceManager: SourceManager,
@@ -119,15 +159,12 @@ final class LoadSourcesPhase: CompilerPhase {
         resourcePath: String? = Bundle.module.resourcePath
     ) throws {
         do {
-            let sources = try BundledKotlinStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
+            let sources = try BundledStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
             for source in sources {
                 guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
-                let origin: SourceOrigin = BundledKotlinStdlib.isResidualBundledStdlibSource(source.path)
-                    ? .residualStdlib
-                    : .bundledStdlib
-                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: origin)
+                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: .bundledStdlib)
             }
-        } catch let error as BundledKotlinStdlib.LoadError {
+        } catch let error as BundledStdlib.LoadError {
             switch error {
             case .resourcePathMissing, .resourceDirectoryMissing:
                 ctx.diagnostics.error(
@@ -183,19 +220,32 @@ final class LexPhase: CompilerPhase {
         let diagnostics = ctx.diagnostics
         let sourceManager = ctx.sourceManager
 
-        let tokensByFile = collectPerFileResultsWithBundledStdlibTiming(
+        // Each lexer uses a private interner so worker scheduling cannot assign
+        // process-visible IDs. Merge into the shared interner below in file order.
+        let lexedByFile = collectPerFileResultsWithBundledStdlibTiming(
             fileIDs: fileIDs,
             sourceManager: sourceManager,
             phaseTimer: ctx.phaseTimer
         ) { fileID in
+            let localInterner = StringInterner()
             let contents = sourceManager.contents(of: fileID)
             let lexer = KotlinLexer(
                 file: fileID,
                 source: contents,
-                interner: interner,
+                interner: localInterner,
                 diagnostics: diagnostics
             )
-            return lexer.lexAll()
+            return (tokens: lexer.lexAll(), localStrings: localInterner.snapshotValues())
+        }
+        let tokensByFile = lexedByFile.map { fileID, lexed in
+            (
+                fileID,
+                remapTokens(
+                    lexed.tokens,
+                    localStrings: lexed.localStrings,
+                    into: interner
+                )
+            )
         }
 
         var allTokens: [Token] = []

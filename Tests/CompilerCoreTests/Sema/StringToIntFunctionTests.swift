@@ -3,8 +3,8 @@ import Foundation
 import Testing
 
 /// Verifies that `kotlin.text.String.toInt()` and `String.toInt(radix:)` —
-/// tracked by STDLIB-TEXT-FN-099 — are registered as synthetic stdlib stubs
-/// and resolve to the correct runtime external link names at sema time.
+/// tracked by STDLIB-TEXT-FN-099 — are source-backed after KSP-414 and bridge
+/// through the private `__kk_string_toInt` runtime symbols.
 @Suite
 struct StringToIntFunctionTests {
     @Test
@@ -45,8 +45,8 @@ struct StringToIntFunctionTests {
             "Expected call binding for toInt()"
         )
         #expect(
-            sema.symbols.externalLinkName(for: noArgCallee) == "kk_string_toInt",
-            "String.toInt() should resolve to kk_string_toInt"
+            sema.symbols.externalLinkName(for: noArgCallee) == nil,
+            "String.toInt() should be source-backed and have no public C link"
         )
 
         let radixCall = try #require(
@@ -66,8 +66,8 @@ struct StringToIntFunctionTests {
             "Expected call binding for toInt(radix)"
         )
         #expect(
-            sema.symbols.externalLinkName(for: radixCallee) == "kk_string_toInt_radix",
-            "String.toInt(radix) should resolve to kk_string_toInt_radix"
+            sema.symbols.externalLinkName(for: radixCallee) == nil,
+            "String.toInt(radix) should be source-backed and have no public C link"
         )
 
         let links = Set(
@@ -75,12 +75,23 @@ struct StringToIntFunctionTests {
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         #expect(
-            links.contains("kk_string_toInt"),
-            "String.toInt() should be registered with kk_string_toInt — got: \(links.sorted())"
+            !links.contains("kk_string_toInt") && !links.contains("__kk_string_toInt"),
+            "String.toInt() should not expose a kk_ or __kk_ external link — got: \(links.sorted())"
         )
         #expect(
-            links.contains("kk_string_toInt_radix"),
-            "String.toInt(radix) should be registered with kk_string_toInt_radix — got: \(links.sorted())"
+            !links.contains("kk_string_toInt_radix") && !links.contains("__kk_string_toInt_radix"),
+            "String.toInt(radix) should not expose a kk_ or __kk_ external link — got: \(links.sorted())"
+        )
+
+        let privateBridgeLinks = Set(
+            sema.symbols.lookupAll(fqName: ["kotlin", "text", "__kk_string_toInt"].map { interner.intern($0) })
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+            + sema.symbols.lookupAll(fqName: ["kotlin", "text", "__kk_string_toInt_radix"].map { interner.intern($0) })
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
+        #expect(
+            privateBridgeLinks.contains("__kk_string_toInt") && privateBridgeLinks.contains("__kk_string_toInt_radix"),
+            "Private __kk_string_toInt bridges should be registered — got: \(privateBridgeLinks.sorted())"
         )
     }
 }

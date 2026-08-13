@@ -7,6 +7,39 @@ import Testing
 /// `fileAttributesViewOrNull<V>`) are no longer registered by Sema.
 @Suite
 struct PathGenericFunctionStubRemovalTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        import kotlin.io.path.Path
+        import kotlin.io.path.useLines
+
+        fun main() {
+            val path = Path("/dev/null")
+            val count: Int = path.useLines { lines ->
+                lines.count()
+            }
+            println(count)
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
@@ -57,23 +90,10 @@ struct PathGenericFunctionStubRemovalTests {
     }
 
     @Test func testPathUseLinesCallIsRejected() throws {
-        let source = """
-        import kotlin.io.path.Path
-        import kotlin.io.path.useLines
 
-        fun main() {
-            val path = Path("/dev/null")
-            val count: Int = path.useLines { lines ->
-                lines.count()
-            }
-            println(count)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             #expect(ctx.diagnostics.hasError, "Path.useLines should no longer resolve")
-        }
+
     }
 }
 #endif

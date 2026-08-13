@@ -851,6 +851,12 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testSequenceZipWithNextTransformReturnsAdjacentResults() throws {
+        // zipWithNext(transform) on a Sequence receiver returns a lazy
+        // Sequence<R>, not a List<R> — .toList() is required to inspect
+        // contents. Printing the Sequence directly (as an earlier version of
+        // this test did) prints an opaque object identity on both kotlinc and
+        // this compiler; only the exact opaque representation differs, so
+        // that isn't a meaningful comparison either way.
         let source = """
         fun main() {
             val transformed = sequenceOf(1, 2, 4, 8)
@@ -863,9 +869,9 @@ struct CodegenBackendSequenceEdgeCasesTests {
                 .zipWithNext { left, right -> right - left }
                 .toList()
 
-            println(transformed)
-            println(empty)
-            println(single)
+            println(transformed.toList())
+            println(empty.toList())
+            println(single.toList())
         }
         """
 

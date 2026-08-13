@@ -3,7 +3,8 @@ extension OverloadResolver {
         signature: FunctionSignature,
         callArgs: [CallArg],
         symbols: SymbolTable,
-        typeSystem: TypeSystem
+        typeSystem: TypeSystem,
+        isCallableArgument: ((Int) -> Bool)? = nil
     ) -> [Int: Int]? {
         let paramCount = signature.parameterTypes.count
         if paramCount == 0 {
@@ -24,8 +25,9 @@ extension OverloadResolver {
             return false
         }
         func trailingLambdaParameterIndex(for argIndex: Int) -> Int? {
+            let argumentIsCallable = isCallableArgument?(argIndex) ?? isCallableLike(callArgs[argIndex].type)
             guard argIndex == callArgs.count - 1,
-                  isCallableLike(callArgs[argIndex].type)
+                  argumentIsCallable
             else {
                 return nil
             }
@@ -574,6 +576,28 @@ extension OverloadResolver {
                     result.append(contentsOf: decomposed)
                 }
                 return result
+            }
+            // Generic subtype against a concrete supertype instantiation
+            // (e.g. `MutableSharedFlow<T> <: SharedFlow<Int>`): lift the
+            // subtype to the supertype's nominal symbol so the type variables
+            // inside its arguments stay inferable.
+            if case let .classType(superClass) = supertypeKind,
+               subClass.classSymbol != superClass.classSymbol,
+               let liftedSubtype = liftClassType(
+                   subClass,
+                   to: superClass.classSymbol,
+                   typeSystem: typeSystem
+               ),
+               liftedSubtype != subtype
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: liftedSubtype,
+                    supertype: supertype,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: blameRange,
+                    depth: depth + 1
+                )
             }
         }
 

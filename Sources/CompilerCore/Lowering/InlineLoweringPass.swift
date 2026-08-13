@@ -40,8 +40,8 @@ final class InlineLoweringPass: LoweringPass {
             return (function.symbol, function)
         })
         if let imported = ctx.sema?.importedInlineFunctions {
-            for (symbol, function) in imported where inlineFunctionsBySymbol[symbol] == nil {
-                inlineFunctionsBySymbol[symbol] = function
+            for symbol in imported.keys.sorted(by: { $0.rawValue < $1.rawValue }) where inlineFunctionsBySymbol[symbol] == nil {
+                inlineFunctionsBySymbol[symbol] = imported[symbol]
             }
         }
         // Build a lookup of all KIR functions by symbol so that lambda bodies
@@ -76,7 +76,8 @@ final class InlineLoweringPass: LoweringPass {
             unitType: unitType
         )
 
-        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+        let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
+        let inlineFunctionsByName = Dictionary(grouping: sortedInlineFunctions, by: \.name)
 
         module.arena.transformFunctions { [self] function in
             inlineTransform(
@@ -107,25 +108,53 @@ final class InlineLoweringPass: LoweringPass {
     ) {
         guard !bodylessInlineSymbols.isEmpty else { return }
         var originals = allFunctionsBySymbol
-        for (symbol, function) in inlineFunctionsBySymbol where originals[symbol] == nil {
+        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            where originals[symbol] == nil
+        {
             originals[symbol] = function
         }
         var expandedBySymbol: [SymbolID: KIRFunction] = [:]
 
         for _ in 0 ..< 4 {
-            let pending = originals.values.filter { function in
-                let current = expandedBySymbol[function.symbol] ?? function
-                return current.body.contains { instruction in
-                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
-                          let symbol, symbol != function.symbol
-                    else {
-                        return false
+            // Expanding a snapshot appends expressions to the module arena. A
+            // Dictionary's per-instance iteration order must not choose IDs.
+            let pending = originals.values
+                .filter { function in
+                    let current = expandedBySymbol[function.symbol] ?? function
+                    return current.body.contains { instruction in
+                        guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                              let symbol, symbol != function.symbol
+                        else {
+                            return false
+                        }
+                        return bodylessInlineSymbols.contains(symbol)
                     }
-                    return bodylessInlineSymbols.contains(symbol)
                 }
-            }
+                .sorted(by: { lhs, rhs in
+                    let lhsName = ctx.interner.resolve(lhs.name)
+                    let rhsName = ctx.interner.resolve(rhs.name)
+                    if lhsName != rhsName { return lhsName < rhsName }
+                    if lhs.params.count != rhs.params.count { return lhs.params.count < rhs.params.count }
+                    if let lhsRange = lhs.sourceRange, let rhsRange = rhs.sourceRange {
+                        if lhsRange.start.file.rawValue != rhsRange.start.file.rawValue {
+                            return lhsRange.start.file.rawValue < rhsRange.start.file.rawValue
+                        }
+                        if lhsRange.start.offset != rhsRange.start.offset {
+                            return lhsRange.start.offset < rhsRange.start.offset
+                        }
+                        if lhsRange.end.offset != rhsRange.end.offset {
+                            return lhsRange.end.offset < rhsRange.end.offset
+                        }
+                    } else if lhs.sourceRange != nil {
+                        return false
+                    } else if rhs.sourceRange != nil {
+                        return true
+                    }
+                    return lhs.symbol.rawValue < rhs.symbol.rawValue
+                })
             guard !pending.isEmpty else { return }
-            let byName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+            let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
+            let byName = Dictionary(grouping: sortedInlineFunctions, by: \.name)
             for function in pending {
                 let expanded = inlineTransform(
                     function: function,
@@ -454,19 +483,20 @@ final class InlineLoweringPass: LoweringPass {
                     }
                     if let result {
                         if let lambdaReturn = lambdaExpansion.returnedExpr {
-                            aliases[result] = boxErasedLambdaResultIfNeeded(
+                            let finalExpr = boxErasedLambdaResultIfNeeded(
                                 returnedExpr: resolveAlias(of: lambdaReturn, aliases: aliases),
                                 result: result,
                                 module: module,
                                 ctx: ctx,
                                 into: &loweredBody
                             )
+                            loweredBody.append(.copy(from: finalExpr, to: result))
                         } else if let unitType = unitType {
                             let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                            aliases[result] = unitExpr
+                            loweredBody.append(.copy(from: unitExpr, to: result))
                         } else {
                             let unitExpr = module.arena.appendExpr(.unit, type: nil)
-                            aliases[result] = unitExpr
+                            loweredBody.append(.copy(from: unitExpr, to: result))
                         }
                     }
                     continue
@@ -630,11 +660,13 @@ final class InlineLoweringPass: LoweringPass {
                 loweredBody.append(.label(trailingThrowLabel))
             }
 
-            // Alias the call result to the expansion's returned expression (shared
-            // for both non-local-return and normal paths).
+            // Copy the expansion's returned expression into the call result so the
+            // result register remains valid across basic-block merges (e.g. safe-call
+            // null branches). Aliasing it globally would leak the non-null branch's
+            // value into the null branch.
             if let result {
                 if let returnedExpr = expansion.returnedExpr {
-                    aliases[result] = unboxErasedInlineResultIfNeeded(
+                    let finalExpr = unboxErasedInlineResultIfNeeded(
                         returnedExpr: resolveAlias(of: returnedExpr, aliases: aliases),
                         result: result,
                         inlineTarget: inlineTarget,
@@ -642,9 +674,10 @@ final class InlineLoweringPass: LoweringPass {
                         ctx: ctx,
                         into: &loweredBody
                     )
+                    loweredBody.append(.copy(from: finalExpr, to: result))
                 } else {
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                    aliases[result] = unitExpr
+                    loweredBody.append(.copy(from: unitExpr, to: result))
                 }
             }
         }

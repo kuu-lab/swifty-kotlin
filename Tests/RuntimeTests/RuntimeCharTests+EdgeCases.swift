@@ -134,110 +134,8 @@ struct RuntimeCharEdgeCaseTests {
         #expect(!boolValue(bridgeIsDefined(0x110000)))
     }
 
-    @Test
-    func testSupplementaryCodePointBoundaries() {
-        #expect(!boolValue(kk_char_isSupplementaryCodePoint(0xFFFF)))
-        #expect(boolValue(kk_char_isSupplementaryCodePoint(0x10000)))
-        #expect(boolValue(kk_char_isSupplementaryCodePoint(0x10FFFF)))
-        #expect(!boolValue(kk_char_isSupplementaryCodePoint(0x110000)))
-    }
-
-    @Test
-    func testSurrogatePairBoundaries() {
-        #expect(boolValue(kk_char_isSurrogatePair(0xD800, 0xDC00)))
-        #expect(boolValue(kk_char_isSurrogatePair(0xDBFF, 0xDFFF)))
-        #expect(!boolValue(kk_char_isSurrogatePair(0xD7FF, 0xDC00)))
-        #expect(!boolValue(kk_char_isSurrogatePair(0xD800, 0xE000)))
-        #expect(!boolValue(kk_char_isSurrogatePair(0xDC00, 0xD800)))
-    }
-
-    @Test
-    func testToCharsReturnsSingleCharArrayForBmpCodePoint() throws {
-        let arrayRaw = kk_char_toChars(0x0041)
-        let array = try #require(runtimeArrayBox(from: arrayRaw))
-        #expect(array.elements.count == 1)
-        #expect(kk_unbox_char(array.elements[0]) == 0x0041)
-    }
-
-    @Test
-    func testToCharsReturnsSurrogatePairForSupplementaryCodePoint() throws {
-        let arrayRaw = kk_char_toChars(0x10000)
-        let array = try #require(runtimeArrayBox(from: arrayRaw))
-        #expect(array.elements.count == 2)
-        #expect(kk_unbox_char(array.elements[0]) == 0xD800)
-        #expect(kk_unbox_char(array.elements[1]) == 0xDC00)
-    }
-
-    @Test
-    func testToCharsReturnsUpperSurrogatePairBoundary() throws {
-        let arrayRaw = kk_char_toChars(0x10FFFF)
-        let array = try #require(runtimeArrayBox(from: arrayRaw))
-        #expect(array.elements.count == 2)
-        #expect(kk_unbox_char(array.elements[0]) == 0xDBFF)
-        #expect(kk_unbox_char(array.elements[1]) == 0xDFFF)
-    }
-
-    @Test
-    func testToCodePointDoesNotValidateSurrogatePair() {
-        #expect(kk_char_toCodePoint(0xD800, 0xDC00) == 0x10000)
-        #expect(kk_char_toCodePoint(0xDBFF, 0xDFFF) == 0x10FFFF)
-        #expect(kk_char_toCodePoint(0x0041, 0x0042) == -56_547_262)
-    }
-
-    // MARK: - Surrogate boundaries
-
-    // High surrogate range: U+D800 - U+DBFF
-    @Test
-    func testHighSurrogateRangeLowerBound() {
-        #expect(boolValue(kk_char_isHighSurrogate(0xD800)))
-        #expect(boolValue(kk_char_isSurrogate(0xD800)))
-        #expect(!boolValue(kk_char_isLowSurrogate(0xD800)))
-    }
-
-    @Test
-    func testHighSurrogateRangeUpperBound() {
-        #expect(boolValue(kk_char_isHighSurrogate(0xDBFF)))
-        #expect(boolValue(kk_char_isSurrogate(0xDBFF)))
-        #expect(!boolValue(kk_char_isLowSurrogate(0xDBFF)))
-    }
-
-    @Test
-    func testJustBelowHighSurrogateIsNotSurrogate() {
-        // U+D7FF is just below surrogate range
-        #expect(!boolValue(kk_char_isSurrogate(0xD7FF)))
-        #expect(!boolValue(kk_char_isHighSurrogate(0xD7FF)))
-        #expect(!boolValue(kk_char_isLowSurrogate(0xD7FF)))
-    }
-
-    // Low surrogate range: U+DC00 - U+DFFF
-    @Test
-    func testLowSurrogateRangeLowerBound() {
-        #expect(boolValue(kk_char_isLowSurrogate(0xDC00)))
-        #expect(boolValue(kk_char_isSurrogate(0xDC00)))
-        #expect(!boolValue(kk_char_isHighSurrogate(0xDC00)))
-    }
-
-    @Test
-    func testLowSurrogateRangeUpperBound() {
-        #expect(boolValue(kk_char_isLowSurrogate(0xDFFF)))
-        #expect(boolValue(kk_char_isSurrogate(0xDFFF)))
-        #expect(!boolValue(kk_char_isHighSurrogate(0xDFFF)))
-    }
-
-    @Test
-    func testJustAboveLowSurrogateIsNotSurrogate() {
-        // U+E000 is first private-use area character, just above surrogate range
-        #expect(!boolValue(kk_char_isSurrogate(0xE000)))
-        #expect(!boolValue(kk_char_isHighSurrogate(0xE000)))
-        #expect(!boolValue(kk_char_isLowSurrogate(0xE000)))
-    }
-
-    @Test
-    func testNonSurrogateAscii() {
-        #expect(!boolValue(kk_char_isSurrogate(Int(("A" as UnicodeScalar).value))))
-        #expect(!boolValue(kk_char_isHighSurrogate(Int(("A" as UnicodeScalar).value))))
-        #expect(!boolValue(kk_char_isLowSurrogate(Int(("A" as UnicodeScalar).value))))
-    }
+    // KSP-663: Char surrogate operations are now bundled Kotlin and covered
+    // by the CompilerCore/Sema and stdlib-pipeline tests.
 
     // MARK: - isUpperCase / isLowerCase on chars with no case mapping
 
@@ -271,78 +169,78 @@ struct RuntimeCharEdgeCaseTests {
         #expect(boolValue(__kk_char_is_lowercase(Int(("a" as UnicodeScalar).value))))
     }
 
-    // MARK: - uppercaseChar() / lowercaseChar() on chars with no case mapping
+    // MARK: - KSP-662: case mapping bridges on chars with no case mapping
 
     @Test
     func testUppercaseOfDigitIsIdentity() {
         // '5'.uppercase() returns "5" (unchanged)
-        #expect(runtimeStringValue(kk_char_uppercase(Int(("5" as UnicodeScalar).value))) == "5")
+        #expect(runtimeStringValue(__kk_char_uppercase_string(Int(("5" as UnicodeScalar).value))) == "5")
     }
 
     @Test
     func testLowercaseOfDigitIsIdentity() {
-        #expect(runtimeStringValue(kk_char_lowercase(Int(("5" as UnicodeScalar).value))) == "5")
+        #expect(runtimeStringValue(__kk_char_lowercase_string(Int(("5" as UnicodeScalar).value))) == "5")
     }
 
     @Test
     func testUppercaseOfPunctuationIsIdentity() {
-        #expect(runtimeStringValue(kk_char_uppercase(Int(("!" as UnicodeScalar).value))) == "!")
+        #expect(runtimeStringValue(__kk_char_uppercase_string(Int(("!" as UnicodeScalar).value))) == "!")
     }
 
     @Test
     func testLowercaseOfPunctuationIsIdentity() {
-        #expect(runtimeStringValue(kk_char_lowercase(Int(("!" as UnicodeScalar).value))) == "!")
+        #expect(runtimeStringValue(__kk_char_lowercase_string(Int(("!" as UnicodeScalar).value))) == "!")
     }
 
     @Test
     func testUppercaseAscii() {
-        #expect(runtimeStringValue(kk_char_uppercase(Int(("a" as UnicodeScalar).value))) == "A")
+        #expect(runtimeStringValue(__kk_char_uppercase_string(Int(("a" as UnicodeScalar).value))) == "A")
     }
 
     @Test
     func testUppercaseWithTurkishLocale() {
         let locale = makeLocale(language: "tr", country: "TR")
-        let result = kk_char_uppercase_locale(Int(("i" as UnicodeScalar).value), locale)
+        let result = __kk_char_uppercase_locale(Int(("i" as UnicodeScalar).value), locale)
         #expect(runtimeStringValue(result) == "\u{0130}")
     }
 
     @Test
     func testLowercaseAscii() {
-        #expect(runtimeStringValue(kk_char_lowercase(Int(("A" as UnicodeScalar).value))) == "a")
+        #expect(runtimeStringValue(__kk_char_lowercase_string(Int(("A" as UnicodeScalar).value))) == "a")
     }
 
     @Test
     func testLowercaseWithTurkishLocale() {
         let locale = makeLocale(language: "tr", country: "TR")
-        let result = kk_char_lowercase_locale(Int(("I" as UnicodeScalar).value), locale)
+        let result = __kk_char_lowercase_locale(Int(("I" as UnicodeScalar).value), locale)
         #expect(runtimeStringValue(result) == "\u{0131}")
     }
 
-    // MARK: - titlecaseChar() edge cases
+    // MARK: - titlecase edge cases
 
     @Test
     func testTitlecaseOfNormalLetter() {
         // 'a' titlecase is 'A'
-        #expect(runtimeStringValue(kk_char_titlecase(Int(("a" as UnicodeScalar).value))) == "A")
+        #expect(runtimeStringValue(__kk_char_titlecase_string(Int(("a" as UnicodeScalar).value))) == "A")
     }
 
     @Test
     func testTitlecaseOfDigitIsIdentity() {
-        #expect(runtimeStringValue(kk_char_titlecase(Int(("5" as UnicodeScalar).value))) == "5")
+        #expect(runtimeStringValue(__kk_char_titlecase_string(Int(("5" as UnicodeScalar).value))) == "5")
     }
 
     @Test
     func testTitlecaseLigatureDzWithCaron() {
         // U+01C6 'ǆ' (lowercase DZ with caron) -> U+01C5 'ǅ' (titlecase)
         let dz = 0x01C6
-        #expect(runtimeStringValue(kk_char_titlecase(dz)) == "ǅ")
+        #expect(runtimeStringValue(__kk_char_titlecase_string(dz)) == "ǅ")
     }
 
     @Test
     func testTitlecaseLigatureDzUpperCase() {
         // U+01C4 'Ǆ' (uppercase DZ with caron) -> U+01C5 'ǅ' (titlecase)
         let dzUpper = 0x01C4
-        #expect(runtimeStringValue(kk_char_titlecase(dzUpper)) == "ǅ")
+        #expect(runtimeStringValue(__kk_char_titlecase_string(dzUpper)) == "ǅ")
     }
 
     // MARK: - isTitleCase
@@ -358,61 +256,28 @@ struct RuntimeCharEdgeCaseTests {
         #expect(!boolValue(kk_char_isTitleCase(Int(("A" as UnicodeScalar).value))))
     }
 
-    // MARK: - digitToInt / digitToIntOrNull (base-10 only)
+    // MARK: - KSP-662: __kk_char_digit_value (Kotlin applies the radix bound)
 
     @Test
-    func testDigitToIntBoundariesAscii() {
-        #expect(kk_char_digitToInt(Int(("0" as UnicodeScalar).value), nil) == 0)
-        #expect(kk_char_digitToInt(Int(("9" as UnicodeScalar).value), nil) == 9)
+    func testDigitValueBoundariesAscii() {
+        #expect(__kk_char_digit_value(Int(("0" as UnicodeScalar).value)) == 0)
+        #expect(__kk_char_digit_value(Int(("9" as UnicodeScalar).value)) == 9)
     }
 
     @Test
-    func testDigitToIntRejectsLetter() {
-        var thrown: Int = 0
-        _ = kk_char_digitToInt(Int(("a" as UnicodeScalar).value), &thrown)
-        #expect(thrown != 0, "Expected exception for non-digit char 'a'")
+    func testDigitValueOfLetterIsAboveBase10Range() {
+        // 'a' is invalid in radix 10 but its raw digit value is 10.
+        #expect(__kk_char_digit_value(Int(("a" as UnicodeScalar).value)) == 10)
     }
 
     @Test
-    func testDigitToIntRejectsWhitespace() {
-        var thrown: Int = 0
-        _ = kk_char_digitToInt(Int((" " as UnicodeScalar).value), &thrown)
-        #expect(thrown != 0, "Expected exception for whitespace char")
+    func testDigitValueRejectsWhitespace() {
+        #expect(__kk_char_digit_value(Int((" " as UnicodeScalar).value)) == -1)
     }
 
     @Test
-    func testDigitToIntOrNullReturnsNullForLetter() {
-        let result = kk_char_digitToIntOrNull(Int(("a" as UnicodeScalar).value))
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testDigitToIntOrNullReturnsNullForPunctuation() {
-        let result = kk_char_digitToIntOrNull(Int(("!" as UnicodeScalar).value))
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testDigitToIntOrNullRadixReturnsValueForValidDigit() {
-        var thrown: Int = 0
-        let result = kk_char_digitToIntOrNull_radix(Int(("a" as UnicodeScalar).value), 16, &thrown)
-        #expect(result == 10)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testDigitToIntOrNullRadixReturnsNullForInvalidDigit() {
-        var thrown: Int = 0
-        let result = kk_char_digitToIntOrNull_radix(Int(("z" as UnicodeScalar).value), 16, &thrown)
-        #expect(result == runtimeNullSentinelInt)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testDigitToIntOrNullRadixThrowsForOutOfRangeRadix() {
-        var thrown: Int = 0
-        _ = kk_char_digitToIntOrNull_radix(Int(("5" as UnicodeScalar).value), 1, &thrown)
-        #expect(thrown != 0, "Expected exception for radix < 2")
+    func testDigitValueRejectsPunctuation() {
+        #expect(__kk_char_digit_value(Int(("!" as UnicodeScalar).value)) == -1)
     }
 
     // MARK: - code property

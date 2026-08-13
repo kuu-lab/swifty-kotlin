@@ -2,61 +2,17 @@
 final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "OperatorLowering"
 
-    private struct PrintlnConversionCallees {
-        let intToFloat: InternedString
-        let intToFloatBits: InternedString
-        let floatToDoubleBits: InternedString
-        let intToDoubleBits: InternedString
-        let rangeCallees: Set<InternedString>
-    }
-
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        _ = ctx
         module.ensureFeaturesScanned()
-        if !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp, .hasNullAssert]) {
-            return true
-        }
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        return module.usedCallees.contains(printlnCallee)
-            || module.usedCallees.contains(kkPrintlnAnyCallee)
+        return !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp, .hasNullAssert])
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-
-        let printlnConversionCallees = PrintlnConversionCallees(
-            intToFloat: ctx.interner.intern("kk_int_to_float"),
-            intToFloatBits: ctx.interner.intern("kk_int_to_float_bits"),
-            floatToDoubleBits: ctx.interner.intern("kk_float_to_double_bits"),
-            intToDoubleBits: ctx.interner.intern("kk_int_to_double_bits"),
-            rangeCallees: [
-                ctx.interner.intern("kk_op_rangeTo"),
-                ctx.interner.intern("kk_uint_rangeTo"),
-                ctx.interner.intern("kk_op_rangeUntil"),
-                ctx.interner.intern("kk_op_ulong_rangeUntil"),
-                ctx.interner.intern("kk_op_downTo"),
-                ctx.interner.intern("kk_uint_downTo"),
-                ctx.interner.intern("kk_op_step"),
-                ctx.interner.intern("kk_uint_step"),
-                ctx.interner.intern("__kk_range_reversed"),
-                ctx.interner.intern("kk_uint_range_reversed"),
-            ]
-        )
-
         module.arena.transformFunctions { function in
             var updated = function
             var newBody: [KIRInstruction] = []
             newBody.reserveCapacity(function.body.count)
-            // Labels only need to be unique within this function body. Start
-            // past the highest label already used so branches synthesized
-            // below (nullable println rewrite) never collide with existing
-            // control flow.
-            var nextLabel = Self.maxLabelNumber(in: function.body) + 1
-            func allocateLabel() -> Int32 {
-                defer { nextLabel += 1 }
-                return nextLabel
-            }
             for instruction in function.body {
                 switch instruction {
                 case let .binary(op, lhs, rhs, result):
@@ -73,22 +29,15 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     newBody.append(.call(symbol: nil, callee: callee, arguments: [operand], result: result, canThrow: false, thrownResult: nil))
                 case let .nullAssert(operand, result):
-                    newBody.append(.call(symbol: nil, callee: ctx.interner.intern("kk_op_notnull"), arguments: [operand], result: result, canThrow: true, thrownResult: nil))
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
-                    if callee == printlnCallee || callee == kkPrintlnAnyCallee,
-                       arguments.count == 1,
-                       tryLowerPrintlnCall(
-                           symbol: symbol, callee: callee, arguments: arguments,
-                           result: result, canThrow: canThrow, thrownResult: thrownResult,
-                           isSuperCall: isSuperCall, arena: module.arena,
-                           ctx: ctx, newBody: &newBody,
-                           precedingInstructions: newBody,
-                           conversionCallees: printlnConversionCallees,
-                           allocateLabel: allocateLabel
-                       )
-                    {
-                        continue
-                    }
+                    lowerNullAssertInstruction(
+                        operand: operand,
+                        result: result,
+                        arena: module.arena,
+                        interner: ctx.interner,
+                        types: ctx.sema?.types,
+                        newBody: &newBody
+                    )
+                case .call:
                     newBody.append(instruction)
                 default:
                     newBody.append(instruction)
@@ -100,14 +49,68 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    private static func maxLabelNumber(in body: [KIRInstruction]) -> Int32 {
-        var maxLabel: Int32 = -1
-        for instruction in body {
-            if case let .label(n) = instruction {
-                maxLabel = max(maxLabel, n)
-            }
+    private func lowerNullAssertInstruction(
+        operand: KIRExprID,
+        result: KIRExprID,
+        arena: KIRArena,
+        interner: StringInterner,
+        types: TypeSystem?,
+        newBody: inout [KIRInstruction]
+    ) {
+        let notNullResult = arena.appendTemporary(type: arena.exprType(result))
+        newBody.append(
+            .call(
+                symbol: nil,
+                callee: interner.intern("kk_op_notnull"),
+                arguments: [operand],
+                result: notNullResult,
+                canThrow: true,
+                thrownResult: nil
+            )
+        )
+
+        guard let types, let resultType = arena.exprType(result) else {
+            // No type information available; keep the raw not-null result.
+            newBody.append(.copy(from: notNullResult, to: result))
+            return
         }
-        return maxLabel
+
+        if let unboxCallee = unboxCallee(for: types.kind(of: resultType), interner: interner) {
+            newBody.append(
+                .call(
+                    symbol: nil,
+                    callee: unboxCallee,
+                    arguments: [notNullResult],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        } else {
+            newBody.append(.copy(from: notNullResult, to: result))
+        }
+    }
+
+    private func unboxCallee(for typeKind: TypeKind, interner: StringInterner) -> InternedString? {
+        guard case let .primitive(primitiveType, .nonNull) = typeKind else {
+            return nil
+        }
+        switch primitiveType {
+        case .int, .byte, .short, .ubyte, .ushort, .uint:
+            return interner.intern("kk_unbox_int")
+        case .long:
+            return interner.intern("kk_unbox_long")
+        case .ulong:
+            return interner.intern("kk_unbox_ulong")
+        case .boolean:
+            return interner.intern("kk_unbox_bool")
+        case .char:
+            return interner.intern("kk_unbox_char")
+        case .float:
+            return interner.intern("kk_unbox_float")
+        case .double:
+            return interner.intern("kk_unbox_double")
+        }
     }
 
     private func lowerBinaryInstruction(
@@ -178,230 +181,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         case .logicalOr: interner.intern("kk_op_or")
         }
         newBody.append(.call(symbol: nil, callee: callee, arguments: [effectiveLhs, effectiveRhs], result: result, canThrow: false, thrownResult: nil))
-    }
-
-    /// Returns true if the println call was lowered to a primitive-specific variant.
-    private func tryLowerPrintlnCall(
-        symbol: SymbolID?,
-        callee: InternedString,
-        arguments: [KIRExprID],
-        result: KIRExprID?,
-        canThrow: Bool,
-        thrownResult: KIRExprID?,
-        isSuperCall: Bool,
-        arena: KIRArena,
-        ctx: KIRContext,
-        newBody: inout [KIRInstruction],
-        precedingInstructions: [KIRInstruction],
-        conversionCallees: PrintlnConversionCallees,
-        allocateLabel: () -> Int32
-    ) -> Bool {
-        guard let types = ctx.sema?.types else { return false }
-        var argType = arena.exprType(arguments[0])
-        if argType == nil {
-            argType = inferPrintlnArgTypeFromProducingInstruction(
-                exprID: arguments[0],
-                instructions: precedingInstructions,
-                types: types,
-                conversionCallees: conversionCallees
-            )
-        }
-        guard let argType else { return false }
-
-        // Range expressions (rangeTo, rangeUntil, downTo, step, reversed) produce
-        // opaque runtime object handles typed as Long/Int in sema.  Do NOT lower
-        // to kk_println_long — let them fall through to kk_println_any so the
-        // runtime can resolve the RuntimeRangeBox and print "first..last".
-        if isArgumentProducedByRangeCall(
-            exprID: arguments[0],
-            instructions: precedingInstructions,
-            rangeCallees: conversionCallees.rangeCallees
-        ) {
-            return false
-        }
-
-        let primitiveCallee: String? = switch types.kind(of: argType) {
-        case .primitive(.long, .nonNull): "kk_println_long"
-        case .primitive(.ulong, .nonNull): "kk_println_ulong"
-        case .primitive(.float, .nonNull): "kk_println_float"
-        case .primitive(.double, .nonNull): "kk_println_double"
-        case .primitive(.char, .nonNull): "kk_println_char"
-        case .primitive(.boolean, .nonNull): "kk_println_bool"
-        default: nil
-        }
-        if let name = primitiveCallee {
-            appendPrimitivePrintlnCall(
-                to: &newBody, symbol: symbol, callee: ctx.interner.intern(name),
-                arguments: arguments, result: result, canThrow: canThrow,
-                thrownResult: thrownResult, isSuperCall: isSuperCall
-            )
-            return true
-        }
-
-        // Only classType receivers are handled by the direct-call rewrites below
-        // (toString()/data class/data object). Everything else (Any, type params,
-        // collections, ...) falls through to kk_println_any unchanged.
-        guard case .classType = types.kind(of: argType) else {
-            return false
-        }
-
-        if types.nullability(of: argType) == .nonNull {
-            return applyClassPrintlnRewrite(
-                symbol: symbol, callee: callee, argument: arguments[0],
-                result: result, canThrow: canThrow, thrownResult: thrownResult,
-                isSuperCall: isSuperCall, arena: arena, ctx: ctx, newBody: &newBody
-            )
-        }
-
-        // Nullable class receiver: none of the direct-call rewrites are
-        // null-safe (they call toString()/read properties unconditionally,
-        // which crashes on the null sentinel), so branch on null-ness first.
-        // Probe on a scratch body so we only commit to the branch if some
-        // rewrite actually applies; otherwise fall through unchanged.
-        var nonNullBody: [KIRInstruction] = []
-        guard applyClassPrintlnRewrite(
-            symbol: symbol, callee: callee, argument: arguments[0],
-            result: result, canThrow: canThrow, thrownResult: thrownResult,
-            isSuperCall: isSuperCall, arena: arena, ctx: ctx, newBody: &nonNullBody
-        ) else {
-            return false
-        }
-
-        let nonNullLabel = allocateLabel()
-        let endLabel = allocateLabel()
-        newBody.append(.jumpIfNotNull(value: arguments[0], target: nonNullLabel))
-        // Null path: reuse the original call — kk_println_any already special-cases
-        // the null sentinel and prints "null".
-        newBody.append(.call(
-            symbol: symbol, callee: callee, arguments: arguments,
-            result: result, canThrow: canThrow, thrownResult: thrownResult, isSuperCall: isSuperCall
-        ))
-        newBody.append(.jump(endLabel))
-        newBody.append(.label(nonNullLabel))
-        newBody.append(contentsOf: nonNullBody)
-        newBody.append(.label(endLabel))
-        return true
-    }
-
-    /// Applies the first matching direct-call rewrite (data object name / data
-    /// class toString / class toString()) unconditionally. Callers must ensure
-    /// the argument is known non-null — none of these rewrites check for null.
-    private func applyClassPrintlnRewrite(
-        symbol: SymbolID?,
-        callee: InternedString,
-        argument: KIRExprID,
-        result: KIRExprID?,
-        canThrow: Bool,
-        thrownResult: KIRExprID?,
-        isSuperCall: Bool,
-        arena: KIRArena,
-        ctx: KIRContext,
-        newBody: inout [KIRInstruction]
-    ) -> Bool {
-        if let dataObjectString = rewriteDataObjectPrintlnArgument(
-            argument: argument, arena: arena, sema: ctx.sema,
-            interner: ctx.interner, body: &newBody
-        ) {
-            newBody.append(.call(
-                symbol: symbol, callee: callee, arguments: [dataObjectString],
-                result: result, canThrow: canThrow, thrownResult: thrownResult, isSuperCall: isSuperCall
-            ))
-            return true
-        }
-        if let dataClassString = rewriteDataClassPrintlnArgument(
-            argument: argument, arena: arena, sema: ctx.sema,
-            interner: ctx.interner, body: &newBody
-        ) {
-            newBody.append(.call(
-                symbol: symbol, callee: callee, arguments: [dataClassString],
-                result: result, canThrow: canThrow, thrownResult: thrownResult, isSuperCall: isSuperCall
-            ))
-            return true
-        }
-        if let classToStringResult = rewriteClassToStringPrintlnArgument(
-            argument: argument, arena: arena, sema: ctx.sema,
-            interner: ctx.interner, body: &newBody
-        ) {
-            newBody.append(.call(
-                symbol: symbol, callee: callee, arguments: [classToStringResult],
-                result: result, canThrow: canThrow, thrownResult: thrownResult, isSuperCall: isSuperCall
-            ))
-            return true
-        }
-        return false
-    }
-
-    /// Infers the semantic type of an expression from the instruction that produces it,
-    /// used when arena.exprType is nil (e.g. for kk_int_to_float result passed to println).
-    private func inferPrintlnArgTypeFromProducingInstruction(
-        exprID: KIRExprID,
-        instructions: [KIRInstruction],
-        types: TypeSystem,
-        conversionCallees: PrintlnConversionCallees
-    ) -> TypeID? {
-        for instruction in instructions.reversed() {
-            switch instruction {
-            case let .call(_, callee, _, result, _, _, _, _):
-                if result == exprID {
-                    if callee == conversionCallees.intToFloat || callee == conversionCallees.intToFloatBits {
-                        return types.make(.primitive(.float, .nonNull))
-                    }
-                    if callee == conversionCallees.floatToDoubleBits || callee == conversionCallees.intToDoubleBits {
-                        return types.make(.primitive(.double, .nonNull))
-                    }
-                    return nil
-                }
-            case let .copy(from, to):
-                if to == exprID {
-                    return inferPrintlnArgTypeFromProducingInstruction(
-                        exprID: from,
-                        instructions: instructions,
-                        types: types,
-                        conversionCallees: conversionCallees
-                    )
-                }
-            case let .constValue(result: result, value: .floatLiteral):
-                if result == exprID {
-                    return types.make(.primitive(.float, .nonNull))
-                }
-            case let .constValue(result: result, value: .doubleLiteral):
-                if result == exprID {
-                    return types.make(.primitive(.double, .nonNull))
-                }
-            default:
-                break
-            }
-        }
-        return nil
-    }
-
-    /// Returns true when the expression is the result of a range-producing call
-    /// (kk_op_rangeTo, kk_op_rangeUntil, kk_op_downTo, kk_op_step, __kk_range_reversed).
-    /// Follows .copy chains so that intermediate variable assignments are transparent.
-    private func isArgumentProducedByRangeCall(
-        exprID: KIRExprID,
-        instructions: [KIRInstruction],
-        rangeCallees: Set<InternedString>
-    ) -> Bool {
-        for instruction in instructions.reversed() {
-            switch instruction {
-            case let .call(_, callee, _, result, _, _, _, _):
-                if result == exprID {
-                    return rangeCallees.contains(callee)
-                }
-            case let .copy(from, to):
-                if to == exprID {
-                    return isArgumentProducedByRangeCall(
-                        exprID: from,
-                        instructions: instructions,
-                        rangeCallees: rangeCallees
-                    )
-                }
-            default:
-                break
-            }
-        }
-        return false
     }
 
     /// Returns true when the expression is a reference type that requires structural
@@ -475,258 +254,4 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         return interner.intern("kk_int_to_double_bits")
     }
 
-    private func appendPrimitivePrintlnCall(
-        to body: inout [KIRInstruction],
-        symbol _: SymbolID?,
-        callee: InternedString,
-        arguments: [KIRExprID],
-        result: KIRExprID?,
-        canThrow: Bool,
-        thrownResult: KIRExprID?,
-        isSuperCall: Bool
-    ) {
-        // Use symbol: nil so ABILoweringPass does not apply println's Any? signature
-        // and box the argument. Primitive println variants expect raw bits (Int), not boxed values.
-        body.append(
-            .call(
-                symbol: nil,
-                callee: callee,
-                arguments: arguments,
-                result: nil,
-                canThrow: canThrow,
-                thrownResult: thrownResult,
-                isSuperCall: isSuperCall
-            )
-        )
-        if let result {
-            body.append(.constValue(result: result, value: .unit))
-        }
-    }
-
-    /// Rewrites `println(dataObject)` to `println("ObjectName")` so that data
-    /// object singletons print their name instead of the raw integer representation.
-    private func rewriteDataObjectPrintlnArgument(
-        argument: KIRExprID,
-        arena: KIRArena,
-        sema: SemaModule?,
-        interner: StringInterner,
-        body: inout [KIRInstruction]
-    ) -> KIRExprID? {
-        guard let sema,
-              let argumentType = arena.exprType(argument),
-              case let .classType(classType) = sema.types.kind(of: argumentType),
-              let classSymbol = sema.symbols.symbol(classType.classSymbol),
-              classSymbol.kind == .object,
-              classSymbol.flags.contains(.dataType)
-        else {
-            return nil
-        }
-
-        let stringType = sema.types.stringType
-        let objectName = interner.intern(interner.resolve(classSymbol.name))
-        let resultExpr = arena.appendExpr(.stringLiteral(objectName), type: stringType)
-        body.append(.constValue(result: resultExpr, value: .stringLiteral(objectName)))
-        return resultExpr
-    }
-
-    private func rewriteDataClassPrintlnArgument(
-        argument: KIRExprID,
-        arena: KIRArena,
-        sema: SemaModule?,
-        interner: StringInterner,
-        body: inout [KIRInstruction]
-    ) -> KIRExprID? {
-        guard let sema,
-              let argumentType = arena.exprType(argument),
-              case let .classType(classType) = sema.types.kind(of: argumentType),
-              let classSymbol = sema.symbols.symbol(classType.classSymbol),
-              classSymbol.kind == .class,
-              classSymbol.flags.contains(.dataType),
-              let layout = sema.symbols.nominalLayout(for: classSymbol.id)
-        else {
-            return nil
-        }
-
-        let stringType = sema.types.stringType
-        let intType = sema.types.intType
-        let properties = sema.symbols.children(ofFQName: classSymbol.fqName)
-            .compactMap { symbolID -> (SymbolID, SemanticSymbol)? in
-                guard let symbol = sema.symbols.symbol(symbolID),
-                      symbol.kind == .property
-                else {
-                    return nil
-                }
-                return (symbolID, symbol)
-            }
-            .sorted { $0.0.rawValue < $1.0.rawValue }
-
-        func appendStringLiteral(_ value: String) -> KIRExprID {
-            let interned = interner.intern(value)
-            let expr = arena.appendExpr(.stringLiteral(interned), type: stringType)
-            body.append(.constValue(result: expr, value: .stringLiteral(interned)))
-            return expr
-        }
-
-        func appendConcat(_ lhs: KIRExprID, _ rhs: KIRExprID) -> KIRExprID {
-            let result = arena.appendTemporary(type: stringType)
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_string_concat_flat"),
-                arguments: [lhs, rhs],
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
-            return result
-        }
-
-        func appendStringConversion(_ valueExpr: KIRExprID, type: TypeID) -> KIRExprID {
-            if sema.types.isSubtype(type, stringType) {
-                return valueExpr
-            }
-            let tag = computeAnyFallbackTag(for: type, sema: sema)
-            let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
-            body.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-            let converted = arena.appendTemporary(type: stringType)
-            // This pass rewrites already-lowered functions in place, and their
-            // control-flow labels were assigned during the earlier CallLowerer/
-            // ExprLowerer construction phase (starting at 10000, see
-            // KIRLoweringContext.makeLoopLabel/resetScopeForFunction) — introducing
-            // fresh ad-hoc label numbers here risks colliding with those (unlike
-            // DataEnumSealedSynthesisPass's toString() synthesis, which builds a
-            // brand-new function body from scratch and can safely branch). So
-            // nullable Float?/Double?/ULong? route through kk_any_to_string_nullable
-            // instead of a KIR-level null guard: it disambiguates a real value from
-            // null by checking whether the raw value is boxed (see its doc comment),
-            // with no branching required in this function's body.
-            let isNullable = sema.types.makeNonNullable(type) != type
-            let calleeName = isNullable && (tag == 5 || tag == 6 || tag == 7)
-                ? "kk_any_to_string_nullable"
-                : "kk_any_to_string"
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern(calleeName),
-                arguments: [valueExpr, tagExpr],
-                result: converted,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
-            return converted
-        }
-
-        var rendered = appendStringLiteral("\(interner.resolve(classSymbol.name))(")
-        for (index, property) in properties.enumerated() {
-            let separator = index == 0 ? "" : ", "
-            rendered = appendConcat(
-                rendered,
-                appendStringLiteral("\(separator)\(interner.resolve(property.1.name))=")
-            )
-
-            let storageSymbol = sema.symbols.backingFieldSymbol(for: property.0) ?? property.0
-            guard let fieldOffset = layout.fieldOffsets[storageSymbol] else {
-                return nil
-            }
-            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
-            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-
-            let propertyType = sema.symbols.propertyType(for: property.0) ?? sema.types.anyType
-            let loaded = arena.appendTemporary(type: propertyType)
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_array_get_inbounds"),
-                arguments: [argument, offsetExpr],
-                result: loaded,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
-            rendered = appendConcat(rendered, appendStringConversion(loaded, type: propertyType))
-        }
-        return appendConcat(rendered, appendStringLiteral(")"))
-    }
-
-    /// Rewrites `println(classInstance)` for non-data class types that have a
-    /// `toString()` method override.  Emits a direct call to the class's
-    /// `toString()` implementation and returns the resulting string expression
-    /// so the caller can pass it to `kk_println_any`.
-    private func rewriteClassToStringPrintlnArgument(
-        argument: KIRExprID,
-        arena: KIRArena,
-        sema: SemaModule?,
-        interner: StringInterner,
-        body: inout [KIRInstruction]
-    ) -> KIRExprID? {
-        guard let sema,
-              let argumentType = arena.exprType(argument)
-        else {
-            return nil
-        }
-
-        // Resolve the class symbol from the argument type.
-        let classSymbolID: SymbolID
-        switch sema.types.kind(of: argumentType) {
-        case let .classType(classType):
-            classSymbolID = classType.classSymbol
-        default:
-            return nil
-        }
-
-        guard let classSymbol = sema.symbols.symbol(classSymbolID),
-              classSymbol.kind == .class || classSymbol.kind == .object || classSymbol.kind == .enumClass
-        else {
-            return nil
-        }
-
-        // Skip data classes/objects — they are handled by dedicated rewrites.
-        if classSymbol.flags.contains(.dataType) {
-            return nil
-        }
-
-        // Find the toString() method symbol for this class.
-        let toStringName = interner.intern("toString")
-        let toStringFQName = classSymbol.fqName + [toStringName]
-        let toStringSymbol: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first(where: { id in
-            guard let sym = sema.symbols.symbol(id),
-                  sym.kind == .function else {
-                return false
-            }
-            // Skip synthetic stubs (e.g., kotlin.text.StringBuilder.toString),
-            // which are already lowered via normal member-call pathways.
-            // Library-imported declarations are real source declarations that
-            // merely carry the synthetic flag, so they stay eligible.
-            guard !sym.flags.contains(.synthetic) || sym.flags.contains(.importedLibrary) else {
-                return false
-            }
-            let sig = sema.symbols.functionSignature(for: id)
-            // toString() takes no value parameters.
-            return sig?.parameterTypes.isEmpty ?? true
-        })
-
-        guard let toStringSym = toStringSymbol else {
-            return nil
-        }
-
-        let stringType = sema.types.stringType
-        let toStringResult = arena.appendTemporary(type: stringType
-        )
-        // Emit a direct call to the toString() method with the object as receiver.
-        let externalLinkName = sema.symbols.externalLinkName(for: toStringSym)
-        let toStringCallee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
-            interner.intern(externalLinkName)
-        } else {
-            toStringName
-        }
-        body.append(.call(
-            symbol: toStringSym,
-            callee: toStringCallee,
-            arguments: [argument],
-            result: toStringResult,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
-        ))
-        return toStringResult
-    }
 }

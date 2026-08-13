@@ -177,9 +177,9 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //
 //        RuntimeIteratorBuilderBox: probeHasNextAsync(callerState:) installs a
 //        resume continuation in consumerGate so no GCD thread is held while the
-//        producer runs.  New C entry points kk_iterator_builder_hasNext_coro /
-//        kk_iterator_builder_next_coro expose this for coroutine-aware callers.
-//        Existing kk_iterator_builder_hasNext / kk_iterator_builder_next are
+//        producer runs.  New C entry points __kk_iterator_builder_hasNext_coro /
+//        __kk_iterator_builder_next_coro expose this for coroutine-aware callers.
+//        Existing __kk_iterator_builder_hasNext / __kk_iterator_builder_next are
 //        unchanged — callers do not yet check for COROUTINE_SUSPENDED.
 //
 //        RuntimeSequenceCoroutine: awaitProducerYieldAsync(callerState:) and
@@ -2957,7 +2957,7 @@ public func kk_coroutine_yield() -> Int {
 /// Runs a `withTimeout`/`withTimeoutOrNull` block on a deadline, reporting whether
 /// the deadline expired first.
 ///
-/// BUG-181: the block runs on its own *child* continuation seeded from the caller,
+/// BUG-190: the block runs on its own *child* continuation seeded from the caller,
 /// never on the caller's continuation. When the deadline expires the block's entry
 /// loop is abandoned while still suspended (e.g. inside `delay()`); sharing the
 /// caller's continuation state meant that loop's pending timer later fired a

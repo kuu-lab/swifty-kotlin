@@ -69,6 +69,7 @@ final class TestStdlibCache: @unchecked Sendable {
         let artifactURL = buildURL.appendingPathComponent("kswiftk-test-stdlib-cache.kklib")
         let artifactPath = artifactURL.path
         let lockPath = artifactPath + ".lock"
+        let fingerprintPath = artifactPath + ".compiler-fingerprint"
 
         // Coordinate across parallel `swift test` workers using an advisory lock.
         let lockFd = lockPath.withCString { path in
@@ -86,11 +87,13 @@ final class TestStdlibCache: @unchecked Sendable {
         }
 
         // Another worker may have built the artifact while we waited.
-        if fm.fileExists(atPath: artifactPath), !isArtifactStale(at: artifactURL, fm: fm) {
+        if fm.fileExists(atPath: artifactPath),
+           !isArtifactStale(at: artifactURL, fingerprintPath: fingerprintPath, fm: fm) {
             return artifactPath
         }
-        // Existing artifact is missing or stale (stdlib source changed).
+        // Existing artifact is missing or stale (stdlib source or compiler changed).
         try? fm.removeItem(at: artifactURL)
+        try? fm.removeItem(atPath: fingerprintPath)
 
         let buildingBase = artifactPath + ".building"
         let buildingArtifactPath = buildingBase + ".kklib"
@@ -119,10 +122,67 @@ final class TestStdlibCache: @unchecked Sendable {
         try? fm.removeItem(at: artifactURL)
         try fm.moveItem(atPath: buildingArtifactPath, toPath: artifactPath)
 
+        if let fingerprint = Self.currentCompilerFingerprint() {
+            try? fingerprint.write(toFile: fingerprintPath, atomically: true, encoding: .utf8)
+        } else {
+            try? fm.removeItem(atPath: fingerprintPath)
+        }
+
         return artifactPath
     }
 
-    private func isArtifactStale(at artifactURL: URL, fm: FileManager) -> Bool {
+    /// A cheap fingerprint (mtime + size) of the `KSwiftKPackageTests` test
+    /// binary itself, which statically links every module including
+    /// CompilerCore/CompilerBackend (there are no `.dylib`s under `.build` —
+    /// `find .build/debug -iname '*.dylib'` returns nothing). The bundled
+    /// `.kt` stdlib sources hashed by `BundledStdlib.manifestHash()`
+    /// don't change when only Swift-side lowering/codegen/runtime ABI
+    /// changes (e.g. a `kk_*` callee gaining a parameter), so that hash
+    /// alone can't detect staleness for such changes and a cached artifact
+    /// built by the previous binary would otherwise be reused silently
+    /// against the new one.
+    ///
+    /// Deliberately NOT `Bundle.main.executablePath`: under
+    /// `swiftpm-testing-helper`, that resolves to the helper binary itself
+    /// (part of the Xcode toolchain, unrelated to and untouched by this
+    /// repo's own rebuilds), not to `KSwiftKPackageTests` — verified by
+    /// comparing the two paths' sizes/mtimes directly, which differed by
+    /// orders of magnitude and months. A fixed relative path under `.build`
+    /// (mirroring the worker-binary search in
+    /// `GoldenHarnessSupport/GoldenHarnessAPI.swift`) is used instead.
+    private static func currentCompilerFingerprint() -> String? {
+        let fm = FileManager.default
+        let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
+        let workerName = "KSwiftKPackageTests"
+
+        var candidates: [URL] = []
+        #if os(Linux)
+        candidates.append(contentsOf: [
+            cwd.appendingPathComponent(".build/debug/\(workerName).xctest"),
+            cwd.appendingPathComponent(".build/x86_64-unknown-linux-gnu/debug/\(workerName).xctest"),
+            cwd.appendingPathComponent(".build/aarch64-unknown-linux-gnu/debug/\(workerName).xctest")
+        ])
+        #else
+        candidates.append(contentsOf: [
+            cwd.appendingPathComponent(".build/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
+            cwd.appendingPathComponent(".build/arm64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
+            cwd.appendingPathComponent(".build/x86_64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)")
+        ])
+        #endif
+
+        guard let binaryPath = candidates.first(where: { fm.isExecutableFile(atPath: $0.path) }) else {
+            return nil
+        }
+        guard let attrs = try? fm.attributesOfItem(atPath: binaryPath.path),
+              let size = attrs[.size] as? UInt64,
+              let modified = attrs[.modificationDate] as? Date
+        else {
+            return nil
+        }
+        return "\(size)-\(modified.timeIntervalSince1970)"
+    }
+
+    private func isArtifactStale(at artifactURL: URL, fingerprintPath: String, fm: FileManager) -> Bool {
         let manifestURL = artifactURL.appendingPathComponent("manifest.json")
         guard fm.fileExists(atPath: manifestURL.path),
               let data = try? Data(contentsOf: manifestURL),
@@ -134,6 +194,19 @@ final class TestStdlibCache: @unchecked Sendable {
         guard let hash = manifest["stdlibManifestHash"] as? String, !hash.isEmpty else {
             return true
         }
-        return hash != BundledKotlinStdlib.manifestHash()
+        guard hash == BundledStdlib.manifestHash() else { return true }
+
+        // Belt-and-suspenders: the stdlib source hash above only catches
+        // `.kt` changes. Also require the compiler binary itself to match
+        // the one that built this artifact, so a Swift-side ABI change
+        // (no `.kt` diff) invalidates the cache too.
+        guard let currentFingerprint = Self.currentCompilerFingerprint() else {
+            // Can't determine the running binary's identity; be conservative.
+            return true
+        }
+        guard let savedFingerprint = try? String(contentsOfFile: fingerprintPath, encoding: .utf8) else {
+            return true
+        }
+        return savedFingerprint != currentFingerprint
     }
 }

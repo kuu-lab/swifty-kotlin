@@ -174,7 +174,7 @@ final class CodegenPhase: CompilerPhase {
         ]
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
-            manifestDict["stdlibManifestHash"] = BundledKotlinStdlib.manifestHash()
+            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
         }
         let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
         var manifestString = String(data: manifestData, encoding: .utf8) ?? ""

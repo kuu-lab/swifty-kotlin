@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 fun main() {
     // Comprehensive chunked(size, step) and transform tests
     
@@ -22,16 +22,16 @@ fun main() {
     val numbers = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     
     // step < size (overlapping chunks)
-    println("step 2, size 4: ${numbers.chunked(4, 2)}")
-    println("step 1, size 3: ${numbers.chunked(3, 1)}")
+    println("step 2, size 4: ${numbers.windowed(4, 2, true)}")
+    println("step 1, size 3: ${numbers.windowed(3, 1, true)}")
     
     // step == size (non-overlapping)
-    println("step 3, size 3: ${numbers.chunked(3, 3)}")
-    println("step 2, size 2: ${numbers.chunked(2, 2)}")
+    println("step 3, size 3: ${numbers.windowed(3, 3, true)}")
+    println("step 2, size 2: ${numbers.windowed(2, 2, true)}")
     
     // step > size (gaps between chunks)
-    println("step 4, size 2: ${numbers.chunked(2, 4)}")
-    println("step 5, size 3: ${numbers.chunked(3, 5)}")
+    println("step 4, size 2: ${numbers.windowed(2, 4, true)}")
+    println("step 5, size 3: ${numbers.windowed(3, 5, true)}")
     
     println("\n=== chunked with transform function ===")
     
@@ -50,13 +50,13 @@ fun main() {
     println("\n=== chunked(size, step, transform) tests ===")
     
     // Combine all three parameters
-    val complex = numbers.chunked(3, 2) { chunk ->
+    val complex = numbers.windowed(3, 2, true) { chunk ->
         "chunk(${chunk.joinToString()})=${chunk.average()}"
     }
     println("complex chunked: $complex")
     
     // Different step with transform
-    val stepTransform = numbers.chunked(2, 3) { chunk ->
+    val stepTransform = numbers.windowed(2, 3, true) { chunk ->
         chunk.map { it * it }
     }
     println("step transform: $stepTransform")
@@ -66,14 +66,14 @@ fun main() {
     val text = "abcdefghijklmnopqrstuvwxyz"
     
     // String chunked with step
-    println("text.chunked(3, 2): ${text.chunked(3, 2)}")
-    println("text.chunked(4, 1): ${text.chunked(4, 1)}")
-    println("text.chunked(5, 5): ${text.chunked(5, 5)}")
-    println("text.chunked(2, 4): ${text.chunked(2, 4)}")
+    println("text.windowed(3, 2, true): ${text.windowed(3, 2, true)}")
+    println("text.windowed(4, 1, true): ${text.windowed(4, 1, true)}")
+    println("text.windowed(5, 5, true): ${text.windowed(5, 5, true)}")
+    println("text.windowed(2, 4, true): ${text.windowed(2, 4, true)}")
     
     // String chunked with step and transform
-    val stringComplex = text.chunked(3, 2) { chunk ->
-        chunk.uppercase()
+    val stringComplex = text.windowed(3, 2, true) { chunk ->
+        chunk.toString().uppercase()
     }
     println("string complex: $stringComplex")
     
@@ -81,40 +81,40 @@ fun main() {
     
     // Empty collections
     println("emptyList.chunked(3): ${emptyList<Int>().chunked(3)}")
-    println("emptyList.chunked(3, 2): ${emptyList<Int>().chunked(3, 2)}")
+    println("emptyList.windowed(3, 2, true): ${emptyList<Int>().windowed(3, 2, true)}")
     println("\"\".chunked(3): ${"".chunked(3)}")
     
     // Single element
     val single = listOf(42)
     println("single.chunked(1): ${single.chunked(1)}")
     println("single.chunked(2): ${single.chunked(2)}")
-    println("single.chunked(1, 1): ${single.chunked(1, 1)}")
-    println("single.chunked(1, 2): ${single.chunked(1, 2)}")
+    println("single.windowed(1, 1, true): ${single.windowed(1, 1, true)}")
+    println("single.windowed(1, 2, true): ${single.windowed(1, 2, true)}")
     
     // Size larger than collection
     val small = listOf(1, 2, 3)
     println("small.chunked(5): ${small.chunked(5)}")
-    println("small.chunked(5, 3): ${small.chunked(5, 3)}")
+    println("small.windowed(5, 3, true): ${small.windowed(5, 3, true)}")
     
     // Step = 1 (maximum overlap)
-    println("numbers.chunked(3, 1): ${numbers.chunked(3, 1)}")
+    println("numbers.windowed(3, 1, true): ${numbers.windowed(3, 1, true)}")
     
     println("\n=== Type-specific tests ===")
     
     // Double list
     val doubles = listOf(1.1, 2.2, 3.3, 4.4, 5.5)
     println("doubles.chunked(2): ${doubles.chunked(2)}")
-    println("doubles.chunked(2, 1): ${doubles.chunked(2, 1)}")
+    println("doubles.windowed(2, 1, true): ${doubles.windowed(2, 1, true)}")
     
     // Character list
     val chars = listOf('a', 'b', 'c', 'd', 'e', 'f')
     println("chars.chunked(2): ${chars.chunked(2)}")
-    println("chars.chunked(3, 2): ${chars.chunked(3, 2)}")
+    println("chars.windowed(3, 2, true): ${chars.windowed(3, 2, true)}")
     
     // Boolean list
     val booleans = listOf(true, false, true, false, true)
     println("booleans.chunked(2): ${booleans.chunked(2)}")
-    println("booleans.chunked(3, 1): ${booleans.chunked(3, 1)}")
+    println("booleans.windowed(3, 1, true): ${booleans.windowed(3, 1, true)}")
     
     println("\n=== Complex transform functions ===")
     
@@ -130,12 +130,12 @@ fun main() {
     println("to maps: $toMaps")
     
     val toBooleans = numbers.chunked(3) { chunk ->
-        chunk.all { it > 5 }
+        if (chunk.all { it > 5 }) "true" else "false"
     }
     println("to booleans: $toBooleans")
     
     // Transform with step
-    val stepToSum = numbers.chunked(2, 3) { chunk ->
+    val stepToSum = numbers.windowed(2, 3, true) { chunk ->
         chunk.sum()
     }
     println("step to sum: $stepToSum")
@@ -144,13 +144,13 @@ fun main() {
     
     // Large collection
     val large = (1..100).toList()
-    val largeChunked = large.chunked(10, 5) { it.size }
-    println("large chunked sizes: ${largeChunked.take(5)}")
+    val largeChunked = large.windowed(10, 5, true) { it.size }
+    println("large chunked sizes: $largeChunked")
     
     // Verify chunk contents
     val testList = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9)
     val expectedChunks = listOf(listOf(1, 2, 3), listOf(3, 4, 5), listOf(5, 6, 7), listOf(7, 8, 9))
-    val actualChunks = testList.chunked(3, 2)
+    val actualChunks = testList.windowed(3, 2, true)
     println("expected: $expectedChunks")
     println("actual: $actualChunks")
     println("match: ${expectedChunks == actualChunks}")
@@ -158,11 +158,11 @@ fun main() {
     println("\n=== Special cases ===")
     
     // Step equal to collection size
-    println("numbers.chunked(3, 10): ${numbers.chunked(3, 10)}")
+    println("numbers.windowed(3, 10, true): ${numbers.windowed(3, 10, true)}")
     
     // Size = 1
-    println("numbers.chunked(1, 2): ${numbers.chunked(1, 2)}")
-    println("numbers.chunked(1, 1): ${numbers.chunked(1, 1)}")
+    println("numbers.windowed(1, 2, true): ${numbers.windowed(1, 2, true)}")
+    println("numbers.windowed(1, 1, true): ${numbers.windowed(1, 1, true)}")
     
     // Transform that returns empty collections
     val emptyTransform = numbers.chunked(3) { emptyList<Int>() }

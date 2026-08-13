@@ -160,10 +160,6 @@ struct CommonLookupNames {
     let hashMapOfFQName: [InternedString]
     let linkedMapOfFQName: [InternedString]
     let listOfNotNullFQName: [InternedString]
-    // println support
-    let printlnName: InternedString
-    let kkPrintlnAnyName: InternedString
-    let kkAnyToStringName: InternedString
     let kotlinName: InternedString
     let initName: InternedString
     // Pair / `to` infix (FUNC-002)
@@ -330,9 +326,6 @@ struct CommonLookupNames {
         hashMapOfFQName = kotlinCollectionsPkg + [interner.intern("hashMapOf")]
         linkedMapOfFQName = kotlinCollectionsPkg + [interner.intern("linkedMapOf")]
         listOfNotNullFQName = kotlinCollectionsPkg + [interner.intern("listOfNotNull")]
-        printlnName = interner.intern("println")
-        kkPrintlnAnyName = interner.intern("kk_println_any")
-        kkAnyToStringName = interner.intern("kk_any_to_string")
         kotlinName = interner.intern("kotlin")
         initName = interner.intern("<init>")
         toName = interner.intern("to")

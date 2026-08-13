@@ -13,6 +13,8 @@ struct BuiltinTypeNames {
     let ulong: InternedString
     let ubyte: InternedString
     let ushort: InternedString
+    let byte: InternedString
+    let short: InternedString
     let any: InternedString
     let number: InternedString
     let unit: InternedString
@@ -32,6 +34,8 @@ struct BuiltinTypeNames {
         self.ulong = interner.intern("ULong")
         self.ubyte = interner.intern("UByte")
         self.ushort = interner.intern("UShort")
+        self.byte = interner.intern("Byte")
+        self.short = interner.intern("Short")
         self.any = interner.intern("Any")
         self.number = interner.intern("Number")
         self.unit = interner.intern("Unit")
@@ -52,6 +56,8 @@ struct BuiltinTypeNames {
         if name == ulong { return .ulong }
         if name == ubyte { return .ubyte }
         if name == ushort { return .ushort }
+        if name == byte { return .byte }
+        if name == short { return .short }
         return nil
     }
 

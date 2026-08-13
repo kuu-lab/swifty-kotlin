@@ -1,9 +1,6 @@
 symbol fq=charLowercase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=charTitlecase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=charUppercase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=kotlin.text.lowercase#0 kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
-symbol fq=kotlin.text.titlecase kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
-symbol fq=kotlin.text.uppercase#0 kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
 file fchar_case_conversion package=_
   decl charUppercase fun charUppercase sym=charUppercase
   decl charLowercase fun charLowercase sym=charLowercase

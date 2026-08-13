@@ -24,34 +24,6 @@ func nominalRangeElementType(
     }
 }
 
-/// Returns the element type for a range-like argument expression.
-/// Prefers explicit `UIntRange` / `ULongRange` markers when available so
-/// locals derived from range constructors still lower correctly.
-func coerceInRangeElementType(
-    for expr: ExprID,
-    sema: SemaModule,
-    interner: StringInterner
-) -> TypeID? {
-    let exprType = sema.bindings.exprTypes[expr] ?? sema.types.anyType
-    let nonNullExprType = sema.types.makeNonNullable(exprType)
-    if sema.bindings.isRangeExpr(expr) {
-        if nonNullExprType == sema.types.intType
-            || nonNullExprType == sema.types.longType
-            || nonNullExprType == sema.types.uintType
-            || nonNullExprType == sema.types.ulongType
-        {
-            return nonNullExprType
-        }
-    }
-    if sema.bindings.isUIntRangeExpr(expr) {
-        return sema.types.uintType
-    }
-    if sema.bindings.isULongRangeExpr(expr) {
-        return sema.types.ulongType
-    }
-    return nominalRangeElementType(for: exprType, sema: sema, interner: interner)
-}
-
 struct TypeCheckHelpers {
     private func syntheticCoroutineNominalType(
         packageName: [InternedString],
@@ -374,9 +346,9 @@ struct TypeCheckHelpers {
         case knownNames.longArray:
             return sema.types.longType
         case knownNames.shortArray:
-            return sema.types.intType
+            return sema.types.shortType
         case knownNames.byteArray:
-            return sema.types.intType
+            return sema.types.byteType
         case knownNames.ubyteArray:
             return sema.types.ubyteType
         case knownNames.ushortArray:
@@ -538,9 +510,6 @@ struct TypeCheckHelpers {
         if let builtin = BuiltinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
             return builtin
         }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.make(.primitive(.int, nullability))
-        }
         return nil
     }
 
@@ -669,7 +638,7 @@ struct TypeCheckHelpers {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0025",
                     "Unresolved type '\(interner.resolve(shortName))'.",
-                    range: nil
+                    range: usageRange
                 )
                 return sema.types.errorType
             }
@@ -703,7 +672,8 @@ struct TypeCheckHelpers {
                 symbols: sema.symbols,
                 types: sema.types,
                 interner: interner,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                range: usageRange
             )
         }
     }

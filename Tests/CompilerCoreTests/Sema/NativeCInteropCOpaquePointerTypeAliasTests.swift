@@ -4,10 +4,20 @@ import Testing
 
 @Suite
 struct NativeCInteropCOpaquePointerTypeAliasTests {
-    @Test func testCOpaquePointerTypeAliasSurface() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
+    @Test func testCOpaquePointer() throws {
+        let source = """
+        import kotlinx.cinterop.COpaquePointer
+
+        fun pass(value: COpaquePointer): COpaquePointer {
+            return value
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointer typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+        #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointer typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
+
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPackage = ["kotlinx", "cinterop"].map { interner.intern($0) }
@@ -30,23 +40,10 @@ struct NativeCInteropCOpaquePointerTypeAliasTests {
             args: [.out(cPointedType)],
             nullability: .nonNull
         )))
-
         #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
         #expect(sema.symbols.typeAliasTypeParameters(for: aliasSymbol) == [])
         #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
     }
 
-    @Test func testCOpaquePointerResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.COpaquePointer
-
-        fun pass(value: COpaquePointer): COpaquePointer {
-            return value
-        }
-        """)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointer typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
 }
 #endif

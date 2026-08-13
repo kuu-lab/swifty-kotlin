@@ -31,43 +31,7 @@ extension CallLowerer {
             return lateinitStatus
         }
 
-        // takeIf / takeUnless with safe call (STDLIB-160)
-        if sema.bindings.takeIfTakeUnlessKind(for: exprID) != nil {
-            let takeBoundType = boundType ?? sema.types.anyType
-            let result = arena.appendTemporary(type: takeBoundType
-            )
-            let loweredReceiver = driver.lowerExpr(
-                receiverExpr,
-                shared: shared,
-                emit: &instructions
-            )
-            let nonNullLabel = driver.ctx.makeLoopLabel()
-            let endLabel = driver.ctx.makeLoopLabel()
-            instructions.append(.jumpIfNotNull(value: loweredReceiver, target: nonNullLabel))
-            let nullVal = arena.appendExpr(.unit, type: takeBoundType)
-            instructions.append(.constValue(result: nullVal, value: .null))
-            instructions.append(.copy(from: nullVal, to: result))
-            instructions.append(.jump(endLabel))
-            instructions.append(.label(nonNullLabel))
-            if let takeResult = tryTakeIfTakeUnlessLowering(
-                exprID,
-                receiverExpr: receiverExpr,
-                args: args,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions.instructions,
-                precomputedReceiver: loweredReceiver
-            ) {
-                instructions.append(.copy(from: takeResult, to: result))
-            }
-            instructions.append(.label(endLabel))
-            return result
-        }
-
-        // Scope functions with safe call: ?.let, ?.run, etc. (STDLIB-004)
+        // Scope functions with safe call: ?.run, ?.apply, ?.use, etc. (STDLIB-004)
         if sema.bindings.scopeFunctionKind(for: exprID) != nil {
             let scopeBoundType = boundType ?? sema.types.anyType
             let nullableResultType = sema.types.makeNullable(scopeBoundType)
@@ -254,9 +218,11 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
+            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
                 let nonNullLabel = driver.ctx.makeLoopLabel()
                 let endLabel = driver.ctx.makeLoopLabel()
                 instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
@@ -419,9 +385,11 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
+            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
                 let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                 let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
                 let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
@@ -548,57 +516,6 @@ extension CallLowerer {
             }
         }
 
-        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
-        if interner.resolve(effectiveCalleeName) == "digitToChar",
-           args.count <= 1
-        {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType {
-                let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.charType)
-                let nullableResultType = sema.types.makeNullable(callResultType)
-                let callLabel = driver.ctx.makeLoopLabel()
-                let endLabel = driver.ctx.makeLoopLabel()
-                let nullExpr = arena.appendExpr(.unit, type: nullableResultType)
-                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                instructions.append(.constValue(result: nullExpr, value: .null))
-                instructions.append(.copy(from: nullExpr, to: result))
-                instructions.append(.jump(endLabel))
-                instructions.append(.label(callLabel))
-                let nonNullResult = arena.appendTemporary(type: callResultType)
-                if args.isEmpty {
-                    let radixExpr = arena.appendExpr(.intLiteral(10), type: intType)
-                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToChar_radix"),
-                        arguments: [loweredReceiverID, radixExpr],
-                        result: nonNullResult,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                } else {
-                    let loweredRadixArg = driver.lowerExpr(
-                        args[0].expr,
-                        shared: shared,
-                        emit: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_char_digitToChar_radix"),
-                        arguments: [loweredReceiverID, loweredRadixArg],
-                        result: nonNullResult,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                }
-                instructions.append(.copy(from: nonNullResult, to: result))
-                instructions.append(.label(endLabel))
-                return result
-            }
-        }
-
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
@@ -700,141 +617,6 @@ extension CallLowerer {
             return result
         }
 
-        // Numeric coercion: Int/Long/Double/Float.coerceIn/coerceAtLeast/coerceAtMost (STDLIB-150, STDLIB-500)
-        if args.count == 2, interner.resolve(effectiveCalleeName) == "coerceIn" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                let callLabel = driver.ctx.makeLoopLabel()
-                let endLabel = driver.ctx.makeLoopLabel()
-                let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                instructions.append(.constValue(result: nullExpr, value: .null))
-                instructions.append(.copy(from: nullExpr, to: result))
-                instructions.append(.jump(endLabel))
-                instructions.append(.label(callLabel))
-                let loweredCoerceArg0 = driver.lowerExpr(
-                    args[0].expr, shared: shared, emit: &instructions
-                )
-                let loweredCoerceArg1 = driver.lowerExpr(
-                    args[1].expr, shared: shared, emit: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(prefix + "_coerceIn"),
-                    arguments: [loweredReceiverID, loweredCoerceArg0, loweredCoerceArg1],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                instructions.append(.label(endLabel))
-                return result
-            }
-        }
-
-        // Int/Long/UInt/ULong.coerceIn(range) — single ClosedRange argument (STDLIB-525)
-        // Only integer-typed receivers are supported here; floating-point
-        // receivers must not enter this path because __kk_range_first/__kk_range_last
-        // return integer-typed bounds that would be incorrect for float coercion.
-        if args.count == 1, interner.resolve(effectiveCalleeName) == "coerceIn" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema),
-               prefix == "kk_int" || prefix == "kk_long" || prefix == "kk_uint" || prefix == "kk_ulong" {
-                let argExprID = args[0].expr
-                if let rangeElementType = coerceInRangeElementType(
-                    for: argExprID,
-                    sema: sema,
-                    interner: interner
-                ), rangeElementType == nonNullReceiverType
-                {
-                    let callLabel = driver.ctx.makeLoopLabel()
-                    let endLabel = driver.ctx.makeLoopLabel()
-                    let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                    instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                    instructions.append(.constValue(result: nullExpr, value: .null))
-                    instructions.append(.copy(from: nullExpr, to: result))
-                    instructions.append(.jump(endLabel))
-                    instructions.append(.label(callLabel))
-                    let loweredRangeArg = driver.lowerExpr(
-                        args[0].expr, shared: shared, emit: &instructions
-                    )
-                    emitCoerceInRange(
-                        prefix: prefix,
-                        receiverType: receiverType,
-                        loweredReceiverID: loweredReceiverID,
-                        loweredRangeArgID: loweredRangeArg,
-                        result: result,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions.instructions
-                    )
-                    instructions.append(.label(endLabel))
-                    return result
-                }
-            }
-        }
-        if args.count == 1 {
-            let calleeStr = interner.resolve(effectiveCalleeName)
-            if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
-                    // Check if this is range-based coercion (single range argument)
-                    if args.count == 1 {
-                        let argExprID = args[0].expr
-                        if sema.bindings.isRangeExpr(argExprID) {
-                            // Use range-based coercion functions
-                            let callLabel = driver.ctx.makeLoopLabel()
-                            let endLabel = driver.ctx.makeLoopLabel()
-                            let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                            instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                            instructions.append(.constValue(result: nullExpr, value: .null))
-                            instructions.append(.copy(from: nullExpr, to: result))
-                            instructions.append(.jump(endLabel))
-                            instructions.append(.label(callLabel))
-                            let loweredRangeArg = driver.lowerExpr(
-                                args[0].expr, shared: shared, emit: &instructions
-                            )
-                            let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast_range" : "_coerceAtMost_range"
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern(prefix + suffix),
-                                arguments: [loweredReceiverID, loweredRangeArg],
-                                result: result,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                            instructions.append(.label(endLabel))
-                            return result
-                        }
-                    }
-                    // Fallback to single-value coercion
-                    let callLabel = driver.ctx.makeLoopLabel()
-                    let endLabel = driver.ctx.makeLoopLabel()
-                    let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                    instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
-                    instructions.append(.constValue(result: nullExpr, value: .null))
-                    instructions.append(.copy(from: nullExpr, to: result))
-                    instructions.append(.jump(endLabel))
-                    instructions.append(.label(callLabel))
-                    let loweredCoerceArg = driver.lowerExpr(
-                        args[0].expr, shared: shared, emit: &instructions
-                    )
-                    let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast" : "_coerceAtMost"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(prefix + suffix),
-                        arguments: [loweredReceiverID, loweredCoerceArg],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    instructions.append(.label(endLabel))
-                    return result
-                }
-            }
-        }
-
         // Primitive conversion: toInt(), toUInt(), toLong(), toULong(), toFloat(), toDouble(), toByte(), toShort() (TYPE-005, STDLIB-151)
         if args.isEmpty {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -843,6 +625,8 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.ubyteType
             let ushortType = sema.types.ushortType
+            let byteType = sema.types.byteType
+            let shortType = sema.types.shortType
             let charType = sema.types.charType
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
@@ -860,12 +644,16 @@ extension CallLowerer {
             case ("toInt", floatType, intType): interner.intern("kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
             case ("toInt", charType, intType): interner.intern("kk_char_to_int")
+            case ("toInt", byteType, intType): nil // identity
+            case ("toInt", shortType, intType): nil // identity
             case ("toInt", intType, intType): nil // identity
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", charType, uintType): interner.intern("kk_char_to_uint")
+            case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
+            case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
@@ -874,12 +662,16 @@ extension CallLowerer {
             case ("toLong", doubleType, longType): interner.intern("kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("kk_float_to_long")
             case ("toLong", charType, longType): interner.intern("kk_char_to_long")
+            case ("toLong", byteType, longType): nil // identity
+            case ("toLong", shortType, longType): nil // identity
             case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
             case ("toULong", intType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", longType, ulongType): interner.intern("kk_long_to_ulong")
             case ("toULong", ubyteType, ulongType): interner.intern("kk_ubyte_to_ulong")
             case ("toULong", ushortType, ulongType): interner.intern("kk_ushort_to_ulong")
             case ("toULong", charType, ulongType): interner.intern("kk_char_to_ulong")
+            case ("toULong", byteType, ulongType): interner.intern("kk_int_to_ulong")
+            case ("toULong", shortType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
             case ("toULong", ulongType, ulongType): nil // identity
             case ("toFloat", intType, floatType): interner.intern("kk_int_to_float")
@@ -888,6 +680,8 @@ extension CallLowerer {
             case ("toFloat", floatType, floatType): nil // identity
             case ("toFloat", uintType, floatType): interner.intern("kk_uint_to_float")
             case ("toFloat", ulongType, floatType): interner.intern("kk_ulong_to_float")
+            case ("toFloat", byteType, floatType): interner.intern("kk_int_to_float")
+            case ("toFloat", shortType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", ubyteType, floatType): interner.intern("kk_ubyte_to_float")
             case ("toFloat", ushortType, floatType): interner.intern("kk_ushort_to_float")
             case ("toDouble", intType, doubleType): interner.intern("kk_int_to_double_bits")
@@ -896,20 +690,26 @@ extension CallLowerer {
             case ("toDouble", doubleType, doubleType): nil // identity
             case ("toDouble", uintType, doubleType): interner.intern("kk_uint_to_double")
             case ("toDouble", ulongType, doubleType): interner.intern("kk_ulong_to_double")
+            case ("toDouble", byteType, doubleType): interner.intern("kk_int_to_double_bits")
+            case ("toDouble", shortType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", ubyteType, doubleType): interner.intern("kk_ubyte_to_double")
             case ("toDouble", ushortType, doubleType): interner.intern("kk_ushort_to_double")
-            case ("toByte", intType, intType): interner.intern("kk_int_to_byte")
-            case ("toByte", longType, intType): interner.intern("kk_long_to_byte")
-            case ("toByte", uintType, intType): interner.intern("kk_uint_to_byte")
-            case ("toByte", ulongType, intType): interner.intern("kk_ulong_to_byte")
-            case ("toByte", ubyteType, intType): interner.intern("kk_ubyte_to_byte")
-            case ("toByte", ushortType, intType): interner.intern("kk_ushort_to_byte")
-            case ("toShort", intType, intType): interner.intern("kk_int_to_short")
-            case ("toShort", longType, intType): interner.intern("kk_long_to_short")
-            case ("toShort", uintType, intType): interner.intern("kk_uint_to_short")
-            case ("toShort", ulongType, intType): interner.intern("kk_ulong_to_short")
-            case ("toShort", ubyteType, intType): interner.intern("kk_ubyte_to_short")
-            case ("toShort", ushortType, intType): interner.intern("kk_ushort_to_short")
+            case ("toByte", intType, byteType): interner.intern("kk_int_to_byte")
+            case ("toByte", longType, byteType): interner.intern("kk_long_to_byte")
+            case ("toByte", uintType, byteType): interner.intern("kk_uint_to_byte")
+            case ("toByte", ulongType, byteType): interner.intern("kk_ulong_to_byte")
+            case ("toByte", ubyteType, byteType): interner.intern("kk_ubyte_to_byte")
+            case ("toByte", ushortType, byteType): interner.intern("kk_ushort_to_byte")
+            case ("toByte", byteType, byteType): nil // identity
+            case ("toByte", shortType, byteType): interner.intern("kk_int_to_byte")
+            case ("toShort", intType, shortType): interner.intern("kk_int_to_short")
+            case ("toShort", longType, shortType): interner.intern("kk_long_to_short")
+            case ("toShort", uintType, shortType): interner.intern("kk_uint_to_short")
+            case ("toShort", ulongType, shortType): interner.intern("kk_ulong_to_short")
+            case ("toShort", ubyteType, shortType): interner.intern("kk_ubyte_to_short")
+            case ("toShort", ushortType, shortType): interner.intern("kk_ushort_to_short")
+            case ("toShort", byteType, shortType): nil // identity
+            case ("toShort", shortType, shortType): nil // identity
             case ("toUByte", intType, ubyteType): interner.intern("kk_int_to_ubyte")
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
@@ -946,9 +746,11 @@ extension CallLowerer {
                 (calleeStr == "toLong" && nonNullReceiverType == ulongType && nonNullResultType == longType)
                     || (calleeStr == "toUInt" && nonNullReceiverType == ulongType && nonNullResultType == uintType)
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
+                    || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
+                    || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
             if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
-               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
+               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
             {
                 instructions.append(.copy(from: loweredReceiverID, to: result))
                 return result
@@ -1184,7 +986,7 @@ extension CallLowerer {
                 )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
-            let hasExternalLink = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }.map { !$0.isEmpty } ?? false
+            let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             if !isSuperCall,
                let chosen,
                !hasExternalLink,
@@ -1221,6 +1023,15 @@ extension CallLowerer {
         }
         instructions.append(.label(endLabel))
         return result
+    }
+
+    /// Whether a callee's external link name denotes a runtime bridge (a `kk_*`
+    /// entry point taking the runtime's argument shape) rather than an ordinary
+    /// Kotlin declaration. A declaration imported from a precompiled library
+    /// also carries a link name — its own `kk_fn_*` mangled definition — so the
+    /// link name, not the mere presence of one, decides.
+    func kirIsRuntimeBridgedCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
     }
 
     /// Determine if a callee method requires virtual dispatch.

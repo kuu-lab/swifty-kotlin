@@ -4,10 +4,11 @@ import Testing
 
 @Suite struct AbstractOpenOverrideTests {
 
-    // MARK: - Original Test Case Validation
+    // MARK: - Shared Sema contexts
 
-    @Test func testOriginalAbstractOpenOverrideCase() throws {
-        let source = """
+    private static let positiveSources: [String] = [
+        """
+        package sample0
         abstract class Shape {
             abstract fun area(): Double
             open fun describe(): String = "I am a shape"
@@ -27,56 +28,9 @@ import Testing
             println(r.describe())
             println(r.area())
         }
+        """,
         """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testMissingAbstractOverride() throws {
-        let source = """
-        abstract class Shape {
-            abstract fun area(): Double
-            open fun describe(): String = "I am a shape"
-        }
-        class Circle(val r: Double) : Shape() {
-            // Missing override for abstract area()
-            override fun describe(): String = "Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testMissingOverrideModifier() throws {
-        let source = """
-        abstract class Shape {
-            abstract fun area(): Double
-            open fun describe(): String = "I am a shape"
-        }
-        class Circle(val r: Double) : Shape() {
-            override fun area(): Double = 3.14159 * r * r
-            fun describe(): String = "Circle" // Missing override modifier
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
-    }
-
-    // MARK: - Advanced Test Cases
-
-    @Test func testAbstractOverrideChaining() throws {
-        let source = """
+        package sample1
         abstract class Shape {
             abstract fun area(): Double
             open fun describe(): String = "Shape"
@@ -91,39 +45,9 @@ import Testing
             override fun area(): Double = 3.14159 * r * r
             final override fun describe(): String = "Circle"
         }
+        """,
         """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testFinalOverrideTermination() throws {
-        let source = """
-        open class Shape {
-            open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            final override fun describe(): String = "Circle"
-        }
-
-        // This should error - cannot override final
-        class ColoredCircle : Circle() {
-            override fun describe(): String = "Colored Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
-    }
-
-    // MARK: - Primary constructor `override val` / `override var` properties
-
-    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
-        let source = """
+        package sample2
         interface CommandProcessor {
             val pluginId: String
             val displayName: String
@@ -138,31 +62,17 @@ import Testing
             val p = MyCommandProcessor("id", "name")
             println(p.pluginId)
         }
+        """,
         """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
-        let source = """
+        package sample3
         abstract class Container {
             abstract var items: List<String>
         }
 
         class Box(override var items: List<String>) : Container()
+        """,
         """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
-        let source = """
+        package sample4
         interface CommandProcessor {
             val pluginId: String
             val displayName: String
@@ -173,16 +83,49 @@ import Testing
         ) : CommandProcessor {
             override val displayName: String = "static-name"
         }
+        """,
+    ]
+
+    private static let negativeSources: [String] = [
         """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+        package sample5
+        abstract class Shape {
+            abstract fun area(): Double
+            open fun describe(): String = "I am a shape"
+        }
+        class Circle(val r: Double) : Shape() {
+            // Missing override for abstract area()
+            override fun describe(): String = "Circle"
+        }
+        """,
+        """
+        package sample6
+        abstract class Shape {
+            abstract fun area(): Double
+            open fun describe(): String = "I am a shape"
+        }
+        class Circle(val r: Double) : Shape() {
+            override fun area(): Double = 3.14159 * r * r
+            fun describe(): String = "Circle" // Missing override modifier
+        }
+        """,
+        """
+        package sample7
+        open class Shape {
+            open fun describe(): String = "Shape"
+        }
 
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
+        class Circle : Shape() {
+            final override fun describe(): String = "Circle"
+        }
 
-    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
-        let source = """
+        // This should error - cannot override final
+        class ColoredCircle : Circle() {
+            override fun describe(): String = "Colored Circle"
+        }
+        """,
+        """
+        package sample8
         interface CommandProcessor {
             val pluginId: String
             val displayName: String
@@ -191,9 +134,103 @@ import Testing
         class MyCommandProcessor(
             val pluginId: String
         ) : CommandProcessor
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+        """,
+    ]
+
+    private static nonisolated(unsafe) var _positiveCtx: CompilationContext?
+    private static nonisolated(unsafe) var _negativeCtx: CompilationContext?
+
+    private func positiveCtx() throws -> CompilationContext {
+        if let cached = Self._positiveCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.positiveSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._positiveCtx = ctx
+        return ctx
+    }
+
+    private func negativeCtx() throws -> CompilationContext {
+        if let cached = Self._negativeCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.negativeSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._negativeCtx = ctx
+        return ctx
+    }
+
+    // MARK: - Original Test Case Validation
+
+    @Test func testOriginalAbstractOpenOverrideCase() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMissingAbstractOverride() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+    }
+
+    @Test func testMissingOverrideModifier() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
+    }
+
+    // MARK: - Advanced Test Cases
+
+    @Test func testAbstractOverrideChaining() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testFinalOverrideTermination() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    // MARK: - Primary constructor `override val` / `override var` properties
+
+    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
+        let ctx = try negativeCtx()
 
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }

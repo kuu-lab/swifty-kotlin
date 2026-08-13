@@ -5,8 +5,6 @@ symbol fq=golden.sema.useRun kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=golden.sema.useRunWithThis kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.useWith kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.useWithThis kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file fscope_functions package=golden.sema
   decl golden.sema.useLet fun useLet sym=golden.sema.useLet
   decl golden.sema.useRun fun useRun sym=golden.sema.useRun
@@ -19,7 +17,7 @@ expr e@3:21 string(hello) type=String
 expr e@3:35 name(it) type=String ref=s-0
 expr e@3:35#1 memberCall recv=e@3:35 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@3:33 lambda params=[] body=e@3:35#1 label=let type=(String) -> Int
-expr e@3:21#1 memberCall recv=e@3:21 callee=let args=[_:e@3:33] type=Int
+expr e@3:21#1 memberCall recv=e@3:21 callee=let args=[_:e@3:33] type=Int call=kotlin.let targs=[String,Int]
 expr e@4:21 string(hello) type=String
 expr e@4:35 name(length) type=Int
 expr e@4:33 lambda params=[] body=e@4:35 label=run type=String.() -> Int
@@ -39,7 +37,7 @@ expr e@7:25 string(hello) type=String
 expr e@7:48 name(it) type=String ref=s-1
 expr e@7:40 call callee=e@7:40#1 args=[_:e@7:48] type=Unit call=kotlin.io.println#1
 expr e@7:38 lambda params=[] body=e@7:40 label=also type=(String) -> Unit
-expr e@7:25#1 memberCall recv=e@7:25 callee=also args=[_:e@7:38] type=String
+expr e@7:25#1 memberCall recv=e@7:25 callee=also args=[_:e@7:38] type=String call=kotlin.also targs=[String]
 expr e@8:27 string(hello) type=String
 expr e@8:38 name(length) type=Int
 expr e@8:36 lambda params=[] body=e@8:38 label=with type=String.() -> Int

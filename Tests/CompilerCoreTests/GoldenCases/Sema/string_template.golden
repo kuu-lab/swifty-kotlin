@@ -3,8 +3,6 @@ symbol fq=__local_1.x kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.greeting kind=local vis=private flags=_ type=String
 symbol fq=__local_3.result kind=local vis=private flags=_ type=String
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file fstring_template package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:16 string(world) type=String

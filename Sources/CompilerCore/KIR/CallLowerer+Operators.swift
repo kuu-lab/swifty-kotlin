@@ -35,7 +35,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
-        // BUG-190: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
+        // BUG-206: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
         // the fallback, so it must not run when lhs is already non-null.
         if op == .elvis {
             return lowerShortCircuitElvisExpr(
@@ -637,6 +637,7 @@ extension CallLowerer {
         case .elvis:
             preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
+            // kk_op_rangeTo / kk_uint_rangeTo are still residual operator-core helpers.
             let rangeToCallee = sema.bindings.isUIntRangeExpr(exprID)
                 ? interner.intern("kk_uint_rangeTo")
                 : interner.intern("kk_op_rangeTo")
@@ -650,9 +651,11 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
-            let rangeUntilCallee = sema.bindings.isULongRangeExpr(exprID)
-                ? interner.intern("kk_op_ulong_rangeUntil")
-                : interner.intern("kk_op_rangeUntil")
+            let rangeUntilCallee = if sema.bindings.isULongRangeExpr(exprID) {
+                interner.intern("__kk_op_ulong_rangeUntil")
+            } else {
+                interner.intern("__kk_op_rangeUntil")
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: rangeUntilCallee,
@@ -663,9 +666,14 @@ extension CallLowerer {
             ))
             return result
         case .downTo:
-            let downToCallee = sema.bindings.isUIntRangeExpr(exprID)
-                ? interner.intern("kk_uint_downTo")
-                : interner.intern("kk_op_downTo")
+            let downToCallee: InternedString
+            if sema.bindings.isULongRangeExpr(exprID) {
+                downToCallee = interner.intern("__kk_ulong_downTo")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                downToCallee = interner.intern("__kk_uint_downTo")
+            } else {
+                downToCallee = interner.intern("__kk_op_downTo")
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: downToCallee,
@@ -676,15 +684,24 @@ extension CallLowerer {
             ))
             return result
         case .step:
-            let stepCallee = sema.bindings.isUIntRangeExpr(exprID)
-                ? interner.intern("kk_uint_step")
-                : interner.intern("kk_op_step")
+            let stepCallee: InternedString
+            if sema.bindings.isULongRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_ulong_step")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_uint_step")
+            } else {
+                stepCallee = interner.intern("__kk_op_step")
+            }
+            // __kk_op_step carries an outThrown ABI channel for invalid step values;
+            // the unsigned helpers do not. Mark it throwable so the backend passes the
+            // thrown channel and can short-circuit on an invalid step.
+            let stepCanThrow = stepCallee == interner.intern("__kk_op_step")
             instructions.append(.call(
                 symbol: nil,
                 callee: stepCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
+                canThrow: stepCanThrow,
                 thrownResult: nil
             ))
             return result
@@ -773,7 +790,7 @@ extension CallLowerer {
     /// previous strict lowering handed both operands to `kk_op_elvis`, which
     /// evaluated the fallback unconditionally: `x ?: return -1` always
     /// returned, `x ?: throw e` always threw, and any fallback with side
-    /// effects always ran (BUG-190).
+    /// effects always ran (BUG-206).
     ///
     /// A `String`-typed result keeps the `kk_any_to_string` conversion the
     /// strict lowering applied to `kk_op_elvis`'s result -- both operands reach

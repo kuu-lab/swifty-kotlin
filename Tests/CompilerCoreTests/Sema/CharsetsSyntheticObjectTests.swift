@@ -17,33 +17,52 @@ struct CharsetsSyntheticObjectTests {
         "UTF_32", "UTF_32BE", "UTF_32LE",
     ]
 
-    @Test func testCharsetsAndConstantsAreRegistered() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
+    @Test func testCharsets() throws {
+        let source = """
+        import kotlin.text.Charsets
+        import kotlin.text.Charset
+
+        fun utf8(): Charset = Charsets.UTF_8
+        fun iso88591(): Charset = Charsets.ISO_8859_1
+        fun usAscii(): Charset = Charsets.US_ASCII
+        fun utf16(): Charset = Charsets.UTF_16
+        fun utf16be(): Charset = Charsets.UTF_16BE
+        fun utf16le(): Charset = Charsets.UTF_16LE
+        fun utf32(): Charset = Charsets.UTF_32
+        fun utf32be(): Charset = Charsets.UTF_32BE
+        fun utf32le(): Charset = Charsets.UTF_32LE
+
+        fun encode(s: String) = s.toByteArray(Charsets.UTF_8)
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected Charsets constants and usage to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
 
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
-
         let objectFQ = ["kotlin", "text", "Charsets"].map { interner.intern($0) }
         let objectSymbol = try #require(
             sema.symbols.lookup(fqName: objectFQ),
             "Expected kotlin.text.Charsets to be registered as a synthetic object"
         )
         #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
-
         let classFQ = ["kotlin", "text", "Charset"].map { interner.intern($0) }
         let classSymbol = try #require(
             sema.symbols.lookup(fqName: classFQ),
             "Expected kotlin.text.Charset to be registered"
         )
         #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
-
         let charsetType = sema.types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],
             nullability: .nonNull
         )))
-
         for name in charsetConstants {
             let fq = ["kotlin", "text", "Charsets", name].map { interner.intern($0) }
             let sym = try #require(
@@ -59,30 +78,5 @@ struct CharsetsSyntheticObjectTests {
         }
     }
 
-    @Test func testCharsetsResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.Charsets
-        import kotlin.text.Charset
-
-        fun utf8(): Charset = Charsets.UTF_8
-        fun iso88591(): Charset = Charsets.ISO_8859_1
-        fun usAscii(): Charset = Charsets.US_ASCII
-        fun utf16(): Charset = Charsets.UTF_16
-        fun utf16be(): Charset = Charsets.UTF_16BE
-        fun utf16le(): Charset = Charsets.UTF_16LE
-        fun utf32(): Charset = Charsets.UTF_32
-        fun utf32be(): Charset = Charsets.UTF_32BE
-        fun utf32le(): Charset = Charsets.UTF_32LE
-
-        fun encode(s: String) = s.toByteArray(Charsets.UTF_8)
-        """)
-
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected Charsets constants and usage to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 }
 #endif

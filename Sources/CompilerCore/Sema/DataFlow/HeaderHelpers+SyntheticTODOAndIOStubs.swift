@@ -1,6 +1,6 @@
 import RuntimeABI
 
-/// Synthetic stdlib stubs for kotlin's not-yet-implemented helper, kotlin.io.println (0-arg), and kotlin.io.readLine (STDLIB-063).
+/// Synthetic stdlib stubs for kotlin's not-yet-implemented helper and kotlin.io.readLine (STDLIB-063).
 /// These stubs enable name resolution and type checking; runtime behavior is implemented in Runtime.
 extension DataFlowSemaPhase {
     func registerSyntheticTODOAndIOStubs(
@@ -26,73 +26,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticTopLevelFunction(
-            named: "println",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_println_newline",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "println",
-            packageFQName: kotlinIOPkg,
-            parameters: [(name: "message", type: types.makeNullable(types.anyType))],
-            returnType: types.unitType,
-            externalLinkName: "kk_println_any",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "print",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_print_noarg",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "print",
-            packageFQName: kotlinIOPkg,
-            parameters: [(name: "message", type: types.makeNullable(types.anyType))],
-            returnType: types.unitType,
-            externalLinkName: "kk_print_any",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "readLine",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.makeNullable(types.stringType),
-            externalLinkName: "kk_readline",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "readln",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.stringType,
-            externalLinkName: "kk_readln",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "readlnOrNull",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: types.makeNullable(types.stringType),
-            externalLinkName: "kk_readlnOrNull",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-614: print / println are implemented in Stdlib/kotlin/io/Console.kt.
+        // KSP-615: readLine / readln / readlnOrNull are implemented in Stdlib/kotlin/io/Console.kt.
 
         // --- Sequence factory functions (STDLIB-097) ---
         let kotlinSequencesPkg = ensureSyntheticPackageHierarchy(
@@ -169,22 +104,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticSequenceJoinToMember(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinSequencesPkg: kotlinSequencesPkg,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerSyntheticSequenceJoinToStringMember(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinSequencesPkg: kotlinSequencesPkg,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
         registerSyntheticSequenceTerminalMembers(
             symbols: symbols,
             types: types,
@@ -1671,7 +1590,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // MARK: - MIGRATION-IO-001: Private C-bridge stubs called from BundledKotlinStdlib
+        // MARK: - MIGRATION-IO-001: Private C-bridge stubs called from BundledStdlib
 
         registerFileMemberFunction(
             named: "__kk_file_readText",

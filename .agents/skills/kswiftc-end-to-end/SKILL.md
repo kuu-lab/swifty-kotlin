@@ -71,3 +71,57 @@ Or, if the regex is rejected, run each suite separately.
 - `Scripts/diff_cases/coroutine_launch_join.kt` — small coroutine example.
 - `Scripts/diff_cases/collection_builders.kt` — `buildString` / `buildList` / `buildSet` / `buildMap`.
 - `Scripts/diff_cases/function_types.kt` — function-type variables and higher-order functions.
+
+## KSP stdlib migration verification (StateFlow / SharedFlow)
+
+For PRs that migrate `StateFlow`, `MutableStateFlow`, `Flow.stateIn`, `SharedFlow`, `MutableSharedFlow`, or `Flow.shareIn` from runtime C bridges to bundled Kotlin source:
+
+- Required environment on the Linux VM:
+
+  ```bash
+  export C_INCLUDE_PATH=/usr/lib/llvm-14/include
+  export LIBRARY_PATH=/usr/lib/llvm-14/lib
+  export KSWIFTK_LLVM_DYLIB=/usr/lib/llvm-14/lib/libLLVM.so
+  ```
+
+- Run `swift package clean && swift build` first. SwiftPM incremental builds can skip re-linking when checkout timestamps are stale.
+- Run `bash Scripts/validate_runtime_abi_links.sh` to confirm the removed `kk_*` bridges no longer cause ABI validation failures.
+- Run Swift tests serially: `SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter SmokeTests`
+- Run the targeted artifact regression test: `SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter StdlibArtifactRegressionTests/testStateFlowThroughSharedStdlibArtifact`
+- Build and execute the diff samples directly:
+
+  ```bash
+  .build/debug/kswiftc Scripts/diff_cases/state_flow_kotlin.kt -o /tmp/state_flow && /tmp/state_flow
+  .build/debug/kswiftc Scripts/diff_cases/shared_flow_kotlin.kt -o /tmp/shared_flow && /tmp/shared_flow
+  ```
+
+  Expected output for `state_flow_kotlin.kt`:
+
+  ```
+  10
+  20
+  30
+  30
+  [30]
+  3
+  [6]
+  ```
+
+  Expected output for `shared_flow_kotlin.kt`:
+
+  ```
+  []
+  true
+  [2, 3]
+  [2, 3]
+  true
+  []
+  ```
+
+- The `stateIn` / `shareIn` bundled sources in this repo intentionally use simplified signatures (`stateIn(initialValue: T)` and `shareIn(replay: Int)`) that do not match the JVM `kotlinx.coroutines` API (`CoroutineScope` / `SharingStarted` parameters). Because of this, `Scripts/diff_cases/state_flow_kotlin.kt` and `Scripts/diff_cases/shared_flow_kotlin.kt` will **not** compile against reference `kotlinc` and are not suitable for `Scripts/diff_kotlinc.sh`. Use `diff_kotlinc.sh` only on JVM-compatible coroutine cases.
+- If `diff_kotlinc.sh` must be run for a coroutine case and Maven access is unavailable or rate-limited, provide a local `kotlinx-coroutines-core-jvm` jar instead of letting the script download one:
+
+  ```bash
+  KOTLINC_CLASSPATH=/path/to/kotlinx-coroutines-core-jvm.jar \
+    DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/some_coroutine_case.kt
+  ```
