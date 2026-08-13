@@ -225,8 +225,11 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
+            // The flat String ABI uses either opaque `ptr` (newer LLVM) or typed
+            // `i8*` (older/diagnostic emission), depending on the target.
+            let flatStringDispatchPattern = "call \\{ (?:ptr|i8\\*), i64, i64, i64 \\} %lookup_fptr_"
             #expect(
-                ir.contains("call { ptr, i64, i64, i64 } %lookup_fptr_"),
+                ir.range(of: flatStringDispatchPattern, options: .regularExpression) != nil,
                 "String virtual dispatch should call reflected implementations with the flat String ABI"
             )
             #expect(
