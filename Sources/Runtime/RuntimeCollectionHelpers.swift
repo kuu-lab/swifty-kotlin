@@ -22,6 +22,13 @@ let setRuntimeTypeID: Int64 = {
     return id
 }()
 
+// User-defined subclasses of LinkedHashSet are allocated as RuntimeObjectBox
+// instances. Keep the nominal ID available so runtimeSetBox can lazily attach
+// their storage even when library superclass initializers are not emitted.
+let linkedHashSetRuntimeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.LinkedHashSet"
+)
+
 private let mapEntryRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
     for byte in "kotlin.collections.Map.Entry".utf8 {
@@ -97,9 +104,19 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
     if let setBox = tryCast(ptr, to: RuntimeSetBox.self) {
         return setBox
     }
-    if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self),
-       let backingSetBox = objectBox.backingSetBox {
-        return backingSetBox
+    if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
+        if let backingSetBox = objectBox.backingSetBox {
+            return backingSetBox
+        }
+        if let objectTypeID = runtimeObjectTypeID(rawValue: rawValue),
+           runtimeIsAssignable(
+               sourceTypeID: objectTypeID,
+               targetTypeID: linkedHashSetRuntimeTypeID
+           ) {
+            let backingSetBox = RuntimeSetBox(elements: [])
+            objectBox.backingSetBox = backingSetBox
+            return backingSetBox
+        }
     }
     return nil
 }
