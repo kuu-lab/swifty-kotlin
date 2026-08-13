@@ -337,10 +337,10 @@ enum MemberRuntimeDispatch {
                     charProgressionUsesChar: true
                 )
             }
-            if kind.isULongRangeLike { return "kk_ulong_step" }
-            if kind.isUIntRangeLike { return "kk_uint_step" }
-            if kind.isCharRangeLike { return "kk_char_range_step" }
-            return "kk_op_step"
+            if kind.isULongRangeLike { return "__kk_ulong_step" }
+            if kind.isUIntRangeLike { return "__kk_uint_step" }
+            if kind.isCharRangeLike { return "__kk_char_range_step" }
+            return "__kk_op_step"
         default:
             return nil
         }

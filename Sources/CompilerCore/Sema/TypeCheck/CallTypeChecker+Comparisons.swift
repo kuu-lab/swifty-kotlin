@@ -15,14 +15,19 @@ extension CallTypeChecker {
             return nil
         }
         let expectedPrefix = [ctx.interner.intern("kotlin"), ctx.interner.intern("comparisons")]
-        let onlyStdlibComparisonCandidates = visibleCandidates.allSatisfy { symbolID in
-            guard let symbol = ctx.sema.symbols.symbol(symbolID) else {
-                return false
-            }
+        // Only consider top-level (non-extension, non-member) functions; extension
+        // functions such as Sequence.maxOf share the same short name but are not
+        // callable without a receiver and should not block the primitive fast path.
+        let topLevelCandidates = visibleCandidates.filter { symbolID in
+            guard let signature = ctx.sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == nil
+        }
+        let comparisonCandidates = topLevelCandidates.filter { symbolID in
+            guard let symbol = ctx.sema.symbols.symbol(symbolID) else { return false }
             return symbol.fqName.count >= expectedPrefix.count
                 && Array(symbol.fqName.prefix(expectedPrefix.count)) == expectedPrefix
         }
-        guard onlyStdlibComparisonCandidates else {
+        guard !comparisonCandidates.isEmpty, topLevelCandidates.count == comparisonCandidates.count else {
             return nil
         }
         let resolvedName = ctx.interner.resolve(calleeName)

@@ -3,6 +3,21 @@ import RuntimeABI
 
 import CompilerCore
 
+/// Counter for deterministic generated names in LLVM IR output.
+final class GeneratedNameCounter {
+    private var value: Int32 = 0
+
+    func next() -> Int32 {
+        let current = value
+        value += 1
+        return current
+    }
+
+    func nextName(_ prefix: String) -> String {
+        "\(prefix)\(next())"
+    }
+}
+
 struct NativeEmitter {
     /// DWARF constants used across the emitter.
     /// DW_LANG_C99 – used as the compile-unit language tag.
@@ -240,17 +255,20 @@ struct NativeEmitter {
         }
 
         let triple = targetTripleString()
-        CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+        // LLVM's target registry and module printing both touch process-global
+        // state on Linux, so keep the entire target-and-print sequence under the
+        // same process lock used for object emission.
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
             bindings.setTarget(built.module, triple: triple)
-        }
 
-        guard let llvmIR = bindings.printModule(built.module) else {
-            throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
-        }
-        do {
-            try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-        } catch {
-            throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            guard let llvmIR = bindings.printModule(built.module) else {
+                throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
+            }
+            do {
+                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+            } catch {
+                throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            }
         }
     }
 
@@ -470,15 +488,17 @@ struct NativeEmitter {
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
-        var globalDecls: [(global: KIRGlobal, slotName: String)] = []
-        for declaration in module.arena.declarations {
-            guard case let .global(global) = declaration else {
-                continue
-            }
-            globalDecls.append((global, stableGlobalSlotName(for: global.symbol)))
+        let globalDecls = module.arena.declarations.compactMap { decl -> KIRGlobal? in
+            guard case let .global(global) = decl else { return nil }
+            return global
+        }.sorted { lhs, rhs in
+            let lhsName = stableGlobalSlotName(for: lhs.symbol)
+            let rhsName = stableGlobalSlotName(for: rhs.symbol)
+            if lhsName != rhsName { return lhsName < rhsName }
+            return lhs.symbol.rawValue < rhs.symbol.rawValue
         }
-        globalDecls.sort { $0.slotName < $1.slotName }
-        for (global, slotName) in globalDecls {
+        for global in globalDecls {
+            let slotName = stableGlobalSlotName(for: global.symbol)
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
@@ -522,7 +542,6 @@ struct NativeEmitter {
         var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
         var emittableFunctions: [(KIRFunction, String)] = []
 
-        var collectedFunctions: [(function: KIRFunction, name: String)] = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
                   !function.isInlineOnly
@@ -534,11 +553,6 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            collectedFunctions.append((function, functionName))
-        }
-        collectedFunctions.sort { $0.name < $1.name }
-
-        for (function, functionName) in collectedFunctions {
             let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
             var parameterTypes = function.params.map {
                 if usesRuntimeCallbackRawABI {
@@ -590,10 +604,8 @@ struct NativeEmitter {
                 )
                 : nil
 
-            // Module-level counter so that emitted string literal global names are
-            // deterministic and independent of KIR expression allocation order.
-            var generatedStringLiteralCount: Int32 = 0
-
+            let nameCounter = GeneratedNameCounter()
+            emittableFunctions.sort { $0.1 < $1.1 }
             for (function, _) in emittableFunctions {
                 guard let llvmFunction = internalFunctions[function.symbol] else { continue }
                 do {
@@ -615,8 +627,8 @@ struct NativeEmitter {
                         runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
                         usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
                         returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
-                        diContext: diContext,
-                        generatedStringLiteralCount: &generatedStringLiteralCount
+                        nameCounter: nameCounter,
+                        diContext: diContext
                     )
                 } catch {
                     if let diContext {
@@ -758,10 +770,27 @@ struct NativeEmitter {
         internalFunctions: [SymbolID: LLVMFunction]
     ) -> [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] {
         var subprograms: [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] = [:]
-        for declaration in module.arena.declarations {
-            guard case let .function(function) = declaration,
-                  let llvmFunction = internalFunctions[function.symbol]
-            else { continue }
+        let functions = module.arena.declarations.compactMap { decl -> KIRFunction? in
+            guard case let .function(function) = decl,
+                  internalFunctions[function.symbol] != nil
+            else { return nil }
+            return function
+        }.sorted { lhs, rhs in
+            let lhsName = CodegenSymbolSupport.cFunctionSymbol(
+                for: lhs,
+                interner: interner,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID
+            )
+            let rhsName = CodegenSymbolSupport.cFunctionSymbol(
+                for: rhs,
+                interner: interner,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID
+            )
+            if lhsName != rhsName { return lhsName < rhsName }
+            return lhs.symbol.rawValue < rhs.symbol.rawValue
+        }
+        for function in functions {
+            guard let llvmFunction = internalFunctions[function.symbol] else { continue }
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,

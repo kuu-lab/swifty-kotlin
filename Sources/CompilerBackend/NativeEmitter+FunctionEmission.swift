@@ -18,8 +18,8 @@ extension NativeEmitter {
         runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
         usesRuntimeCallbackRawABI: Bool = false,
         returnsRawStringRuntimeCallback: Bool = false,
-        diContext: DebugInfoContext? = nil,
-        generatedStringLiteralCount: inout Int32
+        nameCounter: GeneratedNameCounter,
+        diContext: DebugInfoContext? = nil
     ) throws {
         guard let builder = bindings.createBuilder(context: context) else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMCreateBuilderInContext returned null")
@@ -88,7 +88,7 @@ extension NativeEmitter {
             if labelBlocks[id] != nil {
                 continue
             }
-            if let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "L\(id)") {
+            if let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: nameCounter.nextName("L")) {
                 labelBlocks[id] = block
             }
         }
@@ -199,40 +199,6 @@ extension NativeEmitter {
             allocaBuilder: allocaBuilder
         )
 
-        // Stable per-function slot numbers for IR names, independent of
-        // nondeterministic KIR expression or symbol allocation order.
-        var copySlotCounter: Int32 = 0
-        var copySlotByExprID: [Int32: Int32] = [:]
-        var localSlotCounter: Int32 = 0
-        var localSlotBySymbol: [Int32: Int32] = [:]
-
-        func copySlotName(for exprID: KIRExprID) -> String {
-            let raw = exprID.rawValue
-            if let slot = copySlotByExprID[raw] {
-                return "copy_slot_\(slot)"
-            }
-            copySlotCounter += 1
-            copySlotByExprID[raw] = copySlotCounter
-            return "copy_slot_\(copySlotCounter)"
-        }
-
-        func loadName(for exprID: KIRExprID) -> String {
-            if let slot = copySlotByExprID[exprID.rawValue] {
-                return "load_\(slot)"
-            }
-            return "load_\(exprID.rawValue)"
-        }
-
-        func localSlotName(for symbol: SymbolID) -> String {
-            let raw = symbol.rawValue
-            if let slot = localSlotBySymbol[raw] {
-                return "local_\(slot)"
-            }
-            localSlotCounter += 1
-            localSlotBySymbol[raw] = localSlotCounter
-            return "local_\(localSlotCounter)"
-        }
-
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
             switch instruction {
             case let .constValue(result, _):
@@ -283,7 +249,7 @@ extension NativeEmitter {
                            lowering: typeLowering,
                            defaultType: int64Type
                        ),
-                       name: copySlotName(for: target)
+                       name: nameCounter.nextName("copy_slot_")
                    )
                 {
                     let initialValue = zeroLLVMValue(
@@ -1823,13 +1789,12 @@ extension NativeEmitter {
             let expectedType = expressionRawID.map { KIRExprID(rawValue: $0) }.flatMap(module.arena.exprType)
             return emitConstantValue(
                 expression,
-                expressionRawID: expressionRawID,
                 expectedType: expectedType,
                 state: builderState,
                 parameterValues: parameterValues,
                 internalFunctions: internalFunctions,
                 globalVariables: globalVariables,
-                generatedStringLiteralCount: &generatedStringLiteralCount,
+                nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
                     declareExternalFunction(named: name, argumentCount: argCount, appendThrownChannel: appendThrown)
                 },
@@ -1844,7 +1809,7 @@ extension NativeEmitter {
                     lowering: typeLowering,
                     defaultType: int64Type
                 )
-                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: loadName(for: id))
+                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: nameCounter.nextName("load_"))
                     ?? (zeroLLVMValue(
                         for: module.arena.exprType(id),
                         lowering: typeLowering,
@@ -1910,7 +1875,7 @@ extension NativeEmitter {
                 {
                     globalValue = bridgeStringAggregateToRuntimeRaw(
                         storedValue,
-                        suffix: "store_result_global_\(result.rawValue)"
+                        suffix: nameCounter.nextName("store_result_global_")
                     ) ?? storedValue
                 }
                 _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
@@ -1925,7 +1890,7 @@ extension NativeEmitter {
             if let block = labelBlocks[label] {
                 return block
             }
-            let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "L\(label)")
+            let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: nameCounter.nextName("L"))
             if let block {
                 labelBlocks[label] = block
             }
@@ -2167,7 +2132,7 @@ extension NativeEmitter {
                    case let .symbolRef(localSymbol) = value,
                    !parameterValues.keys.contains(localSymbol)
                 {
-                    let varName = localSlotName(for: localSymbol)
+                    let varName = "local_\(localSymbol.rawValue)"
                     var varLine: UInt32 = 0
                     if function.instructionLocations.count == function.body.count,
                        instructionIndex < function.instructionLocations.count,
@@ -3167,7 +3132,7 @@ extension NativeEmitter {
                 if let globalPtr = globalVariables[symbol] {
                     if let loaded = bindings.buildLoad(
                         builder, type: int64Type, pointer: globalPtr,
-                        name: "load_global_\(symbol.rawValue)"
+                        name: nameCounter.nextName("load_global_")
                     ) {
                         let loadedValue = if isStringAggregateType(module.arena.exprType(result)) {
                             bridgeRuntimeRawToStringAggregate(
@@ -3354,7 +3319,8 @@ extension NativeEmitter {
         case "__intLowestOneBit": "kk_int_lowestOneBit"
         case "__longHighestOneBit": "kk_long_highestOneBit"
         case "__longLowestOneBit": "kk_long_lowestOneBit"
-        case "__readlnOrNull": "kk_readlnOrNull"
+        case "__assert": "kk_precondition_assert"
+        case "__assertLazy": "kk_precondition_assert_lazy"
         default: nil
         }
     }

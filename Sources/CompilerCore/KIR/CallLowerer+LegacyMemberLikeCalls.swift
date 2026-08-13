@@ -1876,9 +1876,7 @@ extension CallLowerer {
         {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let isGenuineSequenceReceiver = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            if isGenuineSequenceReceiver
-                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            if isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
                 let stringType = sema.types.stringType
@@ -1910,7 +1908,7 @@ extension CallLowerer {
                     }
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern(isGenuineSequenceReceiver ? "kk_sequence_joinTo" : "__kk_iterable_joinTo"),
+                        callee: interner.intern("__kk_iterable_joinTo"),
                         arguments: [loweredReceiverID] + joinArgs,
                         result: result,
                         canThrow: false,
@@ -1942,12 +1940,8 @@ extension CallLowerer {
             // kk_sequence_* expects a Sequence handle and fails on set handles.
             let isBareIterableCollectionOrSetInterfaceType = isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
                 || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-            let isSequenceReceiver = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
             let isSetReceiver = isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            let useIterableJoinRuntime = !isSequenceReceiver
-                && (isBareIterableCollectionOrSetInterfaceType || isSetReceiver)
-            if isSequenceReceiver
-                || isBareIterableCollectionOrSetInterfaceType
+            if isBareIterableCollectionOrSetInterfaceType
                 || isSetReceiver
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
@@ -1993,8 +1987,7 @@ extension CallLowerer {
                     )
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern(useIterableJoinRuntime
-                            ? "__kk_iterable_joinToString_transform" : "kk_sequence_joinToString_transform"),
+                        callee: interner.intern("__kk_iterable_joinToString_transform"),
                         arguments: [loweredReceiverID] + joinArgs + [fnPtrExpr, envPtrExpr],
                         result: result,
                         canThrow: true,
@@ -2032,10 +2025,8 @@ extension CallLowerer {
                     }
                     let joinToStringCallee = if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                         arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
-                    } else if useIterableJoinRuntime {
-                        interner.intern("__kk_iterable_joinToString")
                     } else {
-                        interner.intern("kk_sequence_joinToString")
+                        interner.intern("__kk_iterable_joinToString")
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -2215,18 +2206,8 @@ extension CallLowerer {
                 let sortedByName = interner.intern("sortedBy")
                 let sortedWithName = interner.intern("sortedWith")
                 let sortedByDescendingName = interner.intern("sortedByDescending")
-                let sumOfName = interner.intern("sumOf")
-                let sumByName = interner.intern("sumBy")
-                let sumByDoubleName = interner.intern("sumByDouble")
                 let firstNotNullOfName = interner.intern("firstNotNullOf")
                 let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
-                let associateName = interner.intern("associate")
-                let associateByName = interner.intern("associateBy")
-                let associateWithName = interner.intern("associateWith")
-                let associateToName = interner.intern("associateTo")
-                let associateByToName = interner.intern("associateByTo")
-                let associateWithToName = interner.intern("associateWithTo")
-                let groupByToName = interner.intern("groupByTo")
                 let flatMapIndexedToName = interner.intern("flatMapIndexedTo")
                 let containsName = interner.intern("contains")
                 let indexOfName = interner.intern("indexOf")
@@ -2239,15 +2220,7 @@ extension CallLowerer {
                 let filterIndexedName = interner.intern("filterIndexed")
                 let findLastName = interner.intern("findLast")
                 let lastName = interner.intern("last")
-                let partitionName = interner.intern("partition")
-                let minByName = interner.intern("minBy")
                 let minName = interner.intern("min")
-                let minByOrNullName = interner.intern("minByOrNull")
-                let maxByOrNullName = interner.intern("maxByOrNull")
-                let minOfName = interner.intern("minOf")
-                let minWithName = interner.intern("minWith")
-                let minOfOrNullName = interner.intern("minOfOrNull")
-                let maxOfName = interner.intern("maxOf")
                 if calleeName == mapName {
                     runtimeCallee = "kk_sequence_map"
                 } else if calleeName == filterName {
@@ -2270,30 +2243,10 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_sortedWith"
                 } else if calleeName == sortedByDescendingName {
                     runtimeCallee = "kk_sequence_sortedByDescending"
-                } else if calleeName == sumOfName {
-                    runtimeCallee = "kk_sequence_sumOf"
-                } else if calleeName == sumByName {
-                    runtimeCallee = "kk_sequence_sumBy"
-                } else if calleeName == sumByDoubleName {
-                    runtimeCallee = "kk_sequence_sumByDouble"
                 } else if calleeName == firstNotNullOfName {
                     runtimeCallee = "kk_sequence_firstNotNullOf"
                 } else if calleeName == firstNotNullOfOrNullName {
                     runtimeCallee = "kk_sequence_firstNotNullOfOrNull"
-                } else if calleeName == associateName {
-                    runtimeCallee = "kk_sequence_associate"
-                } else if calleeName == associateByName {
-                    runtimeCallee = "kk_sequence_associateBy"
-                } else if calleeName == associateWithName {
-                    runtimeCallee = "kk_sequence_associateWith"
-                } else if calleeName == associateToName {
-                    runtimeCallee = "kk_sequence_associateTo"
-                } else if calleeName == associateByToName {
-                    runtimeCallee = "kk_sequence_associateByTo"
-                } else if calleeName == associateWithToName {
-                    runtimeCallee = "kk_sequence_associateWithTo"
-                } else if calleeName == groupByToName {
-                    runtimeCallee = "kk_sequence_groupByTo"
                 } else if calleeName == flatMapIndexedToName {
                     runtimeCallee = "kk_sequence_flatMapIndexedTo"
                 } else if calleeName == containsName {
@@ -2320,34 +2273,8 @@ extension CallLowerer {
                     runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_last" : "kk_sequence_last"
                 } else if calleeName == findLastName {
                     runtimeCallee = "kk_sequence_findLast"
-                } else if calleeName == partitionName {
-                    runtimeCallee = "kk_sequence_partition"
-                } else if calleeName == minByName {
-                    runtimeCallee = "kk_sequence_minBy"
                 } else if calleeName == minName {
                     runtimeCallee = "kk_sequence_min"
-                } else if calleeName == interner.intern("maxBy") {
-                    runtimeCallee = "kk_sequence_maxBy"
-                } else if calleeName == minByOrNullName {
-                    runtimeCallee = "kk_sequence_minByOrNull"
-                } else if calleeName == maxByOrNullName {
-                    runtimeCallee = "kk_sequence_maxByOrNull"
-                } else if calleeName == interner.intern("maxWith") {
-                    runtimeCallee = "kk_sequence_maxWith"
-                } else if calleeName == interner.intern("maxWithOrNull") {
-                    runtimeCallee = "kk_sequence_maxWithOrNull"
-                } else if calleeName == minOfName {
-                    runtimeCallee = "kk_sequence_minOf"
-                } else if calleeName == minOfOrNullName {
-                    runtimeCallee = "kk_sequence_minOfOrNull"
-                } else if calleeName == interner.intern("maxOfOrNull") {
-                    runtimeCallee = "kk_sequence_maxOfOrNull"
-                } else if calleeName == interner.intern("minWithOrNull") {
-                    runtimeCallee = "kk_sequence_minWithOrNull"
-                } else if calleeName == minWithName {
-                    runtimeCallee = "kk_sequence_minWith"
-                } else if calleeName == maxOfName {
-                    runtimeCallee = "kk_sequence_maxOf"
                 } else if calleeName == interner.intern("max") {
                     runtimeCallee = "kk_sequence_max"
                 } else if calleeName == interner.intern("find") {
@@ -2445,19 +2372,9 @@ extension CallLowerer {
                     let canThrow = runtimeCallee == "kk_sequence_sortedBy"
                         || runtimeCallee == "kk_sequence_sortedWith"
                         || runtimeCallee == "kk_sequence_sortedByDescending"
-                        || runtimeCallee == "kk_sequence_sumOf"
-                        || runtimeCallee == "kk_sequence_sumBy"
-                        || runtimeCallee == "kk_sequence_sumByDouble"
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                        || runtimeCallee == "kk_sequence_associate"
-                        || runtimeCallee == "kk_sequence_associateBy"
-                        || runtimeCallee == "kk_sequence_associateTo"
-                        || runtimeCallee == "kk_sequence_associateByTo"
-                        || runtimeCallee == "kk_sequence_associateWithTo"
-                        || runtimeCallee == "kk_sequence_associateWith"
-                        || runtimeCallee == "kk_sequence_groupByTo"
                         || runtimeCallee == "kk_sequence_flatMapIndexedTo"
                         || runtimeCallee == "kk_sequence_flatMapTo"
                         || runtimeCallee == "kk_sequence_find"
@@ -2467,21 +2384,8 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_elementAtOrElse"
                         || runtimeCallee == "kk_sequence_last"
                         || runtimeCallee == "__kk_iterable_last"
-                        || runtimeCallee == "kk_sequence_minBy"
                         || runtimeCallee == "kk_sequence_min"
-                        || runtimeCallee == "kk_sequence_maxBy"
-                        || runtimeCallee == "kk_sequence_minByOrNull"
-                        || runtimeCallee == "kk_sequence_maxByOrNull"
-                        || runtimeCallee == "kk_sequence_maxWith"
-                        || runtimeCallee == "kk_sequence_maxWithOrNull"
-                        || runtimeCallee == "kk_sequence_minOf"
-                        || runtimeCallee == "kk_sequence_minOfOrNull"
-                        || runtimeCallee == "kk_sequence_maxOfOrNull"
-                        || runtimeCallee == "kk_sequence_minWithOrNull"
-                        || runtimeCallee == "kk_sequence_minWith"
-                        || runtimeCallee == "kk_sequence_maxOf"
                         || runtimeCallee == "kk_sequence_max"
-                        || runtimeCallee == "kk_sequence_partition"
                         || runtimeCallee == "kk_sequence_any"
                         || runtimeCallee == "__kk_iterable_any"
                         || runtimeCallee == "kk_sequence_all"
@@ -2510,26 +2414,6 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_runningReduceIndexed"
                         || runtimeCallee == "kk_sequence_ifEmpty"
                     var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
-                    if runtimeCallee == "kk_sequence_sumOf"
-                        || runtimeCallee == "kk_sequence_sumBy"
-                        || runtimeCallee == "kk_sequence_sumByDouble",
-                       normalizedArgIDs.count == 1
-                    {
-                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                            normalizedArgIDs[0],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                    }
-                    if runtimeCallee == "kk_sequence_maxWith"
-                        || runtimeCallee == "kk_sequence_maxWithOrNull",
-                       normalizedArgIDs.count == 2
-                    {
-                        runtimeArguments = [loweredReceiverID] + normalizedArgIDs
-                    }
                     if runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
                         || runtimeCallee == "kk_sequence_takeLastWhile",
@@ -2544,10 +2428,7 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if runtimeCallee == "kk_sequence_reduceOrNull"
-                        || runtimeCallee == "kk_sequence_associate"
-                        || runtimeCallee == "kk_sequence_associateBy"
-                        || runtimeCallee == "kk_sequence_associateWith",
+                    if runtimeCallee == "kk_sequence_reduceOrNull",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -2633,11 +2514,7 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if runtimeCallee == "kk_sequence_associateTo"
-                        || runtimeCallee == "kk_sequence_associateByTo"
-                        || runtimeCallee == "kk_sequence_associateWithTo"
-                        || runtimeCallee == "kk_sequence_groupByTo"
-                        || runtimeCallee == "kk_sequence_flatMapIndexedTo",
+                    if runtimeCallee == "kk_sequence_flatMapIndexedTo",
                        normalizedArgIDs.count == 2
                     {
                         let firstArg = normalizedArgIDs[0]

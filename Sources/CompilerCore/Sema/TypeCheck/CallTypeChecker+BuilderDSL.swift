@@ -1112,7 +1112,7 @@ extension CallTypeChecker {
         )
 
         guard let chosen = candidates.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { candidate in
-            guard ctx.sema.symbols.externalLinkName(for: candidate) == "kk_sequence_builder_yieldAll",
+            guard ctx.sema.symbols.externalLinkName(for: candidate) == "__kk_sequence_builder_yieldAll",
                   let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1
             else {

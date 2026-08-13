@@ -23,7 +23,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return false
         }
 
-        // sequence { ... } builder → kk_sequence_builder_build
+        // sequence { ... } builder → __kk_sequence_builder_build
         if callee == lookup.sequenceName, arguments.count == 1 || arguments.count == 2 {
             loweredBody.append(.call(
                 symbol: nil,
@@ -37,7 +37,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // iterator { ... } builder → kk_iterator_builder_build (STDLIB-331)
+        // iterator { ... } builder → __kk_iterator_builder_build (STDLIB-331)
         // Mirror the sequence {} builder rewrite. The sema layer
         // already special-cases the synthetic stdlib builder, so
         // by this point plain `iterator { ... }` should refer to
@@ -56,7 +56,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // yield(value) inside sequence builder → kk_sequence_builder_yield
+        // yield(value) inside sequence builder → __kk_sequence_builder_yield
         if callee == lookup.yieldName, arguments.count == 2 {
             let builderArg = arguments[0]
             let valueArg = arguments[1]
@@ -98,7 +98,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // yieldAll(iterable) inside sequence builder → kk_sequence_builder_yieldAll (STDLIB-553)
+        // yieldAll(iterable) inside sequence builder → __kk_sequence_builder_yieldAll (STDLIB-553)
         if callee == lookup.yieldAllName, arguments.count == 2 {
             loweredBody.append(.call(
                 symbol: nil,
