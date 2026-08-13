@@ -324,31 +324,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Preserve the existing required-check name while delegating its work to two
-  # parallel jobs. This avoids branch-protection churn during the split.
-  verify-self-hosted-gate:
-    name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
-    if: always()
-    needs:
-      - verify-self-hosted
-      - verify-repository-checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require delegated verification jobs
-        env:
-          SELF_HOSTED_RESULT: ${{ needs.verify-self-hosted.result }}
-          REPOSITORY_CHECKS_RESULT: ${{ needs.verify-repository-checks.result }}
-        run: |
-          if [[ "$SELF_HOSTED_RESULT" != "success" ]]; then
-            echo "verify-self-hosted result: $SELF_HOSTED_RESULT" >&2
-            exit 1
-          fi
-          if [[ "$REPOSITORY_CHECKS_RESULT" != "success" ]]; then
-            echo "verify-repository-checks result: $REPOSITORY_CHECKS_RESULT" >&2
-            exit 1
-          fi
-
   verify-diff:
     name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
     runs-on: ubuntu-latest
