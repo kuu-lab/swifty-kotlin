@@ -630,6 +630,31 @@ extension CallLowerer {
 
     // swiftlint:enable cyclomatic_complexity
 
+    /// BUG-196: user classes that extend a runtime-backed collection class
+    /// (e.g. `LinkedHashSet`) are not themselves named `Set`/`List`, so look at
+    /// the receiver symbol and its supertypes when classifying collection kind.
+    private func collectionKindWithSupertypes(
+        of symbol: SemanticSymbol,
+        sema: SemaModule,
+        knownNames: KnownCompilerNames
+    ) -> KnownCollectionKind? {
+        if let kind = knownNames.collectionKind(of: symbol) {
+            return kind
+        }
+        var visited: Set<SymbolID> = []
+        var queue = sema.symbols.directSupertypes(for: symbol.id)
+        while !queue.isEmpty {
+            let currentID = queue.removeFirst()
+            guard visited.insert(currentID).inserted else { continue }
+            guard let currentSymbol = sema.symbols.symbol(currentID) else { continue }
+            if let kind = knownNames.collectionKind(of: currentSymbol) {
+                return kind
+            }
+            queue.append(contentsOf: sema.symbols.directSupertypes(for: currentID))
+        }
+        return nil
+    }
+
     /// Resolves collection-level members (`size`, `isEmpty`, `iterator`) to
     /// their concrete runtime callee by mapping receiver kind to the
     /// corresponding runtime symbol (e.g. `.list` -> `kk_list_size`).
@@ -660,7 +685,7 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         switch memberName {
         case "size":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .map?:
                 return interner.intern("kk_map_size")
             case .set?:
@@ -677,7 +702,7 @@ extension CallLowerer {
                 break
             }
         case "isEmpty":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .map?:
                 return interner.intern("kk_map_is_empty")
             case .set?:
@@ -690,35 +715,35 @@ extension CallLowerer {
                 break
             }
         case "isNotEmpty":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .collection?:
                 return interner.intern("kk_list_is_not_empty")
             default:
                 break
             }
         case "iterator":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_list_iterator")
             default:
                 break
             }
         case "firstNotNullOf":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?, .array?:
                 return interner.intern("__kk_iterable_firstNotNullOf")
             default:
                 break
             }
         case "firstNotNullOfOrNull":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?, .array?:
                 return interner.intern("__kk_iterable_firstNotNullOfOrNull")
             default:
                 break
             }
         case "reduce":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_sequence_reduce")
             default:
@@ -733,14 +758,14 @@ extension CallLowerer {
                 }
             }
         case "requireNoNulls":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("__kk_iterable_requireNoNulls")
             default:
                 break
             }
         case "reduceRight":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_sequence_reduceRight")
             default:
@@ -755,7 +780,7 @@ extension CallLowerer {
                 }
             }
         case "reduceIndexed":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_sequence_reduceIndexed")
             default:
@@ -770,7 +795,7 @@ extension CallLowerer {
                 }
             }
         case "reduceRightIndexed":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_sequence_reduceRightIndexed")
             default:
@@ -785,7 +810,7 @@ extension CallLowerer {
                 }
             }
         case "reduceRightOrNull":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_sequence_reduceRightOrNull")
             default:
@@ -800,7 +825,7 @@ extension CallLowerer {
                 }
             }
         case "reduceRightIndexedOrNull":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             default:
@@ -857,7 +882,7 @@ extension CallLowerer {
         }
 
         let knownNames = KnownCompilerNames(interner: interner)
-        switch knownNames.collectionKind(of: symbol) {
+        switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
         case .map?:
             return interner.intern("kk_map_is_empty")
         case .set?:

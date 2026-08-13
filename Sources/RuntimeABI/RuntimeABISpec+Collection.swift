@@ -284,6 +284,17 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
+        // BUG-196: Attach runtime-backed storage to source-allocated
+        // LinkedHashSet instances, including user subclasses.
+        RuntimeABIFunctionSpec(
+            name: "__kk_linked_hash_set_init",
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_set_size",
             parameters: [
