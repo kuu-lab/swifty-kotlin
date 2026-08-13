@@ -15,6 +15,26 @@ struct NativeEmitter {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
     }()
 
+    /// Generates stable, dense IDs for otherwise non-deterministic raw values.
+    final class NameIDGenerator {
+        private var nextID: Int32 = 0
+        private var map: [Int32: Int32] = [:]
+
+        func id(for key: Int32) -> Int32 {
+            if let existing = map[key] { return existing }
+            let new = nextID
+            map[key] = new
+            nextID += 1
+            return new
+        }
+
+        func next() -> Int32 {
+            let new = nextID
+            nextID += 1
+            return new
+        }
+    }
+
     struct LLVMFunction {
         let value: LLVMCAPIBindings.LLVMValueRef
         let type: LLVMCAPIBindings.LLVMTypeRef
@@ -580,6 +600,7 @@ struct NativeEmitter {
                 )
                 : nil
 
+            let stringLiteralNameIDs = NameIDGenerator()
             for (function, _) in emittableFunctions {
                 guard let llvmFunction = internalFunctions[function.symbol] else { continue }
                 do {
@@ -588,6 +609,7 @@ struct NativeEmitter {
                         && isStringAggregateType(function.returnType)
                     try emitFunctionBody(
                         function: function,
+                        stringLiteralNameIDs: stringLiteralNameIDs,
                         llvmFunction: llvmFunction,
                         llvmModule: llvmModule,
                         context: context,

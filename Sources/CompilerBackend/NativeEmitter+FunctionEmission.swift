@@ -5,6 +5,7 @@ extension NativeEmitter {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func emitFunctionBody(
         function: KIRFunction,
+        stringLiteralNameIDs: NameIDGenerator,
         llvmFunction: LLVMFunction,
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         context: LLVMCAPIBindings.LLVMContextRef,
@@ -187,7 +188,7 @@ extension NativeEmitter {
             body: function.body,
             interner: interner
         )
-        var generatedStringLiteralCount: Int32 = 0
+        let localNameIDs = NameIDGenerator()
         let builderState = EmissionBuilderState(
             builder: builder,
             int64Type: int64Type,
@@ -196,7 +197,9 @@ extension NativeEmitter {
             module: llvmModule,
             typeLowering: typeLowering,
             entryBlock: entryBlock,
-            allocaBuilder: allocaBuilder
+            allocaBuilder: allocaBuilder,
+            localNameIDs: localNameIDs,
+            stringLiteralNameIDs: stringLiteralNameIDs
         )
 
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
@@ -249,7 +252,7 @@ extension NativeEmitter {
                            lowering: typeLowering,
                            defaultType: int64Type
                        ),
-                       name: "copy_slot_\(target.rawValue)"
+                       name: "copy_slot_\(localNameIDs.id(for: target.rawValue))"
                    )
                 {
                     let initialValue = zeroLLVMValue(
@@ -1795,7 +1798,6 @@ extension NativeEmitter {
                 parameterValues: parameterValues,
                 internalFunctions: internalFunctions,
                 globalVariables: globalVariables,
-                generatedStringLiteralCount: &generatedStringLiteralCount,
                 declareExternalFunction: { name, argCount, appendThrown in
                     declareExternalFunction(named: name, argumentCount: argCount, appendThrownChannel: appendThrown)
                 },
@@ -1810,7 +1812,7 @@ extension NativeEmitter {
                     lowering: typeLowering,
                     defaultType: int64Type
                 )
-                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: "load_\(id.rawValue)")
+                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: "load_\(localNameIDs.id(for: id.rawValue))")
                     ?? (zeroLLVMValue(
                         for: module.arena.exprType(id),
                         lowering: typeLowering,
@@ -1876,7 +1878,7 @@ extension NativeEmitter {
                 {
                     globalValue = bridgeStringAggregateToRuntimeRaw(
                         storedValue,
-                        suffix: "store_result_global_\(result.rawValue)"
+                        suffix: "store_result_global_\(localNameIDs.id(for: result.rawValue))"
                     ) ?? storedValue
                 }
                 _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
@@ -2133,7 +2135,7 @@ extension NativeEmitter {
                    case let .symbolRef(localSymbol) = value,
                    !parameterValues.keys.contains(localSymbol)
                 {
-                    let varName = "local_\(localSymbol.rawValue)"
+                    let varName = "local_\(localNameIDs.id(for: localSymbol.rawValue))"
                     var varLine: UInt32 = 0
                     if function.instructionLocations.count == function.body.count,
                        instructionIndex < function.instructionLocations.count,
@@ -3133,7 +3135,7 @@ extension NativeEmitter {
                 if let globalPtr = globalVariables[symbol] {
                     if let loaded = bindings.buildLoad(
                         builder, type: int64Type, pointer: globalPtr,
-                        name: "load_global_\(symbol.rawValue)"
+                        name: "load_global_\(localNameIDs.id(for: symbol.rawValue))"
                     ) {
                         let loadedValue = if isStringAggregateType(module.arena.exprType(result)) {
                             bridgeRuntimeRawToStringAggregate(

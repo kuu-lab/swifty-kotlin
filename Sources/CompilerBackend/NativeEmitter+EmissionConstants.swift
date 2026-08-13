@@ -18,6 +18,8 @@ extension NativeEmitter {
         /// of loop bodies (see `LLVMCAPIBindings.buildEntryAlloca`).
         let entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef?
         let allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?
+        let localNameIDs: NameIDGenerator
+        let stringLiteralNameIDs: NameIDGenerator
 
         init(
             builder: LLVMCAPIBindings.LLVMBuilderRef,
@@ -27,7 +29,9 @@ extension NativeEmitter {
             module: LLVMCAPIBindings.LLVMModuleRef? = nil,
             typeLowering: LLVMTypeLowering? = nil,
             entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef? = nil,
-            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil
+            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil,
+            localNameIDs: NameIDGenerator,
+            stringLiteralNameIDs: NameIDGenerator
         ) {
             self.builder = builder
             self.int64Type = int64Type
@@ -37,6 +41,8 @@ extension NativeEmitter {
             self.typeLowering = typeLowering
             self.entryBlock = entryBlock
             self.allocaBuilder = allocaBuilder
+            self.localNameIDs = localNameIDs
+            self.stringLiteralNameIDs = stringLiteralNameIDs
         }
 
         /// Allocates an i64 stack slot in the entry block of the current function.
@@ -682,7 +688,6 @@ extension NativeEmitter {
         parameterValues: [SymbolID: LLVMCAPIBindings.LLVMValueRef],
         internalFunctions: [SymbolID: LLVMFunction],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
-        generatedStringLiteralCount: inout Int32,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
@@ -694,10 +699,11 @@ extension NativeEmitter {
             else {
                 return nil
             }
+            let id = expressionRawID.map { state.localNameIDs.id(for: $0) } ?? state.localNameIDs.next()
             return buildNullStringAggregate(
                 builder: state.builder,
                 lowering: typeLowering,
-                name: "null_string_\(expressionRawID ?? 0)"
+                name: "null_string_\(id)"
             )
         }
 
@@ -785,10 +791,9 @@ extension NativeEmitter {
             let text = interner.resolve(interned)
             let literalID: Int32
             if let expressionRawID {
-                literalID = expressionRawID
+                literalID = state.stringLiteralNameIDs.id(for: expressionRawID)
             } else {
-                literalID = generatedStringLiteralCount
-                generatedStringLiteralCount += 1
+                literalID = state.stringLiteralNameIDs.next()
             }
             guard let globalStringPointer = bindings.buildGlobalStringPtrNullSafe(
                 state.builder,
@@ -863,7 +868,7 @@ extension NativeEmitter {
                    state.builder,
                    value: internalFunction.value,
                    type: state.int64Type,
-                   name: "fn_ptr_\(symbol.rawValue)"
+                   name: "fn_ptr_\(state.localNameIDs.id(for: symbol.rawValue))"
                )
             {
                 return functionPointer
@@ -877,13 +882,13 @@ extension NativeEmitter {
                     state.builder,
                     type: state.int64Type,
                     pointer: globalPtr,
-                    name: "global_load_\(symbol.rawValue)"
+                    name: "global_load_\(state.localNameIDs.id(for: symbol.rawValue))"
                 ) else {
                     return state.zeroValue
                 }
                 return bridgeRuntimeRawToStringAggregateIfNeeded(
                     loaded,
-                    suffix: "global_\(symbol.rawValue)"
+                    suffix: "global_\(state.localNameIDs.id(for: symbol.rawValue))"
                 ) ?? loaded
             }
             // Imported library artifact functions are not internal to the current module,
@@ -902,7 +907,7 @@ extension NativeEmitter {
                    state.builder,
                    value: externFn.value,
                    type: state.int64Type,
-                   name: "extern_fn_ptr_\(symbol.rawValue)"
+                   name: "extern_fn_ptr_\(state.localNameIDs.id(for: symbol.rawValue))"
                )
             {
                 return functionPointer
