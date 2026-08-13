@@ -150,8 +150,28 @@ extension LoweringPassRegressionTests {
             }
             return value
         }.first)
-        guard case let .intLiteral(returnedLiteral)? = module.arena.expr(returnExpr) else {
-            Issue.record("Expected inline result to resolve to hidden token argument value.")
+        // The inline result is materialized into the call result register.
+        #expect(returnExpr == callerResultExpr)
+
+        // The hidden token argument should reach the result register.  ABILowering
+        // may rewrite an Int-typed copy into a kk_unbox_int call, so accept either
+        // form and then verify the source expression is the original token literal.
+        let tokenSourceExpr: KIRExprID? = loweredMain.body.compactMap { instruction -> KIRExprID? in
+            if case let .copy(from, to) = instruction, to == callerResultExpr {
+                return from
+            }
+            if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
+               ctx.interner.resolve(callee) == "kk_unbox_int",
+               arguments == [callerTokenExpr],
+               result == callerResultExpr
+            {
+                return callerTokenExpr
+            }
+            return nil
+        }.first
+        let sourceExpr = try #require(tokenSourceExpr, "expected hidden token value to flow into call result register")
+        guard case let .intLiteral(returnedLiteral)? = module.arena.expr(sourceExpr) else {
+            Issue.record("Expected inline result source to resolve to hidden token argument value.")
             return
         }
         #expect(returnedLiteral == 321)
