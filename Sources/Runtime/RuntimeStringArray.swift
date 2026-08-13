@@ -1687,50 +1687,12 @@ public func kk_io_default_buffer_size() -> Int {
     8192
 }
 
-/// Runtime support for kotlin.io.readLine() (STDLIB-063).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF.
-@_cdecl("kk_readline")
-public func kk_readline() -> Int {
-    guard let line = readLine() else {
-        return runtimeNullSentinelInt
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readln() (STDLIB-130).
-@_cdecl("kk_readln")
-public func kk_readln(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let line = readLine() else {
-        outThrown?.pointee = runtimeAllocateRuntimeException(message: "EOF has already been reached")
-        return 0
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readlnOrNull() (STDLIB-571).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF
-/// instead of throwing.
-@_cdecl("kk_readlnOrNull")
-public func kk_readlnOrNull() -> Int {
+/// KSP-615: single low-level console input bridge behind `kotlin.io.readLine` /
+/// `readln` / `readlnOrNull`. Reads a line from stdin. Returns a pointer to a
+/// runtime string on success, or `runtimeNullSentinelInt` on EOF; nullability
+/// and the `readln` EOF throw live in `Stdlib/kotlin/io/Console.kt`.
+@_cdecl("__kk_readline_raw")
+public func __kk_readline_raw() -> Int {
     guard let line = readLine() else {
         return runtimeNullSentinelInt
     }

@@ -1112,13 +1112,6 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkReadWriteLockCreateSignature() throws {
-        let spec = try requireSpec("kk_read_write_lock_create")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 0)
-    }
-
-    @Test
     func kkMutexLockSignature() throws {
         let spec = try requireSpec("kk_mutex_lock")
         #expect(spec.returnType == .intptr)
@@ -1158,30 +1151,85 @@ struct ABIMismatchTests {
 
     // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.
 
+    // MARK: - Collection HOF Scan/Reduce (STDLIB-526..530)
+
     @Test
-    func kkReadWriteLockReadSignature() throws {
-        let spec = try requireSpec("kk_read_write_lock_read")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 3)
-        #expect(spec.parameters[0].name == "handle")
+    func kkListReduceOrNullSignature() throws {
+        let spec = try requireSpec("kk_list_reduceOrNull")
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
         #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "actionFnPtr")
+        #expect(spec.parameters[1].name == "fnPtr")
         #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "actionEnvPtr")
+        #expect(spec.parameters[2].name == "closureRaw")
         #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
     @Test
-    func kkReadWriteLockWriteSignature() throws {
-        let spec = try requireSpec("kk_read_write_lock_write")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 3)
-        #expect(spec.parameters[0].name == "handle")
+    func kkListScanReduceSignature() throws {
+        let spec = try requireSpec("kk_list_scanReduce")
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
         #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "actionFnPtr")
+        #expect(spec.parameters[1].name == "fnPtr")
         #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "actionEnvPtr")
+        #expect(spec.parameters[2].name == "closureRaw")
         #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+    }
+
+    @Test
+    func kkListScanSignature() throws {
+        let spec = try requireSpec("kk_list_scan")
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "initial")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "fnPtr")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "closureRaw")
+        #expect(spec.parameters[3].type == .intptr)
+        #expect(spec.parameters[4].name == "outThrown")
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+    }
+
+    @Test
+    func kkListRunningFoldSignature() throws {
+        let spec = try requireSpec("kk_list_runningFold")
+        #expect(spec.parameters.count == 5)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "initial")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "fnPtr")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "closureRaw")
+        #expect(spec.parameters[3].type == .intptr)
+        #expect(spec.parameters[4].name == "outThrown")
+        #expect(spec.parameters[4].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
+    }
+
+    @Test
+    func kkListRunningReduceSignature() throws {
+        let spec = try requireSpec("kk_list_runningReduce")
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "listRaw")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+        #expect(spec.returnType == .intptr)
     }
 
     @Test

@@ -89,7 +89,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
             || callee == lookup.isEmptyName
             || callee == lookup.iteratorName
-            // KSP-453: IntRange HOFs are now implemented in bundled Kotlin source.
+            // KSP-453/454: Range/progression HOFs are now implemented in bundled Kotlin source.
             || callee == lookup.toListName
             || callee == lookup.toIntArrayName
             || callee == lookup.averageName

@@ -168,7 +168,7 @@
   - 性能: 3,000,000 回ループの簡易ベンチで 2.8s → 15.6s に退行（BUG-184 として報告）
 - [x] KSP-453: IntRange HOF を Kotlin 化（`RuntimeRangeIntRangeHOF.swift` の約 30 関数: `toList`, `forEach`, `map*`, `filter*`, `reduce*`, `fold*`, `find*`, `first/last(OrNull)(_predicate)`, `any`, `all`, `none`, `chunked`, `windowed`, `take`, `drop`, `average`, `sorted`, `toIntArray`）
   - 実装方針: `Iterable<Int>` の汎用 HOF へ委譲する形で個別 kk_* を不要化
-- [ ] KSP-454: LongRange/CharRange HOF を Kotlin 化（`RuntimeRangeLongRange.swift` の HOF 群 + `kk_char_range_toList/forEach/take/drop/sorted`）
+- [x] KSP-454: LongRange/CharRange HOF を Kotlin 化（`RuntimeRangeLongRange.swift` の HOF 群 + `kk_char_range_toList/forEach/take/drop/sorted`）
 - [x] KSP-455: UInt/ULong Range を Kotlin 化（`RuntimeRangeUIntULongRange.swift` の全 HOF/プロパティ約 80 関数）
   - 実施: bundled `RangeHOF.kt`/`RangeMembership.kt`/`RangeIterators.kt` に `UIntRange`/`ULongRange`/`UIntProgression`/`ULongProgression` 用の `iterator()`/`isEmpty()`/`contains()`/`toList()`/`forEach()`/`map()`/`filter()`/`count()`/`sum()` および `reversed()` ブリッジを追加。符号なし型のジェネリクス/演算（`UInt + UInt` など）は動作確認済み。
   - 残留: `kk_uint/ulong_range_*` ランタイム関数・合成 stub・ lowering 書き換えは range dispatch 配線の共有基盤（KSP-451/453/454 整備後に一括撤去）として残置。現 PR は canonical Kotlin ソース実装と Sema golden 更新まで。
@@ -320,7 +320,7 @@
 #### io / system
 
 - [x] KSP-614: print/println を Kotlin 化する（削除 kk_* 4: `kk_println_newline`, `kk_println_any`, `kk_print_noarg`, `kk_print_any` → 残留 `__kk_print_raw` 1本に統合。改行付与・toString は Kotlin 側。特例削除: CallTypeChecker の println 即断 / CollectionLiteralLoweringPass+LookupTables / OperatorLoweringPass / EnumNameAccessLoweringPass — 後2者は挙動保持の代替設計必須。実装先 `kotlin/io/Console.kt`）。完了: `Sources/CompilerCore/Stdlib/kotlin/io/Console.kt` を新規追加し `print()`/`print(Any?)`/`println()`/`println(Any?)` の 4 overload を bundled Kotlin source として実装（改行付与と `toString()` 呼び出しは Kotlin 側、runtime は boxed 値 1 個を stdout へ書くだけの `__kk_print_raw(Int)` のみ残留）。`Sources/Runtime/RuntimeStringArray.swift` から `kk_println_any`/`kk_print_any`/`kk_print_noarg`/`kk_println_newline` を削除し `RuntimeABISpec+ConsolePrint.swift` を `__kk_print_raw` へ更新。`HeaderHelpers+SyntheticTODOAndIOStubs.swift` の print/println synthetic stub 4 件、`NativeEmitter+FunctionEmission.swift` の println/print 名前特例（no-arg・String flat・generic・`__println`/`__print` alias）と `NativeEmitter.knownVoidNoArgCallees`、`EnumNameAccessLoweringPass` の enum println rewrite、`CollectionLiteralLoweringPass` の println→`kk_list/set/map_to_string` アダプタ（+ `printlnName` lookup）を撤去。`OperatorLoweringPass` の println rewrite のみ**維持**（挙動保持の代替設計）: user class / data class / data object の `toString()` は runtime の汎用レンダラでは復元できず（`<object 0x...>` になる）、primitive も含めて lowering 時に静的型を見て `$toString`/`kk_println_*` へ振り分ける必要があるため。ただし callee 名 `"println"` 決め打ちは廃止し、`kotlin.io.println` の symbol から解決した external link name（`--stdlib-library` ビルドでは `kk_fn_println_*`）も含む集合で判定するよう変更した（従来は artifact ビルドで rewrite が効かず data class が `<object 0x...>` と表示されていた）。**併せて発見・修正したコンパイラバグ**: BUG-183（下記）。回帰: `Scripts/diff_cases/print_basic.kt` 新規（`bash Scripts/diff_kotlinc.sh` PASS）、`BundledStdlibExecutionTests.testConsolePrintOverloadsAreKotlinBacked`（引数無し `print()`/`println()` を含む全 overload）、`DeclarationBoundaryTests` 新規
-- [ ] KSP-615: readLine/readln/readlnOrNull を Kotlin 化する（削除 kk_* 3 → 残留 `__kk_readline_raw`。null 許容/例外分岐は Kotlin 側）
+- [x] KSP-615: readLine/readln/readlnOrNull を Kotlin 化する（削除 kk_* 3 → 残留 `__kk_readline_raw`。null 許容/例外分岐は Kotlin 側）
 - [x] KSP-616: TODO() を Kotlin 化する（削除 kk_* 2: `kk_todo`, `kk_todo_noarg`。ブリッジ不要 — NotImplementedError へ委譲。KSP-605 と runtime 同居ファイル注意）
 - [x] KSP-617: exitProcess/getTime 系を `__kk_` 降格する（`kk_system_exitProcess`, `kk_system_getTimeMillis/Micros/Nanos`, `kk_system_currentTimeMillis`, `kk_system_nanoTime`, `kk_system_process_start_nanos` — OS 窓口の改名 + 公開層 .kt 化。**併せて到達不能デッドコード `kk_system_measureTimeMillis/measureTimeMicros/measureNanoTime` 3関数を削除**（`StdlibSpecialCallKind` 優先で構造的に呼ばれない）。diff: getTimeMillis 系追加）
 - [x] KSP-618: synchronized を整理する（`kk_synchronized` → `__kk_synchronized` 降格 + 公開層 Kotlin 化。diff: synchronized ケース新規）
@@ -519,13 +519,13 @@
   - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 599行付近の呼び出しを削除
   - テスト影響: Path 系テストと連動
-- [ ] CLEANUP-STUB-118: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` を削除する
+- [x] CLEANUP-STUB-118: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` を削除する。**完了**: 分割ファイルの型登録ヘルパーを `HeaderHelpers+SyntheticPathStubs.swift` へ `private` として移設し、`registerPathCopyActionContextSurface` / `registerPathFileVisitorBuilderSurface` 呼び出しを削除、`registerPathExperimentalPathApiAnnotation` をインライン化。`PathWalkOption` / `CopyActionResult` / `OnErrorResult` / `FileVisitor` / `FileAttribute` の合成シンボル登録内容は不変。
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`（337行）
   - 削除内容: `registerPathCopyActionContextSurface(...)` 等 `CopyActionContext` / `WalkOptions` 等の型登録ヘルパーを削除
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 190行付近の呼び出しを削除
   - テスト影響: Path 系テストと連動
 - [x] CLEANUP-STUB-119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift` を削除する。**完了（2026-08-06）**: 5 helper（`registerSyntheticObjectProperty` / `ensureSyntheticJavaLangClassSymbol` / `registerSyntheticJavaClassExtensionProperty` / `ensureSyntheticPlatformEnumClass` / `setSyntheticPlatformEnumEntryTypes`）を唯一の呼び出し元である `HeaderHelpers+SyntheticTODOAndIOStubs.swift`（元の分割元ファイル）へ `private` として移設し、分割ファイルを削除。`HeaderHelpers+SyntheticStringStubs.swift` の `registerSyntheticObjectProperty` 呼び出しは同ファイル内の `private` 版（`ownerType:` ラベルあり）を解決しており本ファイルには依存していなかった。`kotlin.native.Platform` / `java.lang.Class` の合成シンボル登録内容は不変で、Golden・`NativePlatformBridgeTests`・`JvmJavaClassSyntheticSurfaceTests` は green
-- [ ] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
+- [x] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticReadWriteLockStubs.swift`（216行）
   - 削除内容: `registerSyntheticReadWriteLockStubs(...)` および `java.util.concurrent.locks.ReentrantReadWriteLock` クラス・`kotlin.concurrent.read` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
