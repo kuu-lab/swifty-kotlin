@@ -1,7 +1,10 @@
 package kotlin.sequences
 
+import kotlin.internal.KsSymbolName
+
 // KSP-443: Sequence 変換・集合演算を Kotlin 化
 
+@KsSymbolName("kk_sequence_to_list")
 public fun <T> Sequence<T>.toList(): List<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
@@ -14,6 +17,7 @@ public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
     return result
 }
 
+@KsSymbolName("kk_sequence_toCollection")
 public fun <T, C : MutableCollection<in T>> Sequence<T>.toCollection(destination: C): C {
     for (element in this) destination.add(element)
     return destination
@@ -25,14 +29,17 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
     return result
 }
 
+@KsSymbolName("kk_sequence_toMutableSet")
 public fun <T> Sequence<T>.toMutableSet(): MutableSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
     return result
 }
 
+@KsSymbolName("kk_sequence_toHashSet")
 public fun <T> Sequence<T>.toHashSet(): MutableSet<T> = toMutableSet()
 
+@KsSymbolName("kk_sequence_toSortedSet")
 public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> {
     val sorted = toMutableList().sorted()
     val result = mutableSetOf<T>()
@@ -56,6 +63,7 @@ public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     return Pair(list1.toList(), list2.toList())
 }
 
+@KsSymbolName("kk_sequence_union")
 public fun <T> Sequence<T>.union(other: Iterable<T>): Set<T> {
     val result = toMutableSet()
     for (element in other) result.add(element)
@@ -68,6 +76,7 @@ public fun <T> Sequence<T>.union(other: Sequence<T>): Set<T> {
     return result
 }
 
+@KsSymbolName("kk_sequence_intersect")
 public fun <T> Sequence<T>.intersect(other: Iterable<T>): Set<T> {
     val result = mutableSetOf<T>()
     val otherSet = mutableSetOf<T>()
@@ -78,6 +87,7 @@ public fun <T> Sequence<T>.intersect(other: Iterable<T>): Set<T> {
     return result
 }
 
+@KsSymbolName("kk_sequence_intersect")
 public fun <T> Sequence<T>.intersect(other: Sequence<T>): Set<T> {
     val result = mutableSetOf<T>()
     val otherSet = mutableSetOf<T>()
@@ -88,6 +98,7 @@ public fun <T> Sequence<T>.intersect(other: Sequence<T>): Set<T> {
     return result
 }
 
+@KsSymbolName("kk_sequence_subtract")
 public fun <T> Sequence<T>.subtract(other: Iterable<T>): Set<T> {
     val result = toMutableSet()
     for (element in other) result.remove(element)
@@ -100,6 +111,7 @@ public fun <T> Sequence<T>.subtract(other: Sequence<T>): Set<T> {
     return result
 }
 
+@KsSymbolName("kk_sequence_plus_element")
 public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> {
     val source = this
     return object : Sequence<T> {
@@ -121,8 +133,10 @@ public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> {
     }
 }
 
+@KsSymbolName("kk_sequence_plus_element")
 public fun <T> Sequence<T>.plusElement(element: T): Sequence<T> = plus(element)
 
+@KsSymbolName("kk_sequence_plus")
 public operator fun <T> Sequence<T>.plus(other: Iterable<T>): Sequence<T> {
     val source = this
     return object : Sequence<T> {
@@ -150,6 +164,7 @@ public operator fun <T> Sequence<T>.plus(other: Iterable<T>): Sequence<T> {
     }
 }
 
+@KsSymbolName("kk_sequence_plus")
 public operator fun <T> Sequence<T>.plus(other: Sequence<T>): Sequence<T> {
     val source = this
     return object : Sequence<T> {
@@ -177,6 +192,7 @@ public operator fun <T> Sequence<T>.plus(other: Sequence<T>): Sequence<T> {
     }
 }
 
+@KsSymbolName("kk_sequence_plus")
 public operator fun <T> Sequence<T>.plus(other: Array<out T>): Sequence<T> {
     val source = this
     val array = other
@@ -243,6 +259,7 @@ private fun <T> Sequence<T>.minusRemoving(toRemove: List<Pair<T, Int>>): Sequenc
     }
 }
 
+@KsSymbolName("kk_sequence_minus")
 public operator fun <T> Sequence<T>.minus(element: T): Sequence<T> {
     val source = this
     var removed = false
@@ -335,6 +352,7 @@ public operator fun <T> Sequence<T>.minus(other: Sequence<T>): Sequence<T> =
 public operator fun <T> Sequence<T>.minus(other: Array<out T>): Sequence<T> =
     minusRemoving(buildRemovalCounts(other))
 
+@KsSymbolName("kk_sequence_minus")
 public fun <T> Sequence<T>.minusElement(element: T): Sequence<T> = minus(element)
 
 public fun <T> Sequence<T>.minus(predicate: (T) -> Boolean): Sequence<T> {
@@ -406,6 +424,7 @@ public fun <T> Sequence<T>.ifEmpty(defaultValue: () -> Sequence<T>): Sequence<T>
     }
 }
 
+@KsSymbolName("kk_sequence_constrainOnce")
 public fun <T> Sequence<T>.constrainOnce(): Sequence<T> {
     val source = this
     var used = false

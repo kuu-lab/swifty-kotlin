@@ -126,7 +126,7 @@ final class InlineLoweringPass: LoweringPass {
             }
             guard !pending.isEmpty else { return }
             let byName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
-            for function in pending {
+            for function in pending.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue }) {
                 let expanded = inlineTransform(
                     function: function,
                     inlineFunctionsBySymbol: inlineFunctionsBySymbol,
