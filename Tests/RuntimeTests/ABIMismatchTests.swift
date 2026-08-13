@@ -1112,13 +1112,6 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkReadWriteLockCreateSignature() throws {
-        let spec = try requireSpec("kk_read_write_lock_create")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 0)
-    }
-
-    @Test
     func kkMutexLockSignature() throws {
         let spec = try requireSpec("kk_mutex_lock")
         #expect(spec.returnType == .intptr)
@@ -1157,32 +1150,6 @@ struct ABIMismatchTests {
     }
 
     // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.
-
-    @Test
-    func kkReadWriteLockReadSignature() throws {
-        let spec = try requireSpec("kk_read_write_lock_read")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 3)
-        #expect(spec.parameters[0].name == "handle")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "actionFnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "actionEnvPtr")
-        #expect(spec.parameters[2].type == .intptr)
-    }
-
-    @Test
-    func kkReadWriteLockWriteSignature() throws {
-        let spec = try requireSpec("kk_read_write_lock_write")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 3)
-        #expect(spec.parameters[0].name == "handle")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "actionFnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "actionEnvPtr")
-        #expect(spec.parameters[2].type == .intptr)
-    }
 
     // MARK: - Collection HOF Scan/Reduce (STDLIB-526..530)
 

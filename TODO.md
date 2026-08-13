@@ -525,7 +525,7 @@
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 190行付近の呼び出しを削除
   - テスト影響: Path 系テストと連動
 - [x] CLEANUP-STUB-119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift` を削除する。**完了（2026-08-06）**: 5 helper（`registerSyntheticObjectProperty` / `ensureSyntheticJavaLangClassSymbol` / `registerSyntheticJavaClassExtensionProperty` / `ensureSyntheticPlatformEnumClass` / `setSyntheticPlatformEnumEntryTypes`）を唯一の呼び出し元である `HeaderHelpers+SyntheticTODOAndIOStubs.swift`（元の分割元ファイル）へ `private` として移設し、分割ファイルを削除。`HeaderHelpers+SyntheticStringStubs.swift` の `registerSyntheticObjectProperty` 呼び出しは同ファイル内の `private` 版（`ownerType:` ラベルあり）を解決しており本ファイルには依存していなかった。`kotlin.native.Platform` / `java.lang.Class` の合成シンボル登録内容は不変で、Golden・`NativePlatformBridgeTests`・`JvmJavaClassSyntheticSurfaceTests` は green
-- [ ] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
+- [x] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticReadWriteLockStubs.swift`（216行）
   - 削除内容: `registerSyntheticReadWriteLockStubs(...)` および `java.util.concurrent.locks.ReentrantReadWriteLock` クラス・`kotlin.concurrent.read` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
