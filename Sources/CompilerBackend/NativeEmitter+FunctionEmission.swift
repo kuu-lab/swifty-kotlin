@@ -18,6 +18,7 @@ extension NativeEmitter {
         runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
         usesRuntimeCallbackRawABI: Bool = false,
         returnsRawStringRuntimeCallback: Bool = false,
+        nameCounter: GeneratedNameCounter,
         diContext: DebugInfoContext? = nil
     ) throws {
         guard let builder = bindings.createBuilder(context: context) else {
@@ -87,7 +88,7 @@ extension NativeEmitter {
             if labelBlocks[id] != nil {
                 continue
             }
-            if let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "L\(id)") {
+            if let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: nameCounter.nextName("L")) {
                 labelBlocks[id] = block
             }
         }
@@ -187,7 +188,6 @@ extension NativeEmitter {
             body: function.body,
             interner: interner
         )
-        var generatedStringLiteralCount: Int32 = 0
         let builderState = EmissionBuilderState(
             builder: builder,
             int64Type: int64Type,
@@ -249,7 +249,7 @@ extension NativeEmitter {
                            lowering: typeLowering,
                            defaultType: int64Type
                        ),
-                       name: "copy_slot_\(target.rawValue)"
+                       name: nameCounter.nextName("copy_slot_")
                    )
                 {
                     let initialValue = zeroLLVMValue(
@@ -1789,13 +1789,12 @@ extension NativeEmitter {
             let expectedType = expressionRawID.map { KIRExprID(rawValue: $0) }.flatMap(module.arena.exprType)
             return emitConstantValue(
                 expression,
-                expressionRawID: expressionRawID,
                 expectedType: expectedType,
                 state: builderState,
                 parameterValues: parameterValues,
                 internalFunctions: internalFunctions,
                 globalVariables: globalVariables,
-                generatedStringLiteralCount: &generatedStringLiteralCount,
+                nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
                     declareExternalFunction(named: name, argumentCount: argCount, appendThrownChannel: appendThrown)
                 },
@@ -1810,7 +1809,7 @@ extension NativeEmitter {
                     lowering: typeLowering,
                     defaultType: int64Type
                 )
-                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: "load_\(id.rawValue)")
+                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: nameCounter.nextName("load_"))
                     ?? (zeroLLVMValue(
                         for: module.arena.exprType(id),
                         lowering: typeLowering,
@@ -1876,7 +1875,7 @@ extension NativeEmitter {
                 {
                     globalValue = bridgeStringAggregateToRuntimeRaw(
                         storedValue,
-                        suffix: "store_result_global_\(result.rawValue)"
+                        suffix: nameCounter.nextName("store_result_global_")
                     ) ?? storedValue
                 }
                 _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
@@ -1891,7 +1890,7 @@ extension NativeEmitter {
             if let block = labelBlocks[label] {
                 return block
             }
-            let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "L\(label)")
+            let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: nameCounter.nextName("L"))
             if let block {
                 labelBlocks[label] = block
             }
@@ -3133,7 +3132,7 @@ extension NativeEmitter {
                 if let globalPtr = globalVariables[symbol] {
                     if let loaded = bindings.buildLoad(
                         builder, type: int64Type, pointer: globalPtr,
-                        name: "load_global_\(symbol.rawValue)"
+                        name: nameCounter.nextName("load_global_")
                     ) {
                         let loadedValue = if isStringAggregateType(module.arena.exprType(result)) {
                             bridgeRuntimeRawToStringAggregate(

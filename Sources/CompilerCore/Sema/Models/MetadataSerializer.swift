@@ -242,6 +242,7 @@ package final class MetadataEncoder {
         companionInitializerLinkNames: [SymbolID: String] = [:],
         enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> [MetadataRecord] {
+        let mangler = NameMangler()
         let exported = symbols.allSymbols()
             .filter { symbol in
                 if !includeNonPublic && symbol.visibility != .public {
@@ -311,17 +312,23 @@ package final class MetadataEncoder {
                 }
                 return true
             }
-            .sorted { lhs, rhs in
-                if lhs.fqName.count != rhs.fqName.count {
-                    return lhs.fqName.count < rhs.fqName.count
-                }
-                let lhsResolved = lhs.fqName.map { interner.resolve($0) }
-                let rhsResolved = rhs.fqName.map { interner.resolve($0) }
-                if lhsResolved != rhsResolved {
-                    return lhsResolved.lexicographicallyPrecedes(rhsResolved)
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
+            .map { symbol -> (symbol: SemanticSymbol, sortKey: String) in
+                let sortKey = mangler.mangle(
+                    moduleName: moduleName,
+                    symbol: symbol,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: { interner.resolve($0) }
+                )
+                return (symbol, sortKey)
             }
+            .sorted { lhs, rhs in
+                if lhs.sortKey != rhs.sortKey {
+                    return lhs.sortKey < rhs.sortKey
+                }
+                return lhs.symbol.id.rawValue < rhs.symbol.id.rawValue
+            }
+            .map(\.symbol)
 
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
