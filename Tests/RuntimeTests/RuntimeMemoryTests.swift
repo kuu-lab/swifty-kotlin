@@ -1,35 +1,34 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-/// XCTest on purpose: testSystemGCLeavesMetricsQueryable triggers a real
-/// mark-and-sweep (kk_system_gc), which reclaims any heap handle not reachable
-/// from GC roots. Swift Testing suites share one process and run concurrently,
-/// so a GC here would deallocate live handles owned by other suites. XCTest
-/// classes run isolated in their own subprocess under `swift test --parallel`.
-final class RuntimeMemoryTests: XCTestCase {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeMemoryTests {
+    @Test
     func testRuntimeGetRuntimeReturnsStableSingletonHandle() {
-        XCTAssertEqual(kk_runtime_getRuntime(), kk_runtime_getRuntime())
+        #expect(kk_runtime_getRuntime() == kk_runtime_getRuntime())
     }
 
+    @Test
     func testMemoryMetricsStayWithinExpectedBounds() {
         let runtimeHandle = kk_runtime_getRuntime()
-        XCTAssertNotEqual(runtimeHandle, 0)
+        #expect(runtimeHandle != 0)
 
         let total = kk_runtime_totalMemory()
         let free = kk_runtime_freeMemory()
         let max = kk_runtime_maxMemory()
 
-        XCTAssertGreaterThan(total, 0)
-        XCTAssertGreaterThanOrEqual(free, 0)
-        XCTAssertGreaterThanOrEqual(max, total)
+        #expect(total > 0)
+        #expect(free >= 0)
+        #expect(max >= total)
     }
 
+    @Test
     func testSystemGCLeavesMetricsQueryable() {
-        let lease = RuntimeTestIsolationLease(lockSet: .gcOnly)
-        defer { lease.release() }
         kk_system_gc()
 
-        XCTAssertGreaterThan(kk_runtime_totalMemory(), 0)
-        XCTAssertGreaterThanOrEqual(kk_runtime_maxMemory(), kk_runtime_totalMemory())
+        #expect(kk_runtime_totalMemory() > 0)
+        #expect(kk_runtime_maxMemory() >= kk_runtime_totalMemory())
     }
 }
+#endif

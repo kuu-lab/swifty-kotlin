@@ -145,6 +145,12 @@ public func __kk_throwable_rawStackFrames(_ throwableRaw: Int) -> Int {
     return arrayRaw
 }
 
+@_cdecl("__kk_print_raw")
+public func __kk_print_raw(_ messageRaw: Int) {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+    Swift.print(message, terminator: "")
+}
+
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
@@ -1637,100 +1643,18 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     return result
 }
 
-/// KSP-614: single low-level console bridge behind `kotlin.io.print`/`println`.
-/// Renders `value` with the runtime's boxed-value formatter and writes it to
-/// stdout without a trailing newline. Newline handling lives in Kotlin
-/// (`Stdlib/kotlin/io/Console.kt`).
-@_cdecl("__kk_print_raw")
-public func __kk_print_raw(_ obj: Int) {
-    Swift.print(runtimeRenderAnyForPrint(obj), terminator: "")
-}
-
-@_cdecl("kk_println_string_flat")
-public func kk_println_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self))
-    return 0
-}
-
-/// Runtime support for printing aggregate String values without a trailing newline.
-@_cdecl("kk_print_string_flat")
-public func kk_print_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null", terminator: "")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self), terminator: "")
-    return 0
-}
-
 /// Runtime support for kotlin.io.DEFAULT_BUFFER_SIZE.
 @_cdecl("kk_io_default_buffer_size")
 public func kk_io_default_buffer_size() -> Int {
     8192
 }
 
-/// Runtime support for kotlin.io.readLine() (STDLIB-063).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF.
-@_cdecl("kk_readline")
-public func kk_readline() -> Int {
-    guard let line = readLine() else {
-        return runtimeNullSentinelInt
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readln() (STDLIB-130).
-@_cdecl("kk_readln")
-public func kk_readln(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let line = readLine() else {
-        outThrown?.pointee = runtimeAllocateRuntimeException(message: "EOF has already been reached")
-        return 0
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readlnOrNull() (STDLIB-571).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF
-/// instead of throwing.
-@_cdecl("kk_readlnOrNull")
-public func kk_readlnOrNull() -> Int {
+/// KSP-615: single low-level console input bridge behind `kotlin.io.readLine` /
+/// `readln` / `readlnOrNull`. Reads a line from stdin. Returns a pointer to a
+/// runtime string on success, or `runtimeNullSentinelInt` on EOF; nullability
+/// and the `readln` EOF throw live in `Stdlib/kotlin/io/Console.kt`.
+@_cdecl("__kk_readline_raw")
+public func __kk_readline_raw() -> Int {
     guard let line = readLine() else {
         return runtimeNullSentinelInt
     }

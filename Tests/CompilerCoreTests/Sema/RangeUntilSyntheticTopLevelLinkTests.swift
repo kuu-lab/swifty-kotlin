@@ -19,6 +19,42 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         return semaResult
     }
 
+    private func classType(
+        named name: String,
+        in sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let fqName = ["kotlin", "ranges", name].map { interner.intern($0) }
+        guard let symbol = sema.symbols.lookup(fqName: fqName) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func rangeType(
+        for elementType: TypeID,
+        in sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let name: String
+        if elementType == sema.types.longType {
+            name = "LongRange"
+        } else if elementType == sema.types.charType {
+            name = "CharRange"
+        } else if elementType == sema.types.uintType {
+            name = "UIntRange"
+        } else if elementType == sema.types.ulongType {
+            name = "ULongRange"
+        } else {
+            name = "IntRange"
+        }
+        return classType(named: name, in: sema, interner: interner)
+    }
+
     private func memberCallExprIDs(
         named name: String,
         in ast: ASTModule,
@@ -74,13 +110,24 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         let rangeUntilFQName = ["kotlin", "ranges", "rangeUntil"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: rangeUntilFQName)
 
-        #expect(candidates.count == 1, "rangeUntil should register the generic OpenEndRange-returning operator")
-        let rangeUntilSymbol = try #require(candidates.first)
-        let symbol = try #require(sema.symbols.symbol(rangeUntilSymbol))
-        #expect(symbol.flags.contains(.operatorFunction))
-        #expect(sema.symbols.externalLinkName(for: rangeUntilSymbol) == "kk_op_rangeUntil")
+        // Bundled Kotlin sources provide concrete `rangeUntil` overloads, plus
+        // the legacy generic `operator fun <T : Comparable<T>> T.rangeUntil(that: T)`.
+        #expect(!candidates.isEmpty, "rangeUntil should be registered")
 
-        let signature = try #require(sema.symbols.functionSignature(for: rangeUntilSymbol))
+        let genericRangeUntil = try #require(
+            candidates.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                    return false
+                }
+                return signature.typeParameterSymbols.count == 1
+            },
+            "Expected a generic rangeUntil operator"
+        )
+        let symbol = try #require(sema.symbols.symbol(genericRangeUntil))
+        #expect(symbol.flags.contains(.operatorFunction))
+        #expect(sema.symbols.externalLinkName(for: genericRangeUntil) == "__kk_op_rangeUntil")
+
+        let signature = try #require(sema.symbols.functionSignature(for: genericRangeUntil))
         #expect(signature.typeParameterSymbols.count == 1)
         let typeParameter = try #require(signature.typeParameterSymbols.first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
@@ -95,6 +142,14 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             sema: sema,
             interner: interner
         )
+
+        let concreteCount = candidates.filter { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.typeParameterSymbols.isEmpty
+        }.count
+        #expect(concreteCount == 19, "Expected 19 concrete rangeUntil overloads")
     }
 
     @Test func testRangeUntilCallReturnsOpenEndRangeAndEndExclusiveResolves() throws {
@@ -143,36 +198,52 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         let untilFQName = ["kotlin", "ranges", "until"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: untilFQName)
 
-        // Byte and Short now have distinct primitives, so the signed `until`
-        // overload matrix is Byte/Short/Int/Long crossed with itself.
-        let signedRangeUntilTypes = [
+        // Bundled Kotlin sources provide `until` overloads for Byte/Short/Int/Long
+        // (16 combinations), Char, UInt, and ULong.
+        let signedUntilTypes = [
             sema.types.byteType,
             sema.types.shortType,
             sema.types.intType,
             sema.types.longType,
         ]
+        let extraUntilTypes: [(TypeID, TypeID)] = [
+            (sema.types.charType, sema.types.charType),
+            (sema.types.uintType, sema.types.uintType),
+            (sema.types.ulongType, sema.types.ulongType),
+        ]
+
         var expectedSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = []
-        for receiver in signedRangeUntilTypes {
-            for parameter in signedRangeUntilTypes {
-                let returnType: TypeID = (receiver == sema.types.longType || parameter == sema.types.longType)
-                    ? sema.types.longType
-                    : sema.types.intType
+        for receiver in signedUntilTypes {
+            for parameter in signedUntilTypes {
+                let returnType: TypeID = if receiver == sema.types.longType || parameter == sema.types.longType {
+                    sema.types.longType
+                } else {
+                    sema.types.intType
+                }
                 expectedSignatures.append((receiver, parameter, returnType))
             }
         }
+        for (receiver, parameter) in extraUntilTypes {
+            expectedSignatures.append((receiver, parameter, receiver))
+        }
+
         #expect(
             candidates.count == expectedSignatures.count,
-            "until should register the full signed overload matrix (got \(candidates.count), expected \(expectedSignatures.count))"
+            "until should register the full overload matrix (got \(candidates.count), expected \(expectedSignatures.count))"
         )
 
         for expected in expectedSignatures {
+            let expectedReturnType = try #require(
+                rangeType(for: expected.returnType, in: sema, interner: interner),
+                "Range class for \(sema.types.renderType(expected.returnType))"
+            )
             let v = candidates.contains(where: { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
                 return signature.receiverType == expected.receiver
                     && signature.parameterTypes == [expected.parameter]
-                    && signature.returnType == expected.returnType
+                    && signature.returnType == expectedReturnType
             })
             #expect(
                 v,
@@ -180,8 +251,10 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             )
         }
 
+        // All public `until` overloads are source-backed; the bridge stays behind
+        // the `__rangeUntil` internal external functions.
         let links = Set(candidates.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(links == Set(["kk_op_rangeUntil"]), "All until overloads should link to kk_op_rangeUntil")
+        #expect(links.isEmpty, "until overloads should be source-backed (no external link)")
     }
 
     @Test func testMixedWidthUntilCallsResolveAndRemainRangeExpressions() throws {
@@ -200,29 +273,31 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-
             #expect(
                 !(ctx.diagnostics.hasError),
                 Comment(rawValue: "until calls should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
 
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
             let untilCalls = memberCallExprIDs(named: "until", in: ast, interner: interner, sourceManager: ctx.sourceManager)
             #expect(untilCalls.count == 5, "Expected five until calls in the sample")
 
+            let intRange = try #require(classType(named: "IntRange", in: sema, interner: interner))
+            let longRange = try #require(classType(named: "LongRange", in: sema, interner: interner))
             let expectedUntilSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = [
                 // bb = 1.toByte() until 2.toByte()
-                (sema.types.byteType, sema.types.byteType, sema.types.intType),
+                (sema.types.byteType, sema.types.byteType, intRange),
                 // ss = 1.toShort() until 2.toShort()
-                (sema.types.shortType, sema.types.shortType, sema.types.intType),
+                (sema.types.shortType, sema.types.shortType, intRange),
                 // bl = 1.toByte() until 2L
-                (sema.types.byteType, sema.types.longType, sema.types.longType),
+                (sema.types.byteType, sema.types.longType, longRange),
                 // lb = 1L until 2.toShort()
-                (sema.types.longType, sema.types.shortType, sema.types.longType),
+                (sema.types.longType, sema.types.shortType, longRange),
                 // ll = 1L until 2L
-                (sema.types.longType, sema.types.longType, sema.types.longType),
+                (sema.types.longType, sema.types.longType, longRange),
             ]
 
             for (index, callExprID) in untilCalls.enumerated() {
@@ -248,8 +323,8 @@ struct RangeUntilSyntheticTopLevelLinkTests {
                     Comment(rawValue: "Unexpected until return type at index \(index)")
                 )
                 #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_op_rangeUntil",
-                    "until should lower to kk_op_rangeUntil"
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "until should be source-backed (no external link)"
                 )
                 #expect(
                     sema.bindings.isRangeExpr(callExprID),

@@ -637,6 +637,7 @@ extension CallLowerer {
         case .elvis:
             preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
+            // kk_op_rangeTo / kk_uint_rangeTo are still residual operator-core helpers.
             let rangeToCallee = sema.bindings.isUIntRangeExpr(exprID)
                 ? interner.intern("kk_uint_rangeTo")
                 : interner.intern("kk_op_rangeTo")
@@ -650,9 +651,11 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
-            let rangeUntilCallee = sema.bindings.isULongRangeExpr(exprID)
-                ? interner.intern("kk_op_ulong_rangeUntil")
-                : interner.intern("kk_op_rangeUntil")
+            let rangeUntilCallee = if sema.bindings.isULongRangeExpr(exprID) {
+                interner.intern("__kk_op_ulong_rangeUntil")
+            } else {
+                interner.intern("__kk_op_rangeUntil")
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: rangeUntilCallee,
@@ -663,9 +666,14 @@ extension CallLowerer {
             ))
             return result
         case .downTo:
-            let downToCallee = sema.bindings.isUIntRangeExpr(exprID)
-                ? interner.intern("kk_uint_downTo")
-                : interner.intern("kk_op_downTo")
+            let downToCallee: InternedString
+            if sema.bindings.isULongRangeExpr(exprID) {
+                downToCallee = interner.intern("__kk_ulong_downTo")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                downToCallee = interner.intern("__kk_uint_downTo")
+            } else {
+                downToCallee = interner.intern("__kk_op_downTo")
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: downToCallee,
@@ -676,15 +684,24 @@ extension CallLowerer {
             ))
             return result
         case .step:
-            let stepCallee = sema.bindings.isUIntRangeExpr(exprID)
-                ? interner.intern("kk_uint_step")
-                : interner.intern("kk_op_step")
+            let stepCallee: InternedString
+            if sema.bindings.isULongRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_ulong_step")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_uint_step")
+            } else {
+                stepCallee = interner.intern("__kk_op_step")
+            }
+            // __kk_op_step carries an outThrown ABI channel for invalid step values;
+            // the unsigned helpers do not. Mark it throwable so the backend passes the
+            // thrown channel and can short-circuit on an invalid step.
+            let stepCanThrow = stepCallee == interner.intern("__kk_op_step")
             instructions.append(.call(
                 symbol: nil,
                 callee: stepCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
+                canThrow: stepCanThrow,
                 thrownResult: nil
             ))
             return result

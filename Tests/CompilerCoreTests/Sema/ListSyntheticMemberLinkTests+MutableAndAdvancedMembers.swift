@@ -311,7 +311,7 @@ extension ListSyntheticMemberLinkTests {
                 return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_joinToString")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected Sequence.joinToString to have no bundled external link")
         }
     }
 
@@ -798,6 +798,46 @@ extension ListSyntheticMemberLinkTests {
                 memberName: "toFloatArray",
                 expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("FloatArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UByte>) {
+                    values.toUByteArray()
+                }
+                """,
+                memberName: "toUByteArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UByteArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UShort>) {
+                    values.toUShortArray()
+                }
+                """,
+                memberName: "toUShortArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UShortArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UInt>) {
+                    values.toUIntArray()
+                }
+                """,
+                memberName: "toUIntArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UIntArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<ULong>) {
+                    values.toULongArray()
+                }
+                """,
+                memberName: "toULongArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("ULongArray")
             ),
         ]
 

@@ -349,13 +349,12 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // --- STDLIB-SEQ-023 / STDLIB-535/536/537: sequence/list *To variants with [receiver, dest, lambda, closureRaw?] ---
+    // --- STDLIB-SEQ-023 / STDLIB-535/536/537: list *To variants with [receiver, dest, lambda, closureRaw?] ---
     if callee == lookup.associateByToName || callee == lookup.associateWithToName
         || callee == lookup.groupByToName
     {
         if arguments.count == 3 || arguments.count == 4,
            state.listExprIDs.contains(arguments[0].rawValue)
-            || state.sequenceExprIDs.contains(arguments[0].rawValue)
         {
             let receiverID = arguments[0]
             let destID = arguments[1]
@@ -368,14 +367,10 @@ extension CollectionLiteralLoweringSupport {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let isSequenceReceiver = state.sequenceExprIDs.contains(receiverID.rawValue)
             let kkName: InternedString = switch callee {
-            case lookup.associateByToName:
-                isSequenceReceiver ? lookup.kkSequenceAssociateByToName : lookup.kkListAssociateByToName
-            case lookup.associateWithToName:
-                isSequenceReceiver ? lookup.kkSequenceAssociateWithToName : lookup.kkListAssociateWithToName
-            case lookup.groupByToName:
-                isSequenceReceiver ? lookup.kkSequenceGroupByToName : lookup.kkListGroupByToName
+            case lookup.associateByToName: lookup.kkListAssociateByToName
+            case lookup.associateWithToName: lookup.kkListAssociateWithToName
+            case lookup.groupByToName: lookup.kkListGroupByToName
             default: callee
             }
             let hofResult = module.arena.appendTemporary(type: nil

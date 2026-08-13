@@ -19,625 +19,962 @@ struct DiagnosticCodeCoverageTests {}
 // MARK: - LEX-0004: Invalid escape sequence / unescaped line break
 
 extension DiagnosticCodeCoverageTests {
+
     /// Triggers KSWIFTK-LEX-0004: unescaped newline inside a string literal.
-    @Test func testLex0004UnescapedNewlineInStringLiteral() throws {
-        // The source string embeds a literal newline inside a quoted string.
-        let source = "val s = \"hello\nworld\""
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
 
-        assertHasDiagnostic("KSWIFTK-LEX-0004", in: ctx)
+    // MARK: - Per-source diagnostic helpers
+
+    private func diagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
     }
 
-    /// A multi-line string (triple-quoted) does NOT trigger LEX-0004.
-    @Test func testLex0004NotEmittedForTripleQuotedString() throws {
-        let source = """
-        val s = \"\"\"
-        hello
-        world
-        \"\"\"
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        assertNoDiagnostic("KSWIFTK-LEX-0004", in: ctx)
+    private func diagnosticsForPath(
+        _ path: String,
+        withCode code: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
     }
-}
 
-// MARK: - PARSE-0001: Expected keyword in declaration
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-PARSE-0001 by using `context` receiver syntax without
-    /// the required parenthesised receiver type.
-    @Test func testParse0001ContextReceiverMissingParentheses() throws {
-        let source = "context fun foo() {}"
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        assertHasDiagnostic("KSWIFTK-PARSE-0001", in: ctx)
+    private func assertHasDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = diagnostics.contains { $0.code == code }
+        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
     }
-}
 
-// MARK: - PARSE-0006: Unexpected token in declaration
+    private func assertNoDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = !diagnostics.contains { $0.code == code }
+        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
+    }
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-PARSE-0006: a stray token in the middle of a
-    /// declaration (e.g. a modifier keyword appearing where a body is expected).
-    @Test func testParse0006UnexpectedTokenInDeclaration() throws {
-        // A stray token between top-level declarations triggers PARSE-0006.
-        // Note: The current parser treats `???` as valid nullable-operator tokens
-        // and consumes them without emitting PARSE-0006. This test documents the
-        // intended behavior and will start passing when the parser is updated to
-        // reject these tokens in declaration-list context.
-        let source = """
-        fun foo() {}
-        ??? unexpected
-        fun bar() {}
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
+    // MARK: - Path-aware expression search helpers
 
-        // PARSE-0006 is expected but the current parser silently consumes `???`.
-        // Accepted as a known gap: test does not fail the build.
-        let hasDiagnostic = ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0006" }
-        if !hasDiagnostic {
-            // Known gap: parser does not emit PARSE-0006 for `???` tokens.
-            return
+    private func firstExprIDInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { return exprID }
         }
-        assertHasDiagnostic("KSWIFTK-PARSE-0006", in: ctx)
+        return nil
     }
 
-    /// A well-formed function with an `override` modifier in the right place
-    /// must NOT emit PARSE-0006.
-    @Test func testParse0006NotEmittedForValidOverrideModifier() throws {
-        let source = """
-        open class Base { open fun foo() {} }
-        class Child : Base() { override fun foo() {} }
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        assertNoDiagnostic("KSWIFTK-PARSE-0006", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0021: Cannot delegate to super without a superclass
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0021: a secondary constructor delegates to
-    /// `super()` but the class has no superclass.
-    @Test func testSema0021SuperDelegationWithoutSuperclass() throws {
-        let source = """
-        class Foo {
-            constructor(x: Int) : super()
+    private func lastExprIDInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        var result: ExprID?
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { result = exprID }
         }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let codes = ctx.diagnostics.diagnostics.map(\.code)
-        #expect(
-            codes.contains("KSWIFTK-SEMA-0021") || codes.contains("KSWIFTK-SEMA-0055"),
-            "Expected SEMA-0021 or SEMA-0055 for super() delegation without superclass, got: \(codes)"
-        )
+        return result
     }
 
-    /// A class that actually has a superclass must NOT emit SEMA-0021.
-    @Test func testSema0021NotEmittedWhenSuperclassExists() throws {
-        let source = """
-        open class Base(val x: Int)
-        class Derived : Base {
-            constructor(x: Int) : super(x)
+    private func allExprIDsInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        var results: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { results.append(exprID) }
         }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0021", in: ctx)
+        return results
     }
-}
 
-// MARK: - SEMA-0042: return@label does not reference a valid enclosing lambda
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0042: `return@nonExistentLabel` where the label
-    /// does not name any enclosing lambda.
-    @Test func testSema0042ReturnAtInvalidLabel() throws {
-        let source = """
-        fun test() {
-            val list = listOf(1, 2, 3)
-            list.forEach {
-                return@nonExistentLabel
+    private func memberCallExprIDsInPath(
+        named name: String,
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        interner: StringInterner
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, callee, _, _, range) = expr,
+                  interner.resolve(callee) == name,
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else {
+                return nil
             }
+            return exprID
         }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0043: Mixed signed/unsigned operands
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0043: binary arithmetic mixing a signed and an
-    /// unsigned integer type.
-    @Test func testSema0043SignedUnsignedMixInBinaryAdd() throws {
-        let source = """
-        fun mix(a: Int, b: UInt): Int {
-            val r = a + b
-            return r
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0043", in: ctx)
     }
 
-    /// Pure signed arithmetic must NOT emit SEMA-0043.
-    @Test func testSema0043NotEmittedForPureSignedArithmetic() throws {
-        let source = """
-        fun add(a: Int, b: Int): Int = a + b
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+    // MARK: - Consolidated runFrontend clean tests
 
-        assertNoDiagnostic("KSWIFTK-SEMA-0043", in: ctx)
-    }
-}
+    @Test
+    func testRunFrontendClean() throws {
 
-// MARK: - SEMA-0050: 'super' outside a class body
+        let sources: [String] = [
+            // testLex0004NotEmittedForTripleQuotedString
+            """
+            package sample0
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0050: top-level use of `super`.
-    @Test func testSema0050SuperOutsideClassBody() throws {
-        let source = """
-        fun test() {
-            val x = super.toString()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                    val s = \"\"\"
+                    hello
+                    world
+                    \"\"\"
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0050", in: ctx)
-    }
-}
+            """,
+            // testParse0006NotEmittedForValidOverrideModifier
+            """
+            package sample1
 
-// MARK: - SEMA-0052: Class has no superclass (bare super reference)
+                    open class Base { open fun foo() {} }
+                    class Child : Base() { override fun foo() {} }
 
-extension DiagnosticCodeCoverageTests {
-    /// Every class implicitly inherits from kotlin.Any, so super.toString() is valid Kotlin.
-    /// This test verifies no spurious errors are emitted for this pattern.
-    @Test func testSema0052SuperInClassWithNoSuperclass() throws {
-        let source = """
-        class Foo {
-            fun test(): String = super.toString()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
+        ]
 
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "super.toString() in a class implicitly extending Any should compile without errors; got: \(errors.map { $0.message })"
-        )
-    }
-}
+        try withTemporaryFiles(contents: sources) { paths in
 
-// MARK: - SEMA-0054: Secondary constructor must delegate to another constructor
+            let ctx = makeCompilationContext(inputs: paths)
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0054: a secondary constructor in a class that
-    /// has a primary constructor, but the secondary constructor omits the
-    /// required `this(...)` delegation.
-    @Test func testSema0054SecondaryCtorMissingDelegation() throws {
-        let source = """
-        class Bar(val x: Int) {
-            constructor(x: Int, y: Int) {
+            try runFrontend(ctx)
+
+            let interner = ctx.interner
+
+            // === testLex0004NotEmittedForTripleQuotedString ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-LEX-0004", in: sample0Diagnostics)
+
             }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0054", in: ctx)
-    }
+            // === testParse0006NotEmittedForValidOverrideModifier ===
 
-    /// A secondary constructor that properly delegates via `this()` must NOT
-    /// emit SEMA-0054.
-    @Test func testSema0054NotEmittedWhenDelegationPresent() throws {
-        let source = """
-        class Bar(val x: Int) {
-            constructor(x: Int, y: Int) : this(x + y)
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            do {
 
-        assertNoDiagnostic("KSWIFTK-SEMA-0054", in: ctx)
-    }
-}
+                let sample1Path = paths[1]
 
-// MARK: - SEMA-0061: Type alias missing right-hand side
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0061: `typealias` declaration with no
-    /// right-hand type (only parseable through error-recovery).
-    @Test func testSema0061TypeAliasMissingRhs() throws {
-        // The parser can produce a type-alias node without an underlying type
-        // when the source is malformed.  We write Kotlin that causes the
-        // AST to carry a typealias with no RHS.
-        let source = "typealias MyType"
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                assertNoDiagnostic("KSWIFTK-PARSE-0006", in: sample1Diagnostics)
 
-        // We expect either a parse error or a sema error about the missing RHS.
-        let codes = ctx.diagnostics.diagnostics.map(\.code)
-        #expect(
-            codes.contains("KSWIFTK-SEMA-0061") || codes.contains("KSWIFTK-PARSE-0005"),
-            "Expected SEMA-0061 or PARSE-0005 for typealias without RHS, got: \(codes)"
-        )
-    }
-}
-
-// MARK: - SEMA-0070: Sealed subclass outside package
-
-extension DiagnosticCodeCoverageTests {
-    /// SEMA-0070 is emitted when a class tries to extend a sealed class but is
-    /// not in the same package.  This is detected at the sema / inheritance
-    /// pass.  In a single-file unit test the same package restriction applies
-    /// to value classes: a @JvmInline value class with != 1 primary ctor param
-    /// also emits SEMA-0070.
-    @Test func testSema0070ValueClassMustHaveExactlyOneParam() throws {
-        let source = """
-        @JvmInline
-        value class Pair(val a: Int, val b: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0070", in: ctx)
-    }
-
-    /// A @JvmInline value class with exactly one primary constructor parameter
-    /// must NOT emit SEMA-0070.
-    @Test func testSema0070NotEmittedForValidValueClass() throws {
-        let source = """
-        @JvmInline
-        value class Money(val amount: Int)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0070", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0072: Duplicate condition in when branch
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0072: the same literal condition appears twice
-    /// in distinct branches of the same when expression.
-    @Test func testSema0072DuplicateWhenCondition() throws {
-        // SEMA-0072 is emitted when the SAME condition appears twice within
-        // the SAME branch (comma-separated conditions list).
-        let source = """
-        fun test(x: Int): String {
-            return when (x) {
-                1, 1 -> "one or one"
-                else -> "other"
             }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0072", in: ctx)
+        }
     }
 
-    /// Non-duplicate conditions must NOT emit SEMA-0072.
-    @Test func testSema0072NotEmittedForDistinctConditions() throws {
-        let source = """
-        fun test(x: Int): String = when (x) {
-            1 -> "one"
-            2 -> "two"
-            else -> "other"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+    // MARK: - Consolidated runFrontend error tests
 
-        assertNoDiagnostic("KSWIFTK-SEMA-0072", in: ctx)
-    }
-}
+    @Test
+    func testRunFrontendWithExpectedDiagnostics() throws {
 
-// MARK: - SEMA-0073: Condition already covered by previous when branch
+        let sources: [String] = [
+            // testLex0004UnescapedNewlineInStringLiteral
+            """
+            package sample0
+            val s = "hello
+            world"
+            """,
+            // testParse0001ContextReceiverMissingParentheses
+            """
+            package sample1
+            context fun foo() {}
+            """,
+            // testParse0006UnexpectedTokenInDeclaration
+            """
+            package sample2
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0073: a condition that was already fully handled
-    /// by an earlier branch (unreachable branch).
-    @Test func testSema0073DuplicateConditionAcrossBranches() throws {
-        // SEMA-0073 is emitted when the same condition appears in a different
-        // branch that has already been covered by an earlier branch.
-        let source = """
-        fun test(x: Int): String {
-            return when (x) {
-                1 -> "one"
-                1 -> "also one"
-                else -> "other"
+                    fun foo() {}
+                    ??? unexpected
+                    fun bar() {}
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runFrontend(ctx)
+
+            let interner = ctx.interner
+
+            // === testLex0004UnescapedNewlineInStringLiteral ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                // The source string embeds a literal newline inside a quoted string.
+
+                assertHasDiagnostic("KSWIFTK-LEX-0004", in: sample0Diagnostics)
+
             }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0073", in: ctx)
-    }
-}
+            // === testParse0001ContextReceiverMissingParentheses ===
 
-// MARK: - SEMA-0074: When branch guard must be Boolean
+            do {
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0074: the guard expression in a `when` branch
-    /// is not a Boolean expression.
-    @Test func testSema0074WhenBranchGuardNotBoolean() throws {
-        let source = """
-        fun test(x: Int): String {
-            return when (x) {
-                1 if 42 -> "bad"
-                else -> "ok"
+                let sample1Path = paths[1]
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-PARSE-0001", in: sample1Diagnostics)
+
             }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0074", in: ctx)
-    }
+            // === testParse0006UnexpectedTokenInDeclaration ===
 
-    /// A Boolean guard condition must NOT emit SEMA-0074.
-    @Test func testSema0074NotEmittedForBooleanGuard() throws {
-        let source = """
-        fun test(x: Int): String {
-            return when (x) {
-                1 if x > 0 -> "positive one"
-                else -> "other"
-            }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            do {
 
-        assertNoDiagnostic("KSWIFTK-SEMA-0074", in: ctx)
-    }
-}
+                let sample2Path = paths[2]
 
-// MARK: - SEMA-0080: 'const' is not applicable to 'var'
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0080: `const var` is not allowed; const only
-    /// applies to `val`.
-    @Test func testSema0080ConstVar() throws {
-        let source = """
-        const var X = 42
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                // A stray token between top-level declarations triggers PARSE-0006.
+                // Note: The current parser treats `???` as valid nullable-operator tokens
+                // and consumes them without emitting PARSE-0006. This test documents the
+                // intended behavior and will start passing when the parser is updated to
+                // reject these tokens in declaration-list context.
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0080", in: ctx)
-    }
-
-    /// `const val` is valid and must NOT emit SEMA-0080.
-    @Test func testSema0080NotEmittedForConstVal() throws {
-        let source = """
-        const val X = 42
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0080", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0081: 'const val' must have an initializer
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0081: a `const val` that has no initializer.
-    @Test func testSema0081ConstValWithoutInitializer() throws {
-        let source = """
-        const val X: Int
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0081", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0083: 'const val' initializer must be a compile-time constant
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0083: the initializer of a `const val` is not a
-    /// compile-time constant literal.
-    @Test func testSema0083ConstValNonLiteralInitializer() throws {
-        let source = """
-        fun compute(): Int = 42
-        const val X = compute()
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0083", in: ctx)
-    }
-
-    /// A `const val` with a literal initializer must NOT emit SEMA-0083.
-    @Test func testSema0083NotEmittedForLiteralInitializer() throws {
-        let source = """
-        const val X = 100
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0083", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0097: 'break' with label that does not reference an enclosing loop
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0097: `break@badLabel` used where `badLabel`
-    /// does not name any surrounding loop.
-    @Test func testSema0097BreakAtInvalidLabel() throws {
-        let source = """
-        fun test() {
-            outer@ for (i in 1..5) {
-                break@nonExistent
-            }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0097", in: ctx)
-    }
-
-    /// `break@outer` where `outer` labels an enclosing loop must NOT emit
-    /// SEMA-0097.
-    @Test func testSema0097NotEmittedForValidBreakLabel() throws {
-        let source = """
-        fun test() {
-            outer@ for (i in 1..5) {
-                for (j in 1..5) {
-                    break@outer
+                // PARSE-0006 is expected but the current parser silently consumes `???`.
+                // Accepted as a known gap: test does not fail the build.
+                let hasDiagnostic = sample2Diagnostics.contains { $0.code == "KSWIFTK-PARSE-0006" }
+                if !hasDiagnostic {
+                    // Known gap: parser does not emit PARSE-0006 for `???` tokens.
+                    return
                 }
-            }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                assertHasDiagnostic("KSWIFTK-PARSE-0006", in: sample2Diagnostics)
 
-        assertNoDiagnostic("KSWIFTK-SEMA-0097", in: ctx)
+            }
+
+        }
+    }
+
+    // MARK: - Consolidated Sema tests
+
+    @Test
+    func testDiagnosticCodeCoverageSema() throws {
+        let sources: [String] = [
+            // testSema0021SuperDelegationWithoutSuperclass
+            """
+            package sample0
+
+                    class Foo {
+                        constructor(x: Int) : super()
+                    }
+
+            """,
+            // testSema0021NotEmittedWhenSuperclassExists
+            """
+            package sample1
+
+                    open class Base(val x: Int)
+                    class Derived : Base {
+                        constructor(x: Int) : super(x)
+                    }
+
+            """,
+            // testSema0043NotEmittedForPureSignedArithmetic
+            """
+            package sample2
+
+                    fun add(a: Int, b: Int): Int = a + b
+
+            """,
+            // testSema0052SuperInClassWithNoSuperclass
+            """
+            package sample3
+
+                    class Foo {
+                        fun test(): String = super.toString()
+                    }
+
+            """,
+            // testSema0054NotEmittedWhenDelegationPresent
+            """
+            package sample4
+
+                    class Bar(val x: Int) {
+                        constructor(x: Int, y: Int) : this(x + y)
+                    }
+
+            """,
+            // testSema0061TypeAliasMissingRhs
+            """
+            package sample5
+            typealias MyType
+            """,
+            // testSema0070NotEmittedForValidValueClass
+            """
+            package sample6
+
+                    @JvmInline
+                    value class Money(val amount: Int)
+
+            """,
+            // testSema0072NotEmittedForDistinctConditions
+            """
+            package sample7
+
+                    fun test(x: Int): String = when (x) {
+                        1 -> "one"
+                        2 -> "two"
+                        else -> "other"
+                    }
+
+            """,
+            // testSema0074NotEmittedForBooleanGuard
+            """
+            package sample8
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1 if x > 0 -> "positive one"
+                            else -> "other"
+                        }
+                    }
+
+            """,
+            // testSema0080NotEmittedForConstVal
+            """
+            package sample9
+
+                    const val X = 42
+
+            """,
+            // testSema0083NotEmittedForLiteralInitializer
+            """
+            package sample10
+
+                    const val X = 100
+
+            """,
+            // testSema0097NotEmittedForValidBreakLabel
+            """
+            package sample11
+
+                    fun test() {
+                        outer@ for (i in 1..5) {
+                            for (j in 1..5) {
+                                break@outer
+                            }
+                        }
+                    }
+
+            """,
+            // testSema0098NotEmittedForValidContinueLabel
+            """
+            package sample12
+
+                    fun test() {
+                        outer@ for (i in 1..5) {
+                            for (j in 1..5) {
+                                continue@outer
+                            }
+                        }
+                    }
+
+            """,
+            // testSema0300NotEmittedWhenPlusAssignReturnsUnit
+            """
+            package sample13
+
+                    class Counter(var value: Int) {
+                        operator fun plusAssign(other: Int) {
+                            value += other
+                        }
+                    }
+                    fun test() {
+                        val c = Counter(0)
+                        c += 1
+                    }
+
+            """,
+            // testSema0301CompoundAssignBinaryResultNotAssignable
+            """
+            package sample14
+
+                    class Container(var value: Int) {
+                        operator fun plusAssign(delta: Int): Container {
+                            value += delta
+                            return this
+                        }
+                    }
+                    fun test() {
+                        var c = Container(0)
+                        c += 1
+                    }
+
+            """,
+            // testSema0042ReturnAtInvalidLabel
+            """
+            package sample15
+
+                    fun test() {
+                        val list = listOf(1, 2, 3)
+                        list.forEach {
+                            return@nonExistentLabel
+                        }
+                    }
+
+            """,
+            // testSema0043SignedUnsignedMixInBinaryAdd
+            """
+            package sample16
+
+                    fun mix(a: Int, b: UInt): Int {
+                        val r = a + b
+                        return r
+                    }
+
+            """,
+            // testSema0050SuperOutsideClassBody
+            """
+            package sample17
+
+                    fun test() {
+                        val x = super.toString()
+                    }
+
+            """,
+            // testSema0054SecondaryCtorMissingDelegation
+            """
+            package sample18
+
+                    class Bar(val x: Int) {
+                        constructor(x: Int, y: Int) {
+                        }
+                    }
+
+            """,
+            // testSema0070ValueClassMustHaveExactlyOneParam
+            """
+            package sample19
+
+                    @JvmInline
+                    value class Pair(val a: Int, val b: Int)
+
+            """,
+            // testSema0072DuplicateWhenCondition
+            """
+            package sample20
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1, 1 -> "one or one"
+                            else -> "other"
+                        }
+                    }
+
+            """,
+            // testSema0073DuplicateConditionAcrossBranches
+            """
+            package sample21
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1 -> "one"
+                            1 -> "also one"
+                            else -> "other"
+                        }
+                    }
+
+            """,
+            // testSema0074WhenBranchGuardNotBoolean
+            """
+            package sample22
+
+                    fun test(x: Int): String {
+                        return when (x) {
+                            1 if 42 -> "bad"
+                            else -> "ok"
+                        }
+                    }
+
+            """,
+            // testSema0080ConstVar
+            """
+            package sample23
+
+                    const var X = 42
+
+            """,
+            // testSema0081ConstValWithoutInitializer
+            """
+            package sample24
+
+                    const val X: Int
+
+            """,
+            // testSema0083ConstValNonLiteralInitializer
+            """
+            package sample25
+
+                    fun compute(): Int = 42
+                    const val X = compute()
+
+            """,
+            // testSema0097BreakAtInvalidLabel
+            """
+            package sample26
+
+                    fun test() {
+                        outer@ for (i in 1..5) {
+                            break@nonExistent
+                        }
+                    }
+
+            """,
+            // testSema0098ContinueAtInvalidLabel
+            """
+            package sample27
+
+                    fun test() {
+                        outer@ for (i in 1..5) {
+                            continue@ghost
+                        }
+                    }
+
+            """,
+            // testSema0300CompoundAssignOperatorMustReturnUnit
+            """
+            package sample28
+
+                    class Counter(var value: Int) {
+                        operator fun plusAssign(other: Int): Int {
+                            value += other
+                            return value
+                        }
+                    }
+                    fun test() {
+                        val c = Counter(0)
+                        c += 1
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+
+            // === testSema0021SuperDelegationWithoutSuperclass ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                let codes = sample0Diagnostics.map(\.code)
+                #expect(
+                    codes.contains("KSWIFTK-SEMA-0021") || codes.contains("KSWIFTK-SEMA-0055"),
+                    "Expected SEMA-0021 or SEMA-0055 for super() delegation without superclass, got: \(codes)"
+                )
+
+            }
+
+            // === testSema0021NotEmittedWhenSuperclassExists ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0021", in: sample1Diagnostics)
+
+            }
+
+            // === testSema0043NotEmittedForPureSignedArithmetic ===
+
+            do {
+
+                let sample2Path = paths[2]
+
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0043", in: sample2Diagnostics)
+
+            }
+
+            // === testSema0052SuperInClassWithNoSuperclass ===
+
+            do {
+
+                let sample3Path = paths[3]
+
+                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+
+                let errors = sample3Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    "super.toString() in a class implicitly extending Any should compile without errors; got: \(errors.map { $0.message })"
+                )
+
+            }
+
+            // === testSema0054NotEmittedWhenDelegationPresent ===
+
+            do {
+
+                let sample4Path = paths[4]
+
+                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0054", in: sample4Diagnostics)
+
+            }
+
+            // === testSema0061TypeAliasMissingRhs ===
+
+            do {
+
+                let sample5Path = paths[5]
+
+                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
+
+                // The parser can produce a type-alias node without an underlying type
+                // when the source is malformed.  We write Kotlin that causes the
+                // AST to carry a typealias with no RHS.
+
+                // We expect either a parse error or a sema error about the missing RHS.
+                let codes = sample5Diagnostics.map(\.code)
+                #expect(
+                    codes.contains("KSWIFTK-SEMA-0061") || codes.contains("KSWIFTK-PARSE-0005"),
+                    "Expected SEMA-0061 or PARSE-0005 for typealias without RHS, got: \(codes)"
+                )
+
+            }
+
+            // === testSema0070NotEmittedForValidValueClass ===
+
+            do {
+
+                let sample6Path = paths[6]
+
+                let sample6Diagnostics = diagnosticsForPath(sample6Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0070", in: sample6Diagnostics)
+
+            }
+
+            // === testSema0072NotEmittedForDistinctConditions ===
+
+            do {
+
+                let sample7Path = paths[7]
+
+                let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0072", in: sample7Diagnostics)
+
+            }
+
+            // === testSema0074NotEmittedForBooleanGuard ===
+
+            do {
+
+                let sample8Path = paths[8]
+
+                let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0074", in: sample8Diagnostics)
+
+            }
+
+            // === testSema0080NotEmittedForConstVal ===
+
+            do {
+
+                let sample9Path = paths[9]
+
+                let sample9Diagnostics = diagnosticsForPath(sample9Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0080", in: sample9Diagnostics)
+
+            }
+
+            // === testSema0083NotEmittedForLiteralInitializer ===
+
+            do {
+
+                let sample10Path = paths[10]
+
+                let sample10Diagnostics = diagnosticsForPath(sample10Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0083", in: sample10Diagnostics)
+
+            }
+
+            // === testSema0097NotEmittedForValidBreakLabel ===
+
+            do {
+
+                let sample11Path = paths[11]
+
+                let sample11Diagnostics = diagnosticsForPath(sample11Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0097", in: sample11Diagnostics)
+
+            }
+
+            // === testSema0098NotEmittedForValidContinueLabel ===
+
+            do {
+
+                let sample12Path = paths[12]
+
+                let sample12Diagnostics = diagnosticsForPath(sample12Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0098", in: sample12Diagnostics)
+
+            }
+
+            // === testSema0300NotEmittedWhenPlusAssignReturnsUnit ===
+
+            do {
+
+                let sample13Path = paths[13]
+
+                let sample13Diagnostics = diagnosticsForPath(sample13Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0300", in: sample13Diagnostics)
+
+            }
+
+            // === testSema0301CompoundAssignBinaryResultNotAssignable ===
+
+            do {
+
+                let sample14Path = paths[14]
+
+                let sample14Diagnostics = diagnosticsForPath(sample14Path, in: ctx)
+
+                // SEMA-0301 is emitted when a compound-assignment uses the binary operator
+                // fallback but its return type is not assignable back to the LHS variable.
+                // This requires a member plusAssign (not extension plus) returning a different type.
+
+                // SEMA-0300 fires because plusAssign must return Unit.
+                // SEMA-0301 fires on the binary fallback path when the result type
+                // is not assignable. Either diagnostic indicates the compound-assignment error.
+                let codes = sample14Diagnostics.map(\.code)
+                #expect(
+                    codes.contains("KSWIFTK-SEMA-0300") || codes.contains("KSWIFTK-SEMA-0301"),
+                    "Expected SEMA-0300 or SEMA-0301 for compound-assignment type mismatch, got: \(codes)"
+                )
+
+            }
+
+            // === testSema0042ReturnAtInvalidLabel ===
+
+            do {
+
+                let sample0Path = paths[15]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0042", in: sample0Diagnostics)
+
+            }
+
+            // === testSema0043SignedUnsignedMixInBinaryAdd ===
+
+            do {
+
+                let sample1Path = paths[16]
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0043", in: sample1Diagnostics)
+
+            }
+
+            // === testSema0050SuperOutsideClassBody ===
+
+            do {
+
+                let sample2Path = paths[17]
+
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0050", in: sample2Diagnostics)
+
+            }
+
+            // === testSema0054SecondaryCtorMissingDelegation ===
+
+            do {
+
+                let sample3Path = paths[18]
+
+                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0054", in: sample3Diagnostics)
+
+            }
+
+            // === testSema0070ValueClassMustHaveExactlyOneParam ===
+
+            do {
+
+                let sample4Path = paths[19]
+
+                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0070", in: sample4Diagnostics)
+
+            }
+
+            // === testSema0072DuplicateWhenCondition ===
+
+            do {
+
+                let sample5Path = paths[20]
+
+                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
+
+                // SEMA-0072 is emitted when the SAME condition appears twice within
+                // the SAME branch (comma-separated conditions list).
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0072", in: sample5Diagnostics)
+
+            }
+
+            // === testSema0073DuplicateConditionAcrossBranches ===
+
+            do {
+
+                let sample6Path = paths[21]
+
+                let sample6Diagnostics = diagnosticsForPath(sample6Path, in: ctx)
+
+                // SEMA-0073 is emitted when the same condition appears in a different
+                // branch that has already been covered by an earlier branch.
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0073", in: sample6Diagnostics)
+
+            }
+
+            // === testSema0074WhenBranchGuardNotBoolean ===
+
+            do {
+
+                let sample7Path = paths[22]
+
+                let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0074", in: sample7Diagnostics)
+
+            }
+
+            // === testSema0080ConstVar ===
+
+            do {
+
+                let sample8Path = paths[23]
+
+                let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0080", in: sample8Diagnostics)
+
+            }
+
+            // === testSema0081ConstValWithoutInitializer ===
+
+            do {
+
+                let sample9Path = paths[24]
+
+                let sample9Diagnostics = diagnosticsForPath(sample9Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0081", in: sample9Diagnostics)
+
+            }
+
+            // === testSema0083ConstValNonLiteralInitializer ===
+
+            do {
+
+                let sample10Path = paths[25]
+
+                let sample10Diagnostics = diagnosticsForPath(sample10Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0083", in: sample10Diagnostics)
+
+            }
+
+            // === testSema0097BreakAtInvalidLabel ===
+
+            do {
+
+                let sample11Path = paths[26]
+
+                let sample11Diagnostics = diagnosticsForPath(sample11Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0097", in: sample11Diagnostics)
+
+            }
+
+            // === testSema0098ContinueAtInvalidLabel ===
+
+            do {
+
+                let sample12Path = paths[27]
+
+                let sample12Diagnostics = diagnosticsForPath(sample12Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0098", in: sample12Diagnostics)
+
+            }
+
+            // === testSema0300CompoundAssignOperatorMustReturnUnit ===
+
+            do {
+
+                let sample13Path = paths[28]
+
+                let sample13Diagnostics = diagnosticsForPath(sample13Path, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0300", in: sample13Diagnostics)
+
+            }
+
+        }
     }
 }
 
-// MARK: - SEMA-0098: 'continue' with label that does not reference an enclosing loop
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0098: `continue@badLabel` where `badLabel` does
-    /// not name any surrounding loop.
-    @Test func testSema0098ContinueAtInvalidLabel() throws {
-        let source = """
-        fun test() {
-            outer@ for (i in 1..5) {
-                continue@ghost
-            }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0098", in: ctx)
-    }
-
-    /// `continue@outer` where `outer` labels an enclosing loop must NOT emit
-    /// SEMA-0098.
-    @Test func testSema0098NotEmittedForValidContinueLabel() throws {
-        let source = """
-        fun test() {
-            outer@ for (i in 1..5) {
-                for (j in 1..5) {
-                    continue@outer
-                }
-            }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0098", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0300: Compound-assignment operator must return Unit
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0300: a custom `plusAssign` (+=) operator
-    /// is defined but its return type is not `Unit`.
-    @Test func testSema0300CompoundAssignOperatorMustReturnUnit() throws {
-        let source = """
-        class Counter(var value: Int) {
-            operator fun plusAssign(other: Int): Int {
-                value += other
-                return value
-            }
-        }
-        fun test() {
-            val c = Counter(0)
-            c += 1
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0300", in: ctx)
-    }
-
-    /// A `plusAssign` that correctly returns `Unit` must NOT emit SEMA-0300.
-    @Test func testSema0300NotEmittedWhenPlusAssignReturnsUnit() throws {
-        let source = """
-        class Counter(var value: Int) {
-            operator fun plusAssign(other: Int) {
-                value += other
-            }
-        }
-        fun test() {
-            val c = Counter(0)
-            c += 1
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0300", in: ctx)
-    }
-}
-
-// MARK: - SEMA-0301: Compound-assignment operator result not assignable to LHS
-
-extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0301: a compound-assignment resolves to the binary
-    /// operator form (e.g. `plus`) but its return type is incompatible with the
-    /// left-hand side.
-    @Test func testSema0301CompoundAssignBinaryResultNotAssignable() throws {
-        // SEMA-0301 is emitted when a compound-assignment uses the binary operator
-        // fallback but its return type is not assignable back to the LHS variable.
-        // This requires a member plusAssign (not extension plus) returning a different type.
-        let source = """
-        class Container(var value: Int) {
-            operator fun plusAssign(delta: Int): Container {
-                value += delta
-                return this
-            }
-        }
-        fun test() {
-            var c = Container(0)
-            c += 1
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        // SEMA-0300 fires because plusAssign must return Unit.
-        // SEMA-0301 fires on the binary fallback path when the result type
-        // is not assignable. Either diagnostic indicates the compound-assignment error.
-        let codes = ctx.diagnostics.diagnostics.map(\.code)
-        #expect(
-            codes.contains("KSWIFTK-SEMA-0300") || codes.contains("KSWIFTK-SEMA-0301"),
-            "Expected SEMA-0300 or SEMA-0301 for compound-assignment type mismatch, got: \(codes)"
-        )
-    }
-}
 #endif

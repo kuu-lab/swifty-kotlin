@@ -24,63 +24,37 @@ struct RuntimePrintlnTests {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    @Test func printlnNilPrintsZero() {
-        let output = capturePrintln { kk_println_any(nil) }
-        #expect(output == "0")
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { ptr in
+                Int(bitPattern: kk_string_from_utf8(ptr, Int32(value.utf8.count)))
+            }
+        }
     }
 
-    @Test func printlnNullSentinelPrintsNull() {
-        let sentinel = UnsafeMutableRawPointer(bitPattern: Int(Int64.min))
-        let output = capturePrintln { kk_println_any(sentinel) }
+    @Test func printRawWritesStringWithoutNewline() {
+        let output = capturePrintln {
+            __kk_print_raw(makeStringRaw("hello"))
+            __kk_print_raw(makeStringRaw(" "))
+            __kk_print_raw(makeStringRaw("world"))
+            __kk_print_raw(makeStringRaw("\n"))
+        }
+        #expect(output == "hello world")
+    }
+
+    @Test func printRawNullSentinelPrintsNull() {
+        let output = capturePrintln {
+            __kk_print_raw(runtimeNullSentinelInt)
+            __kk_print_raw(makeStringRaw("\n"))
+        }
         #expect(output == "null")
     }
 
-    @Test func printlnSmallIntPrintsValue() {
-        let ptr = UnsafeMutableRawPointer(bitPattern: 42)
-        let output = capturePrintln { kk_println_any(ptr) }
-        #expect(output == "42")
-    }
-
-    @Test func printlnLongPrintsValue() {
-        let output = capturePrintln { kk_println_long(123_456_789) }
-        #expect(output == "123456789")
-    }
-
-    @Test func printlnDoubleDecodesBitPattern() {
-        let output = capturePrintln { kk_println_double(kk_double_to_bits(2.5)) }
-        #expect(output == "2.5")
-    }
-
-    @Test func printlnCharPrintsUnicodeScalar() {
-        let output = capturePrintln { kk_println_char(0x41) }
-        #expect(output == "A")
-    }
-
-    @Test func printlnCharSurrogatePrintsQuestionMark() {
-        let output = capturePrintln { kk_println_char(0xDF1F) }
-        #expect(output == "?")
-    }
-
-    @Test func printlnBoxedCharSurrogatePrintsQuestionMark() {
-        let output = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: kk_box_char(0xDF1F))) }
-        #expect(output == "?")
-    }
-
-    @Test func notImplementedErrorNoArgUsesDefaultMessage() {
-        let thrown = __kk_not_implemented_error_new()
-        let rendered = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        #expect(rendered == "Throwable(NotImplementedError: An operation is not implemented.)")
-    }
-
-    @Test func notImplementedErrorWithMessageUsesGivenMessage() {
-        let message = "An operation is not implemented: later"
-        let messageRaw = message.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: message.utf8.count) { ptr in
-                Int(bitPattern: kk_string_from_utf8(ptr, Int32(message.utf8.count)))
-            }
+    @Test func printRawEmptyStringPrintsNothing() {
+        let output = capturePrintln {
+            __kk_print_raw(makeStringRaw(""))
+            __kk_print_raw(makeStringRaw("\n"))
         }
-        let thrown = __kk_not_implemented_error_new_message(messageRaw)
-        let rendered = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        #expect(rendered == "Throwable(NotImplementedError: An operation is not implemented: later)")
+        #expect(output == "")
     }
 }

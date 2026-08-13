@@ -4,52 +4,29 @@ import Testing
 
 @Suite
 struct NativeCInteropCFunctionSurfaceTests {
-
-    // MARK: - Shared Sema context
-
-    private static let sharedSources: [String] = [
-        """
-        package sample0
-        fun noop() {}
-        """,
-        """
-        package sample1
+    @Test func testCFunction() throws {
+        let source = """
         import kotlinx.cinterop.CFunction
 
         fun pass(value: CFunction<() -> Int>): CFunction<() -> Int> {
             return value
         }
         """
-    ]
 
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
-    private func sharedCtx() throws -> CompilationContext {
-        if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.sharedSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedCtx = ctx
-        return ctx
-    }
-    @Test func testCFunctionClassSurfaceMatchesNativeShape() throws {
-
-        let ctx = try sharedCtx()
         #expect(
             !(ctx.diagnostics.hasError),
-            "Expected CFunction surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            "Expected CFunction to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
+
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
                 let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
             return try requireTestValue(found, "kotlinx.cinterop.\(name) must be registered")
         }
-
         let cFunctionSymbol = try cinteropSymbol("CFunction")
         let typeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: cFunctionSymbol).first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
@@ -66,7 +43,6 @@ struct NativeCInteropCFunctionSurfaceTests {
             args: [],
             nullability: .nonNull
         )))
-
         #expect(sema.symbols.symbol(cFunctionSymbol)?.kind == .class)
         #expect(sema.types.nominalTypeParameterVariances(for: cFunctionSymbol) == [.invariant])
         #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
@@ -74,7 +50,6 @@ struct NativeCInteropCFunctionSurfaceTests {
         #expect(sema.symbols.propertyType(for: cFunctionSymbol) == cFunctionType)
         #expect(sema.symbols.directSupertypes(for: cFunctionSymbol) == [try cinteropSymbol("CPointed")])
         #expect(sema.types.directNominalSupertypes(for: cFunctionSymbol) == [try cinteropSymbol("CPointed")])
-
         let fqName = try #require(sema.symbols.symbol(cFunctionSymbol)?.fqName)
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
         let constructorSignature = try #require(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
@@ -85,13 +60,5 @@ struct NativeCInteropCFunctionSurfaceTests {
         #expect(constructorSignature.valueParameterHasDefaultValues == [false])
     }
 
-    @Test func testCFunctionResolvesInSource() throws {
-
-        let ctx = try sharedCtx()
-        #expect(
-            !(ctx.diagnostics.hasError),
-            "Expected CFunction to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
 }
 #endif

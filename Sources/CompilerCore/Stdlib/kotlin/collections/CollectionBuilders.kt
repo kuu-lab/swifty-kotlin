@@ -19,3 +19,35 @@ public fun <E> buildList(capacity: Int, builderAction: MutableList<E>.() -> Unit
     result.builderAction()
     return result
 }
+
+// ─── buildSet ─────────────────────────────────────────────────────────────────
+
+@kotlin.experimental.ExperimentalTypeInference
+public fun <E> buildSet(builderAction: MutableSet<E>.() -> Unit): Set<out E> {
+    val result = mutableSetOf<E>()
+    result.builderAction()
+    return result
+}
+
+@kotlin.experimental.ExperimentalTypeInference
+public fun <E> buildSet(capacity: Int, builderAction: MutableSet<E>.() -> Unit): Set<out E> {
+    val result = mutableSetOf<E>()
+    result.builderAction()
+    return result
+}
+
+// ─── buildMap ─────────────────────────────────────────────────────────────────
+
+@kotlin.experimental.ExperimentalTypeInference
+public fun <K, V> buildMap(builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> {
+    val result = mutableMapOf<K, V>()
+    result.builderAction()
+    return result
+}
+
+@kotlin.experimental.ExperimentalTypeInference
+public fun <K, V> buildMap(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> {
+    val result = mutableMapOf<K, V>()
+    result.builderAction()
+    return result
+}

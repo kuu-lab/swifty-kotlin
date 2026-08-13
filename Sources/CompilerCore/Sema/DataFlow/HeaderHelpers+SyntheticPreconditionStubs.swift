@@ -5,7 +5,9 @@ extension DataFlowSemaPhase {
     func registerSyntheticPreconditionStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
@@ -26,6 +28,8 @@ extension DataFlowSemaPhase {
             externalLinkName: nil,
             symbols: symbols,
             interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
             contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
@@ -40,6 +44,8 @@ extension DataFlowSemaPhase {
             externalLinkName: nil,
             symbols: symbols,
             interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
             contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
@@ -51,6 +57,8 @@ extension DataFlowSemaPhase {
             externalLinkName: nil,
             symbols: symbols,
             interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
             contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
@@ -65,6 +73,8 @@ extension DataFlowSemaPhase {
             externalLinkName: nil,
             symbols: symbols,
             interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
             contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
@@ -73,9 +83,11 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [(name: "value", type: types.booleanType)],
             returnType: types.unitType,
-            externalLinkName: "kk_precondition_assert",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
             contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
@@ -87,9 +99,11 @@ extension DataFlowSemaPhase {
                 (name: "lazyMessage", type: lazyMessageType),
             ],
             returnType: types.unitType,
-            externalLinkName: "kk_precondition_assert_lazy",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
             contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
@@ -100,7 +114,9 @@ extension DataFlowSemaPhase {
             returnType: types.nothingType,
             externalLinkName: nil,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
     }
 
@@ -113,10 +129,13 @@ extension DataFlowSemaPhase {
         externalLinkName: String?,
         symbols: SymbolTable,
         interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex,
+        skipStats: SyntheticStubSkipStatsCollector?,
         contractNonNullParameterIndex: Int? = nil
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
@@ -136,6 +155,22 @@ extension DataFlowSemaPhase {
             )
             return
         }
+
+        if shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: packageFQName,
+            name: functionName,
+            arity: parameters.count
+        ) {
+            skipStats?.recordSkip(
+                ownerFQName: packageFQName,
+                name: functionName,
+                arity: parameters.count,
+                interner: interner
+            )
+            return
+        }
+
         if hasSourceOrImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
@@ -208,6 +243,8 @@ extension DataFlowSemaPhase {
             ("require", [types.booleanType, lazyMessageType]),
             ("check", [types.booleanType]),
             ("check", [types.booleanType, lazyMessageType]),
+            ("assert", [types.booleanType]),
+            ("assert", [types.booleanType, lazyMessageType]),
         ]
 
         for entry in preconditionFunctions {

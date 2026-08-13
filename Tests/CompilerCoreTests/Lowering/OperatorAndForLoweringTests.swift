@@ -84,7 +84,7 @@ struct OperatorAndForLoweringTests {
     }
 
     @Test
-    func testOperatorLoweringRewritesCharPrintlnAndPreservesUnitResult() throws {
+    func testOperatorLoweringLeavesPrintlnUnchanged() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -106,21 +106,14 @@ struct OperatorAndForLoweringTests {
         try OperatorLoweringPass().run(module: module, ctx: ctx)
 
         let body = bodyInDecl(declID, module: module)
-        #expect(body.count >= 2)
+        #expect(body.count == 2)
 
         guard case let .call(_, loweredCallee, _, loweredResult, _, _, _, _) = body[0] else {
             Issue.record("Expected first lowered instruction to be a call")
             return
         }
-        #expect(interner.resolve(loweredCallee) == "kk_println_char")
-        #expect(loweredResult == nil, "Lowered primitive println call should be side-effect only")
-
-        guard case let .constValue(unitResult, value) = body[1] else {
-            Issue.record("Expected second lowered instruction to synthesize Unit")
-            return
-        }
-        #expect(unitResult == result)
-        #expect(value == .unit)
+        #expect(interner.resolve(loweredCallee) == "println")
+        #expect(loweredResult == result)
     }
 
     // MARK: - OperatorLoweringPass: binary ops
@@ -222,28 +215,6 @@ struct OperatorAndForLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [.binary(op: .add, lhs: v0, rhs: v1, result: v2)],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        #expect(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
-    }
-
-    @Test
-    func testOperatorLoweringShouldRunReturnsTrueForPrintlnCall() {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let v0 = arena.appendExpr(.temporary(0))
-        let v1 = arena.appendExpr(.temporary(1))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [.call(symbol: nil, callee: interner.intern("println"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil)],
             isSuspend: false,
             isInline: false
         )

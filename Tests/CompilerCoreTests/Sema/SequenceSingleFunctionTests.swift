@@ -49,8 +49,8 @@ struct SequenceSingleFunctionTests {
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         #expect(
-            links.contains("kk_sequence_single"),
-            "Expected Sequence.single to link to kk_sequence_single, got: \(links)"
+            links.isEmpty,
+            "Expected Sequence.single to be backed by source, got: \(links)"
         )
     }
 }
