@@ -108,12 +108,16 @@ final class InlineLoweringPass: LoweringPass {
     ) {
         guard !bodylessInlineSymbols.isEmpty else { return }
         var originals = allFunctionsBySymbol
-        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue }) where originals[symbol] == nil {
+        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            where originals[symbol] == nil
+        {
             originals[symbol] = function
         }
         var expandedBySymbol: [SymbolID: KIRFunction] = [:]
 
         for _ in 0 ..< 4 {
+            // Expanding a snapshot appends expressions to the module arena. A
+            // Dictionary's per-instance iteration order must not choose IDs.
             let pending = originals.values
                 .filter { function in
                     let current = expandedBySymbol[function.symbol] ?? function
