@@ -112,15 +112,12 @@ extension ListSyntheticMemberLinkTests {
                     ]))
                     #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 } else {
-                    // Exclude bundled stdlib files (FileIDs 0 and 1) to avoid matching
-                    // internal calls like `result.add(element)` inside bundled Set HOFs.
-                    let callExpr = try #require(firstExprID(in: ast) { id, expr in
+                    // Use the last matching call site: bundled stdlib source files are
+                    // loaded before the fixture's own source, so the fixture call is
+                    // the last expression with this member name in the AST arena.
+                    let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                        guard ctx.interner.resolve(callee) == memberName else { return false }
-                        if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
-                            return false
-                        }
-                        return true
+                        return ctx.interner.resolve(callee) == memberName
                     })
                     let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                     #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
@@ -268,7 +265,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "unzip"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
+            // KSP-425: List.unzip() is now source-backed and has no external runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected List.unzip to resolve to bundled source")
 
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {

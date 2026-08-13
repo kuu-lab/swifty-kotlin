@@ -94,7 +94,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersListUnzipToCollectionRuntimeCall() throws {
+    func testBuildKIRKeepsListUnzipSourceBacked() throws {
         let source = """
         fun main(values: List<Pair<Int, String>>) {
             values.unzip()
@@ -109,8 +109,8 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_list_unzip"))
-            #expect(!(callNames.contains("unzip")))
+            #expect(callNames.contains("unzip"))
+            #expect(!(callNames.contains("kk_list_unzip")))
         }
     }
 
