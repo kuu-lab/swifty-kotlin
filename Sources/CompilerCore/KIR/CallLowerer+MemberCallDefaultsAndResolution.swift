@@ -297,17 +297,6 @@ extension CallLowerer {
                 {
                     return collectionIterator
                 }
-                if externalLinkName == "kk_list_binarySearch" {
-                    // STDLIB-547: When the element-based binarySearch overload was
-                    // recovered but the call actually has a HOF lambda argument,
-                    // redirect to the comparison-based runtime function.
-                    if hasHOFLambdaArg && argumentCount == 2 {
-                        return interner.intern("kk_list_binarySearch_compare")
-                    }
-                    if argumentCount > 2 {
-                        return interner.intern("kk_list_binarySearch_comparator")
-                    }
-                }
                 return interner.intern(externalLinkName)
             }
             if sema.symbols.symbol(chosenCallee)?.declSite != nil {
