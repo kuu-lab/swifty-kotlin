@@ -1479,14 +1479,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testUnsignedListToPrimitiveArrayConversionsCopyElements() {
-        #expect(arrayElements(kk_list_toUByteArray(makeList([1, 255]))) == [1, 255])
-        #expect(arrayElements(kk_list_toUShortArray(makeList([1, 65_535]))) == [1, 65_535])
-        #expect(arrayElements(kk_list_toUIntArray(makeList([1, 4_000_000_000]))) == [1, 4_000_000_000])
-        #expect(arrayElements(kk_list_toULongArray(makeList([1, -1]))) == [1, -1])
-    }
-
-    @Test
     func testListUnzipSplitsPairElementsIntoLists() {
         let source = makeList([
             kk_pair_new(1, 10),

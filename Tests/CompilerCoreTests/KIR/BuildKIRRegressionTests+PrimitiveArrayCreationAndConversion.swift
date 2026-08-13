@@ -282,6 +282,46 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    /// KSP-629: `list.toUIntArray()` is source-backed (ArrayConversions.kt), so it
+    /// must lower to the bundled declaration instead of `kk_list_toUIntArray` — and
+    /// must not fall through to an unresolved generic `toUIntArray` symbol either.
+    @Test func testListToUIntArrayLowersToSourceBackedCall() throws {
+        let source = """
+        fun convert(list: List<UInt>) = list.toUIntArray()
+        fun main(): Int {
+            val arr = convert(listOf(1u, 4000000000u))
+            return arr.size
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let convertBody = try findKIRFunctionBody(named: "convert", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: convertBody, interner: ctx.interner)
+
+            #expect(
+                !callNames.contains("kk_list_toUIntArray"),
+                "List<UInt>.toUIntArray() must no longer use the removed kk_list_toUIntArray bridge; got: \(callNames)"
+            )
+            #expect(
+                callNames == ["toUIntArray"],
+                "List<UInt>.toUIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
+            )
+
+            let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "toUIntArray"
+                else { return nil }
+                return symbol
+            }.first)
+            #expect(ctx.sema?.symbols.externalLinkName(for: calleeSymbol) == nil)
+        }
+    }
+
     /// `intArray.toList()` must lower to a runtime `kk_*_toList` call.
     /// The method resolver currently selects the generic `Array<T>.toList()` path
     /// (`kk_array_toList`) rather than the IntArray-specific stub.
