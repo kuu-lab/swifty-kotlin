@@ -100,13 +100,17 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
             println(buffer.toString())
             println(values.joinToString(separator = ":", prefix = "[", postfix = "]"))
             println(values.joinToString("/") { (it * 2).toString() })
+
+            val nullableValues: List<Int>? = values
+            println(nullableValues?.joinToString(","))
+            println(nullableValues?.joinToString(prefix = "<", postfix = ">"))
         }
         """
 
         try assertKotlinOutput(
             source,
             moduleName: "ListKSP429SurfaceRuntime",
-            expected: "{a=3, b=2}\n[1, 2, 3]\n[1, 2, 3]\n[1, 2, 3]\n[1, 2, 3]\n[]\n10,20,30,40,50\n0..2\n2\nfalse\ntrue\n<1|2|3>\n[1:2:3]\n2/4/6\n"
+            expected: "{a=3, b=2}\n[1, 2, 3]\n[1, 2, 3]\n[1, 2, 3]\n[1, 2, 3]\n[]\n10,20,30,40,50\n0..2\n2\nfalse\ntrue\n<1|2|3>\n[1:2:3]\n2/4/6\n1,2,3\n<1, 2, 3>\n"
         )
     }
 
