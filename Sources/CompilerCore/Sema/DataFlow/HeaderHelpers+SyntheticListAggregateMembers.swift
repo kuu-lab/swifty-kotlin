@@ -753,7 +753,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .inlineFunction]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_sumOf", for: memberSymbol)
+            symbols.setExternalLinkName("sumOf", for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,

@@ -3012,13 +3012,18 @@ public func kk_sequence_elementAtOrElse(
 @_cdecl("kk_sequence_sum")
 public func kk_sequence_sum(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_sum(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    var total = 0
+    for element in elements { total &+= maybeUnbox(element) }
+    return total
 }
 
 @_cdecl("kk_sequence_average")
 public func kk_sequence_average(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_average(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    guard !elements.isEmpty else { return kk_double_to_bits(Double.nan) }
+    var total = 0.0
+    for element in elements { total += Double(maybeUnbox(element)) }
+    return kk_double_to_bits(total / Double(elements.count))
 }
 
 @_cdecl("kk_sequence_toMutableList")

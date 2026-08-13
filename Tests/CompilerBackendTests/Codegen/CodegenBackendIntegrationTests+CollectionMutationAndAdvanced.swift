@@ -434,7 +434,6 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
             #expect(callees.contains("__kk_list_size") || callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
             #expect(callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
             #expect(callees.contains("__kk_mutable_list_add"), "callees: \(callees.sorted())")
-            #expect(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
             #expect(callees.contains("kk_list_minBy"))
             #expect(callees.contains("kk_list_maxOrNull"))
             #expect(callees.contains("kk_list_minOrNull"))

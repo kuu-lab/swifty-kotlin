@@ -46,17 +46,6 @@ extension DataFlowSemaPhase {
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType
         )
-        let iterableSymbolForOps = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("Iterable")]
-        ) ?? collectionInterfaceSymbol
-        registerListSetOperationMembers(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            setInterfaceSymbol: setInterfaceSymbol,
-            iterableInterfaceSymbol: iterableSymbolForOps
-        )
         registerListToHashSetMember(
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,

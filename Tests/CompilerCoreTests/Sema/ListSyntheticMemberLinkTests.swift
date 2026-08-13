@@ -65,9 +65,7 @@ struct ListSyntheticMemberLinkTests {
             let expectedExternalLinks = [
                 ("take", 1, "kk_list_take" as String?),
                 ("drop", 1, "kk_list_drop" as String?),
-                ("reversed", 0, "kk_list_reversed" as String?),
                 ("sorted", 0, "kk_list_sorted" as String?),
-                ("distinct", 0, "kk_list_distinct" as String?),
                 ("shuffled", 0, "kk_list_shuffled" as String?),
                 ("shuffled", 1, "kk_list_shuffled_random" as String?),
             ]
@@ -456,8 +454,7 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let expectedExternalLinks = [
-                "sum": "kk_list_sum",
-                // sumOf / minByOrNull / maxByOrNull are bundled Kotlin source (KSP-002).
+                // sum / sumOf / minByOrNull / maxByOrNull are bundled Kotlin source.
                 "maxOfWith": "kk_list_maxOfWith",
                 "minOfWith": "kk_list_minOfWith",
                 "minBy": "kk_list_minBy",
@@ -775,8 +772,7 @@ struct ListSyntheticMemberLinkTests {
             let memberFQName = ["kotlin", "collections", "Iterable", "sumBy"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_sumBy")
-            #expect(sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" }, "Iterable.sumBy should carry Deprecated metadata")
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -789,7 +785,7 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_sumBy" }.count == 2)
+            #expect(callLinks.isEmpty)
         }
     }
 
@@ -821,8 +817,7 @@ struct ListSyntheticMemberLinkTests {
             let memberFQName = ["kotlin", "collections", "Iterable", "sumByDouble"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_sumByDouble")
-            #expect(sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" }, "Iterable.sumByDouble should carry Deprecated metadata")
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -835,7 +830,7 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_sumByDouble" }.count == 2)
+            #expect(callLinks.isEmpty)
         }
     }
 
@@ -937,7 +932,7 @@ struct ListSyntheticMemberLinkTests {
             let memberFQName = ["kotlin", "collections", "Iterable", "minusElement"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_minus_element")
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
@@ -950,7 +945,7 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_minus_element" }.count == 2)
+            #expect(callLinks.isEmpty)
         }
     }
 

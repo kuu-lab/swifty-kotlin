@@ -856,15 +856,6 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkListSubtractSignature() throws {
-        let spec = try requireSpec("kk_list_subtract")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 2)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-    }
-
-    @Test
     func kkListSortedSignature() throws {
         let spec = try requireSpec("kk_list_sorted")
         #expect(spec.returnType == .intptr)
@@ -943,59 +934,6 @@ struct ABIMismatchTests {
         #expect(spec.parameters[0].type == .intptr)
         #expect(spec.parameters[1].type == .intptr)
         #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListSumOfSignature() throws {
-        let spec = try requireSpec("kk_list_sumOf")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListSumSignature() throws {
-        let spec = try requireSpec("kk_list_sum")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 1)
-        #expect(spec.parameters[0].type == .intptr)
-    }
-
-    @Test
-    func kkListSumByDoubleSignature() throws {
-        let spec = try requireSpec("kk_list_sumByDouble")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListSumBySignature() throws {
-        let spec = try requireSpec("kk_list_sumBy")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
         #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 

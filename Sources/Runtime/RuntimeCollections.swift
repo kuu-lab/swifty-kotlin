@@ -605,46 +605,6 @@ public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
     return destRaw
 }
 
-// MARK: - List intersect / union / subtract / toHashSet (STDLIB-510)
-
-@_cdecl("kk_list_intersect")
-public func kk_list_intersect(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
-        otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
-@_cdecl("kk_list_union")
-public func kk_list_union(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    let combined = selfElements + otherElements
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(combined)))
-}
-
-@_cdecl("kk_list_subtract")
-public func kk_list_subtract(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
-        !otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
 // NOTE: This duplicates the logic in kk_list_to_set.  Kept as a separate
 // entry point because Kotlin distinguishes toSet() and toHashSet() at the API
 // level.  If deduplication/boxing logic changes, consider delegating to a
@@ -1047,65 +1007,6 @@ public func kk_list_binarySearch(_ listRaw: Int, _ element: Int) -> Int {
         toIndex: list.elements.count,
         compare: runtimeCompareValues
     )
-}
-
-// MARK: - List plus/minus operators (STDLIB-345)
-
-@_cdecl("kk_list_plus_element")
-public func kk_list_plus_element(_ listRaw: Int, _ element: Int) -> Int {
-    let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements ?? []
-    return registerRuntimeObject(RuntimeListBox(elements: elements + [element]))
-}
-
-@_cdecl("kk_list_plus_collection")
-public func kk_list_plus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let lhsElements: [Int] = if let list = runtimeListBox(from: listRaw) {
-        list.elements
-    } else {
-        []
-    }
-    let rhsElements: [Int]
-    if let other = runtimeListBox(from: otherRaw) {
-        rhsElements = other.elements
-    } else if let other = runtimeSetBox(from: otherRaw) {
-        rhsElements = other.elements
-    } else {
-        rhsElements = []
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: lhsElements + rhsElements))
-}
-
-@_cdecl("kk_list_minus_element")
-public func kk_list_minus_element(_ listRaw: Int, _ element: Int) -> Int {
-    let elements = runtimeIterableElements(from: listRaw)
-        ?? runtimeArrayBox(from: listRaw)?.elements
-        ?? []
-    var result = elements
-    if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {
-        result.remove(at: index)
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
-}
-
-@_cdecl("kk_list_minus_collection")
-public func kk_list_minus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let elements: [Int] = if let list = runtimeListBox(from: listRaw) {
-        list.elements
-    } else {
-        []
-    }
-    let otherElements: [Int]
-    if let other = runtimeListBox(from: otherRaw) {
-        otherElements = other.elements
-    } else if let other = runtimeSetBox(from: otherRaw) {
-        otherElements = other.elements
-    } else {
-        otherElements = []
-    }
-    let result = elements.filter { element in
-        !otherElements.contains(where: { runtimeValuesEqual($0, element) })
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
 // MARK: - asSequence (STDLIB-471)

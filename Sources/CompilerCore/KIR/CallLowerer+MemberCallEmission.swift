@@ -619,10 +619,7 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_list_sumOf")
-            || loweredCallee == interner.intern("kk_sequence_sumOf")
-            || loweredCallee == interner.intern("kk_list_sumBy")
-            || loweredCallee == interner.intern("kk_list_sumByDouble")
+        if loweredCallee == interner.intern("kk_sequence_sumOf")
             || loweredCallee == interner.intern("kk_sequence_sumBy")
             || loweredCallee == interner.intern("kk_sequence_sumByDouble"),
            finalArguments.count == 2
@@ -1009,10 +1006,6 @@ extension CallLowerer {
             interner.intern("kk_list_runningFoldIndexed"),
             interner.intern("kk_list_runningReduceIndexed"),
             interner.intern("kk_list_scanIndexed"),
-            interner.intern("kk_list_sumOf"),
-            interner.intern("kk_list_sumBy"),
-            interner.intern("kk_list_sumByDouble"),
-            interner.intern("kk_list_distinctBy"),
             interner.intern("kk_list_takeWhile"),
             interner.intern("kk_list_dropLastWhile"),
             interner.intern("__kk_iterable_firstNotNullOf"),

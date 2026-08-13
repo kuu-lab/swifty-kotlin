@@ -12,16 +12,6 @@ import kotlin.random.Random
 // functions. These bodies are the source migration target for the follow-up
 // wiring/removal step.
 
-public fun <T> List<T>.reversed(): List<T> {
-    val result = mutableListOf<T>()
-    var i = size - 1
-    while (i >= 0) {
-        result.add(this[i])
-        i--
-    }
-    return result
-}
-
 public fun <T : Comparable<T>> List<T>.sorted(): List<T> {
     val result = mutableListOf<T>()
     var i = 0

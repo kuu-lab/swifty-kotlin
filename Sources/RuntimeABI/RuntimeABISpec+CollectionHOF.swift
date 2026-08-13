@@ -332,39 +332,6 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
 
-        let sumOfSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sumOf",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let sumBySpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sumBy",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let sumByDoubleSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sumByDouble",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
         let maxOrNullSpec = RuntimeABIFunctionSpec(
             name: "kk_list_maxOrNull",
             parameters: [
@@ -429,42 +396,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let sumSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sum",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let averageSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_average",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let reversedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let asReversedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_as_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
         let sortedSpec = RuntimeABIFunctionSpec(
             name: "kk_list_sorted",
             parameters: [
@@ -482,15 +413,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Collection"
-        )
-        let distinctSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_distinct",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
         )
         let shuffledSpec = RuntimeABIFunctionSpec(
             name: "kk_list_shuffled",
@@ -613,9 +535,9 @@ public extension RuntimeABISpec {
             + listWindowChunkBridgeSpecs
             + [
                 unzipSpec, withIndexSpec, forEachIndexedSpec,
-                sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
+                maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
-                takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
+                takeSpec, dropSpec, takeLastSpec, sortedSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
 
@@ -780,46 +702,6 @@ public extension RuntimeABISpec {
                     ],
                     returnType: .intptr,
                     section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_plus_element",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_plus_collection",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherList", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minus_element",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minus_collection",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherList", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_binarySearch",

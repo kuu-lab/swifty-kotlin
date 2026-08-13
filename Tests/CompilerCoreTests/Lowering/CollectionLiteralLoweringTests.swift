@@ -1026,64 +1026,6 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testListMinusCollectionResultIsTreatedAsListForPrintlnRewrite() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let listInput = arena.appendExpr(.temporary(0))
-        let listExpr = arena.appendExpr(.temporary(1))
-        let rhsExpr = arena.appendExpr(.temporary(2))
-        let minusResult = arena.appendExpr(.temporary(3))
-        let printlnResult = arena.appendExpr(.temporary(4))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("__kk_list_of"),
-                    arguments: [listInput],
-                    result: listExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_minus_collection"),
-                    arguments: [listExpr, rhsExpr],
-                    result: minusResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_println_any"),
-                    arguments: [minusResult],
-                    result: printlnResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        try runPass(module: module, kirCtx: ctx)
-
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_list_minus_collection"))
-        #expect(
-            callees.contains("kk_list_to_string"),
-            "list minus collection result should be recognized as list and routed through kk_list_to_string"
-        )
-    }
-
-    @Test
     func testRangeReversedRewrittenToKkRangeReversed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1492,29 +1434,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListReversed() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "reversed")
-        #expect(
-            callees.contains("kk_list_reversed"),
-            "virtualCall(reversed) on List-typed parameter should be rewritten to kk_list_reversed, got: \(callees)"
-        )
-    }
-
-    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListSorted() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
         #expect(
             callees.contains("kk_list_sorted"),
             "virtualCall(sorted) on List-typed parameter should be rewritten to kk_list_sorted, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDistinct() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "distinct")
-        #expect(
-            callees.contains("kk_list_distinct"),
-            "virtualCall(distinct) on List-typed parameter should be rewritten to kk_list_distinct, got: \(callees)"
         )
     }
 

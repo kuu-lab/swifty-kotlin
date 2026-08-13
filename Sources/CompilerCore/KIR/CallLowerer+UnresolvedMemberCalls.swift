@@ -108,8 +108,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_sortedDescending")
             case "sortedBy":
                 return interner.intern("kk_list_sortedBy")
-            case "distinctBy":
-                return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
             case "sortedWith":
@@ -381,8 +379,6 @@ extension CallLowerer {
             return interner.intern("kk_list_sortedDescending")
         case "sortedBy":
             return interner.intern("kk_list_sortedBy")
-        case "distinctBy":
-            return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
         case "partition":

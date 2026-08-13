@@ -116,7 +116,7 @@ extension BuildKIRRegressionTests {
             let loweredAggregateCalls = body.filter { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                 let calleeName = ctx.interner.resolve(callee)
-                return calleeName == "sum" || calleeName == "kk_list_sum"
+                return calleeName == "sum"
             }
             #expect(!(loweredAggregateCalls.isEmpty), "Expected an aggregate call after ABI lowering.")
 
@@ -139,7 +139,7 @@ extension BuildKIRRegressionTests {
             // The real check: kk_box_int should NOT appear before the call to sum
             // for the purpose of boxing vararg elements into the packed argument.
             // The array_set calls handle packing, not boxing.
-            let sumIndex = callNames.firstIndex(where: { $0 == "sum" || $0 == "kk_list_sum" })
+            let sumIndex = callNames.firstIndex(where: { $0 == "sum" })
             let boxIntIndices = callNames.indices.filter { callNames[$0] == "kk_box_int" }
             // Any kk_box_int calls that appear should be for array_set element boxing,
             // not for the final argument to sum itself.

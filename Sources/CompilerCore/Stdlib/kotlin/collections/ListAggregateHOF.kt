@@ -228,15 +228,6 @@ public inline fun <T> List<T>.runningReduceIndexed(operation: (Int, T, T) -> T):
     return result
 }
 
-// KSP-501: migrated from BundledKotlinStdlib.kotlinCollectionsSource.
-
-public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
-    var sum = 0
-    var i = 0
-    while (i < size) { sum += selector(this[i]); i += 1 }
-    return sum
-}
-
 public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
     if (size == 0) return null
     var bestElem = this[0]

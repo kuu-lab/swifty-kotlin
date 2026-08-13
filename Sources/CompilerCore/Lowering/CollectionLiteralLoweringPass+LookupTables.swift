@@ -116,9 +116,6 @@ struct CollectionLiteralLookupTables {
     var kkListRunningFoldIndexedName: InternedString { listLookup.kkListRunningFoldIndexedName }
     var kkListRunningReduceIndexedName: InternedString { listLookup.kkListRunningReduceIndexedName }
     var kkListScanIndexedName: InternedString { listLookup.kkListScanIndexedName }
-    var kkListSumOfName: InternedString { listLookup.kkListSumOfName }
-    var kkListSumByName: InternedString { listLookup.kkListSumByName }
-    var kkListSumByDoubleName: InternedString { listLookup.kkListSumByDoubleName }
     var kkListMaxOrNullName: InternedString { listLookup.kkListMaxOrNullName }
     var kkListMinOrNullName: InternedString { listLookup.kkListMinOrNullName }
     var kkListMaxByName: InternedString { listLookup.kkListMaxByName }
@@ -140,18 +137,9 @@ struct CollectionLiteralLookupTables {
     var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
     var kkListTakeName: InternedString { listLookup.kkListTakeName }
     var kkListDropName: InternedString { listLookup.kkListDropName }
-    var kkListSumName: InternedString { listLookup.kkListSumName }
-    var kkListReversedName: InternedString { listLookup.kkListReversedName }
-    var kkListAsReversedName: InternedString { listLookup.kkListAsReversedName }
     var kkListSortedName: InternedString { listLookup.kkListSortedName }
-    var kkListDistinctName: InternedString { listLookup.kkListDistinctName }
-    var kkListDistinctByName: InternedString { listLookup.kkListDistinctByName }
     var kkListShuffledName: InternedString { listLookup.kkListShuffledName }
     var kkListShuffledRandomName: InternedString { listLookup.kkListShuffledRandomName }
-    var kkListPlusElementName: InternedString { listLookup.kkListPlusElementName }
-    var kkListPlusCollectionName: InternedString { listLookup.kkListPlusCollectionName }
-    var kkListMinusElementName: InternedString { listLookup.kkListMinusElementName }
-    var kkListMinusCollectionName: InternedString { listLookup.kkListMinusCollectionName }
     var kkListChunkedBridgeName: InternedString { listLookup.kkListChunkedBridgeName }
     var kkListChunkedTransformBridgeName: InternedString { listLookup.kkListChunkedTransformBridgeName }
     var kkListWindowedBridgeName: InternedString { listLookup.kkListWindowedBridgeName }
