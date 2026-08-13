@@ -310,22 +310,7 @@ extension CallLowerer {
             }
         }
 
-        // --- takeIf / takeUnless (STDLIB-160) ---
-        if let takeResult = tryTakeIfTakeUnlessLowering(
-            exprID,
-            receiverExpr: receiverExpr,
-            args: args,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions.instructions
-        ) {
-            return takeResult
-        }
-
-        // --- Scope functions: let, run, apply, also (STDLIB-004) ---
+        // --- Scope functions: run, apply, use, usePinned, useContents (STDLIB-004) ---
         if let scopeResult = tryScopeFunctionLowering(
             exprID,
             receiverExpr: receiverExpr,

@@ -19,8 +19,9 @@ enum RuntimeLockSet: Sendable {
     case all
 }
 
-/// Applies the same process-wide runtime isolation to Swift Testing suites that
-/// `IsolatedRuntimeXCTestCase` provides to XCTest classes.
+/// Applies process-wide runtime isolation to Swift Testing suites, ensuring
+/// tests that mutate global runtime state serialize and reset state around each
+/// test case.
 struct RuntimeIsolationTrait: SuiteTrait, TestTrait, TestScoping {
     let lockSet: RuntimeLockSet
     private let resetAdditionalState: @Sendable () -> Void
@@ -90,8 +91,8 @@ private struct RuntimeIsolationLockTimeoutError: Error, CustomStringConvertible 
 
 /// Safety timeout for acquiring a process-wide runtime isolation lock.
 ///
-/// These `value: 1` semaphores serialize every Swift Testing case and XCTest
-/// case that mutates global runtime state, so they are heavily contended within
+/// These `value: 1` semaphores serialize every Swift Testing case that mutates
+/// global runtime state, so they are heavily contended within
 /// a single test process. On a CPU-starved host (e.g. a parallel `swift build`
 /// running alongside `swift test`) a legitimately-queued waiter can block far
 /// longer than a few seconds while the current holder is starved of CPU. The

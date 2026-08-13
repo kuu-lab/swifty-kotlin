@@ -268,9 +268,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineIntrinsics") { phase, symbols, types, interner in
             phase.registerSyntheticCoroutineIntrinsicsStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "ReadWriteLock") { phase, symbols, types, interner in
-            phase.registerSyntheticReadWriteLockStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeRefRuntime") { phase, symbols, types, interner in
             phase.registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)
         },

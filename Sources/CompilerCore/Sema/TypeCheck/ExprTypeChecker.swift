@@ -730,8 +730,17 @@ final class ExprTypeChecker {
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
+        let interner = ctx.interner
         let isPrimitive = if case .primitive = sema.types.kind(of: receiverType) { true } else { false }
-        guard !isPrimitive else { return [] }
+        let allowedOnPrimitive = names.contains { name in
+            switch interner.resolve(name) {
+            case "downTo", "rangeUntil", "step":
+                return true
+            default:
+                return false
+            }
+        }
+        guard !isPrimitive || allowedOnPrimitive else { return [] }
 
         // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
         // (e.g. equals, compareTo). Overrides of these inherit operator status

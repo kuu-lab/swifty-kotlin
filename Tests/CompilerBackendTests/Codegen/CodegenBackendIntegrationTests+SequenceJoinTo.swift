@@ -93,7 +93,7 @@ struct CodegenBackendSequenceJoinToTests {
     }
 
     @Test
-    func testCodegenSequenceJoinToUsesRuntimeHelper() throws {
+    func testCodegenSequenceJoinToDoesNotUseRuntimeHelper() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -110,7 +110,7 @@ struct CodegenBackendSequenceJoinToTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_sequence_joinTo"))
+            #expect(!callees.contains("kk_sequence_joinTo"), "Sequence.joinTo should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

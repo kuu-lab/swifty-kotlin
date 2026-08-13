@@ -36,6 +36,110 @@ struct RegexAPISurfaceInventoryTests {
         return semaResult
     }
 
+    // MARK: - Shared source fixture for call-site tests
+
+    private static let regexSourceSamples: [String] = [
+        """
+        package sample0
+        fun test0() {
+            val r = Regex("[a-z]+")
+            println(r.containsMatchIn("abc"))
+        }
+        """,
+        """
+        package sample1
+        fun test1() {
+            val r = Regex("hello", RegexOption.IGNORE_CASE)
+            println(r.matches("HELLO"))
+        }
+        """,
+        """
+        package sample2
+        fun test2() {
+            val r = Regex("^\\\\d+$")
+            println(r.matches("123"))
+        }
+        """,
+        """
+        package sample3
+        fun test3() {
+            val r = Regex("[a-z]+")
+            println(r.containsMatchIn("hello world"))
+        }
+        """,
+        """
+        package sample4
+        fun test4() {
+            val r = Regex("\\\\d+")
+            val m = r.find("abc123")
+            println(m?.value)
+        }
+        """,
+        """
+        package sample5
+        fun test5() {
+            val r = Regex("[a-z]+")
+            val m = r.matchEntire("hello")
+            println(m?.value)
+        }
+        """,
+        """
+        package sample6
+        fun test6() {
+            val r = Regex.fromLiteral("hello.world")
+            println(r.matches("hello.world"))
+        }
+        """,
+        """
+        package sample7
+        fun test7() {
+            val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
+            val m = r.find("2025-04")
+            val year = m?.groups?.get("year")?.value
+            println(year)
+        }
+        """,
+        """
+        package sample8
+        fun test8() {
+            val r = Regex(
+                "^hello",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
+            )
+            println(r.containsMatchIn("HELLO"))
+        }
+        """,
+        """
+        package sample9
+        fun test9() {
+            val r = Regex("")
+            println(r.matches(""))
+        }
+        """,
+        """
+        package sample10
+        fun test10() {
+            val r = Regex("[\\u00C0-\\u024F]+")
+            println(r.matches("café"))
+        }
+        """,
+    ]
+
+    private static nonisolated(unsafe) var _sharedSourceCtx: (CompilationContext, [String])?
+
+    private func sharedSourceCtx() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedSourceCtx { return cached }
+        var result: (CompilationContext, [String])?
+        try withTemporaryFiles(contents: Self.regexSourceSamples) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = (ctx, paths)
+        }
+        let ctxAndPaths = try #require(result)
+        Self._sharedSourceCtx = ctxAndPaths
+        return ctxAndPaths
+    }
+
     // MARK: - Lookup helpers
 
     /// External link for a kotlin.text-level symbol (top-level or class member).
@@ -340,274 +444,209 @@ struct RegexAPISurfaceInventoryTests {
         )
     }
 
+    // MARK: - Path-aware expression search helpers
+
+    private func allExprIDs(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        var results: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { results.append(exprID) }
+        }
+        return results
+    }
+
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { return exprID }
+        }
+        return nil
+    }
+
     // MARK: - 10. Call-site resolution: constructors resolve in Kotlin source
 
     @Test func testRegexSingleArgConstructorResolvesInCallExpr() throws {
-        // Verify that Regex(pattern: String) compiles without sema errors.
-        // Symbol-level verification is covered by testRegexSingleArgConstructorIsRegistered
-        // and testAllThreeRegexConstructorOverloadsArePresent.
-        let source = """
-        fun test() {
-            val r = Regex("[a-z]+")
-            println(r.containsMatchIn("abc"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Regex(pattern) should compile without sema errors"
-            )
-        }
+        let (ctx, paths) = try sharedSourceCtx()
+        _ = paths[0]
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Regex(pattern) should compile without sema errors"
+        )
     }
 
     @Test func testRegexSingleOptionConstructorResolvesInCallExpr() throws {
-        let source = """
-        fun test() {
-            val r = Regex("hello", RegexOption.IGNORE_CASE)
-            println(r.matches("HELLO"))
+        let (ctx, paths) = try sharedSourceCtx()
+        let path = paths[1]
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        let regexCallExprs = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(callee)
+            else { return false }
+            return ctx.interner.resolve(calleeName) == "Regex"
         }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let regexCallExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .call(callee, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(callee)
-                else { return false }
-                return ctx.interner.resolve(calleeName) == "Regex"
-            }
-
-            // Pick the call with 2 arguments (the one with an option)
-            let twoArgCall = regexCallExprs.first { exprID in
-                guard case let .call(_, _, args, _) = ast.arena.expr(exprID) else { return false }
-                return args.count == 2
-            }
-            let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
-            let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_create_with_option_flat"
-            )
+        // Pick the call with 2 arguments (the one with an option)
+        let twoArgCall = regexCallExprs.first { exprID in
+            guard case let .call(_, _, args, _) = ast.arena.expr(exprID) else { return false }
+            return args.count == 2
         }
+        let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
+        let binding = try #require(sema.bindings.callBinding(for: callExpr))
+        #expect(
+            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_create_with_option_flat"
+        )
     }
 
     @Test func testRegexMatchesMemberCallResolvesCorrectly() throws {
-        let source = """
-        fun test() {
-            val r = Regex("^\\\\d+$")
-            println(r.matches("123"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSourceCtx()
+        let path = paths[2]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "matches"
-            }, "Expected .matches(...) member call")
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "matches"
+        }, "Expected .matches(...) member call")
 
-            let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat"
-            )
-        }
+        let binding = try #require(sema.bindings.callBinding(for: callExpr))
+        #expect(
+            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat"
+        )
     }
 
     @Test func testRegexContainsMatchInMemberCallResolvesCorrectly() throws {
-        let source = """
-        fun test() {
-            val r = Regex("[a-z]+")
-            println(r.containsMatchIn("hello world"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSourceCtx()
+        let path = paths[3]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "containsMatchIn"
-            }, "Expected .containsMatchIn(...) member call")
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "containsMatchIn"
+        }, "Expected .containsMatchIn(...) member call")
 
-            let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_containsMatchIn_flat"
-            )
-        }
+        let binding = try #require(sema.bindings.callBinding(for: callExpr))
+        #expect(
+            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_containsMatchIn_flat"
+        )
     }
 
     @Test func testRegexFindMemberCallResolvesCorrectly() throws {
-        let source = """
-        fun test() {
-            val r = Regex("\\\\d+")
-            val m = r.find("abc123")
-            println(m?.value)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSourceCtx()
+        let path = paths[4]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "find"
-            }, "Expected .find(...) member call")
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "find"
+        }, "Expected .find(...) member call")
 
-            let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_find_flat"
-            )
-        }
+        let binding = try #require(sema.bindings.callBinding(for: callExpr))
+        #expect(
+            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_find_flat"
+        )
     }
 
     @Test func testRegexMatchEntireMemberCallResolvesCorrectly() throws {
-        let source = """
-        fun test() {
-            val r = Regex("[a-z]+")
-            val m = r.matchEntire("hello")
-            println(m?.value)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSourceCtx()
+        let path = paths[5]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "matchEntire"
-            }, "Expected .matchEntire(...) member call")
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "matchEntire"
+        }, "Expected .matchEntire(...) member call")
 
-            let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matchEntire_flat"
-            )
-        }
+        let binding = try #require(sema.bindings.callBinding(for: callExpr))
+        #expect(
+            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matchEntire_flat"
+        )
     }
 
     @Test func testRegexFromLiteralCallResolvesCorrectly() throws {
-        let source = """
-        fun test() {
-            val r = Regex.fromLiteral("hello.world")
-            println(r.matches("hello.world"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSourceCtx()
+        let path = paths[6]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "fromLiteral"
-            }, "Expected .fromLiteral(...) member call")
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "fromLiteral"
+        }, "Expected .fromLiteral(...) member call")
 
-            let binding = try #require(sema.bindings.callBinding(for: callExpr))
-            #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_from_literal_flat"
-            )
-        }
+        let binding = try #require(sema.bindings.callBinding(for: callExpr))
+        #expect(
+            sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_from_literal_flat"
+        )
     }
 
     // MARK: - 11. Named group access resolves at call site
 
     @Test func testNamedGroupAccessChainResolves() throws {
-        let source = """
-        fun test() {
-            val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
-            val m = r.find("2025-04")
-            val year = m?.groups?.get("year")?.value
-            println(year)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            // No diagnostics expected for valid named-group access chain.
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Named group access chain should produce no sema errors"
-            )
-        }
+        let (ctx, paths) = try sharedSourceCtx()
+        _ = paths[7]
+        // No diagnostics expected for valid named-group access chain.
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Named group access chain should produce no sema errors"
+        )
     }
 
     // MARK: - 12. Option combination (setOf) compiles without sema errors
 
     @Test func testRegexOptionSetCombinationCompiles() throws {
-        let source = """
-        fun test() {
-            val r = Regex(
-                "^hello",
-                setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
-            )
-            println(r.containsMatchIn("HELLO"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Regex option set combination should compile without sema errors"
-            )
-        }
+        let (ctx, paths) = try sharedSourceCtx()
+        _ = paths[8]
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Regex option set combination should compile without sema errors"
+        )
     }
 
     // MARK: - 13. Empty pattern compiles
 
     @Test func testEmptyPatternCompiles() throws {
-        let source = """
-        fun test() {
-            val r = Regex("")
-            println(r.matches(""))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Empty pattern Regex should compile without sema errors"
-            )
-        }
+        let (ctx, paths) = try sharedSourceCtx()
+        _ = paths[9]
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Empty pattern Regex should compile without sema errors"
+        )
     }
 
     // MARK: - 14. Unicode pattern compiles
 
     @Test func testUnicodePatternCompiles() throws {
-        let source = """
-        fun test() {
-            val r = Regex("[\\u00C0-\\u024F]+")
-            println(r.matches("café"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Unicode pattern Regex should compile without sema errors"
-            )
-        }
+        let (ctx, paths) = try sharedSourceCtx()
+        _ = paths[10]
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Unicode pattern Regex should compile without sema errors"
+        )
     }
 
     // MARK: - 15. Symbol table completeness: all mandatory API symbols present

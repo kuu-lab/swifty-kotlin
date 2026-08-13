@@ -83,7 +83,7 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [(name: "value", type: types.booleanType)],
             returnType: types.unitType,
-            externalLinkName: "kk_precondition_assert",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
             bundledIndex: bundledIndex,
@@ -99,7 +99,7 @@ extension DataFlowSemaPhase {
                 (name: "lazyMessage", type: lazyMessageType),
             ],
             returnType: types.unitType,
-            externalLinkName: "kk_precondition_assert_lazy",
+            externalLinkName: nil,
             symbols: symbols,
             interner: interner,
             bundledIndex: bundledIndex,
@@ -243,6 +243,8 @@ extension DataFlowSemaPhase {
             ("require", [types.booleanType, lazyMessageType]),
             ("check", [types.booleanType]),
             ("check", [types.booleanType, lazyMessageType]),
+            ("assert", [types.booleanType]),
+            ("assert", [types.booleanType, lazyMessageType]),
         ]
 
         for entry in preconditionFunctions {

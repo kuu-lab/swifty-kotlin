@@ -5,8 +5,8 @@ import Testing
 /// STDLIB-TEXT-FN-090: Validates that `String.toByte()` and `String.toByte(radix)`
 /// resolve through Sema as extension functions in `kotlin.text`.
 ///
-/// - The no-arg overload links to `kk_string_toByte_flat`.
-/// - The radix overload links to `kk_string_toByte_radix_flat`.
+/// After KSP-414 the members are source-backed and no longer expose public `kk_`
+/// links; they bridge through private `__kk_string_toByte` / `__kk_string_toByte_radix`.
 @Suite
 struct StringToByteFunctionTests {
     @Test func testToByteResolvesInSource() throws {
@@ -41,8 +41,25 @@ struct StringToByteFunctionTests {
 
         let fq = ["kotlin", "text", "toByte"].map { interner.intern($0) }
         let allLinks = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(allLinks.contains("kk_string_toByte"))
-        #expect(allLinks.contains("kk_string_toByte_radix"))
+        #expect(
+            !allLinks.contains("kk_string_toByte") && !allLinks.contains("__kk_string_toByte"),
+            "String.toByte should not expose a kk_ or __kk_ external link; got: \(allLinks)"
+        )
+        #expect(
+            !allLinks.contains("kk_string_toByte_radix") && !allLinks.contains("__kk_string_toByte_radix"),
+            "String.toByte(radix) should not expose a kk_ or __kk_ external link; got: \(allLinks)"
+        )
+
+        let bridgeLinks = Set(
+            sema.symbols.lookupAll(fqName: ["kotlin", "text", "__kk_string_toByte"].map { interner.intern($0) })
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+            + sema.symbols.lookupAll(fqName: ["kotlin", "text", "__kk_string_toByte_radix"].map { interner.intern($0) })
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
+        #expect(
+            bridgeLinks.contains("__kk_string_toByte") && bridgeLinks.contains("__kk_string_toByte_radix"),
+            "Private __kk_string_toByte bridges should be registered; got: \(bridgeLinks)"
+        )
     }
 }
 #endif
