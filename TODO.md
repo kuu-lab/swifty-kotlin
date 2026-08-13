@@ -789,3 +789,29 @@
 - [x] BUG-210: `Byte` と `Short`（および `Byte`/`Short` と `Int`）で区別されるべきオーバーロードが `KSWIFTK-SEMA-0001`/`KSWIFTK-SEMA-0003` になる問題を修正。`PrimitiveType` に `.byte`/`.short` を追加し、NameMangler・TypeSystem・boxing・算術/ビット演算・Runtime 型トークンを一貫して配線。CI 回帰修正として `LibraryMetadataParsing` で `B`/`S` 型シグネチャを解析、`CallTypeChecker` で `Byte`/`Short` 向けリテラル narrow、`HeaderHelpers+SyntheticRangeProgressionStubs` で signed `until` 全行列を登録した。master 側の `RangeCoercion.kt` 移行に合わせて `Byte`/`Short` の `coerceIn`/`coerceAtLeast`/`coerceAtMost` も Kotlin ソース化。回帰テスト `ByteShortOverloadResolutionTests` と `Scripts/diff_cases/byte_short_overloads.kt`、`byte_short_array.kt` 等を追加。TODO 重複を避けるため BUG-184/186/187 から 210 に再採番。
 
 - [ ] BUG-211: bundled Kotlin 拡張内での `CharSequence` レシーバの `length` プロパティ読みが interface 越し dispatch で 0 を返す（KSP-410 完了メモに「未 task 化の別既存バグ、本 PR スコープ外」と記録されたまま未採番だった — 2026-08-12 起票）。症状: `CharSequence` レシーバの bundled 拡張関数（`StringHOF.kt` 等）本体から `this.length` を読むと、実体が `String` でも 0 が返り HOF が空振りする。現行 stdlib ソースは `kswiftk.internal.__string_struct_get_length` ブリッジ（`StringEmptyBlankLines.kt` 等の既存パターン）で回避しているため実害は隠れているが、今後の `CharSequence` 系移行（KSP-406/409/411 等）が同じ回避を増殖させる。BUG-152 が修正した `CharSequence.length` の Sema 解決・`kk_char_sequence_length` の StringBuilder 対応とは別レイヤ（interface プロパティのランタイム表現ディスパッチ側）。着手時に最小再現（ユーザーコードの `fun f(cs: CharSequence) = cs.length` と bundled 拡張内の両経路）を固定してから修正し、修正後は stdlib ソースの `__string_struct_get_length` 回避を通常の `length` 読みへ戻してブリッジ削減（KSP-691 のメトリクス改善）につなげる
+
+---
+
+## テストパイプライン集約タスク（Sema API tests migration）
+
+`Tests/CompilerCoreTests` 内の重複した `runSema` / `runToKIR` / `runToLowering` / `runFrontend` / `makeSema` 呼び出しを 1 つの共有コンテキスト（`withTemporaryFiles` / `sharedCtx` / `sharedSema`）に集約し、テスト実行コストと行数を削減する。
+
+> 現状（`origin/master`、Batch 78/79 PR マージ前）:
+> - `runSema(`: 702
+> - `runToKIR(`: 378
+> - `runToLowering(`: 37
+> - `runFrontend(`: 70
+> - `makeSema(`: 137
+>
+> 目標: 同一ファイル / 同一スイート内で同じ入力を使う箇所を 1 回の pipeline 呼び出しにまとめ、上記カウントを再び半減させる。
+> 進行中 PR: #5758 (Batch 76), #5760 (Batch 78), #5761 (Batch 79), #5762 (Batch 80), #5763 (Batch 81), #5764 (Batch 82)。
+
+- [~] REFACT-TEST-001: 同一 Sema ソースで複数 `runSema(ctx)` を呼んでいる `Tests/CompilerCoreTests/Sema` テストを共有 `runSema(ctx)` に集約
+  - 対象例: `ListSyntheticMemberLinkTests+MutableAndAdvancedMembers.swift` (62), `ListSyntheticMemberLinkTests.swift` (60), `DataFlowAndSemaRegressionTests+TryCatchInitializationAndIsCheckRules.swift` (25), `DataFlowAndSemaRegressionTests.swift` (34), `CompilerCoreTests+P540Diagnostics.swift` (31), `DiagnosticCodeCoverageTests.swift` (29), `CompilerCoreTests.swift` (29)
+- [ ] REFACT-TEST-002: 各テストで `makeSema()` を作り直している surface-inventory 系 Sema スイートに `sharedSema()` キャッシュを導入
+  - 対象例: `EnumAPISurfaceInventoryTests.swift` (9), `MathSyntheticTopLevelLinkTests.swift` (6), `ContinuationSyntheticStubTests.swift` (6), `ExceptionSyntheticStubTests.swift` (6), `ReflectK*` 系 (3-6 件×多数)
+- [~] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約
+  - 対象例: `KotlinIOCommonEdgeCaseTests.swift` (33), `RegexSemaLoweringTests.swift` (31), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+LocalFunctionCaptureAndScope.swift` (16), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` (10), `BuildKIRRegressionTests.swift` (15), `BuildKIRRegressionTests+NativePlatform.swift` (14), `LibMetadataImportIntegrationTests.swift` (12), `LibraryMetadataManifestValidationTests.swift` (11), `BuildKIRRegressionTests+PrimitiveArrayCreationAndConversion.swift` (10, PR #5761 対応済み)
+- [ ] REFACT-TEST-004: 複数 `runToLowering` / `runFrontend` を呼んでいる Lowering / Frontend テストを共有コンテキストに集約
+  - 対象例: `BoxingIntegrationTests.swift` (`runToLowering` 12), `CompilerCoreTests+TrailingLambdaParsing.swift` (`runFrontend` 9), `BuildASTBodyParsingRegressionTests.swift` (`runFrontend` 9), `ValueClassUnboxingTests+EdgeCases.swift` (`runToLowering` 18), `ScriptModeTests.swift` (`runFrontend` 5)
+- [ ] REFACT-TEST-005: 集約後に不要になった per-test pipeline ヘルパー・重複 `source` 文字列・個別 `withTemporaryFile` ブロックを削除し、migration スクリプト群を整理
