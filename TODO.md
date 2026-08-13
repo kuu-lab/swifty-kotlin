@@ -173,7 +173,8 @@
   - 削除 kk_*: `RuntimeSequenceAssociation.swift` の全関数（rg で列挙）
 - [ ] KSP-445: Sequence fold/scan を Kotlin 化（`fold(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `scan(Indexed)`, `runningFold/Reduce(Indexed)`, `sorted*`）
   - 削除 kk_*: `RuntimeSequenceFoldScan.swift` の全関数
-- [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
+- [x] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
+  - 完了 (2026-08-14): `Stdlib/kotlin/sequences/SequenceDestinationHOF.kt` に11関数を追加し、Sequence の Sema source binding、synthetic member、lowering 特例、Runtime/RuntimeABI の STDLIB-SEQ-021 ブリッジを整理。`sequence_destination_to.kt` で全11関数の Kotlin/JVM と kswiftc の実行結果を照合
 - [x] KSP-447: sequence{}/iterator{} ビルダーを (c) 残留分類として確定する
   - coroutine 機構と不可分（`__kk_sequence_builder_*`, `__kk_iterator_builder_*` 11 関数）。`__kk_` 降格 + `docs/stdlib-pipeline.md` §9 の (c) 表へ記載のみ。Kotlin 化はしない
 
