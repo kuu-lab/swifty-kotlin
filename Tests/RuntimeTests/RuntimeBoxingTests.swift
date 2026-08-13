@@ -98,6 +98,20 @@ struct RuntimeBoxingTests {
         #expect(result == 0)
     }
 
+    @Test
+    func testBoxBoolPassesThroughAlreadyBoxedFalse() {
+        let boxed = kk_box_bool(0)
+        let doubleBoxed = kk_box_bool(boxed)
+        #expect(kk_unbox_bool(doubleBoxed) == 0)
+    }
+
+    @Test
+    func testBoxBoolPassesThroughAlreadyBoxedTrue() {
+        let boxed = kk_box_bool(1)
+        let doubleBoxed = kk_box_bool(boxed)
+        #expect(kk_unbox_bool(doubleBoxed) == 1)
+    }
+
     // MARK: - Multiple boxes
 
     // MARK: - kk_unbox_long sentinel edge case

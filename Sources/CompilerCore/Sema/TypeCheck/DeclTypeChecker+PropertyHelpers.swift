@@ -52,7 +52,9 @@ extension DeclTypeChecker {
         inferredPropertyType: TypeID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        delegateBody: FunctionBody? = nil,
+        delegateBodyParams: [InternedString] = []
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -254,6 +256,45 @@ extension DeclTypeChecker {
                 interner: interner
             )
         }
+
+        // A stdlib delegate factory's trailing lambda (`lazy { ... }`,
+        // `Delegates.observable(init) { property, old, new -> ... }`) is parsed
+        // into `delegateBody` separately from `delegateExpr` -- see
+        // `BuildASTPhase+DeclBuilders.swift` -- specifically so KIR lowering can
+        // repackage it into a standalone synthetic function
+        // (`lowerDelegateLambdaBody`). Because it's never part of `delegateExpr`,
+        // the ordinary call-argument inference above never visits it, so without
+        // this, none of its identifiers -- not even a reference to an unrelated
+        // outer instance field like `initCount` in `lazy { initCount += 1; ... }`
+        // -- get bound by Sema at all (BUG-170). Bind the lambda's own synthetic
+        // parameters (empty for `lazy`) using the same symbol scheme KIR lowering
+        // allocates them with, then type-check the body in the same `ctx` used
+        // for this property's getter/initializer above so implicit-`this` member
+        // references resolve the same way theirs already do.
+        if isKnownStdlibDelegate, let delegateBody {
+            var bodyLocals = locals
+            for (index, name) in delegateBodyParams.enumerated() {
+                let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                    for: symbol, at: index
+                )
+                let paramType = index == 0 ? sema.types.anyType : (result ?? sema.types.anyType)
+                bodyLocals[name] = (paramType, paramSymbol, false, true)
+            }
+            // `.observable`'s callback always returns Unit and `.vetoable`'s
+            // always returns Boolean (the write proceeds only if true) --
+            // BUG-151. Feeding this back as the expected type lets a body
+            // returning the wrong type surface as an ordinary diagnostic
+            // instead of silently mismatching at the runtime dispatch boundary.
+            let expectedBodyType: TypeID? = switch stdlibDelegateKind {
+            case .observable: sema.types.unitType
+            case .vetoable: sema.types.booleanType
+            default: result
+            }
+            _ = inferFunctionBodyType(
+                delegateBody, ctx: ctx, locals: &bodyLocals, expectedType: expectedBodyType
+            )
+        }
+
         if !getValueResolved, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",

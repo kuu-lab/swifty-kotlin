@@ -96,26 +96,6 @@ private let windowSum: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> 
     return windowBox.elements.reduce(0, +)
 }
 
-private let foldSum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
-    acc + value
-}
-
-private let foldOrder: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
-    acc * 10 + value
-}
-
-private let foldIndexedChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, acc, value, _ in
-    acc + index * 100 + value
-}
-
-private let reduceRightIndexedChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, acc, _ in
-    index * 100 + value * 10 + acc
-}
-
-private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, acc, _ in
-    value * 10 + acc
-}
-
 private let sumByWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value * value
 }
@@ -200,11 +180,6 @@ private let forEachCapture: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
         return 0
     }
     gHOFState.addSum(value + capture)
-    return 0
-}
-
-private let forEachIndexedChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
-    gHOFState.addSum(index * 10 + value)
     return 0
 }
 
@@ -351,10 +326,6 @@ struct RuntimeCollectionHOFTests {
 
         _ = kk_list_forEach(source, unsafeBitCast(forEachCapture, to: Int.self), closure, nil as UnsafeMutablePointer<Int>?)
         #expect(gHOFState.sumSnapshot() == 21)
-
-        gHOFState.reset()
-        _ = kk_list_forEachIndexed(source, unsafeBitCast(forEachIndexedChecksum, to: Int.self), 0, nil)
-        #expect(gHOFState.sumSnapshot() == 36)
     }
 
     @Test
@@ -368,17 +339,6 @@ struct RuntimeCollectionHOFTests {
 
         let flatMappedIndexed = kk_list_flatMapIndexed(source, unsafeBitCast(flatMapIndexedPair, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
         #expect(listElements(flatMappedIndexed) == [0, 10, 1, 20, 2, 30])
-
-        #expect(kk_list_fold(source, 0, unsafeBitCast(foldOrder, to: Int.self), 0, nil) == 123)
-        let setSource = kk_set_of(makeArray([1, 2, 3]), 3)
-        #expect(kk_list_fold(setSource, 0, unsafeBitCast(foldOrder, to: Int.self), 0, nil) == 123)
-        #expect(kk_list_foldRight(source, 0, unsafeBitCast(reduceRightChecksum, to: Int.self), 0, nil) == 60)
-        #expect(kk_list_foldIndexed(source, 0, unsafeBitCast(foldIndexedChecksum, to: Int.self), 0, nil) == 306)
-        let setSourceFoldIndexed = kk_set_of(makeArray([1, 2, 3]), 3)
-        let setFoldIndexed = kk_list_foldIndexed(setSourceFoldIndexed, 0, unsafeBitCast(foldIndexedChecksum, to: Int.self), 0, nil)
-        #expect(setFoldIndexed == 306)
-        #expect(kk_list_foldRightIndexed(source, 0, unsafeBitCast(reduceRightIndexedChecksum, to: Int.self), 0, nil) == 360)
-        #expect(kk_list_reduce(source, unsafeBitCast(foldOrder, to: Int.self), 0, nil) == 123)
 
         let sorted = kk_list_sortedBy(makeList([22, 12, 21, 11]), unsafeBitCast(sortedByTens, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
         #expect(listElements(sorted) == [12, 11, 22, 21])
@@ -667,157 +627,6 @@ struct RuntimeCollectionHOFTests {
         #expect(listElements(arrayRemoved) == [1, 2, 3])
         #expect(listElements(collectionRemoved) == [1, 3])
         #expect(listElements(source) == [1, 2, 2, 3])
-    }
-
-    @Test
-    func testListTakeNegativeCountSetsIllegalArgumentException() {
-        var thrown = 0
-        let result = kk_list_take(makeList([1, 2, 3]), -1, &thrown)
-
-        #expect(thrown != 0)
-        let throwable = tryCast(UnsafeMutableRawPointer(bitPattern: thrown)!, to: RuntimeThrowableBox.self)
-        #expect(throwable?.exceptionFQName == "kotlin.IllegalArgumentException")
-        #expect(listElements(result) == [])
-    }
-
-    @Test
-    func testListDropNegativeCountSetsIllegalArgumentException() {
-        var thrown = 0
-        let result = kk_list_drop(makeList([1, 2, 3]), -1, &thrown)
-
-        #expect(thrown != 0)
-        let throwable = tryCast(UnsafeMutableRawPointer(bitPattern: thrown)!, to: RuntimeThrowableBox.self)
-        #expect(throwable?.exceptionFQName == "kotlin.IllegalArgumentException")
-        #expect(listElements(result) == [])
-    }
-
-    @Test
-    func testListReduceRightIndexedUsesIndexValueAndAccumulator() {
-        var thrown = 0
-        let result = kk_list_reduceRightIndexed(
-            makeList([1, 2, 3]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(result == 133)
-
-        thrown = 0
-        let arrayResult = kk_list_reduceRightIndexed(
-            makeArray([1, 2, 3]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(arrayResult == 133)
-
-        thrown = 0
-        let singletonResult = kk_list_reduceRightIndexed(
-            makeList([7]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(singletonResult == 7)
-
-        thrown = 0
-        let emptyResult = kk_list_reduceRightIndexed(
-            makeList([]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(emptyResult == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
-
-    @Test
-    func testListReduceRightIndexedOrNullUsesIndexValueAndAccumulator() {
-        var thrown = 0
-        let result = kk_list_reduceRightIndexedOrNull(
-            makeList([1, 2, 3]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(result == 133)
-
-        thrown = 0
-        let arrayResult = kk_list_reduceRightIndexedOrNull(
-            makeArray([1, 2, 3]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(arrayResult == 133)
-
-        thrown = 0
-        let singletonResult = kk_list_reduceRightIndexedOrNull(
-            makeList([7]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(singletonResult == 7)
-
-        thrown = 0
-        let emptyResult = kk_list_reduceRightIndexedOrNull(
-            makeList([]),
-            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testListReduceRightOrNullUsesValueAndAccumulator() {
-        var thrown = 0
-        let result = kk_list_reduceRightOrNull(
-            makeList([1, 2, 3]),
-            unsafeBitCast(reduceRightChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(result == 33)
-
-        thrown = 0
-        let arrayResult = kk_list_reduceRightOrNull(
-            makeArray([1, 2, 3]),
-            unsafeBitCast(reduceRightChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(arrayResult == 33)
-
-        thrown = 0
-        let singletonResult = kk_list_reduceRightOrNull(
-            makeList([7]),
-            unsafeBitCast(reduceRightChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(singletonResult == 7)
-
-        thrown = 0
-        let emptyResult = kk_list_reduceRightOrNull(
-            makeList([]),
-            unsafeBitCast(reduceRightChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
     }
 
     @Test
@@ -1210,30 +1019,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testListTakeWhileKeepsMatchingPrefixAndPropagatesThrow() {
-        let source = makeList([3, 4, 1, 5])
-        let taken = kk_list_takeWhile(source, unsafeBitCast(filterGreaterThanOne, to: Int.self), 0, nil)
-        #expect(listElements(taken) == [3, 4])
-
-        var thrown = 0
-        let thrownResult = kk_list_takeWhile(source, unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown)
-        #expect(thrown != 0)
-        #expect(listElements(thrownResult) == [])
-    }
-
-    @Test
-    func testListDropLastWhileDropsMatchingSuffixAndPropagatesThrow() {
-        let source = makeList([3, 4, 1, 5])
-        let dropped = kk_list_dropLastWhile(source, unsafeBitCast(filterGreaterThanOne, to: Int.self), 0, nil)
-        #expect(listElements(dropped) == [3, 4, 1])
-
-        var thrown = 0
-        let thrownResult = kk_list_dropLastWhile(source, unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown)
-        #expect(thrown != 0)
-        #expect(listElements(thrownResult) == [])
-    }
-
-    @Test
     func testCountFirstLastFindAndEmptyFailures() {
         let source = makeList([1, 2, 3, 4])
 
@@ -1249,25 +1034,11 @@ struct RuntimeCollectionHOFTests {
         #expect(kk_list_findLast(source, unsafeBitCast(countEven, to: Int.self), 0, nil) == 4)
 
         var thrown = 0
-        #expect(kk_list_reduce(makeList([]), unsafeBitCast(foldSum, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-
-        thrown = 0
         #expect(kk_list_first(makeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
 
         thrown = 0
         #expect(kk_list_last(makeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
-    }
-
-    @Test
-    func testListSliceRangeAndIterableReturnSelectedElements() {
-        let source = makeList([10, 20, 30, 40, 50])
-        let range = kk_op_rangeTo(1, 3)
-        #expect(listElements(kk_list_slice(source, range)) == [20, 30, 40])
-
-        let indices = makeList([3, 1, 3])
-        #expect(listElements(kk_list_slice_iterable(source, indices)) == [40, 20, 40])
     }
 
     @Test
@@ -1649,40 +1420,6 @@ struct RuntimeCollectionHOFTests {
         let map = kk_map_of(keys, values, 2)
         #expect(kk_unbox_bool(kk_map_is_empty(map)) == 0)
         #expect(kk_unbox_bool(kk_map_is_empty(kk_map_of(0, 0, 0))) == 1)
-    }
-
-    @Test
-    func testReduceOrNullReturnsZeroForEmptyList() {
-        let emptyList = makeList([])
-        var thrown = 0
-        let result = kk_list_reduceOrNull(emptyList, unsafeBitCast(foldSum, to: Int.self), 0, &thrown)
-        #expect(result == runtimeNullSentinelInt)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testReduceOrNullReturnsSingleElementForSingletonList() {
-        let singleton = makeList([42])
-        var thrown = 0
-        let result = kk_list_reduceOrNull(singleton, unsafeBitCast(foldSum, to: Int.self), 0, &thrown)
-        #expect(result == 42)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testReduceOrNullMatchesReduceForNonEmptyList() {
-        let source = makeList([1, 2, 3])
-        let reduceResult = kk_list_reduce(source, unsafeBitCast(foldOrder, to: Int.self), 0, nil)
-        let reduceOrNullResult = kk_list_reduceOrNull(source, unsafeBitCast(foldOrder, to: Int.self), 0, nil)
-        #expect(reduceOrNullResult == reduceResult)
-    }
-
-    @Test
-    func testUnsignedListToPrimitiveArrayConversionsCopyElements() {
-        #expect(arrayElements(kk_list_toUByteArray(makeList([1, 255]))) == [1, 255])
-        #expect(arrayElements(kk_list_toUShortArray(makeList([1, 65_535]))) == [1, 65_535])
-        #expect(arrayElements(kk_list_toUIntArray(makeList([1, 4_000_000_000]))) == [1, 4_000_000_000])
-        #expect(arrayElements(kk_list_toULongArray(makeList([1, -1]))) == [1, -1])
     }
 
     @Test

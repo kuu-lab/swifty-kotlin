@@ -386,7 +386,7 @@ enum ParserBoundaryPolicy {
             return true
         case .symbol(.at):
             return !inBlock && hasLeadingNewline
-        case let .keyword(kw) where declarationBoundaryKeywords.contains(kw):
+        case let .keyword(kw) where declarationBoundaryKeywords.contains(kw) || KotlinParser.isDeclarationModifierKeyword(kw):
             return !inBlock && hasLeadingNewline
         default:
             return false

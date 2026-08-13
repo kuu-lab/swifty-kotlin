@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 fun main() {
     val arr = arrayOf(1, 2, 3)
     
@@ -14,7 +14,7 @@ fun main() {
     
     // 変換関数
     println(arr.mapNotNull { if (it % 2 == 0) it * 10 else null })
-    println(arr.flatMap { arrayOf(it, it * 10) })
+    println(arr.flatMap { listOf(it, it * 10) })
     println(arr.filterNot { it == 2 })
     println(arr.filterNotNull())
     

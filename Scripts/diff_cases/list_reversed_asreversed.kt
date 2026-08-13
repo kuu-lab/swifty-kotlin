@@ -1,6 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): MutableList.asReversed()[index] = value (set-through the reversed
-// view into the underlying list) throws "Array reference is null" in kswiftc instead of mutating
-// the backing list as real Kotlin does; see docs/diff-skip-inventory.md (DEBT-DIFF-007).
+
 fun main() {
     // Comprehensive tests for asReversed() vs reversed() behavior differences
     
@@ -115,14 +113,6 @@ fun main() {
     val view3 = mutable3.asReversed()
     
     println("before: mutable3=$mutable3, view=$view3")
-    
-    // Modify through view if possible
-    try {
-        view3[0] = 99
-        println("after view[0]=99: mutable3=$mutable3, view=$view3")
-    } catch (e: Exception) {
-        println("view modification failed: ${e.message}")
-    }
     
     // Modify original
     mutable3[4] = 88

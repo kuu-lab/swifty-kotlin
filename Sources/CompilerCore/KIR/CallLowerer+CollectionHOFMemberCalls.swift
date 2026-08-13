@@ -168,24 +168,6 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
-        let comparatorOnlyCallees: Set<InternedString> = [
-            interner.intern("kk_sequence_maxWith"),
-            interner.intern("kk_sequence_maxWithOrNull"),
-            interner.intern("kk_sequence_minWith"),
-            interner.intern("kk_sequence_minWithOrNull"),
-        ]
-        if comparatorOnlyCallees.contains(loweredCallee),
-           finalArguments.count == 2
-        {
-            let comparatorArgs = makeComparatorObjectArgumentPair(
-                loweredComparatorID: finalArguments[1],
-                sema: sema,
-                arena: arena,
-                instructions: &instructions
-            )
-            return [finalArguments[0]] + comparatorArgs
-        }
-
         if loweredCallee == interner.intern("kk_list_binarySearch_comparator"),
            finalArguments.count == 5,
            sourceArgExprs.count >= 2

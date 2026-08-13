@@ -6,7 +6,7 @@ import Testing
 // MARK: - STDLIB-IO-PATH-FN-039: kotlin.io.path.PathWalkOption enum
 //
 // Focused coverage for the synthetic `kotlin.io.path.PathWalkOption` enum class.
-// The enum is registered by `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`
+// The enum is registered by `HeaderHelpers+SyntheticPathStubs.swift`
 // via `ensurePathWalkOptionEnum`, and its two entries (BREADTH_FIRST, FOLLOW_LINKS)
 // are exposed as fields whose `propertyType` is the enum class type itself so that
 // `PathWalkOption.BREADTH_FIRST`-style member references resolve through
@@ -15,28 +15,54 @@ import Testing
 @Suite
 struct PathWalkOptionEnumTests {
 
-    // MARK: Helpers
+    // MARK: - Shared Sema context
 
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        import kotlin.io.path.PathWalkOption
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = (try #require(ctx.sema), ctx.interner)
+        fun pickBreadthFirst(): PathWalkOption = PathWalkOption.BREADTH_FIRST
+        fun pickFollowLinks(): PathWalkOption = PathWalkOption.FOLLOW_LINKS
+        """,
+        """
+        package sample1
+        import kotlin.io.path.PathWalkOption
+
+        fun describe(option: PathWalkOption): String {
+            return when (option) {
+                PathWalkOption.BREADTH_FIRST -> "breadth-first"
+                PathWalkOption.FOLLOW_LINKS -> "follow-links"
+            }
         }
-        let semaResult = try #require(result)
-        Self._sharedSema = semaResult
-        return semaResult
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
     }
+
+    // MARK: Helpers
 
     private static let allEntries = ["BREADTH_FIRST", "FOLLOW_LINKS"]
 
     // MARK: - Enum class declaration shape
 
     @Test func testPathWalkOptionIsRegisteredAsEnumClass() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fqName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
@@ -49,7 +75,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionIsParentedToKotlinIOPathPackage() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fqName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
 
@@ -66,7 +94,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionHasCorrectPropertyType() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fqName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let expectedType = sema.types.make(.classType(ClassType(
@@ -83,7 +113,9 @@ struct PathWalkOptionEnumTests {
     // MARK: - Enum entries
 
     @Test func testBothPathWalkOptionEntriesAreRegisteredAsFields() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         for entry in Self.allEntries {
             let fqName = ["kotlin", "io", "path", "PathWalkOption", entry].map { interner.intern($0) }
             let symbol = try #require(
@@ -98,7 +130,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionEntryPropertyTypesAreEnumType() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let enumFQName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
         let expectedType = sema.types.make(.classType(ClassType(
@@ -121,7 +155,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionEntriesAreParentedToEnumClass() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let enumFQName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
 
@@ -136,7 +172,9 @@ struct PathWalkOptionEnumTests {
     }
 
     @Test func testPathWalkOptionHasExactlyTwoEntries() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let enumFQName = ["kotlin", "io", "path", "PathWalkOption"].map { interner.intern($0) }
         let children = sema.symbols.children(ofFQName: enumFQName)
         let fieldNames: Set<String> = Set(
@@ -156,46 +194,26 @@ struct PathWalkOptionEnumTests {
     // MARK: - Member resolution in source
 
     @Test func testPathWalkOptionMemberAccessResolves() throws {
-        let source = """
-        import kotlin.io.path.PathWalkOption
 
-        fun pickBreadthFirst(): PathWalkOption = PathWalkOption.BREADTH_FIRST
-        fun pickFollowLinks(): PathWalkOption = PathWalkOption.FOLLOW_LINKS
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             let messages = errors.map { "\($0.code): \($0.message)" }
             #expect(
                 errors.isEmpty,
                 Comment(rawValue: "Expected every PathWalkOption entry to resolve cleanly, got: \(messages)")
             )
-        }
+
     }
 
     @Test func testPathWalkOptionUsedInWhenExpressionResolves() throws {
-        let source = """
-        import kotlin.io.path.PathWalkOption
 
-        fun describe(option: PathWalkOption): String {
-            return when (option) {
-                PathWalkOption.BREADTH_FIRST -> "breadth-first"
-                PathWalkOption.FOLLOW_LINKS -> "follow-links"
-            }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(
                 errors.isEmpty,
                 "PathWalkOption in when expression should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
-        }
+
     }
 }
 #endif

@@ -5,12 +5,15 @@ import Testing
 /// source definitions rather than residual synthetic runtime declarations.
 @Suite
 struct ListAggregateHOFSourceMigrationTests {
-    private let sourcePath = "__bundled_kotlin/collections/ListAggregateHOF.kt"
-    private let migratedNames: Set<String> = ["sumOf"]
+    private let migratedDefinitions: [(name: String, sourcePath: String)] = [
+        ("sumOf", "__bundled_kotlin/collections/ListAggregateHOF.kt"),
+        ("maxByOrNull", "__bundled_kotlin/collections/ListExtremaHOF.kt"),
+        ("minByOrNull", "__bundled_kotlin/collections/ListExtremaHOF.kt"),
+    ]
 
     @Test
     func residualCollectionsSourceIsEmpty() {
-        #expect(BundledKotlinStdlib.kotlinCollectionsSource.isEmpty)
+        #expect(BundledStdlib.kotlinCollectionsSource.isEmpty)
     }
 
     @Test
@@ -20,7 +23,8 @@ struct ListAggregateHOFSourceMigrationTests {
         let sema = try #require(ctx.sema)
         let packageFQName = ["kotlin", "collections"].map(ctx.interner.intern)
 
-        for name in migratedNames {
+        for definition in migratedDefinitions {
+            let name = definition.name
             let fqName = packageFQName + [ctx.interner.intern(name)]
             let sourceSymbols = sema.symbols.lookupAll(fqName: fqName).filter { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID),
@@ -30,10 +34,10 @@ struct ListAggregateHOFSourceMigrationTests {
                 else {
                     return false
                 }
-                return ctx.sourceManager.path(of: fileID) == sourcePath
+                return ctx.sourceManager.path(of: fileID) == definition.sourcePath
             }
 
-            #expect(!sourceSymbols.isEmpty, "Expected \(name) to be declared in \(sourcePath)")
+            #expect(!sourceSymbols.isEmpty, "Expected \(name) to be declared in \(definition.sourcePath)")
             #expect(
                 sourceSymbols.allSatisfy { sema.symbols.functionSignature(for: $0)?.receiverType != nil },
                 "Expected \(name) bundled source definitions to be List extension functions"
@@ -52,7 +56,8 @@ struct ListAggregateHOFSourceMigrationTests {
         let sema = try #require(ctx.sema)
         let packageFQName = ["kotlin", "collections"].map(ctx.interner.intern)
 
-        for name in migratedNames {
+        for definition in migratedDefinitions {
+            let name = definition.name
             let fqName = packageFQName + [ctx.interner.intern(name)]
             let declaringPaths = Set(sema.symbols.lookupAll(fqName: fqName).compactMap { symbolID -> String? in
                 guard let symbol = sema.symbols.symbol(symbolID),

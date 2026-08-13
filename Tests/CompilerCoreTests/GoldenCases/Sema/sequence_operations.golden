@@ -7,8 +7,6 @@ symbol fq=__local_5.g kind=local vis=private flags=_ type=kotlin.sequences.Seque
 symbol fq=__local_6.r kind=local vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
@@ -50,7 +48,7 @@ expr e@8:35 name(it) type=Int ref=s-2
 expr e@8:40 int(1) type=Int
 expr e@8:35#1 binary(add) lhs=e@8:35 rhs=e@8:40 type=Int
 expr e@8:33 lambda params=[] body=e@8:35#1 label=generateSequence type=(Int) -> Int?
-expr e@8:13 call callee=e@8:13#1 args=[_:e@8:30,_:e@8:33] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.generateSequence#2 targs=[Int]
+expr e@8:13 call callee=e@8:13#1 args=[_:e@8:30,_:e@8:33] type=kotlin.sequences.Sequence<out Int>
 expr e@8:5 localDecl g mutable=0 type=_ init=e@8:13 type=Unit ref=__local_5.g
 expr e@9:13 name(g) type=kotlin.sequences.Sequence<out Int> ref=__local_5.g
 expr e@9:20 int(3) type=Int

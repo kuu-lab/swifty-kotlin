@@ -230,7 +230,7 @@ extension DataFlowSemaPhase {
     /// always emits `kk_array_get` regardless of the receiver's actual runtime
     /// representation. `entries`'s runtime representation is a `RuntimeListBox`
     /// (`kk_enum_make_entries_list`), not a `RuntimeArrayBox`, so that fallback
-    /// panics at runtime (BUG-172). Mirrors `registerListGetOperator` and reuses
+    /// panics at runtime (BUG-178). Mirrors `registerListGetOperator` and reuses
     /// the same `__kk_list_get` bridge, since both share the same backing store.
     private func registerEnumEntriesGetOperator(
         symbols: SymbolTable,

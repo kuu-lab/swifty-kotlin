@@ -225,8 +225,11 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
+            // The flat String ABI uses either opaque `ptr` (newer LLVM) or typed
+            // `i8*` (older/diagnostic emission), depending on the target.
+            let flatStringDispatchPattern = "call \\{ (?:ptr|i8\\*), i64, i64, i64 \\} %lookup_fptr_"
             #expect(
-                ir.contains("call { ptr, i64, i64, i64 } %lookup_fptr_"),
+                ir.range(of: flatStringDispatchPattern, options: .regularExpression) != nil,
                 "String virtual dispatch should call reflected implementations with the flat String ABI"
             )
             #expect(
@@ -234,8 +237,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                ir.contains("@kk_println_string_flat"),
-                "Virtual dispatch String result should be passed to the flat-string println runtime"
+                ir.contains("@__kk_print_raw"),
+                "Virtual dispatch String result should be passed to the raw print runtime bridge"
             )
         }
     }
@@ -752,7 +755,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty_flat"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_equals_flat"), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
                 .call(
@@ -804,7 +807,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .label(900),
                 .copy(from: completionLoaded, to: whenResult),
                 .label(901),
-                .call(symbol: nil, callee: interner.intern("println"), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(
                     symbol: nil,
                     callee: interner.intern("kk_coroutine_continuation_new"),
@@ -885,7 +888,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_isNullOrBlank_flat"))
         #expect(ir.contains("@kk_string_equals_flat"))
         #expect(!ir.contains("@kk_string_equals("))
-        #expect(ir.contains("@kk_println_string_flat"))
+        #expect(ir.contains("@__kk_print_raw"))
         #expect(ir.contains("{ ptr, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
@@ -893,7 +896,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_coroutine_state_get_spill"))
         #expect(ir.contains("@kk_coroutine_state_set_completion"))
         #expect(ir.contains("@kk_coroutine_state_get_completion"))
-        #expect(ir.contains("@kk_println_any"))
+        #expect(!ir.contains("@kk_println_any"))
+        #expect(!ir.contains("@kk_println_string_flat"))
         #expect(ir.contains("@kk_register_frame_map"))
         #expect(ir.contains("@kk_push_frame"))
         #expect(ir.contains("@kk_pop_frame"))
@@ -961,28 +965,28 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendParsingCall("kk_string_toBoolean_flat", arguments: [nullStringExpr], resultType: types.booleanType)
-        appendParsingCall("kk_string_toBooleanStrict_flat", arguments: [textExpr], resultType: types.booleanType, canThrow: true)
-        appendParsingCall("kk_string_toBooleanStrictOrNull_flat", arguments: [textExpr], resultType: nullableBoolType)
-        appendParsingCall("kk_string_toInt_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toInt_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toIntOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("kk_string_toIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableIntType, canThrow: true)
-        appendParsingCall("kk_string_toUByteOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUByteType, canThrow: true)
-        appendParsingCall("kk_string_toUShortOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
-        appendParsingCall("kk_string_toUIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
-        appendParsingCall("kk_string_toULongOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
+        appendParsingCall("__kk_string_toBoolean_flat", arguments: [nullStringExpr], resultType: types.booleanType)
+        appendParsingCall("__kk_string_toBooleanStrict_flat", arguments: [textExpr], resultType: types.booleanType, canThrow: true)
+        appendParsingCall("__kk_string_toBooleanStrictOrNull_flat", arguments: [textExpr], resultType: nullableBoolType)
+        appendParsingCall("__kk_string_toInt_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toInt_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toIntOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("__kk_string_toIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableIntType, canThrow: true)
+        appendParsingCall("__kk_string_toUByteOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUByteType, canThrow: true)
+        appendParsingCall("__kk_string_toUShortOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
+        appendParsingCall("__kk_string_toUIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
+        appendParsingCall("__kk_string_toULongOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
         appendParsingCall("__kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
         appendParsingCall("__kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
-        appendParsingCall("kk_string_toLong_flat", arguments: [textExpr], resultType: types.longType, canThrow: true)
-        appendParsingCall("kk_string_toLongOrNull_flat", arguments: [textExpr], resultType: nullableLongType)
+        appendParsingCall("__kk_string_toLong_flat", arguments: [textExpr], resultType: types.longType, canThrow: true)
+        appendParsingCall("__kk_string_toLongOrNull_flat", arguments: [textExpr], resultType: nullableLongType)
         appendParsingCall("__kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
         appendParsingCall("__kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
-        appendParsingCall("kk_string_toShort_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toShortOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("kk_string_toByte_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("__kk_string_toShort_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toShortOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("__kk_string_toByte_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
         appendParsingCall("__kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToInt_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToShort_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
@@ -1023,28 +1027,28 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
         let rawNames = [
-            "kk_string_toBoolean",
-            "kk_string_toBooleanStrict",
-            "kk_string_toBooleanStrictOrNull",
-            "kk_string_toInt",
-            "kk_string_toInt_radix",
-            "kk_string_toIntOrNull",
-            "kk_string_toIntOrNull_radix",
-            "kk_string_toUByteOrNull_radix",
-            "kk_string_toUShortOrNull_radix",
-            "kk_string_toUIntOrNull_radix",
-            "kk_string_toULongOrNull_radix",
+            "__kk_string_toBoolean",
+            "__kk_string_toBooleanStrict",
+            "__kk_string_toBooleanStrictOrNull",
+            "__kk_string_toInt",
+            "__kk_string_toInt_radix",
+            "__kk_string_toIntOrNull",
+            "__kk_string_toIntOrNull_radix",
+            "__kk_string_toUByteOrNull_radix",
+            "__kk_string_toUShortOrNull_radix",
+            "__kk_string_toUIntOrNull_radix",
+            "__kk_string_toULongOrNull_radix",
             "__kk_string_toDouble",
             "__kk_string_toDoubleOrNull",
-            "kk_string_toLong",
-            "kk_string_toLongOrNull",
+            "__kk_string_toLong",
+            "__kk_string_toLongOrNull",
             "__kk_string_toFloat",
             "__kk_string_toFloatOrNull",
-            "kk_string_toShort",
-            "kk_string_toShortOrNull",
-            "kk_string_toByte",
-            "kk_string_toByte_radix",
-            "kk_string_toByteOrNull",
+            "__kk_string_toShort",
+            "__kk_string_toShortOrNull",
+            "__kk_string_toByte",
+            "__kk_string_toByte_radix",
+            "__kk_string_toByteOrNull",
             "__kk_string_toBigDecimal",
         ]
         for rawName in rawNames {

@@ -58,12 +58,10 @@ public enum BuilderDSLKind: Equatable {
 
 /// Identifies the kind of scope function (STDLIB-004).
 public enum ScopeFunctionKind: Equatable {
-    case scopeLet
     case scopeRun
     case scopeWith
     case scopeContext
     case scopeApply
-    case scopeAlso
     case scopeTopLevelRun
     /// Closeable.use { } (STDLIB-520): like `let`, but wraps in try-finally calling close().
     case scopeUse
@@ -76,15 +74,9 @@ public enum ScopeFunctionKind: Equatable {
     case scopeUseContents
 }
 
-/// Identifies takeIf / takeUnless extension calls (STDLIB-160).
-public enum TakeIfTakeUnlessKind: Equatable {
-    case takeIf
-    case takeUnless
-}
 
 /// Identifies special stdlib calls that need dedicated lowering.
 public enum StdlibSpecialCallKind: Equatable {
-    case repeatLoop
     case typeOf
     case maxOfInt
     case minOfInt

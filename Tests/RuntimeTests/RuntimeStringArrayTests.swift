@@ -1,5 +1,7 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
+import Foundation
 
 #if canImport(Glibc)
     import Glibc
@@ -118,9 +120,8 @@ private let runtimeReturnValueTransform: RuntimeStringUnaryEntry = { _, valueRaw
     valueRaw
 }
 
-final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeStringArrayTests {
     private func capturePrintln(_ block: () -> Void) -> String {
         let pipe = Pipe()
         let savedFD = dup(STDOUT_FILENO)
@@ -456,6 +457,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - kk_string_from_utf8
 
+    @Test
     func testStringFromUTF8CreatesBoxedString() {
         let text = "Hello"
         let result = text.withCString { cstr in
@@ -463,12 +465,13 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 kk_string_from_utf8(ptr, Int32(text.utf8.count))
             }
         }
-        XCTAssertNotNil(result)
+        #expect(result as UnsafeMutableRawPointer? != nil)
         // Verify via println
         let output = capturePrintln { kk_println_any(result) }
-        XCTAssertEqual(output, "Hello")
+        #expect(output == "Hello")
     }
 
+    @Test
     func testStringFromUTF8EmptyString() {
         let text = ""
         let result = text.withCString { cstr in
@@ -476,36 +479,40 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 kk_string_from_utf8(ptr, 0)
             }
         }
-        XCTAssertNotNil(result)
+        #expect(result as UnsafeMutableRawPointer? != nil)
         let output = capturePrintln { kk_println_any(result) }
-        XCTAssertEqual(output, "")
+        #expect(output == "")
     }
 
     // MARK: - kk_string_concat_flat
 
+    @Test
     func testStringConcatFlatTwoStrings() {
-        XCTAssertEqual(concatFlatValue("Hello, ", "World!"), "Hello, World!")
+        #expect(concatFlatValue("Hello, ", "World!") == "Hello, World!")
     }
 
+    @Test
     func testStringConcatFlatWithNilDataLeftReturnsRightOnly() {
-        XCTAssertEqual(concatFlatValue(nil, "World"), "World")
+        #expect(concatFlatValue(nil, "World") == "World")
     }
 
+    @Test
     func testStringConcatFlatWithNilDataRightReturnsLeftOnly() {
-        XCTAssertEqual(concatFlatValue("Hello", nil), "Hello")
+        #expect(concatFlatValue("Hello", nil) == "Hello")
     }
 
+    @Test
     func testStringConcatFlatBothNilDataReturnsEmptyString() {
-        XCTAssertEqual(concatFlatValue(nil, nil), "")
+        #expect(concatFlatValue(nil, nil) == "")
     }
 
     // MARK: - kk_string_compareTo_flat
 
+    @Test
     func testStringCompareToFlatEqual() {
         withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
             withFlatString("abc") { rhsData, rhsLength, rhsByteCount, rhsHash in
-                XCTAssertEqual(
-                    kk_string_compareTo_flat(
+                #expect(kk_string_compareTo_flat(
                         lhsData,
                         lhsLength,
                         lhsByteCount,
@@ -514,18 +521,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         rhsLength,
                         rhsByteCount,
                         rhsHash
-                    ),
-                    0
-                )
+                    ) == 0)
             }
         }
     }
 
+    @Test
     func testStringCompareToFlatLessThan() {
         withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
             withFlatString("xyz") { rhsData, rhsLength, rhsByteCount, rhsHash in
-                XCTAssertEqual(
-                    kk_string_compareTo_flat(
+                #expect(kk_string_compareTo_flat(
                         lhsData,
                         lhsLength,
                         lhsByteCount,
@@ -534,18 +539,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         rhsLength,
                         rhsByteCount,
                         rhsHash
-                    ),
-                    -23
-                )
+                    ) == -23)
             }
         }
     }
 
+    @Test
     func testStringCompareToFlatGreaterThan() {
         withFlatString("xyz") { lhsData, lhsLength, lhsByteCount, lhsHash in
             withFlatString("abc") { rhsData, rhsLength, rhsByteCount, rhsHash in
-                XCTAssertEqual(
-                    kk_string_compareTo_flat(
+                #expect(kk_string_compareTo_flat(
                         lhsData,
                         lhsLength,
                         lhsByteCount,
@@ -554,85 +557,86 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         rhsLength,
                         rhsByteCount,
                         rhsHash
-                    ),
-                    23
-                )
+                    ) == 23)
             }
         }
     }
 
+    @Test
     func testStringCompareToFlatNullDataAsEmpty() {
-        XCTAssertEqual(
-            kk_string_compareTo_flat(nil, 0, 0, 0, nil, 0, 0, 0),
-            0
-        )
+        #expect(kk_string_compareTo_flat(nil, 0, 0, 0, nil, 0, 0, 0) == 0)
     }
 
+    @Test
     func testCompareAnyDecodesBoxedDoubleValues() {
         let lhs = kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 1.25.bitPattern)))
         let rhs = kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 2.5.bitPattern)))
 
-        XCTAssertEqual(kk_compare_any(lhs, rhs), -1)
-        XCTAssertEqual(kk_compare_any(rhs, lhs), 1)
+        #expect(kk_compare_any(lhs, rhs) == -1)
+        #expect(kk_compare_any(rhs, lhs) == 1)
     }
 
+    @Test
     func testCompareAnyPromotesMixedFloatingAndIntegerValues() {
         let lhs = kk_box_float(Int(Float(3).bitPattern))
 
-        XCTAssertEqual(kk_compare_any(lhs, 5), -1)
-        XCTAssertEqual(kk_compare_any(5, lhs), 1)
-        XCTAssertEqual(kk_compare_any(lhs, 3), 0)
+        #expect(kk_compare_any(lhs, 5) == -1)
+        #expect(kk_compare_any(5, lhs) == 1)
+        #expect(kk_compare_any(lhs, 3) == 0)
     }
 
+    @Test
     func testCompareAnyOrdersNaNAfterNonNaNValues() {
         let nan = kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: Double.nan.bitPattern)))
         let finite = kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 4.0.bitPattern)))
 
-        XCTAssertEqual(kk_compare_any(nan, finite), 1)
-        XCTAssertEqual(kk_compare_any(finite, nan), -1)
-        XCTAssertEqual(kk_compare_any(nan, nan), 0)
+        #expect(kk_compare_any(nan, finite) == 1)
+        #expect(kk_compare_any(finite, nan) == -1)
+        #expect(kk_compare_any(nan, nan) == 0)
     }
 
+    @Test
     func testFloatFormattingUsesKotlinSpecialValueSpellings() {
-        XCTAssertEqual(runtimeFormatFloatingPoint(Float.nan), "NaN")
-        XCTAssertEqual(runtimeFormatFloatingPoint(Float.infinity), "Infinity")
-        XCTAssertEqual(runtimeFormatFloatingPoint(-Float.infinity), "-Infinity")
+        #expect(runtimeFormatFloatingPoint(Float.nan) == "NaN")
+        #expect(runtimeFormatFloatingPoint(Float.infinity) == "Infinity")
+        #expect(runtimeFormatFloatingPoint(-Float.infinity) == "-Infinity")
     }
 
+    @Test
     func testDoubleFormattingUsesShortestScientificRepresentation() {
-        XCTAssertEqual(runtimeFormatFloatingPoint(1e-4), "1.0E-4")
-        XCTAssertEqual(runtimeFormatFloatingPoint(1e7), "1.0E7")
-        XCTAssertEqual(runtimeFormatFloatingPoint(1.23456789e8), "1.23456789E8")
-        XCTAssertEqual(runtimeFormatFloatingPoint(1.0000000000000002e20), "1.0000000000000002E20")
+        #expect(runtimeFormatFloatingPoint(1e-4) == "1.0E-4")
+        #expect(runtimeFormatFloatingPoint(1e7) == "1.0E7")
+        #expect(runtimeFormatFloatingPoint(1.23456789e8) == "1.23456789E8")
+        #expect(runtimeFormatFloatingPoint(1.0000000000000002e20) == "1.0000000000000002E20")
     }
 
     // MARK: - STDLIB-006 string runtime ABI
 
+    @Test
     func testFlatStringTrimRemovesLeadingAndTrailingWhitespace() {
-        XCTAssertEqual(flatStringReturnValue("  hello  ", using: kk_string_trim_flat), "hello")
+        #expect(flatStringReturnValue("  hello  ", using: kk_string_trim_flat) == "hello")
     }
 
+    @Test
     func testFlatStringTrimReturnsFlattenedStringFields() {
         withFlatString("  hello  ") { data, length, byteCount, hash in
             var outLength = 0
             var outByteCount = 0
             var outHash = 0
             let outData = kk_string_trim_flat(data, length, byteCount, hash, &outLength, &outByteCount, &outHash)
-            XCTAssertEqual(
-                flatStringValue(
+            #expect(flatStringValue(
                     data: outData.map { UnsafePointer($0) },
                     length: outLength,
                     byteCount: outByteCount,
                     hash: outHash
-                ),
-                "hello"
-            )
+                ) == "hello")
         }
-        XCTAssertEqual(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat), "kswiftk")
-        XCTAssertEqual(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat), "KSWIFTK")
-        XCTAssertEqual(flatStringReturnValue("abc", using: kk_string_reversed_flat), "cba")
+        #expect(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat) == "kswiftk")
+        #expect(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat) == "KSWIFTK")
+        #expect(flatStringReturnValue("abc", using: kk_string_reversed_flat) == "cba")
     }
 
+    @Test
     func testFlatStringTrimStartAndTrimEndReturnFlattenedStringFields() {
         withFlatString("  hello  ") { data, length, byteCount, hash in
             var startLength = 0
@@ -647,15 +651,12 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 &startByteCount,
                 &startHash
             )
-            XCTAssertEqual(
-                flatStringValue(
+            #expect(flatStringValue(
                     data: startData.map { UnsafePointer($0) },
                     length: startLength,
                     byteCount: startByteCount,
                     hash: startHash
-                ),
-                "hello  "
-            )
+                ) == "hello  ")
 
             var endLength = 0
             var endByteCount = 0
@@ -669,23 +670,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 &endByteCount,
                 &endHash
             )
-            XCTAssertEqual(
-                flatStringValue(
+            #expect(flatStringValue(
                     data: endData.map { UnsafePointer($0) },
                     length: endLength,
                     byteCount: endByteCount,
                     hash: endHash
-                ),
-                "  hello"
-            )
+                ) == "  hello")
         }
     }
 
+    @Test
     func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             withFlatString("swift") { needleData, needleLength, needleByteCount, needleHash in
-                XCTAssertLessThan(
-                    kk_string_compareTo_flat(
+                #expect(kk_string_compareTo_flat(
                         data,
                         length,
                         byteCount,
@@ -694,44 +692,39 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         needleLength,
                         needleByteCount,
                         needleHash
-                    ),
-                    0
-                )
+                    ) < 0)
             }
-            XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 1)
+            #expect(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)) == 1)
         }
         withFlatString("  \n\t") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_isBlank_flat(data, length, byteCount, hash)), 1)
-            XCTAssertEqual(kk_unbox_bool(kk_string_isNotBlank_flat(data, length, byteCount, hash)), 0)
+            #expect(kk_unbox_bool(kk_string_isBlank_flat(data, length, byteCount, hash)) == 1)
+            #expect(kk_unbox_bool(kk_string_isNotBlank_flat(data, length, byteCount, hash)) == 0)
         }
         withFlatString("") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 0)
+            #expect(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)) == 0)
         }
     }
 
+    @Test
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
-        XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
+        #expect(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)) == 1)
+        #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)) == 1)
+        #expect(kk_unbox_bool(kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)) == 1)
 
         withFlatString("") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)), 1)
-            XCTAssertEqual(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
+            #expect(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)) == 1)
+            #expect(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
         }
 
         withFlatString("  \n\t") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 1)
+            #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)) == 1)
         }
 
         withFlatString("KSwiftK") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 0)
-            XCTAssertEqual(
-                kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)),
-                0
-            )
+            #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)) == 0)
+            #expect(kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(
+                #expect(kk_unbox_bool(
                         kk_string_equals_flat(
                             data,
                             length,
@@ -742,13 +735,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                             otherByteCount,
                             otherHash
                         )
-                    ),
-                    0
-                )
+                    ) == 0)
             }
             withFlatString("KSwiftK") { sameData, sameLength, sameByteCount, sameHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(
+                #expect(kk_unbox_bool(
                         kk_string_equals_flat(
                             data,
                             length,
@@ -759,29 +749,27 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                             sameByteCount,
                             sameHash
                         )
-                    ),
-                    1
-                )
+                    ) == 1)
             }
         }
     }
 
+    @Test
     func testFlatStringBooleanRuntimeAPIsReturnRawScalars() {
-        XCTAssertEqual(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0), 1)
-        XCTAssertEqual(kk_string_isNullOrBlank_flat(nil, 0, 0, 0), 1)
-        XCTAssertEqual(kk_string_toBoolean_flat(nil, 0, 0, 0), 0)
+        #expect(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0) == 1)
+        #expect(kk_string_isNullOrBlank_flat(nil, 0, 0, 0) == 1)
+        #expect(__kk_string_toBoolean_flat(nil, 0, 0, 0) == 0)
 
         withFlatString("KSwiftK") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_string_isEmpty_flat(data, length, byteCount, hash), 0)
-            XCTAssertEqual(kk_string_isNotEmpty_flat(data, length, byteCount, hash), 1)
-            XCTAssertEqual(kk_string_isBlank_flat(data, length, byteCount, hash), 0)
-            XCTAssertEqual(kk_string_isNotBlank_flat(data, length, byteCount, hash), 1)
-            XCTAssertEqual(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash), 0)
-            XCTAssertEqual(kk_string_isNullOrBlank_flat(data, length, byteCount, hash), 0)
+            #expect(kk_string_isEmpty_flat(data, length, byteCount, hash) == 0)
+            #expect(kk_string_isNotEmpty_flat(data, length, byteCount, hash) == 1)
+            #expect(kk_string_isBlank_flat(data, length, byteCount, hash) == 0)
+            #expect(kk_string_isNotBlank_flat(data, length, byteCount, hash) == 1)
+            #expect(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash) == 0)
+            #expect(kk_string_isNullOrBlank_flat(data, length, byteCount, hash) == 0)
 
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
-                XCTAssertEqual(
-                    kk_string_equals_flat(
+                #expect(kk_string_equals_flat(
                         data,
                         length,
                         byteCount,
@@ -790,182 +778,171 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         otherLength,
                         otherByteCount,
                         otherHash
-                    ),
-                    0
-                )
+                    ) == 0)
             }
         }
 
         withFlatString("true") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_string_toBoolean_flat(data, length, byteCount, hash), 1)
-            XCTAssertEqual(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil), 1)
+            #expect(__kk_string_toBoolean_flat(data, length, byteCount, hash) == 1)
+            #expect(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 1)
         }
 
         withFlatString("false") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil), 0)
+            #expect(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 0)
         }
     }
 
+    @Test
     func testFlatStringOrEmptyUsesDataNull() {
         var nullLength = -1
         var nullByteCount = -1
         var nullHash = -1
         let nullData = kk_string_orEmpty_flat(nil, 0, 0, 0, &nullLength, &nullByteCount, &nullHash)
-        XCTAssertNotNil(nullData)
-        XCTAssertEqual(
-            flatStringValue(
+        #expect(nullData != nil)
+        #expect(flatStringValue(
                 data: nullData.map { UnsafePointer($0) },
                 length: nullLength,
                 byteCount: nullByteCount,
                 hash: nullHash
-            ),
-            ""
-        )
-        XCTAssertEqual(nullLength, 0)
-        XCTAssertEqual(nullByteCount, 0)
+            ) == "")
+        #expect(nullLength == 0)
+        #expect(nullByteCount == 0)
 
-        XCTAssertEqual(flatStringReturnValue("hi", using: kk_string_orEmpty_flat), "hi")
+        #expect(flatStringReturnValue("hi", using: kk_string_orEmpty_flat) == "hi")
     }
 
+    @Test
     func testFlatStringParseScalarRuntimeAPIsUseFlattenedStringFields() {
-        XCTAssertEqual(kk_unbox_bool(kk_string_toBoolean_flat(nil, 0, 0, 0)), 0)
+        #expect(kk_unbox_bool(__kk_string_toBoolean_flat(nil, 0, 0, 0)) == 0)
 
         withFlatString("true") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_unbox_bool(kk_string_toBoolean_flat(data, length, byteCount, hash)), 1)
-            XCTAssertEqual(kk_unbox_bool(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil)), 1)
-            XCTAssertEqual(kk_string_toBooleanStrictOrNull_flat(data, length, byteCount, hash), 1)
+            #expect(kk_unbox_bool(__kk_string_toBoolean_flat(data, length, byteCount, hash)) == 1)
+            #expect(kk_unbox_bool(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil)) == 1)
+            #expect(__kk_string_toBooleanStrictOrNull_flat(data, length, byteCount, hash) == 1)
         }
 
         withFlatString("42") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_string_toInt_flat(data, length, byteCount, hash, &thrown), 42)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toLong_flat(data, length, byteCount, hash, &thrown), 42)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toShort_flat(data, length, byteCount, hash, &thrown), 42)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toByte_flat(data, length, byteCount, hash, &thrown), 42)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toIntOrNull_flat(data, length, byteCount, hash), 42)
-            XCTAssertEqual(kk_string_toLongOrNull_flat(data, length, byteCount, hash), 42)
-            XCTAssertEqual(kk_string_toShortOrNull_flat(data, length, byteCount, hash), 42)
-            XCTAssertEqual(kk_string_toByteOrNull_flat(data, length, byteCount, hash), 42)
+            #expect(__kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(thrown == 0)
+            #expect(__kk_string_toLong_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(thrown == 0)
+            #expect(__kk_string_toShort_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(thrown == 0)
+            #expect(__kk_string_toByte_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(thrown == 0)
+            #expect(__kk_string_toIntOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toLongOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toShortOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toByteOrNull_flat(data, length, byteCount, hash) == 42)
         }
 
         withFlatString("ff") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_string_toInt_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_toByte_radix_flat(data, length, byteCount, hash, 16, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
+            #expect(__kk_string_toInt_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(thrown == 0)
+            #expect(__kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(thrown == 0)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(thrown == 0)
+            #expect(__kk_string_toByte_radix_flat(data, length, byteCount, hash, 16, &thrown) == 0)
+            #expect(thrown != 0)
         }
 
         withFlatString("ffff") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(
-                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                Int(UInt16.max)
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt16.max))
+            #expect(thrown == 0)
         }
 
         withFlatString("ffffffff") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(
-                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                Int(UInt32.max)
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt32.max))
+            #expect(thrown == 0)
         }
 
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(
-                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
+            #expect(thrown == 0)
         }
 
         withFlatString("  -Infinity ") { data, length, byteCount, hash in
             var thrown = 0
             let doubleRaw = __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(Double(bitPattern: UInt64(bitPattern: Int64(doubleRaw))), -.infinity)
+            #expect(thrown == 0)
+            #expect(Double(bitPattern: UInt64(bitPattern: Int64(doubleRaw))) == -.infinity)
 
             let floatRaw = __kk_string_toFloat_flat(data, length, byteCount, hash, &thrown)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(Float(bitPattern: UInt32(truncatingIfNeeded: UInt(bitPattern: floatRaw))), -.infinity)
+            #expect(thrown == 0)
+            #expect(Float(bitPattern: UInt32(truncatingIfNeeded: UInt(bitPattern: floatRaw))) == -.infinity)
         }
 
         withFlatString("3.5") { data, length, byteCount, hash in
-            XCTAssertNotEqual(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertNotEqual(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            #expect(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash) != runtimeNullSentinelInt)
+            #expect(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash) != runtimeNullSentinelInt)
         }
 
         withFlatString("nope") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_string_toInt_flat(data, length, byteCount, hash, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
+            #expect(__kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(thrown != 0)
             let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-            XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
-            XCTAssertEqual(kk_string_toIntOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertEqual(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertEqual(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            #expect(thrownOutput.contains("NumberFormatException"))
+            #expect(__kk_string_toIntOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
         }
     }
 
+    @Test
     func testFlatStringCharSelectionRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("abc") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_string_first_flat(data, length, byteCount, hash, &thrown), 97)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_last_flat(data, length, byteCount, hash, &thrown), 99)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_firstOrNull_flat(data, length, byteCount, hash), 97)
-            XCTAssertEqual(kk_string_lastOrNull_flat(data, length, byteCount, hash), 99)
-            XCTAssertEqual(kk_string_get_flat(data, length, byteCount, hash, 1, &thrown), 98)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, 1), 98)
-            XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, -1), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, 3), runtimeNullSentinelInt)
+            #expect(kk_string_first_flat(data, length, byteCount, hash, &thrown) == 97)
+            #expect(thrown == 0)
+            #expect(kk_string_last_flat(data, length, byteCount, hash, &thrown) == 99)
+            #expect(thrown == 0)
+            #expect(kk_string_firstOrNull_flat(data, length, byteCount, hash) == 97)
+            #expect(kk_string_lastOrNull_flat(data, length, byteCount, hash) == 99)
+            #expect(kk_string_get_flat(data, length, byteCount, hash, 1, &thrown) == 98)
+            #expect(thrown == 0)
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == 98)
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, -1) == runtimeNullSentinelInt)
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 3) == runtimeNullSentinelInt)
 
             thrown = 0
-            XCTAssertEqual(kk_string_get_flat(data, length, byteCount, hash, 3, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
+            #expect(kk_string_get_flat(data, length, byteCount, hash, 3, &thrown) == 0)
+            #expect(thrown != 0)
 
             thrown = 0
-            XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
+            #expect(kk_string_single_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(thrown != 0)
             let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-            XCTAssertTrue(thrownOutput.contains("more than one element"))
-            XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            #expect(thrownOutput.contains("more than one element"))
+            #expect(kk_string_singleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
         }
 
         withFlatString("x") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 120)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), 120)
+            #expect(kk_string_single_flat(data, length, byteCount, hash, &thrown) == 120)
+            #expect(thrown == 0)
+            #expect(kk_string_singleOrNull_flat(data, length, byteCount, hash) == 120)
         }
 
         withFlatString("") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_string_first_flat(data, length, byteCount, hash, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
+            #expect(kk_string_first_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(thrown != 0)
             thrown = 0
-            XCTAssertEqual(kk_string_last_flat(data, length, byteCount, hash, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
+            #expect(kk_string_last_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(thrown != 0)
             thrown = 0
-            XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 0)
-            XCTAssertNotEqual(thrown, 0)
-            XCTAssertEqual(kk_string_firstOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_lastOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            #expect(kk_string_single_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(thrown != 0)
+            #expect(kk_string_firstOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(kk_string_lastOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(kk_string_singleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
         }
     }
 
@@ -975,6 +952,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     // coverage now lives in Scripts/diff_cases/string_hof*.kt / string_find.kt /
     // string_indexoffirst_indexoflast.kt via diff_kotlinc.sh.
 
+    @Test
     func testStringSplitProducesListOfStrings() {
         var splitRaw = 0
         withFlatString("1,2,3") { data, length, byteCount, hash in
@@ -992,12 +970,13 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             }
         }
         let list = runtimeListBox(from: splitRaw)
-        XCTAssertEqual(list?.elements.count, 3)
-        XCTAssertEqual(list?.elements.map(runtimeStringValue), ["1", "2", "3"])
+        #expect(list?.elements.count == 3)
+        #expect(list?.elements.map(runtimeStringValue) == ["1", "2", "3"])
     }
 
 
 
+    @Test
     func testStringToListAndToCharArrayReturnCharElements() {
         withFlatString("abc") { data, length, byteCount, hash in
             let listRaw = kk_string_toList_flat(data, length, byteCount, hash)
@@ -1005,50 +984,53 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
             let list = runtimeListBox(from: listRaw)
             let charArray = runtimeArrayBox(from: charArrayRaw)
-            XCTAssertNotNil(list)
-            XCTAssertNotNil(charArray)
+            #expect(list != nil)
+            #expect(charArray != nil)
             let expected = [97, 98, 99]
-            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(charArray?.values.map(\.tag), [
+            #expect(list?.elements.map(kk_unbox_char) == expected)
+            #expect(charArray?.values.map(\.tag) == [
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
             ])
-            XCTAssertEqual(charArray?.values.map(\.payload0), expected)
-            XCTAssertEqual(charArray?.elements, expected)
-            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+            #expect(charArray?.values.map(\.payload0) == expected)
+            #expect(charArray?.elements == expected)
+            #expect(charArray?.elements.map(kk_unbox_char) == expected)
         }
     }
 
+    @Test
     func testStringToCharArrayStoresTaggedUTF16CodeUnits() {
         withFlatString("hi") { data, length, byteCount, hash in
             let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
             let charArray = runtimeArrayBox(from: charArrayRaw)
 
-            XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(charArray?.values.map(\.payload0), [104, 105])
-            XCTAssertEqual(charArray?.elements, [104, 105])
+            #expect(charArray?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(charArray?.values.map(\.payload0) == [104, 105])
+            #expect(charArray?.elements == [104, 105])
         }
     }
 
     // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray()
 
+    @Test
     func testStringToTypedArrayStoresTaggedGenericCharArray() {
         withFlatString("abc") { data, length, byteCount, hash in
             let arrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
             let array = runtimeArrayBox(from: arrayRaw)
-            XCTAssertNotNil(array, "toTypedArray should return a RuntimeArrayBox")
+            #expect(array != nil, "toTypedArray should return a RuntimeArrayBox")
             let expected = [97, 98, 99] // 'a', 'b', 'c'
-            XCTAssertEqual(array?.values.map(\.tag), [
+            #expect(array?.values.map(\.tag) == [
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
             ])
-            XCTAssertEqual(array?.elements.count, 3)
-            XCTAssertEqual(array?.elements.map(kk_unbox_char), expected)
+            #expect(array?.elements.count == 3)
+            #expect(array?.elements.map(kk_unbox_char) == expected)
         }
     }
 
+    @Test
     func testStringCharContainersStoreTaggedRuntimeValues() {
         withFlatString("ab") { data, length, byteCount, hash in
             let listRaw = kk_string_toList_flat(data, length, byteCount, hash)
@@ -1061,29 +1043,31 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             let typedArray = runtimeArrayBox(from: typedArrayRaw)
             let typedArrayList = runtimeListBox(from: typedArrayListRaw)
 
-            XCTAssertEqual(list?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(typedArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(typedArrayList?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(list?.elements, [97, 98])
-            XCTAssertEqual(charArray?.elements, [97, 98])
-            XCTAssertEqual(typedArray?.elements, [97, 98])
-            XCTAssertEqual(runtimeRenderAnyForPrint(listRaw), "[a, b]")
-            XCTAssertEqual(runtimeRenderAnyForPrint(charArrayRaw), "[a, b]")
-            XCTAssertEqual(runtimeRenderAnyForPrint(typedArrayRaw), "[a, b]")
-            XCTAssertEqual(runtimeRenderAnyForPrint(typedArrayListRaw), "[a, b]")
+            #expect(list?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(charArray?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(typedArray?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(typedArrayList?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(list?.elements == [97, 98])
+            #expect(charArray?.elements == [97, 98])
+            #expect(typedArray?.elements == [97, 98])
+            #expect(runtimeRenderAnyForPrint(listRaw) == "[a, b]")
+            #expect(runtimeRenderAnyForPrint(charArrayRaw) == "[a, b]")
+            #expect(runtimeRenderAnyForPrint(typedArrayRaw) == "[a, b]")
+            #expect(runtimeRenderAnyForPrint(typedArrayListRaw) == "[a, b]")
         }
     }
 
+    @Test
     func testStringToTypedArrayEmptyStringReturnsEmptyArray() {
         withFlatString("") { data, length, byteCount, hash in
             let arrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
             let array = runtimeArrayBox(from: arrayRaw)
-            XCTAssertNotNil(array, "toTypedArray on empty string should return a RuntimeArrayBox")
-            XCTAssertEqual(array?.elements.count, 0)
+            #expect(array != nil, "toTypedArray on empty string should return a RuntimeArrayBox")
+            #expect(array?.elements.count == 0)
         }
     }
 
+    @Test
     func testStringToTypedArrayIsDistinctFromToCharArray() {
         withFlatString("hi") { data, length, byteCount, hash in
             let typedArrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
@@ -1091,36 +1075,38 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             // Both should decode to the same char values but are distinct array objects
             let typedArray = runtimeArrayBox(from: typedArrayRaw)
             let charArray = runtimeArrayBox(from: charArrayRaw)
-            XCTAssertNotNil(typedArray)
-            XCTAssertNotNil(charArray)
+            #expect(typedArray != nil)
+            #expect(charArray != nil)
             let expected = [104, 105] // 'h', 'i'
-            XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
-            XCTAssertNotEqual(typedArrayRaw, charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
+            #expect(typedArray?.elements.map(kk_unbox_char) == expected)
+            #expect(charArray?.elements.map(kk_unbox_char) == expected)
+            #expect(typedArrayRaw != charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
         }
     }
 
     // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
 
+    @Test
     func testStringToCollectionAppendsCharsToMutableList() {
         let returnedRaw = withFlatString("abc") { data, length, byteCount, hash in
             let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
             let returnedRaw = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
 
-            XCTAssertEqual(returnedRaw, destRaw, "toCollection should return the destination collection")
+            #expect(returnedRaw == destRaw, "toCollection should return the destination collection")
             return returnedRaw
         }
         let list = runtimeListBox(from: returnedRaw)
-        XCTAssertNotNil(list)
+        #expect(list != nil)
         let expected = [97, 98, 99] // 'a', 'b', 'c'
-        XCTAssertEqual(list?.values.map(\.tag), [
+        #expect(list?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+        #expect(list?.elements.map(kk_unbox_char) == expected)
     }
 
+    @Test
     func testStringToCollectionPreservesExistingElements() {
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: [kk_box_char(97)]))
         withFlatString("de") { data, length, byteCount, hash in
@@ -1129,14 +1115,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         let list = runtimeListBox(from: destRaw)
         let expected = [97, 100, 101] // 'a', 'd', 'e'
-        XCTAssertEqual(list?.values.map(\.tag), [
+        #expect(list?.values.map(\.tag) == [
             RuntimeValue.rawTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+        #expect(list?.elements.map(kk_unbox_char) == expected)
     }
 
+    @Test
     func testStringToCollectionEmptyStringLeavesDestinationUnchanged() {
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
         withFlatString("") { data, length, byteCount, hash in
@@ -1144,10 +1131,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
 
         let list = runtimeListBox(from: destRaw)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 0)
+        #expect(list != nil)
+        #expect(list?.elements.count == 0)
     }
 
+    @Test
     func testStringToCollectionWithNonASCII() {
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
         withFlatString("aé🐻") { data, length, byteCount, hash in
@@ -1156,30 +1144,29 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         let list = runtimeListBox(from: destRaw)
         let expected = [97, 233, 0xD83D, 0xDC3B]
-        XCTAssertEqual(
-            list?.values.map(\.tag),
-            [RuntimeValue.charTag, RuntimeValue.charTag, RuntimeValue.charTag, RuntimeValue.charTag]
-        )
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+        #expect(list?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag, RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(list?.elements.map(kk_unbox_char) == expected)
     }
 
+    @Test
     func testStringToCollectionFlatAppendsCharsToMutableList() {
         withFlatString("az") { data, length, byteCount, hash in
             let destRaw = registerRuntimeObject(RuntimeListBox(elements: [kk_box_char(48)]))
             let returnedRaw = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
 
-            XCTAssertEqual(returnedRaw, destRaw, "flat toCollection should return the destination collection")
+            #expect(returnedRaw == destRaw, "flat toCollection should return the destination collection")
             let list = runtimeListBox(from: returnedRaw)
             let expected = [48, 97, 122] // '0', 'a', 'z'
-            XCTAssertEqual(list?.values.map(\.tag), [
+            #expect(list?.values.map(\.tag) == [
                 RuntimeValue.rawTag,
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
             ])
-            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+            #expect(list?.elements.map(kk_unbox_char) == expected)
         }
     }
 
+    @Test
     func testStringToCollectionDeduplicatesTaggedCharsInMutableSet() {
         let destRaw = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_char(97)]))
         withFlatString("aab") { data, length, byteCount, hash in
@@ -1187,71 +1174,77 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
 
         let set = runtimeSetBox(from: destRaw)
-        XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.rawTag, RuntimeValue.charTag])
-        XCTAssertEqual(set?.elements.map(kk_unbox_char), [97, 98])
+        #expect(set?.values.map(\.tag) == [RuntimeValue.rawTag, RuntimeValue.charTag])
+        #expect(set?.elements.map(kk_unbox_char) == [97, 98])
     }
 
     // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet_flat tests
 
+    @Test
     func testStringToSortedSetReturnsSortedUniqueChars() {
         // "cba" should produce {a, b, c} sorted ascending
         let setRaw = withFlatString("cba") { data, length, byteCount, hash in
             kk_string_toSortedSet_flat(data, length, byteCount, hash)
         }
         let setBox = runtimeSetBox(from: setRaw)
-        XCTAssertNotNil(setBox)
-        XCTAssertEqual(setBox?.values.map(\.tag), [
+        #expect(setBox != nil)
+        #expect(setBox?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 98, 99]) // a, b, c
+        #expect(setBox?.elements.map(kk_unbox_char) == [97, 98, 99]) // a, b, c
     }
 
+    @Test
     func testStringToSortedSetDeduplicates() {
         // "aabba" — unique chars are 'a'(97) and 'b'(98) in ascending order
         let setRaw = withFlatString("aabba") { data, length, byteCount, hash in
             kk_string_toSortedSet_flat(data, length, byteCount, hash)
         }
         let setBox = runtimeSetBox(from: setRaw)
-        XCTAssertNotNil(setBox)
-        XCTAssertEqual(setBox?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 98]) // a, b
+        #expect(setBox != nil)
+        #expect(setBox?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(setBox?.elements.map(kk_unbox_char) == [97, 98]) // a, b
     }
 
+    @Test
     func testStringToSortedSetEmptyString() {
         let setRaw = withFlatString("") { data, length, byteCount, hash in
             kk_string_toSortedSet_flat(data, length, byteCount, hash)
         }
         let setBox = runtimeSetBox(from: setRaw)
-        XCTAssertNotNil(setBox)
-        XCTAssertEqual(setBox?.elements.count, 0)
+        #expect(setBox != nil)
+        #expect(setBox?.elements.count == 0)
     }
 
+    @Test
     func testStringToSortedSetSingleChar() {
         let setRaw = withFlatString("z") { data, length, byteCount, hash in
             kk_string_toSortedSet_flat(data, length, byteCount, hash)
         }
         let setBox = runtimeSetBox(from: setRaw)
-        XCTAssertNotNil(setBox)
-        XCTAssertEqual(setBox?.values.map(\.tag), [RuntimeValue.charTag])
-        XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [122]) // 'z'
+        #expect(setBox != nil)
+        #expect(setBox?.values.map(\.tag) == [RuntimeValue.charTag])
+        #expect(setBox?.elements.map(kk_unbox_char) == [122]) // 'z'
     }
 
+    @Test
     func testStringToSortedSetUsesUTF16CodeUnits() {
         let setRaw = withFlatString("a🐻a") { data, length, byteCount, hash in
             kk_string_toSortedSet_flat(data, length, byteCount, hash)
         }
         let setBox = runtimeSetBox(from: setRaw)
-        XCTAssertNotNil(setBox)
-        XCTAssertEqual(setBox?.values.map(\.tag), [
+        #expect(setBox != nil)
+        #expect(setBox?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
+        #expect(setBox?.elements.map(kk_unbox_char) == [97, 0xD83D, 0xDC3B])
     }
 
+    @Test
     func testFlatStringMaterializationRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("abc") { data, length, byteCount, hash in
             let expected = [97, 98, 99]
@@ -1260,9 +1253,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             let charArray = runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))
             let typedArray = runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))
 
-            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
+            #expect(list?.elements.map(kk_unbox_char) == expected)
+            #expect(charArray?.elements.map(kk_unbox_char) == expected)
+            #expect(typedArray?.elements.map(kk_unbox_char) == expected)
         }
 
         withFlatString("a🐻a") { data, length, byteCount, hash in
@@ -1271,69 +1264,56 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             let charArray = runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))
             let typedArray = runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))
             let sortedSet = runtimeSetBox(from: kk_string_toSortedSet_flat(data, length, byteCount, hash))
-            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
-            XCTAssertEqual(sortedSet?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
+            #expect(list?.elements.map(kk_unbox_char) == expected)
+            #expect(charArray?.elements.map(kk_unbox_char) == expected)
+            #expect(typedArray?.elements.map(kk_unbox_char) == expected)
+            #expect(sortedSet?.elements.map(kk_unbox_char) == [97, 0xD83D, 0xDC3B])
         }
 
         withFlatString("ab") { data, length, byteCount, hash in
             let withIndex = runtimeListBox(from: kk_string_withIndex_flat(data, length, byteCount, hash))
             let elements = withIndex?.elements ?? []
-            XCTAssertEqual(elements.count, 2)
-            XCTAssertEqual(kk_pair_first(elements[0]), 0)
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(elements[0])), 97)
-            XCTAssertEqual(kk_pair_first(elements[1]), 1)
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(elements[1])), 98)
+            #expect(elements.count == 2)
+            #expect(kk_pair_first(elements[0]) == 0)
+            #expect(kk_unbox_char(kk_pair_second(elements[0])) == 97)
+            #expect(kk_pair_first(elements[1]) == 1)
+            #expect(kk_unbox_char(kk_pair_second(elements[1])) == 98)
 
             let iteratorRaw = kk_string_iterator_flat(data, length, byteCount, hash)
-            XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 1)
-            XCTAssertEqual(kk_unbox_char(kk_string_iterator_next(iteratorRaw)), 97)
-            XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 1)
-            XCTAssertEqual(kk_unbox_char(kk_string_iterator_next(iteratorRaw)), 98)
-            XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 0)
+            #expect(kk_string_iterator_hasNext(iteratorRaw) == 1)
+            #expect(kk_unbox_char(kk_string_iterator_next(iteratorRaw)) == 97)
+            #expect(kk_string_iterator_hasNext(iteratorRaw) == 1)
+            #expect(kk_unbox_char(kk_string_iterator_next(iteratorRaw)) == 98)
+            #expect(kk_string_iterator_hasNext(iteratorRaw) == 0)
         }
 
         withFlatString("") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                runtimeListBox(from: kk_string_toList_flat(data, length, byteCount, hash))?.elements.count,
-                0
-            )
-            XCTAssertEqual(
-                runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))?.elements.count,
-                0
-            )
-            XCTAssertEqual(
-                runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))?.elements.count,
-                0
-            )
-            XCTAssertEqual(
-                runtimeSetBox(from: kk_string_toSortedSet_flat(data, length, byteCount, hash))?.elements.count,
-                0
-            )
-            XCTAssertEqual(
-                runtimeListBox(from: kk_string_withIndex_flat(data, length, byteCount, hash))?.elements.count,
-                0
-            )
-            XCTAssertEqual(kk_string_iterator_hasNext(kk_string_iterator_flat(data, length, byteCount, hash)), 0)
+            #expect(runtimeListBox(from: kk_string_toList_flat(data, length, byteCount, hash))?.elements.count == 0)
+            #expect(runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))?.elements.count == 0)
+            #expect(runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))?.elements.count == 0)
+            #expect(runtimeSetBox(from: kk_string_toSortedSet_flat(data, length, byteCount, hash))?.elements.count == 0)
+            #expect(runtimeListBox(from: kk_string_withIndex_flat(data, length, byteCount, hash))?.elements.count == 0)
+            #expect(kk_string_iterator_hasNext(kk_string_iterator_flat(data, length, byteCount, hash)) == 0)
         }
     }
 
     // MARK: - STDLIB-317: String.asIterable() tests
 
+    @Test
     func testStringAsIterableReturnsLazyBox() {
         let iterableRaw = flatStringAsIterable("abc")
 
         // The iterable should be a RuntimeStringIterableBox, not a list.
         let iterableBox = runtimeStringIterableBox(from: iterableRaw)
-        XCTAssertNotNil(iterableBox, "asIterable should return a RuntimeStringIterableBox")
-        XCTAssertEqual(iterableBox?.source, "abc", "Box should store the immutable string payload")
+        #expect(iterableBox != nil, "asIterable should return a RuntimeStringIterableBox")
+        #expect(iterableBox?.source == "abc", "Box should store the immutable string payload")
 
         // It should NOT be a list (lazy, not materialised).
         let listBox = runtimeListBox(from: iterableRaw)
-        XCTAssertNil(listBox, "asIterable should NOT materialise a list eagerly")
+        #expect(listBox == nil, "asIterable should NOT materialise a list eagerly")
     }
 
+    @Test
     func testFlatStringListSequenceRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("a,b,c") { data, length, byteCount, hash in
             withFlatString(",") { delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
@@ -1347,7 +1327,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                     delimiterByteCount,
                     delimiterHash
                 ))
-                XCTAssertEqual(split?.elements.map(runtimeStringValue), ["a", "b", "c"])
+                #expect(split?.elements.map(runtimeStringValue) == ["a", "b", "c"])
 
                 let splitLimit = runtimeListBox(from: kk_string_split_limit_flat(
                     data,
@@ -1361,7 +1341,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                     0,
                     2
                 ))
-                XCTAssertEqual(splitLimit?.elements.map(runtimeStringValue), ["a", "b,c"])
+                #expect(splitLimit?.elements.map(runtimeStringValue) == ["a", "b,c"])
 
                 let splitSequence = kk_string_splitToSequence_flat(
                     data,
@@ -1373,44 +1353,42 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                     delimiterByteCount,
                     delimiterHash
                 )
-                XCTAssertEqual(runtimeSequenceSourceElements(from: splitSequence)?.map(runtimeStringValue), ["a", "b", "c"])
+                #expect(runtimeSequenceSourceElements(from: splitSequence)?.map(runtimeStringValue) == ["a", "b", "c"])
             }
         }
 
         withFlatString("aé") { data, length, byteCount, hash in
             let iterableRaw = kk_string_asIterable_flat(data, length, byteCount, hash)
             let iterableBox = runtimeStringIterableBox(from: iterableRaw)
-            XCTAssertEqual(iterableBox?.source, "aé")
-            XCTAssertNil(runtimeListBox(from: iterableRaw), "asIterable should stay lazy on the flat ABI path")
+            #expect(iterableBox?.source == "aé")
+            #expect(runtimeListBox(from: iterableRaw) == nil, "asIterable should stay lazy on the flat ABI path")
             let list = runtimeListBox(from: kk_string_iterable_toList(iterableRaw))
-            XCTAssertEqual(list?.elements.map(kk_unbox_char), [97, 233])
+            #expect(list?.elements.map(kk_unbox_char) == [97, 233])
         }
 
         withFlatString("a🐻") { data, length, byteCount, hash in
             let sequenceRaw = kk_string_asSequence_flat(data, length, byteCount, hash)
-            XCTAssertEqual(
-                runtimeSequenceSourceElements(from: sequenceRaw)?.map(kk_unbox_char),
-                [97, 0xD83D, 0xDC3B]
-            )
+            #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(kk_unbox_char) == [97, 0xD83D, 0xDC3B])
 
             let list = runtimeListBox(from: kk_sequence_to_list(sequenceRaw, nil))
-            XCTAssertEqual(list?.values.map(\.tag), [
+            #expect(list?.values.map(\.tag) == [
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
             ])
-            XCTAssertEqual(list?.elements, [97, 0xD83D, 0xDC3B])
+            #expect(list?.elements == [97, 0xD83D, 0xDC3B])
 
             let mutableList = runtimeListBox(from: kk_sequence_toMutableList(sequenceRaw))
-            XCTAssertEqual(mutableList?.values.map(\.tag), [
+            #expect(mutableList?.values.map(\.tag) == [
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
                 RuntimeValue.charTag,
             ])
-            XCTAssertEqual(mutableList?.elements, [97, 0xD83D, 0xDC3B])
+            #expect(mutableList?.elements == [97, 0xD83D, 0xDC3B])
         }
     }
 
+    @Test
     func testStringAsSequenceGenericConversionsPreserveTaggedUTF16Chars() {
         let sequenceRaw = withFlatString("aba") { data, length, byteCount, hash in
             kk_string_asSequence_flat(data, length, byteCount, hash)
@@ -1424,29 +1402,30 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         _ = kk_sequence_toCollection(sequenceRaw, destinationRaw)
         let destination = runtimeListBox(from: destinationRaw)
 
-        XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(hashSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(sortedSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(destination?.values.map(\.tag), [
+        #expect(set?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(mutableSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(hashSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(sortedSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(destination?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(set?.elements, [97, 98])
-        XCTAssertEqual(mutableSet?.elements, [97, 98])
-        XCTAssertEqual(hashSet?.elements, [97, 98])
-        XCTAssertEqual(sortedSet?.elements, [97, 98])
-        XCTAssertEqual(destination?.elements, [97, 98, 97])
+        #expect(set?.elements == [97, 98])
+        #expect(mutableSet?.elements == [97, 98])
+        #expect(hashSet?.elements == [97, 98])
+        #expect(sortedSet?.elements == [97, 98])
+        #expect(destination?.elements == [97, 98, 97])
     }
 
+    @Test
     func testFlatStringChunkedWindowedRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("abcde") { data, length, byteCount, hash in
             let chunks = runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))
-            XCTAssertEqual(chunks?.elements.map(runtimeStringValue), ["ab", "cd", "e"])
+            #expect(chunks?.elements.map(runtimeStringValue) == ["ab", "cd", "e"])
 
             let chunkSequence = kk_string_chunked_sequence_flat(data, length, byteCount, hash, 3)
-            XCTAssertEqual(runtimeSequenceSourceElements(from: chunkSequence)?.map(runtimeStringValue), ["abc", "de"])
+            #expect(runtimeSequenceSourceElements(from: chunkSequence)?.map(runtimeStringValue) == ["abc", "de"])
 
             var thrown = -1
             let transformedChunks = kk_string_chunked_sequence_transform_flat(
@@ -1459,7 +1438,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 0,
                 &thrown
             )
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertRawValueSequence(transformedChunks, equals: [2, 2, 1])
 
             thrown = -1
@@ -1473,23 +1452,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 0,
                 &thrown
             )
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertStringValueSequence(transformedChunkStrings, equals: ["ab", "cd", "e"])
 
             let defaultWindows = runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 3))
-            XCTAssertEqual(defaultWindows?.elements.map(runtimeStringValue), ["abc", "bcd", "cde"])
+            #expect(defaultWindows?.elements.map(runtimeStringValue) == ["abc", "bcd", "cde"])
 
             let steppedWindows = runtimeListBox(from: kk_string_windowed_flat(data, length, byteCount, hash, 3, 2))
-            XCTAssertEqual(steppedWindows?.elements.map(runtimeStringValue), ["abc", "cde"])
+            #expect(steppedWindows?.elements.map(runtimeStringValue) == ["abc", "cde"])
 
             let partialWindows = runtimeListBox(from: kk_string_windowed_partial_flat(data, length, byteCount, hash, 3, 2, 1))
-            XCTAssertEqual(partialWindows?.elements.map(runtimeStringValue), ["abc", "cde", "e"])
+            #expect(partialWindows?.elements.map(runtimeStringValue) == ["abc", "cde", "e"])
 
             let partialWindowSequence = kk_string_windowedSequence_partial_flat(data, length, byteCount, hash, 3, 2, 1)
-            XCTAssertEqual(
-                runtimeSequenceSourceElements(from: partialWindowSequence)?.map(runtimeStringValue),
-                ["abc", "cde", "e"]
-            )
+            #expect(runtimeSequenceSourceElements(from: partialWindowSequence)?.map(runtimeStringValue) == ["abc", "cde", "e"])
 
             thrown = -1
             let transformedWindows = kk_string_windowedSequence_transform_flat(
@@ -1504,7 +1480,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 0,
                 &thrown
             )
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertRawValueSequence(transformedWindows, equals: [3, 3, 1])
 
             thrown = -1
@@ -1520,41 +1496,32 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 0,
                 &thrown
             )
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertStringValueSequence(transformedWindowStrings, equals: ["abc", "cde", "e"])
         }
 
         withFlatString("") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))?.elements.count,
-                0
-            )
-            XCTAssertEqual(
-                runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 2))?.elements.count,
-                0
-            )
+            #expect(runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))?.elements.count == 0)
+            #expect(runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 2))?.elements.count == 0)
         }
     }
 
+    @Test
     func testStringChunkedWindowedContainersAvoidLegacyStringBoxes() {
         withFlatString("abcde") { data, length, byteCount, hash in
             let baselineObjectCount = kk_debugging_global_object_count()
 
             let chunksRaw = kk_string_chunked_flat(data, length, byteCount, hash, 2)
 
-            XCTAssertEqual(
-                kk_debugging_global_object_count(),
-                baselineObjectCount + 1,
-                "kk_string_chunked_flat should only allocate the list container"
-            )
+            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_chunked_flat should only allocate the list container")
             let chunks = runtimeListBox(from: chunksRaw)
-            XCTAssertEqual(chunks?.values.map(\.tag), [
+            #expect(chunks?.values.map(\.tag) == [
                 RuntimeValue.stringTag,
                 RuntimeValue.stringTag,
                 RuntimeValue.stringTag,
             ])
-            XCTAssertEqual(chunks?.values.map(runtimeFlatStringValue), ["ab", "cd", "e"])
-            XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount + 1)
+            #expect(chunks?.values.map(runtimeFlatStringValue) == ["ab", "cd", "e"])
+            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1)
         }
 
         withFlatString("abcde") { data, length, byteCount, hash in
@@ -1562,20 +1529,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
             let sequenceRaw = kk_string_chunked_sequence_flat(data, length, byteCount, hash, 3)
 
-            XCTAssertEqual(
-                kk_debugging_global_object_count(),
-                baselineObjectCount + 1,
-                "kk_string_chunked_sequence_flat should build a direct sequence without an intermediate list"
-            )
+            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_chunked_sequence_flat should build a direct sequence without an intermediate list")
             guard let sequence = runtimeSequenceBox(from: sequenceRaw),
                   case let .valueSource(values)? = sequence.steps.first
             else {
-                XCTFail("Expected direct valueSource sequence")
+                Issue.record("Expected direct valueSource sequence")
                 return
             }
-            XCTAssertEqual(values.map(\.tag), [RuntimeValue.stringTag, RuntimeValue.stringTag])
-            XCTAssertEqual(values.map(runtimeFlatStringValue), ["abc", "de"])
-            XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount + 1)
+            #expect(values.map(\.tag) == [RuntimeValue.stringTag, RuntimeValue.stringTag])
+            #expect(values.map(runtimeFlatStringValue) == ["abc", "de"])
+            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1)
         }
 
         withFlatString("abcde") { data, length, byteCount, hash in
@@ -1583,92 +1546,91 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
             let windowsRaw = kk_string_windowed_partial_flat(data, length, byteCount, hash, 3, 2, 1)
 
-            XCTAssertEqual(
-                kk_debugging_global_object_count(),
-                baselineObjectCount + 1,
-                "kk_string_windowed_partial_flat should only allocate the list container"
-            )
+            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_windowed_partial_flat should only allocate the list container")
             let windows = runtimeListBox(from: windowsRaw)
-            XCTAssertEqual(windows?.values.map(\.tag), [
+            #expect(windows?.values.map(\.tag) == [
                 RuntimeValue.stringTag,
                 RuntimeValue.stringTag,
                 RuntimeValue.stringTag,
             ])
-            XCTAssertEqual(windows?.values.map(runtimeFlatStringValue), ["abc", "cde", "e"])
-            XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount + 1)
+            #expect(windows?.values.map(runtimeFlatStringValue) == ["abc", "cde", "e"])
+            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1)
         }
     }
 
+    @Test
     func testStringAsIterableToListMaterialises() {
         let iterableRaw = flatStringAsIterable("abc")
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
-        XCTAssertNotNil(list)
+        #expect(list != nil)
         let expected = [97, 98, 99] // 'a', 'b', 'c'
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+        #expect(list?.elements.map(kk_unbox_char) == expected)
     }
 
+    @Test
     func testStringAsIterableIteratorYieldsCharacters() {
         let iterableRaw = flatStringAsIterable("hi")
         let iterRaw = kk_string_iterable_iterator(iterableRaw)
 
-        XCTAssertEqual(kk_string_iterator_hasNext(iterRaw), 1)
+        #expect(kk_string_iterator_hasNext(iterRaw) == 1)
         let first = kk_unbox_char(kk_string_iterator_next(iterRaw))
-        XCTAssertEqual(first, 104) // 'h'
+        #expect(first == 104) // 'h'
 
-        XCTAssertEqual(kk_string_iterator_hasNext(iterRaw), 1)
+        #expect(kk_string_iterator_hasNext(iterRaw) == 1)
         let second = kk_unbox_char(kk_string_iterator_next(iterRaw))
-        XCTAssertEqual(second, 105) // 'i'
+        #expect(second == 105) // 'i'
 
-        XCTAssertEqual(kk_string_iterator_hasNext(iterRaw), 0)
+        #expect(kk_string_iterator_hasNext(iterRaw) == 0)
     }
 
+    @Test
     func testStringIteratorNextReturnsRawUTF16CodeUnits() {
         let iterableRaw = flatStringAsIterable("hi")
         let iterRaw = kk_string_iterable_iterator(iterableRaw)
 
-        XCTAssertEqual(kk_string_iterator_next(iterRaw), 104)
-        XCTAssertEqual(kk_string_iterator_next(iterRaw), 105)
-        XCTAssertEqual(kk_string_iterator_next(iterRaw), 0)
+        #expect(kk_string_iterator_next(iterRaw) == 104)
+        #expect(kk_string_iterator_next(iterRaw) == 105)
+        #expect(kk_string_iterator_next(iterRaw) == 0)
     }
 
+    @Test
     func testStringAsIterableWithNonASCII() {
         let iterableRaw = flatStringAsIterable("aé🐻")
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
         let expectedCodeUnits: [Int] = [97, 233, 0xD83D, 0xDC3B]
-        XCTAssertEqual(
-            list?.values.map(\.tag),
-            Array(repeating: RuntimeValue.charTag, count: expectedCodeUnits.count)
-        )
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedCodeUnits)
+        #expect(list?.values.map(\.tag) == Array(repeating: RuntimeValue.charTag, count: expectedCodeUnits.count))
+        #expect(list?.elements.map(kk_unbox_char) == expectedCodeUnits)
 
         let iteratorRaw = kk_string_iterable_iterator(iterableRaw)
-        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 97)
-        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 233)
-        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 0xD83D)
-        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 0xDC3B)
-        XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 0)
+        #expect(kk_string_iterator_next(iteratorRaw) == 97)
+        #expect(kk_string_iterator_next(iteratorRaw) == 233)
+        #expect(kk_string_iterator_next(iteratorRaw) == 0xD83D)
+        #expect(kk_string_iterator_next(iteratorRaw) == 0xDC3B)
+        #expect(kk_string_iterator_hasNext(iteratorRaw) == 0)
     }
 
+    @Test
     func testStringAsIterableGenericConversionsPreserveTaggedChars() {
         let iterableRaw = flatStringAsIterable("aba")
 
         let mutableList = runtimeListBox(from: kk_collection_toMutableList(iterableRaw))
         let mutableSet = runtimeSetBox(from: kk_iterable_toMutableSet(iterableRaw))
 
-        XCTAssertEqual(mutableList?.values.map(\.tag), [
+        #expect(mutableList?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(mutableList?.elements, [97, 98, 97])
-        XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(mutableSet?.elements, [97, 98])
+        #expect(mutableList?.elements == [97, 98, 97])
+        #expect(mutableSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(mutableSet?.elements == [97, 98])
     }
 
+    @Test
     func testStringCharCollectionCopiesPreserveTaggedChars() {
         let listRaw = kk_collection_toMutableList(flatStringAsIterable("aba"))
 
@@ -1678,24 +1640,25 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let mutableList = runtimeListBox(from: kk_collection_toMutableList(listRaw))
         let typedArray = runtimeArrayBox(from: kk_collection_toTypedArray(listRaw))
 
-        XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(hashSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-        XCTAssertEqual(mutableList?.values.map(\.tag), [
+        #expect(set?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(mutableSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(hashSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+        #expect(mutableList?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(typedArray?.values.map(\.tag), [
+        #expect(typedArray?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        XCTAssertEqual(set?.elements, [97, 98])
-        XCTAssertEqual(mutableList?.elements, [97, 98, 97])
-        XCTAssertEqual(typedArray?.elements, [97, 98, 97])
+        #expect(set?.elements == [97, 98])
+        #expect(mutableList?.elements == [97, 98, 97])
+        #expect(typedArray?.elements == [97, 98, 97])
     }
 
+    @Test
     func testStringAsIterableGenericJoinToStringRendersTaggedChars() {
         let iterableRaw = flatStringAsIterable("aé🐻")
         let result = kk_iterable_joinToString(
@@ -1705,9 +1668,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             rawFromRuntimeString(">")
         )
 
-        XCTAssertEqual(runtimeStringValue(Int(bitPattern: result)), "<a|é|?|?>")
+        #expect(runtimeStringValue(Int(bitPattern: result)) == "<a|é|?|?>")
     }
 
+    @Test
     func testStringJoinToStringUsesAggregateListStorageWithoutLegacyStringBoxes() {
         let listRaw = makeRuntimeValueList([
             runtimeStringAggregateValue("red"),
@@ -1721,33 +1685,32 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         let resultRaw = kk_string_joinToString(listRaw, separatorRaw, prefixRaw, postfixRaw)
 
-        XCTAssertEqual(runtimeStringValue(resultRaw), "<red|green|blue>")
-        XCTAssertEqual(
-            kk_debugging_global_object_count(),
-            baselineObjectCount + 1,
-            "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage"
-        )
+        #expect(runtimeStringValue(resultRaw) == "<red|green|blue>")
+        #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage")
     }
 
+    @Test
     func testStringAsIterableEmptyString() {
         let iterableRaw = flatStringAsIterable("")
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 0)
+        #expect(list != nil)
+        #expect(list?.elements.count == 0)
     }
 
+    @Test
     func testStringIterableHelpersDoNotAcceptLegacyRawStringHandles() {
         let legacyRaw = rawFromRuntimeString("abc")
 
         let list = runtimeListBox(from: kk_string_iterable_toList(legacyRaw))
-        XCTAssertEqual(list?.elements.count, 0)
+        #expect(list?.elements.count == 0)
 
         let iterator = kk_string_iterable_iterator(legacyRaw)
-        XCTAssertEqual(kk_string_iterator_hasNext(iterator), 0)
+        #expect(kk_string_iterator_hasNext(iterator) == 0)
     }
 
+    @Test
     func testStringAsIterablePrintDoesNotMaterialiseList() {
         let iterableRaw = flatStringAsIterable("aé🐻")
         let baselineObjectCount = kk_runtime_heap_object_count()
@@ -1756,73 +1719,79 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             kk_println_any(UnsafeMutableRawPointer(bitPattern: iterableRaw))
         }
 
-        XCTAssertEqual(output, "[a, é, 🐻]")
-        XCTAssertEqual(kk_runtime_heap_object_count(), baselineObjectCount)
+        #expect(output == "[a, é, 🐻]")
+        #expect(kk_runtime_heap_object_count() == baselineObjectCount)
     }
 
+    @Test
     func testStringAsIterableRenderDoesNotMaterialiseList() {
         let iterableRaw = flatStringAsIterable("abc")
         let baselineObjectCount = kk_runtime_heap_object_count()
 
-        XCTAssertEqual(runtimeRenderAnyForPrint(iterableRaw), "[a, b, c]")
-        XCTAssertEqual(kk_runtime_heap_object_count(), baselineObjectCount)
+        #expect(runtimeRenderAnyForPrint(iterableRaw) == "[a, b, c]")
+        #expect(kk_runtime_heap_object_count() == baselineObjectCount)
     }
 
+    @Test
     func testStringFunctionsWithNonASCII() {
         let text = "aé🐻"
         let listRaw = kk_string_toList(rawFromRuntimeString(text))
         let list = runtimeListBox(from: listRaw)
         let expectedCodeUnits: [Int] = [97, 233, 0xD83D, 0xDC3B]
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedCodeUnits)
+        #expect(list?.elements.map(kk_unbox_char) == expectedCodeUnits)
     }
 
+    @Test
     func testStringCodePointCountUsesUTF16Ranges() {
         let textRaw = rawFromRuntimeString("a😀b")
 
-        XCTAssertEqual(__kk_string_codePointCount(textRaw), 3)
+        #expect(__kk_string_codePointCount(textRaw) == 3)
 
         var thrown = 0
-        XCTAssertEqual(__kk_string_codePointCount_from(textRaw, 1, &thrown), 2)
-        XCTAssertEqual(thrown, 0)
+        #expect(__kk_string_codePointCount_from(textRaw, 1, &thrown) == 2)
+        #expect(thrown == 0)
 
         thrown = 0
-        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 1, 3, &thrown), 1)
-        XCTAssertEqual(thrown, 0)
+        #expect(__kk_string_codePointCount_range(textRaw, 1, 3, &thrown) == 1)
+        #expect(thrown == 0)
 
         thrown = 0
-        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 0, 2, &thrown), 2)
-        XCTAssertEqual(thrown, 0)
+        #expect(__kk_string_codePointCount_range(textRaw, 0, 2, &thrown) == 2)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testStringCodePointCountReportsRangeErrors() {
         let textRaw = rawFromRuntimeString("abc")
 
         var thrown = 0
-        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, -1, 1, &thrown), 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(__kk_string_codePointCount_range(textRaw, -1, 1, &thrown) == 0)
+        #expect(thrown != 0)
 
         thrown = 0
-        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 0, 4, &thrown), 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(__kk_string_codePointCount_range(textRaw, 0, 4, &thrown) == 0)
+        #expect(thrown != 0)
 
         thrown = 0
-        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 2, 1, &thrown), 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(__kk_string_codePointCount_range(textRaw, 2, 1, &thrown) == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testPairAndArrayRenderingStayDistinct() {
         let pairRaw = kk_pair_new(1, 2)
-        XCTAssertEqual(runtimeElementToString(pairRaw), "(1, 2)")
-        XCTAssertEqual(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: pairRaw)) }, "(1, 2)")
+        #expect(runtimeElementToString(pairRaw) == "(1, 2)")
+        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: pairRaw)) } == "(1, 2)")
 
         var thrown = 0
         let arrayRaw = kk_array_new(2)
         _ = kk_array_set(arrayRaw, 0, 1, &thrown)
         _ = kk_array_set(arrayRaw, 1, 2, &thrown)
-        XCTAssertEqual(runtimeElementToString(arrayRaw), "[1, 2]")
-        XCTAssertEqual(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) }, "[1, 2]")
+        #expect(runtimeElementToString(arrayRaw) == "[1, 2]")
+        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) } == "[1, 2]")
     }
 
+    @Test
     func testThrowableStringConversionMatchesPrintln() {
         // Regression test: runtimeElementToString (used by kk_any_to_string, which
         // string template interpolation and the `+` concatenation operator lower to)
@@ -1831,35 +1800,35 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let throwableRaw = runtimeAllocateIllegalStateException(message: "boom")
         let expected = "Throwable(IllegalStateException: boom)"
 
-        XCTAssertEqual(runtimeElementToString(throwableRaw), expected)
-        XCTAssertEqual(runtimeRenderAnyForPrint(throwableRaw), expected)
-        XCTAssertEqual(
-            capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: throwableRaw)) },
-            expected
-        )
+        #expect(runtimeElementToString(throwableRaw) == expected)
+        #expect(runtimeRenderAnyForPrint(throwableRaw) == expected)
+        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: throwableRaw)) } == expected)
 
         // anyFallbackTag() emits tag 1 ("default"/object) for class-typed operands
         // of `+`/string templates, so this exercises the exact ABI path the compiler
         // lowers `"$e"` and `"foo: " + e` to.
         let converted = kk_any_to_string(throwableRaw, 1)
-        XCTAssertEqual(extractString(from: converted) ?? "", expected)
+        #expect(extractString(from: converted) ?? "" == expected)
     }
 
     // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);
     // their runtime bridges and direct tests were removed.
 
+    @Test
     func testStringRepeatFlatFunction() {
-        XCTAssertEqual(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat), "")
-        XCTAssertEqual(flatStringReturnValue("ab", intArg: 3, using: kk_string_repeat_flat), "ababab")
-        XCTAssertEqual(flatStringReturnValue("é", intArg: 2, using: kk_string_repeat_flat), "éé")
+        #expect(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat) == "")
+        #expect(flatStringReturnValue("ab", intArg: 3, using: kk_string_repeat_flat) == "ababab")
+        #expect(flatStringReturnValue("é", intArg: 2, using: kk_string_repeat_flat) == "éé")
     }
 
+    @Test
     func testStringRepeatFlatNegativeThrowsIllegalArgumentException() {
         var thrown = 0
         _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_repeat_flat, outThrown: &thrown)
-        XCTAssertNotEqual(thrown, 0, "kk_string_repeat_flat(-1) should set outThrown")
+        #expect(thrown != 0, "kk_string_repeat_flat(-1) should set outThrown")
     }
 
+    @Test
     func testStringReplaceSupportsLiteralReplacement() {
         withFlatString("aba") { data, length, byteCount, hash in
             withFlatString("a") { oldData, oldLength, oldByteCount, oldHash in
@@ -1884,15 +1853,12 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         &outByteCount,
                         &outHash
                     )
-                    XCTAssertEqual(
-                        flatStringValue(
+                    #expect(flatStringValue(
                             data: result.map { UnsafePointer($0) },
                             length: outLength,
                             byteCount: outByteCount,
                             hash: outHash
-                        ),
-                        "zbz"
-                    )
+                        ) == "zbz")
                 }
             }
         }
@@ -1900,6 +1866,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - STDLIB-TEXT-FN-055: replace overloads
 
+    @Test
     func testStringReplaceCharReplacesAllOccurrences() {
         let replaced = flatStringReturnValue(
             "hello world",
@@ -1907,9 +1874,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             charArg: kk_box_char(Int("r".unicodeScalars.first!.value)),
             using: kk_string_replace_char_flat
         )
-        XCTAssertEqual(replaced, "herro worrd")
+        #expect(replaced == "herro worrd")
     }
 
+    @Test
     func testStringReplaceCharHandlesNoMatch() {
         let replaced = flatStringReturnValue(
             "hello",
@@ -1917,9 +1885,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             charArg: kk_box_char(Int("x".unicodeScalars.first!.value)),
             using: kk_string_replace_char_flat
         )
-        XCTAssertEqual(replaced, "hello")
+        #expect(replaced == "hello")
     }
 
+    @Test
     func testStringReplaceIgnoreCaseCaseSensitiveMatch() {
         let replaced = flatStringReturnValue(
             "Hello World",
@@ -1928,9 +1897,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             ignoreCase: true,
             using: kk_string_replace_ignoreCase_flat
         )
-        XCTAssertEqual(replaced, "Hi World")
+        #expect(replaced == "Hi World")
     }
 
+    @Test
     func testStringReplaceIgnoreCaseCaseSensitiveFalse() {
         let replaced = flatStringReturnValue(
             "Hello World",
@@ -1939,9 +1909,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             ignoreCase: false,
             using: kk_string_replace_ignoreCase_flat
         )
-        XCTAssertEqual(replaced, "Hello World")
+        #expect(replaced == "Hello World")
     }
 
+    @Test
     func testStringReplaceCharIgnoreCaseReplaces() {
         let replaced = flatStringReturnValue(
             "Hello World",
@@ -1950,9 +1921,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             thirdIntArg: 1,
             using: kk_string_replace_char_ignoreCase_flat
         )
-        XCTAssertEqual(replaced, "Jello World")
+        #expect(replaced == "Jello World")
     }
 
+    @Test
     func testStringReplaceCharIgnoreCaseFalseIsCaseSensitive() {
         let replaced = flatStringReturnValue(
             "Hello World",
@@ -1961,241 +1933,219 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             thirdIntArg: 0,
             using: kk_string_replace_char_ignoreCase_flat
         )
-        XCTAssertEqual(replaced, "Hello World")
+        #expect(replaced == "Hello World")
     }
 
+    @Test
     func testStringToIntSuccessAndFailure() {
         var thrown = 0
         withFlatString("42") { data, length, byteCount, hash in
-            let value = kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(value, 42)
+            let value = __kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
+            #expect(thrown == 0)
+            #expect(value == 42)
         }
 
         withFlatString("4x") { data, length, byteCount, hash in
-            _ = kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
+            _ = __kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
         }
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
+        #expect(thrownOutput.contains("NumberFormatException"))
     }
 
+    @Test
     func testStringToIntRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
         withFlatString("10") { data, length, byteCount, hash in
-            _ = kk_string_toInt_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            _ = __kk_string_toInt_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
+        #expect(thrownOutput.contains("IllegalArgumentException"))
     }
 
+    @Test
     func testStringToIntOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
         withFlatString("ff") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testStringToIntOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
+        #expect(thrownOutput.contains("IllegalArgumentException"))
     }
 
+    @Test
     func testStringToUByteOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
         withFlatString("ff") { data, length, byteCount, hash in
-            XCTAssertEqual(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(thrown == 0)
         }
         withFlatString("100") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testStringToUByteOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
+        #expect(thrownOutput.contains("IllegalArgumentException"))
     }
 
+    @Test
     func testStringToUShortOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
         withFlatString("ffff") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                Int(UInt16.max)
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt16.max))
+            #expect(thrown == 0)
         }
         withFlatString("10000") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testStringToUShortOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
+        #expect(thrownOutput.contains("IllegalArgumentException"))
     }
 
+    @Test
     func testStringToUIntOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
         withFlatString("ffffffff") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                Int(UInt32.max)
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt32.max))
+            #expect(thrown == 0)
         }
         withFlatString("100000000") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testStringToUIntOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
+        #expect(thrownOutput.contains("IllegalArgumentException"))
     }
 
+    @Test
     func testStringToULongOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
+            #expect(thrown == 0)
         }
         withFlatString("10000000000000000") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
-                runtimeNullSentinelInt
-            )
-            XCTAssertEqual(thrown, 0)
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testStringToULongOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
+        #expect(thrownOutput.contains("IllegalArgumentException"))
     }
 
+    @Test
     func testStringToDoubleParsesSpecialValuesAndThrowsOnInvalidInput() {
         var thrown = 0
         let parsed = withFlatString("  -Infinity ") { data, length, byteCount, hash in
             __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
         }
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(doubleFromRuntimeBits(parsed), -.infinity)
+        #expect(thrown == 0)
+        #expect(doubleFromRuntimeBits(parsed) == -.infinity)
 
         let nanRaw = withFlatString("NaN") { data, length, byteCount, hash in
             __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
         }
-        XCTAssertEqual(thrown, 0)
-        XCTAssertTrue(doubleFromRuntimeBits(nanRaw).isNaN)
+        #expect(thrown == 0)
+        #expect(doubleFromRuntimeBits(nanRaw).isNaN)
 
         withFlatString("nope") { data, length, byteCount, hash in
             _ = __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
         }
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
+        #expect(thrownOutput.contains("NumberFormatException"))
     }
 
+    @Test
     func testStringToDoubleParsesKotlinFloatingLiterals() {
         var thrown = 0
         let cases: [(String, Double)] = [
@@ -2209,31 +2159,33 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         for (source, expected) in cases {
             let raw = __kk_string_toDouble(rawFromRuntimeString(source), &thrown)
-            XCTAssertEqual(thrown, 0, "Expected \(source) to parse")
-            XCTAssertEqual(doubleFromRuntimeBits(raw), expected, accuracy: 1e-12)
+            #expect(thrown == 0, "Expected \(source) to parse")
+            #expect(abs(doubleFromRuntimeBits(raw) - expected) <= 1e-12)
         }
     }
 
+    @Test
     func testStringToDoubleRejectsSwiftOnlySpellings() {
         var thrown = 0
 
         _ = __kk_string_toDouble(rawFromRuntimeString("nan"), &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
+        #expect(thrownOutput.contains("NumberFormatException"))
 
         let parsedInf = withFlatString("inf") { data, length, byteCount, hash in
             __kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
         }
-        XCTAssertEqual(parsedInf, runtimeNullSentinelInt)
+        #expect(parsedInf == runtimeNullSentinelInt)
 
         let parsed = withFlatString("0x1p2D") { data, length, byteCount, hash in
             __kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
         }
-        XCTAssertNotEqual(parsed, runtimeNullSentinelInt)
-        XCTAssertEqual(doubleFromRuntimeBits(parsed), 4.0, accuracy: 1e-12)
+        #expect(parsed != runtimeNullSentinelInt)
+        #expect(abs(doubleFromRuntimeBits(parsed) - 4.0) <= 1e-12)
     }
 
+    @Test
     func testStringFormatSupportsStringIntAndDoubleSpecifiers() {
         let args = makeRuntimeArray([
             rawFromRuntimeString("age"),
@@ -2242,9 +2194,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ])
 
         let formatted = flatStringReturnValueNoThrow("%s:%d %.2f", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "age:7 3.50")
+        #expect(formatted == "age:7 3.50")
     }
 
+    @Test
     func testStringFormatUsesAggregateArgumentStorageWithoutLegacyStringBoxes() {
         let args = makeRuntimeValueArray([
             runtimeStringAggregateValue("age"),
@@ -2254,7 +2207,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let baselineObjectCount = kk_debugging_global_object_count()
 
         let formatted = flatStringReturnValueNoThrow("%s:%d %.1f", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "age:7 3.5")
+        #expect(formatted == "age:7 3.5")
 
         let formattedWithLocale = flatStringReturnValue(
             "%1$s %3$.1f",
@@ -2262,14 +2215,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             trailingIntArg: args,
             using: __kk_string_format_locale_flat
         )
-        XCTAssertEqual(formattedWithLocale, "age 3.5")
-        XCTAssertEqual(
-            kk_debugging_global_object_count(),
-            baselineObjectCount,
-            "String.format must not materialize RuntimeStringBox values from aggregate argument storage"
-        )
+        #expect(formattedWithLocale == "age 3.5")
+        #expect(kk_debugging_global_object_count() == baselineObjectCount, "String.format must not materialize RuntimeStringBox values from aggregate argument storage")
     }
 
+    @Test
     func testStringFormatSupportsFloatingSpecifiersForIntegersAndBoxedFloats() {
         let args = makeRuntimeArray([
             3,
@@ -2278,9 +2228,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ])
 
         let formatted = flatStringReturnValueNoThrow("%.1f %.1f %.1f", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "3.0 1.5 2.5")
+        #expect(formatted == "3.0 1.5 2.5")
     }
 
+    @Test
     func testStringFormatSupportsPositionalArguments() {
         let args = makeRuntimeArray([
             7,
@@ -2288,9 +2239,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ])
 
         let formatted = flatStringReturnValueNoThrow("%2$s:%1$d", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "age:7")
+        #expect(formatted == "age:7")
     }
 
+    @Test
     func testStringFormatSupportsBooleanSpecifiers() {
         let args = makeRuntimeArray([
             kk_box_bool(1),
@@ -2299,27 +2251,30 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ])
 
         let formatted = flatStringReturnValueNoThrow("%b %B %b", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "true FALSE false")
+        #expect(formatted == "true FALSE false")
     }
 
+    @Test
     func testStringFormatPreservesSixtyFourBitIntegerWidth() {
         let signed = Int(Int64.max)
         let unsigned = Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
         let args = makeRuntimeArray([signed, unsigned])
 
         let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "9223372036854775807 ffffffffffffffff")
+        #expect(formatted == "9223372036854775807 ffffffffffffffff")
     }
 
+    @Test
     func testStringFormatSupportsBoxedIntegerSpecifiers() {
         let boxedSigned = kk_box_long(Int(Int64.max))
         let boxedUnsigned = kk_box_long(Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
         let args = makeRuntimeArray([boxedSigned, boxedUnsigned])
 
         let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "9223372036854775807 ffffffffffffffff")
+        #expect(formatted == "9223372036854775807 ffffffffffffffff")
     }
 
+    @Test
     func testStringFormatSupportsBoxedScalarStringSpecifiers() {
         let args = makeRuntimeArray([
             kk_box_long(Int(Int64.max)),
@@ -2330,38 +2285,44 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ])
 
         let formatted = flatStringReturnValueNoThrow("%s %s %s %s %s", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "9223372036854775807 1.5 2.5 A true")
+        #expect(formatted == "9223372036854775807 1.5 2.5 A true")
     }
 
+    @Test
     func testStringFormatSupportsEscapedPercentWithoutArguments() {
         let formatted = flatStringReturnValueNoThrow("progress=100%%", intArg: kk_array_new(0), using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "progress=100%")
+        #expect(formatted == "progress=100%")
     }
 
+    @Test
     func testStringFormatTreatsUnsupportedUnsignedConversionAsLiteral() {
         let args = makeRuntimeArray([7])
         let formatted = flatStringReturnValueNoThrow("%u", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "%u")
+        #expect(formatted == "%u")
     }
 
+    @Test
     func testStringFormatGroupsIntegersForGroupingFlag() {
         let args = makeRuntimeArray([1234567])
         let formatted = flatStringReturnValueNoThrow("%,d", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "1,234,567")
+        #expect(formatted == "1,234,567")
     }
 
+    @Test
     func testStringFormatZeroPadsGroupedIntegersAfterGrouping() {
         let args = makeRuntimeArray([1234])
         let formatted = flatStringReturnValueNoThrow("%,012d", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "00000001,234")
+        #expect(formatted == "00000001,234")
     }
 
+    @Test
     func testStringFormatSupportsScientificNotationForDouble() {
         let args = makeRuntimeArray([kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 1234.5.bitPattern)))])
         let formatted = flatStringReturnValueNoThrow("%.2e", intArg: args, using: __kk_string_format_flat)
-        XCTAssertEqual(formatted, "1.23e+03")
+        #expect(formatted == "1.23e+03")
     }
 
+    @Test
     func testStringFormatLocaleUsesLocaleDecimalSeparator() {
         let locale = makeLocale(language: "de", country: "DE")
         let args = makeRuntimeArray([
@@ -2373,9 +2334,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             trailingIntArg: args,
             using: __kk_string_format_locale_flat
         )
-        XCTAssertEqual(formatted, "3,5")
+        #expect(formatted == "3,5")
     }
 
+    @Test
     func testStringFormatLocaleGroupsOnlyWithGroupingFlag() {
         let locale = makeLocale(language: "de", country: "DE")
         let ungrouped = flatStringReturnValue(
@@ -2384,7 +2346,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             trailingIntArg: makeRuntimeArray([1234567]),
             using: __kk_string_format_locale_flat
         )
-        XCTAssertEqual(ungrouped, "1234567")
+        #expect(ungrouped == "1234567")
 
         let grouped = flatStringReturnValue(
             "%,d",
@@ -2392,9 +2354,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             trailingIntArg: makeRuntimeArray([1234567]),
             using: __kk_string_format_locale_flat
         )
-        XCTAssertEqual(grouped, "1.234.567")
+        #expect(grouped == "1.234.567")
     }
 
+    @Test
     func testStringFormatNullLocaleKeepsNonLocalizedFormatting() {
         let args = makeRuntimeArray([
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern))),
@@ -2405,36 +2368,41 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             trailingIntArg: args,
             using: __kk_string_format_locale_flat
         )
-        XCTAssertEqual(formatted, "3.5")
+        #expect(formatted == "3.5")
     }
 
     // MARK: - __kk_throwable_new
 
+    @Test
     func testThrowableNewCreatesThrowable() {
         let msg = makeRuntimeString("error occurred")
         let throwable = __kk_throwable_new(msg)
-        XCTAssertNotNil(throwable)
+        #expect(throwable as UnsafeMutableRawPointer? != nil)
         let output = capturePrintln { kk_println_any(throwable) }
-        XCTAssertTrue(output.contains("error occurred"))
+        #expect(output.contains("error occurred"))
     }
 
+    @Test
     func testThrowableNewWithNilUsesDefaultMessage() {
         let throwable = __kk_throwable_new(nil)
-        XCTAssertNotNil(throwable)
+        #expect(throwable as UnsafeMutableRawPointer? != nil)
         let output = capturePrintln { kk_println_any(throwable) }
-        XCTAssertTrue(output.contains("Throwable"))
+        #expect(output.contains("Throwable"))
     }
 
+    @Test
     func testThrowableIsCancellationReturnsFalseForNil() {
-        XCTAssertEqual(kk_throwable_is_cancellation(0), 0)
+        #expect(kk_throwable_is_cancellation(0) == 0)
     }
 
+    @Test
     func testThrowableIsCancellationReturnsFalseForRegularThrowable() {
         let throwable = __kk_throwable_new(makeRuntimeString("not cancellation"))
         let raw = Int(bitPattern: throwable)
-        XCTAssertEqual(kk_throwable_is_cancellation(raw), 0)
+        #expect(kk_throwable_is_cancellation(raw) == 0)
     }
 
+    @Test
     func testThrowableAddSuppressedPreservesInsertionOrder() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
         let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
@@ -2444,24 +2412,26 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         _ = __kk_throwable_appendSuppressed(primary, suppressed2)
 
         let suppressed = __kk_throwable_suppressedRaw(primary)
-        XCTAssertEqual(kk_array_size(suppressed), 2)
+        #expect(kk_array_size(suppressed) == 2)
 
         var thrown = 0
-        XCTAssertEqual(kk_array_get(suppressed, 0, &thrown), suppressed1)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_array_get(suppressed, 1, &thrown), suppressed2)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_array_get(suppressed, 0, &thrown) == suppressed1)
+        #expect(thrown == 0)
+        #expect(kk_array_get(suppressed, 1, &thrown) == suppressed2)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testThrowableAddSuppressedRejectsSelfSuppression() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
         _ = __kk_throwable_appendSuppressed(primary, primary)
 
         let suppressed = __kk_throwable_suppressedRaw(primary)
-        XCTAssertEqual(kk_array_size(suppressed), 0)
+        #expect(kk_array_size(suppressed) == 0)
     }
 
+    @Test
     func testThrowableAddSuppressedIgnoresNullAndInvalidHandles() {
         let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
@@ -2472,102 +2442,113 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         _ = __kk_throwable_appendSuppressed(123456789, primary)
 
         let suppressed = __kk_throwable_suppressedRaw(primary)
-        XCTAssertEqual(kk_array_size(suppressed), 0)
+        #expect(kk_array_size(suppressed) == 0)
     }
 
+    @Test
     func testThrowableRawStackFramesReturnsMessageHeader() {
         let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("print me")))
 
         let frames = __kk_throwable_rawStackFrames(throwable)
-        XCTAssertEqual(kk_array_size(frames), 1)
+        #expect(kk_array_size(frames) == 1)
 
         var thrown = 0
         let frameRaw = kk_array_get(frames, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)), "print me")
+        #expect(thrown == 0)
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)) == "print me")
     }
 
+    @Test
     func testPrintStderrWritesMessageToStandardError() {
         let message = rawFromRuntimeString("print me")
 
         let output = captureStandardError {
-            XCTAssertEqual(__kk_printStderr(message), 0)
+            #expect(__kk_printStderr(message) == 0)
         }
 
-        XCTAssertEqual(output, "print me")
+        #expect(output == "print me")
     }
 
     // MARK: - kk_array_new
 
+    @Test
     func testArrayNewCreatesArray() {
         let array = kk_array_new(5)
-        XCTAssertNotEqual(array, 0)
+        #expect(array != 0)
     }
 
+    @Test
     func testArrayNewZeroLengthCreatesEmptyArray() {
         let array = kk_array_new(0)
-        XCTAssertNotEqual(array, 0)
+        #expect(array != 0)
     }
 
+    @Test
     func testArrayOfNullsCreatesNullableSlots() {
         let array = kk_array_of_nulls(3)
-        XCTAssertNotEqual(array, 0)
-        XCTAssertEqual(kk_array_size(array), 3)
+        #expect(array != 0)
+        #expect(kk_array_size(array) == 3)
 
         var thrown = 0
-        XCTAssertEqual(kk_array_get(array, 0, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_array_get(array, 1, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_array_get(array, 2, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_array_get(array, 0, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(kk_array_get(array, 1, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(kk_array_get(array, 2, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
     }
 
     // MARK: - kk_array_get / kk_array_set
 
+    @Test
     func testArraySetAndGetMultipleIndices() {
         let array = kk_array_new(3)
         var thrown = 0
         _ = kk_array_set(array, 0, 10, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         _ = kk_array_set(array, 1, 20, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         _ = kk_array_set(array, 2, 30, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
-        XCTAssertEqual(kk_array_get(array, 0, &thrown), 10)
-        XCTAssertEqual(kk_array_get(array, 1, &thrown), 20)
-        XCTAssertEqual(kk_array_get(array, 2, &thrown), 30)
+        #expect(kk_array_get(array, 0, &thrown) == 10)
+        #expect(kk_array_get(array, 1, &thrown) == 20)
+        #expect(kk_array_get(array, 2, &thrown) == 30)
     }
 
+    @Test
     func testArrayGetOutOfBoundsNegativeIndex() {
         let array = kk_array_new(2)
         var thrown = 0
         _ = kk_array_get(array, -1, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testArraySetOutOfBoundsThrows() {
         let array = kk_array_new(2)
         var thrown = 0
         _ = kk_array_set(array, 5, 99, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testArrayGetNullArrayThrows() {
         var thrown = 0
         _ = kk_array_get(0, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testArraySetNullArrayThrows() {
         var thrown = 0
         _ = kk_array_set(0, 0, 42, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - kk_vararg_spread_concat
 
+    @Test
     func testVarargSpreadConcatSingleElements() {
         // pairs: [0, 10, 0, 20] means two scalar elements (marker=0)
         let pairs = kk_array_new(4)
@@ -2578,12 +2559,13 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         _ = kk_array_set(pairs, 3, 20, &thrown) // value: 20
 
         let result = kk_vararg_spread_concat(pairs, 2)
-        XCTAssertNotEqual(result, 0)
+        #expect(result != 0)
 
-        XCTAssertEqual(kk_array_get(result, 0, &thrown), 10)
-        XCTAssertEqual(kk_array_get(result, 1, &thrown), 20)
+        #expect(kk_array_get(result, 0, &thrown) == 10)
+        #expect(kk_array_get(result, 1, &thrown) == 20)
     }
 
+    @Test
     func testVarargSpreadConcatWithSpread() {
         // Create an inner array [100, 200]
         let inner = kk_array_new(2)
@@ -2599,105 +2581,115 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         _ = kk_array_set(pairs, 3, 300, &thrown) // value: 300
 
         let result = kk_vararg_spread_concat(pairs, 2)
-        XCTAssertEqual(kk_array_get(result, 0, &thrown), 100)
-        XCTAssertEqual(kk_array_get(result, 1, &thrown), 200)
-        XCTAssertEqual(kk_array_get(result, 2, &thrown), 300)
+        #expect(kk_array_get(result, 0, &thrown) == 100)
+        #expect(kk_array_get(result, 1, &thrown) == 200)
+        #expect(kk_array_get(result, 2, &thrown) == 300)
     }
 
+    @Test
     func testVarargSpreadConcatEmptyPairsReturnsEmptyArray() {
         let result = kk_vararg_spread_concat(0, 0)
         // pairCount is 0, should return empty array
-        XCTAssertNotEqual(result, 0)
+        #expect(result != 0)
     }
 
     // MARK: - kk_println_any with boxed values
 
+    @Test
     func testPrintlnBoxedInt() {
         let boxed = kk_box_int(42)
         let ptr = UnsafeMutableRawPointer(bitPattern: boxed)
         let output = capturePrintln { kk_println_any(ptr) }
-        XCTAssertEqual(output, "42")
+        #expect(output == "42")
     }
 
+    @Test
     func testPrintlnBoxedBoolTrue() {
         let boxed = kk_box_bool(1)
         let ptr = UnsafeMutableRawPointer(bitPattern: boxed)
         let output = capturePrintln { kk_println_any(ptr) }
-        XCTAssertEqual(output, "true")
+        #expect(output == "true")
     }
 
+    @Test
     func testPrintlnBoxedBoolFalse() {
         let boxed = kk_box_bool(0)
         let ptr = UnsafeMutableRawPointer(bitPattern: boxed)
         let output = capturePrintln { kk_println_any(ptr) }
-        XCTAssertEqual(output, "false")
+        #expect(output == "false")
     }
 
+    @Test
     func testPrintlnBoxedString() {
         let str = makeRuntimeString("hello world")
         let output = capturePrintln { kk_println_any(str) }
-        XCTAssertEqual(output, "hello world")
+        #expect(output == "hello world")
     }
 
+    @Test
     func testPrintlnThrowable() {
         let msg = makeRuntimeString("some error")
         let throwable = __kk_throwable_new(msg)
         let output = capturePrintln { kk_println_any(throwable) }
-        XCTAssertTrue(output.contains("some error"))
+        #expect(output.contains("some error"))
     }
 
     // MARK: - STDLIB-TEXT-FN-115: String.withIndex()
 
+    @Test
     func testStringWithIndexReturnsListOfIndexedValues() {
         let resultRaw = withFlatString("abc") { data, length, byteCount, hash in
             kk_string_withIndex_flat(data, length, byteCount, hash)
         }
         let list = runtimeListBox(from: resultRaw)
-        XCTAssertNotNil(list, "withIndex should return a list")
-        XCTAssertEqual(list?.elements.count, 3)
+        #expect(list != nil, "withIndex should return a list")
+        #expect(list?.elements.count == 3)
     }
 
+    @Test
     func testStringWithIndexElementsAreIndexedValuePairs() {
         let resultRaw = withFlatString("ab") { data, length, byteCount, hash in
             kk_string_withIndex_flat(data, length, byteCount, hash)
         }
         let list = runtimeListBox(from: resultRaw)
-        XCTAssertNotNil(list)
+        #expect(list != nil)
 
         let elements = list?.elements ?? []
-        XCTAssertEqual(elements.count, 2)
+        #expect(elements.count == 2)
 
         // First element: IndexedValue(index=0, value='a')
-        XCTAssertEqual(kk_pair_first(elements[0]), 0)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(elements[0])), 97) // 'a'
+        #expect(kk_pair_first(elements[0]) == 0)
+        #expect(kk_unbox_char(kk_pair_second(elements[0])) == 97) // 'a'
 
         // Second element: IndexedValue(index=1, value='b')
-        XCTAssertEqual(kk_pair_first(elements[1]), 1)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(elements[1])), 98) // 'b'
+        #expect(kk_pair_first(elements[1]) == 1)
+        #expect(kk_unbox_char(kk_pair_second(elements[1])) == 98) // 'b'
     }
 
+    @Test
     func testStringWithIndexEmptyStringReturnsEmptyList() {
         let resultRaw = withFlatString("") { data, length, byteCount, hash in
             kk_string_withIndex_flat(data, length, byteCount, hash)
         }
         let list = runtimeListBox(from: resultRaw)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 0)
+        #expect(list != nil)
+        #expect(list?.elements.count == 0)
     }
 
+    @Test
     func testStringWithIndexNonASCIICharsGetCorrectIndices() {
         let resultRaw = withFlatString("aé🐻") { data, length, byteCount, hash in
             kk_string_withIndex_flat(data, length, byteCount, hash)
         }
         let list = runtimeListBox(from: resultRaw)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 4)
+        #expect(list != nil)
+        #expect(list?.elements.count == 4)
 
         let expectedIndices = [0, 1, 2, 3]
         let expectedCodeUnits = [97, 233, 0xD83D, 0xDC3B] // 'a', 'é', high surrogate, low surrogate
         for (i, elem) in (list?.elements ?? []).enumerated() {
-            XCTAssertEqual(kk_pair_first(elem), expectedIndices[i], "Index mismatch at \(i)")
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(elem)), expectedCodeUnits[i], "Code unit mismatch at \(i)")
+            #expect(kk_pair_first(elem) == expectedIndices[i], "Index mismatch at \(i)")
+            #expect(kk_unbox_char(kk_pair_second(elem)) == expectedCodeUnits[i], "Code unit mismatch at \(i)")
         }
     }
 
@@ -2715,12 +2707,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         Int(bitPattern: makeRuntimeString(value))
     }
 
+    private func kk_println_any(_ value: Int) {
+        __kk_print_raw(rawFromRuntimeString(runtimeRenderAnyForPrint(value) + "\n"))
+    }
+
+    private func kk_println_any(_ value: UnsafeMutableRawPointer?) {
+        kk_println_any(Int(bitPattern: value))
+    }
+
     private func makeRuntimeArray(_ values: [Int]) -> Int {
         let array = kk_array_new(values.count)
         var thrown = 0
         for (index, value) in values.enumerated() {
             _ = kk_array_set(array, index, value, &thrown)
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
         }
         return array
     }
@@ -2728,7 +2728,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     private func makeRuntimeValueArray(_ values: [RuntimeValue]) -> Int {
         let array = kk_array_new(values.count)
         guard let box = runtimeArrayBox(from: array) else {
-            XCTFail("Expected RuntimeArrayBox")
+            Issue.record("Expected RuntimeArrayBox")
             return array
         }
         box.values = values
@@ -2750,25 +2750,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        XCTAssertNotEqual(pairRaw, runtimeNullSentinelInt, file: file, line: line)
+        #expect(pairRaw != runtimeNullSentinelInt)
         guard pairRaw != runtimeNullSentinelInt,
               let pairPtr = UnsafeMutableRawPointer(bitPattern: pairRaw),
               let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
         else {
-            XCTFail("Expected RuntimePairBox result", file: file, line: line)
+            Issue.record("Expected RuntimePairBox result")
             return
         }
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, offset, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), match, file: file, line: line)
-        XCTAssertEqual(kk_pair_first(pairRaw), offset, file: file, line: line)
-        XCTAssertEqual(
-            runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function),
-            match,
-            file: file,
-            line: line
-        )
+        #expect(pairBox.firstValue.tag == RuntimeValue.rawTag)
+        #expect(pairBox.firstValue.payload0 == offset)
+        #expect(pairBox.secondValue.tag == RuntimeValue.stringTag)
+        #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == match)
+        #expect(kk_pair_first(pairRaw) == offset)
+        #expect(runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function) == match)
     }
 
     private func assertStringValueSequence(
@@ -2778,20 +2773,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         line: UInt = #line
     ) {
         guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            XCTFail("Expected a RuntimeSequenceBox", file: file, line: line)
+            Issue.record("Expected a RuntimeSequenceBox")
             return
         }
         guard case let .valueSource(values)? = sequence.steps.first else {
-            XCTFail("Expected aggregate RuntimeValue sequence source", file: file, line: line)
+            Issue.record("Expected aggregate RuntimeValue sequence source")
             return
         }
-        XCTAssertEqual(
-            values.map(\.tag),
-            Array(repeating: RuntimeValue.stringTag, count: expected.count),
-            file: file,
-            line: line
-        )
-        XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue), expected, file: file, line: line)
+        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
+        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue) == expected)
     }
 
     private func assertRawValueSequence(
@@ -2801,21 +2791,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         line: UInt = #line
     ) {
         guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            XCTFail("Expected a RuntimeSequenceBox", file: file, line: line)
+            Issue.record("Expected a RuntimeSequenceBox")
             return
         }
         guard case let .valueSource(values)? = sequence.steps.first else {
-            XCTFail("Expected aggregate RuntimeValue sequence source", file: file, line: line)
+            Issue.record("Expected aggregate RuntimeValue sequence source")
             return
         }
-        XCTAssertEqual(
-            values.map(\.tag),
-            Array(repeating: RuntimeValue.rawTag, count: expected.count),
-            file: file,
-            line: line
-        )
-        XCTAssertEqual(values.map(\.payload0), expected, file: file, line: line)
-        XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw), expected, file: file, line: line)
+        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.rawTag, count: expected.count))
+        #expect(values.map(\.payload0) == expected)
+        #expect(runtimeSequenceSourceElements(from: sequenceRaw) == expected)
     }
 
     private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {
@@ -2854,3 +2839,4 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         )
     }
 }
+#endif

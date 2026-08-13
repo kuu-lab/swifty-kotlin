@@ -192,7 +192,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-331/564: Rewrite kk_range_hasNext on iterator builder → kk_iterator_builder_hasNext
+            // STDLIB-331/564: Rewrite kk_range_hasNext on iterator builder → __kk_iterator_builder_hasNext
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,
@@ -271,7 +271,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-331/564: Rewrite kk_range_next on iterator builder → kk_iterator_builder_next
+            // STDLIB-331/564: Rewrite kk_range_next on iterator builder → __kk_iterator_builder_next
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,

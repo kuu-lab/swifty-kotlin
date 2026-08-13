@@ -317,7 +317,7 @@ extension ListSyntheticMemberLinkTests {
                 return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_joinToString")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected Sequence.joinToString to have no bundled external link")
         }
     }
 
@@ -805,6 +805,46 @@ extension ListSyntheticMemberLinkTests {
                 memberName: "toFloatArray",
                 expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("FloatArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UByte>) {
+                    values.toUByteArray()
+                }
+                """,
+                memberName: "toUByteArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UByteArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UShort>) {
+                    values.toUShortArray()
+                }
+                """,
+                memberName: "toUShortArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UShortArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UInt>) {
+                    values.toUIntArray()
+                }
+                """,
+                memberName: "toUIntArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UIntArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<ULong>) {
+                    values.toULongArray()
+                }
+                """,
+                memberName: "toULongArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("ULongArray")
             ),
         ]
 
@@ -1328,7 +1368,6 @@ extension ListSyntheticMemberLinkTests {
             let withIndexSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("withIndex"),
             ]))
             let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
@@ -1341,14 +1380,21 @@ extension ListSyntheticMemberLinkTests {
             #expect(indexedValueRecord.flags.contains(.dataType))
 
             let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
-            guard case let .classType(iterableType) = sema.types.kind(of: signature.returnType) else {
-                Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
-            }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
-            guard case let .out(elementType) = try #require(iterableType.args.first),
-                  case let .classType(indexedValueType) = sema.types.kind(of: elementType)
+            guard case let .classType(listType) = sema.types.kind(of: signature.returnType),
+                  let firstArg = listType.args.first
             else {
-                Issue.record("Expected Iterable element type to be IndexedValue"); return
+                Issue.record("Expected withIndex() to return List<IndexedValue<T>>"); return
+            }
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
+            let elementType: TypeID
+            switch firstArg {
+            case .invariant(let t), .out(let t), .in(let t):
+                elementType = t
+            case .star:
+                Issue.record("Expected List element type, got star projection"); return
+            }
+            guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
+                Issue.record("Expected List element type to be IndexedValue"); return
             }
             #expect(indexedValueType.classSymbol == indexedValueSymbol)
         }
@@ -1632,24 +1678,23 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testIndexedAndAggregateListMembersAreInlineSynthetic() throws {
+    func testIndexedIterableMembersAreSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listFQName: [InternedString] = [
+            let packageFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
             ]
 
-            // forEachIndexed remains synthetic; mapIndexed / filterIndexed / sumOf are bundled source.
-            for memberName in ["forEachIndexed"] {
-                let symbolID = try #require(sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]))
+            // KSP-626: forEachIndexed and withIndex are bundled Kotlin source.
+            for memberName in ["forEachIndexed", "withIndex"] {
+                let symbolID = try #require(sema.symbols.lookup(fqName: packageFQName + [ctx.interner.intern(memberName)]))
                 let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
-                #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
-                #expect(flags.contains(.synthetic), "Expected \(memberName) to be synthetic")
+                #expect(!flags.contains(.synthetic), "Expected \(memberName) to be source-backed")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected \(memberName) to have no external link")
             }
         }
     }

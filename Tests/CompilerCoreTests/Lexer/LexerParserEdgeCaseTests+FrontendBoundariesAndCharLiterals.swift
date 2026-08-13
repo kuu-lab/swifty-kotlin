@@ -463,6 +463,24 @@ extension LexerParserEdgeCaseTests {
         }
     }
 
+    @Test
+    func testBodyLessExternalFunctionDoesNotConsumeFollowingDeclaration() {
+        let source = """
+        package demo
+
+        external fun foo(): Int
+
+        val x = 1
+        """
+        let parsed = parse(source)
+        let topLevel = parsed.arena.children(of: parsed.root).compactMap { child -> SyntaxKind? in
+            guard case let .node(id) = child else { return nil }
+            return parsed.arena.node(id).kind
+        }
+        #expect(topLevel == [.packageHeader, .funDecl, .propertyDecl])
+        #expect(!(parsed.diagnostics.hasError))
+    }
+
     func lex(_ source: String) -> (tokens: [Token], interner: StringInterner, diagnostics: DiagnosticEngine) {
         let diagnostics = DiagnosticEngine()
         let interner = StringInterner()

@@ -32,6 +32,8 @@ public class ArrayDeque<E> {
 
     public fun isEmpty(): Boolean = __kkArrayDequeSize(this) == 0
 
+    public fun isNotEmpty(): Boolean = !isEmpty()
+
     @KsSymbolName("__kk_arraydeque_addFirst")
     public external fun addFirst(element: E): Unit
 
@@ -57,6 +59,10 @@ public class ArrayDeque<E> {
         return __kkArrayDequeGet(this, currentSize - 1)
     }
 
+    public fun firstOrNull(): E? = if (isEmpty()) null else first()
+
+    public fun lastOrNull(): E? = if (isEmpty()) null else last()
+
     public fun removeFirst(): E {
         if (__kkArrayDequeSize(this) == 0) throw NoSuchElementException("ArrayDeque is empty.")
         return __kkArrayDequeRemoveFirst(this)
@@ -66,6 +72,10 @@ public class ArrayDeque<E> {
         if (__kkArrayDequeSize(this) == 0) throw NoSuchElementException("ArrayDeque is empty.")
         return __kkArrayDequeRemoveLast(this)
     }
+
+    public fun removeFirstOrNull(): E? = if (isEmpty()) null else removeFirst()
+
+    public fun removeLastOrNull(): E? = if (isEmpty()) null else removeLast()
 
     override fun toString(): String {
         val builder = StringBuilder()

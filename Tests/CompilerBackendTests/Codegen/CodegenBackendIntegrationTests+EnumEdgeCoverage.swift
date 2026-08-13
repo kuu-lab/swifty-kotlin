@@ -122,6 +122,7 @@ struct CodegenBackendEnumEdgeCoverageTests {
     /// was not enough to make `[]` itself resolve). Complements
     /// `testCodegenEnumValuesEntriesElementAccessEqualityAndWhen` (BUG-177,
     /// which covers `Array.get`/forEach/for-in but not `EnumEntries.get`).
+    @Test
     func testCodegenEnumEntriesIndexedAccessReturnsRealSingleton() throws {
         let source = """
         enum class Direction { NORTH, SOUTH, EAST, WEST }

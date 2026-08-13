@@ -9,193 +9,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let kotlinRangesPkg = kotlinPkg + [interner.intern("ranges")]
-
-        if symbols.lookup(fqName: kotlinPkg) == nil {
-            _ = symbols.define(kind: .package, name: interner.intern("kotlin"), fqName: kotlinPkg, declSite: nil, visibility: .public, flags: [.synthetic])
-        }
-        let rangesPackageSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: kotlinRangesPkg) {
-            rangesPackageSymbol = existing
-        } else {
-            rangesPackageSymbol = symbols.define(kind: .package, name: interner.intern("ranges"), fqName: kotlinRangesPkg, declSite: nil, visibility: .public, flags: [.synthetic])
-            if let kotlinSym = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(kotlinSym, for: rangesPackageSymbol)
-            }
-        }
-
-        // MIGRATION-RANGE-003: Int/Long/Double/Float coerceIn(min,max),
-        // coerceAtLeast, coerceAtMost migrated to bundled Kotlin source
-        // (RangeCoercion.kt). Only the coerceIn(range:) overload remains as a
-        // synthetic stub because it is not yet migrated.
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_int_coerceIn",
-            receiverType: types.intType,
-            parameters: [(name: "range", type: types.intType)],
-            returnType: types.intType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_long_coerceIn",
-            receiverType: types.longType,
-            parameters: [(name: "range", type: types.longType)],
-            returnType: types.longType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Unsigned coercion (STDLIB-500) ---
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_ubyte_coerceIn",
-            receiverType: types.ubyteType,
-            parameters: [
-                (name: "minimumValue", type: types.ubyteType),
-                (name: "maximumValue", type: types.ubyteType),
-            ],
-            returnType: types.ubyteType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtLeast",
-            externalLinkName: "kk_ubyte_coerceAtLeast",
-            receiverType: types.ubyteType,
-            parameters: [(name: "minimumValue", type: types.ubyteType)],
-            returnType: types.ubyteType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtMost",
-            externalLinkName: "kk_ubyte_coerceAtMost",
-            receiverType: types.ubyteType,
-            parameters: [(name: "maximumValue", type: types.ubyteType)],
-            returnType: types.ubyteType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_ushort_coerceIn",
-            receiverType: types.ushortType,
-            parameters: [
-                (name: "minimumValue", type: types.ushortType),
-                (name: "maximumValue", type: types.ushortType),
-            ],
-            returnType: types.ushortType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtLeast",
-            externalLinkName: "kk_ushort_coerceAtLeast",
-            receiverType: types.ushortType,
-            parameters: [(name: "minimumValue", type: types.ushortType)],
-            returnType: types.ushortType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtMost",
-            externalLinkName: "kk_ushort_coerceAtMost",
-            receiverType: types.ushortType,
-            parameters: [(name: "maximumValue", type: types.ushortType)],
-            returnType: types.ushortType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_uint_coerceIn",
-            receiverType: types.uintType,
-            parameters: [
-                (name: "minimumValue", type: types.uintType),
-                (name: "maximumValue", type: types.uintType),
-            ],
-            returnType: types.uintType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtLeast",
-            externalLinkName: "kk_uint_coerceAtLeast",
-            receiverType: types.uintType,
-            parameters: [(name: "minimumValue", type: types.uintType)],
-            returnType: types.uintType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtMost",
-            externalLinkName: "kk_uint_coerceAtMost",
-            receiverType: types.uintType,
-            parameters: [(name: "maximumValue", type: types.uintType)],
-            returnType: types.uintType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceIn",
-            externalLinkName: "kk_ulong_coerceIn",
-            receiverType: types.ulongType,
-            parameters: [
-                (name: "minimumValue", type: types.ulongType),
-                (name: "maximumValue", type: types.ulongType),
-            ],
-            returnType: types.ulongType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtLeast",
-            externalLinkName: "kk_ulong_coerceAtLeast",
-            receiverType: types.ulongType,
-            parameters: [(name: "minimumValue", type: types.ulongType)],
-            returnType: types.ulongType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoercionFunction(
-            named: "coerceAtMost",
-            externalLinkName: "kk_ulong_coerceAtMost",
-            receiverType: types.ulongType,
-            parameters: [(name: "maximumValue", type: types.ulongType)],
-            returnType: types.ulongType,
-            packageFQName: kotlinRangesPkg,
-            packageSymbol: rangesPackageSymbol,
-            symbols: symbols,
-            interner: interner
-        )
+        // Unsigned coercion overloads are provided by bundled Kotlin source (RangeCoercion.kt).
 
         // --- STDLIB-510..511: roundToInt / roundToLong extension functions ---
         let kotlinMathPkg = kotlinPkg + [interner.intern("math")]
@@ -508,7 +322,7 @@ extension DataFlowSemaPhase {
                 externalLinkName: "kk_int_to_byte",
                 receiverType: types.intType,
                 parameters: [],
-                returnType: types.intType,
+                returnType: types.byteType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
@@ -520,7 +334,7 @@ extension DataFlowSemaPhase {
                 externalLinkName: "kk_int_to_short",
                 receiverType: types.intType,
                 parameters: [],
-                returnType: types.intType,
+                returnType: types.shortType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
@@ -641,7 +455,7 @@ extension DataFlowSemaPhase {
                 externalLinkName: "kk_long_to_byte",
                 receiverType: types.longType,
                 parameters: [],
-                returnType: types.intType,
+                returnType: types.byteType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
@@ -653,7 +467,7 @@ extension DataFlowSemaPhase {
                 externalLinkName: "kk_long_to_short",
                 receiverType: types.longType,
                 parameters: [],
-                returnType: types.intType,
+                returnType: types.shortType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,

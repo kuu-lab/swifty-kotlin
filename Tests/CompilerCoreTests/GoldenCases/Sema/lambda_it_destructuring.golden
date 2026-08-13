@@ -17,10 +17,10 @@ expr e@3:46 lambda params=[] body=e@3:48#1 label=map type=(Int) -> Any
 expr e@3:26#2 memberCall recv=e@3:26 callee=map args=[_:e@3:46] type=kotlin.collections.List<Int> call=kotlin.collections.map#1 targs=[Int,Int]
 expr e@6:12 int(1) type=Int
 expr e@6:17 string(a) type=String
-expr e@6:12#1 memberCall recv=e@6:12 callee=to args=[_:e@6:17] type=kotlin.Pair<Int, String>
+expr e@6:12#1 memberCall recv=e@6:12 callee=to args=[_:e@6:17] type=kotlin.Pair<Int, String> call=kotlin.to targs=[Int,String]
 expr e@6:22 int(2) type=Int
 expr e@6:27 string(b) type=String
-expr e@6:22#1 memberCall recv=e@6:22 callee=to args=[_:e@6:27] type=kotlin.Pair<Int, String>
+expr e@6:22#1 memberCall recv=e@6:22 callee=to args=[_:e@6:27] type=kotlin.Pair<Int, String> call=kotlin.to targs=[Int,String]
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:12#1,_:e@6:22#1] type=kotlin.collections.List<out kotlin.Pair<Int, String>> call=kotlin.collections.listOf#1 targs=[kotlin.Pair<Int, String>]
 expr e@6:50 name(num) type=Int ref=__destructuring_0.num
 expr e@6:36 name(__destructured_0) type=kotlin.Pair<Int, String> ref=s-1

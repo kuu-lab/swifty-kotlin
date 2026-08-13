@@ -1,9 +1,9 @@
 package kotlin.collections
 
-// KSP-628
-// List → array conversions (object + signed primitive element types).
+// KSP-628 + KSP-629
+// List → array conversions (object + signed/unsigned primitive element types).
 // Migration source: Sources/Runtime/RuntimeArrayBasics.swift
-//   (kk_list_toTypedArray / kk_list_to{Char,Boolean,Short,Double,Float,Int,Long,Byte}Array)
+//   (kk_list_toTypedArray / kk_list_to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array)
 //
 // Fresh storage comes from the array constructors / arrayOfNulls, so only the
 // per-array-type allocation core stays in the Swift runtime.
@@ -100,6 +100,50 @@ public fun List<Long>.toLongArray(): LongArray {
 public fun List<Byte>.toByteArray(): ByteArray {
     val size = this.size
     val result = ByteArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun List<UByte>.toUByteArray(): UByteArray {
+    val size = this.size
+    val result = UByteArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun List<UShort>.toUShortArray(): UShortArray {
+    val size = this.size
+    val result = UShortArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun List<UInt>.toUIntArray(): UIntArray {
+    val size = this.size
+    val result = UIntArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun List<ULong>.toULongArray(): ULongArray {
+    val size = this.size
+    val result = ULongArray(size)
     var i = 0
     while (i < size) {
         result[i] = this[i]

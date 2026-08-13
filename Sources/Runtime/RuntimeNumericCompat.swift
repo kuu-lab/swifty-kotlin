@@ -356,66 +356,32 @@ public func kk_bits_to_double(_ value: Int) -> Double {
 
 @_cdecl("kk_int_to_float_bits")
 public func kk_int_to_float_bits(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_byte")
 public func kk_int_to_byte(_ value: Int) -> Int {
-    Int(Int8(truncatingIfNeeded: value))
+    Int(Int8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_short")
 public func kk_int_to_short(_ value: Int) -> Int {
-    Int(Int16(truncatingIfNeeded: value))
+    Int(Int16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_double_bits")
 public func kk_int_to_double_bits(_ value: Int) -> Int {
-    kk_double_to_bits(Double(value))
+    kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_float_to_double_bits")
 public func kk_float_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_bits_to_float(value)))
-}
-
-@_cdecl("kk_println_long")
-public func kk_println_long(_ value: Int) {
-    // Range expressions (LongRange) are typed as Long in sema but produce
-    // opaque runtime object handles.  Detect that case and render via
-    // runtimeElementToString so that "println(1L..10L)" prints "1..10".
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObj = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObj, tryCast(ptr, to: RuntimeRangeBox.self) != nil {
-            Swift.print(runtimeElementToString(value))
-            return
-        }
-    }
-    Swift.print(value)
-}
-
-@_cdecl("kk_println_ulong")
-public func kk_println_ulong(_ value: Int) {
-    Swift.print(UInt(bitPattern: value))
-}
-
-@_cdecl("kk_println_float")
-public func kk_println_float(_ value: Int) {
-    let rendered = runtimeFormatFloatingPoint(kk_bits_to_float(value))
-    Swift.print(rendered)
-}
-
-@_cdecl("kk_println_double")
-public func kk_println_double(_ value: Int) {
-    let rendered = runtimeFormatFloatingPoint(kk_bits_to_double(value))
-    Swift.print(rendered)
 }
 
 @_cdecl("kk_math_sqrt")
@@ -1060,22 +1026,6 @@ public func kk_math_nextTowards_float(_ from: Int, _ to: Int) -> Int {
     return kk_float_to_bits(nextafterf(rawFrom, rawTo))
 }
 
-@_cdecl("kk_println_char")
-public func kk_println_char(_ value: Int) {
-    let unboxed = kk_unbox_char(value)
-    if let scalar = UnicodeScalar(unboxed) {
-        Swift.print(String(scalar))
-    } else {
-        Swift.print("?")
-    }
-}
-
-@_cdecl("kk_println_bool")
-public func kk_println_bool(_ value: Int) {
-    let unboxedValue = kk_unbox_bool(value)
-    Swift.print(unboxedValue != 0 ? "true" : "false")
-}
-
 @_cdecl("kk_bitwise_and")
 public func kk_bitwise_and(_ lhs: Int, _ rhs: Int) -> Int {
     lhs & rhs
@@ -1156,8 +1106,7 @@ public func kk_float_to_long(_ value: Int) -> Int {
 }
 
 /// Long→* conversions: `Int` (intptr_t) is used for Long values.
-/// This is correct on 64-bit macOS where Int == Int64; see the note above
-/// kk_long_coerceIn for the full rationale.
+/// This is correct on 64-bit macOS where Int == Int64.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))

@@ -669,23 +669,6 @@ extension CallTypeChecker {
                     allCandidates = labelMatches
                 }
             }
-            // STDLIB-214: For slice(IntRange) vs slice(Iterable<Int>), prefer the
-            // IntRange overload (kk_list_slice) when the first argument is a range expression,
-            // and the Iterable overload (kk_list_slice_iterable) otherwise.
-            if argCount == 1,
-               allCandidates.count > 1,
-               let firstArgExpr = argExprs.first,
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_slice" }),
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_slice_iterable" })
-            {
-                let isRangeArg = sema.bindings.isRangeExpr(firstArgExpr)
-                let targetLinkName = isRangeArg ? "kk_list_slice" : "kk_list_slice_iterable"
-                if let sliceMatch = allCandidates.first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == targetLinkName
-                }) {
-                    return sliceMatch
-                }
-            }
             if argCount == 1,
                allCandidates.count > 1,
                let firstArgExpr = argExprs.first,

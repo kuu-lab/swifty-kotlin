@@ -138,11 +138,14 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    /// KSP-626: `withIndex`/`forEachIndexed` are bundled Kotlin source, so they
+    /// must lower to the source-backed declaration instead of a runtime bridge.
     @Test
-    func testBuildKIRLowersListWithIndexToCollectionRuntimeCall() throws {
+    func testBuildKIRLowersListIndexedHelpersToBundledSourceCalls() throws {
         let source = """
         fun main(values: List<Int>) {
             values.withIndex()
+            values.forEachIndexed { index, value -> println(index + value) }
         }
         """
 
@@ -154,8 +157,10 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_list_withIndex"))
-            #expect(!(callNames.contains("withIndex")))
+            #expect(callNames.contains("withIndex"))
+            #expect(callNames.contains("forEachIndexed"))
+            #expect(!(callNames.contains("kk_list_withIndex")))
+            #expect(!(callNames.contains("kk_list_forEachIndexed")))
         }
     }
 
@@ -598,7 +603,9 @@ struct BuildKIRCodegenRegressionTests {
             #expect(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat") == nil)
             #expect(throwFlags["kk_string_repeat_flat"] == nil)
             #expect(throwFlags["kk_string_repeat"] == nil)
-            #expect(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true } == true)
+            // KSP-414: toInt is source-backed and lowers through the source
+            // function `toInt` rather than a public kk_string_toInt_flat helper.
+            #expect(throwFlags["toInt"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true } == true)
         }
     }

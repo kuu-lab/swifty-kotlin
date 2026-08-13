@@ -28,7 +28,6 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
         if isClassNameReceiver,
            args.isEmpty,
            let classNameReceiverNominalSymbol,
@@ -331,10 +330,14 @@ extension CallTypeChecker {
                     sema.types.make(.primitive(.boolean, .nonNull))
                 case "toBooleanStrictOrNull":
                     sema.types.make(.primitive(.boolean, .nullable))
-                case "toShort", "toByte":
-                    sema.types.intType
-                case "toShortOrNull", "toByteOrNull":
-                    sema.types.make(.primitive(.int, .nullable))
+                case "toByte":
+                    sema.types.byteType
+                case "toShort":
+                    sema.types.shortType
+                case "toByteOrNull":
+                    sema.types.makeNullable(sema.types.byteType)
+                case "toShortOrNull":
+                    sema.types.makeNullable(sema.types.shortType)
                 case "first", "last", "single":
                     sema.types.make(.primitive(.char, .nonNull))
                 case "firstOrNull", "lastOrNull", "singleOrNull":
@@ -1213,18 +1216,6 @@ extension CallTypeChecker {
         if lookupReceiverType == sema.types.errorType {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        // Kotlin infix `to` is effectively a universal extension used by
-        // destructuring-friendly literals (e.g. `1 to "a"`). Keep a
-        // lightweight fallback when no symbol candidate was discovered.
-        if !isClassNameReceiver,
-           args.count == 1,
-           calleeName == knownNames.to
-        {
-            let resultType = sema.types.anyType
-            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-            sema.bindings.bindExprType(id, type: finalType)
-            return finalType
-        }
         if let firstInvisible = invisibleCandidates.first {
             driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.semaCtx.diagnostics)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
@@ -1515,17 +1506,6 @@ extension CallTypeChecker {
             return fallbackType
         }
         if let fallbackType = tryBindThreadLocalGetOrSetFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryBindReadWriteLockReadFallback(
             id,
             calleeName: calleeName,
             safeCall: safeCall,

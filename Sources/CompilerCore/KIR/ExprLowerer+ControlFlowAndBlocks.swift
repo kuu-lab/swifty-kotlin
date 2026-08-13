@@ -180,6 +180,14 @@ extension ExprLowerer {
                     }
                 }
 
+                // Collection properties: size, isEmpty. Restricted to receivers
+                // that are collections (or of unknown class), so that a user
+                // class declaring its own `size`/`isEmpty` member keeps its
+                // declared accessor / backing field on implicit-receiver reads.
+                let receiverMayBeCollection = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
+                    .map { KnownCompilerNames(interner: interner).isCollectionLikeSymbol($0.symbol) }
+                    ?? true
+
                 // A user-declared member with a custom getter shadows the built-in
                 // collection shortcuts below: `size` / `isEmpty` inside a class that
                 // declares them must run its own getter, not kk_collection_size.
@@ -196,8 +204,7 @@ extension ExprLowerer {
                     return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                 }()
 
-                // Collection properties: size, isEmpty
-                if memberStr == "size", !implicitMemberUsesAccessor {
+                if receiverMayBeCollection, memberStr == "size", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
                         callee: interner.intern("__kk_collection_size"),
                         arg: receiverExprID,
@@ -206,7 +213,7 @@ extension ExprLowerer {
                     )
                     return result
                 }
-                if memberStr == "isEmpty", !implicitMemberUsesAccessor {
+                if receiverMayBeCollection, memberStr == "isEmpty", !implicitMemberUsesAccessor {
                     emitNonThrowingCall(
                         callee: interner.intern("__kk_collection_isEmpty"),
                         arg: receiverExprID,

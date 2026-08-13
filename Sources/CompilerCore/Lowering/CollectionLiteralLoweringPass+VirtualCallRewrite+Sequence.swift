@@ -111,44 +111,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if callee == lookup.takeName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListTakeName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.dropName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListDropName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
         if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
             let transformResult = module.arena.appendTemporary(type: nil
             )
@@ -655,23 +617,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if let result { sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
-
-        // partition(predicate) on sequence → kk_sequence_partition (STDLIB-SEQ-012)
-        if callee == lookup.partitionName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            emitHOFCall(
-                kkName: lookup.kkSequencePartitionName,
-                receiver: receiver,
-                arguments: arguments + [zeroExpr],
-                result: result,
-                origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult,
-                module: module,
-                loweredBody: &loweredBody
-            )
             return true
         }
 

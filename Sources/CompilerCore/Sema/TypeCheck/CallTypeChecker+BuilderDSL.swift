@@ -42,7 +42,13 @@ extension CallTypeChecker {
                 signature: signature,
                 callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
                 symbols: ctx.sema.symbols,
-                typeSystem: ctx.sema.types
+                typeSystem: ctx.sema.types,
+                isCallableArgument: { index in
+                    if case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr) {
+                        return true
+                    }
+                    return false
+                }
             ) else {
                 continue
             }
@@ -50,7 +56,8 @@ extension CallTypeChecker {
                 args: args,
                 parameterMapping: parameterMapping,
                 signature: signature,
-                sema: ctx.sema
+                sema: ctx.sema,
+                ast: ctx.ast
             ) else {
                 continue
             }
@@ -114,17 +121,9 @@ extension CallTypeChecker {
     }
 
     func builderDSLKind(for name: InternedString, interner: StringInterner) -> BuilderDSLKind? {
-        let knownNames = KnownCompilerNames(interner: interner)
-        switch name {
-        case knownNames.buildList:
-            return .buildList
-        case knownNames.buildSet:
-            return .buildSet
-        case knownNames.buildMap:
-            return .buildMap
-        default:
-            return nil
-        }
+        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
+        // and use @ExperimentalTypeInference. They no longer use builder-DSL special handling.
+        return nil
     }
 
     func shouldUseBuilderDSLSpecialHandling(
@@ -160,11 +159,9 @@ extension CallTypeChecker {
         else {
             return false
         }
-        let knownNames = KnownCompilerNames(interner: interner)
         if symbol.fqName[1] == collectionsName {
-            return calleeName == knownNames.buildList
-                || calleeName == knownNames.buildSet
-                || calleeName == knownNames.buildMap
+            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
+            return false
         }
         return false
     }
@@ -507,10 +504,17 @@ extension CallTypeChecker {
                 signature: signature,
                 callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
                 symbols: ctx.sema.symbols,
-                typeSystem: ctx.sema.types
+                typeSystem: ctx.sema.types,
+                isCallableArgument: { index in
+                    if case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr) {
+                        return true
+                    }
+                    return false
+                }
             ) ?? [:],
             signature: signature,
-            sema: ctx.sema
+            sema: ctx.sema,
+            ast: ctx.ast
         ) != nil
     }
 
@@ -518,9 +522,13 @@ extension CallTypeChecker {
         args: [CallArgument],
         parameterMapping: [Int: Int],
         signature: FunctionSignature,
-        sema: SemaModule
+        sema: SemaModule,
+        ast: ASTModule
     ) -> Int? {
         let indices = args.indices.filter { argIndex in
+            guard isValidBuilderLambdaArgument(args[argIndex].expr, ast: ast) else {
+                return false
+            }
             guard let paramIndex = parameterMapping[argIndex],
                   paramIndex < signature.parameterTypes.count
             else {
@@ -1104,7 +1112,7 @@ extension CallTypeChecker {
         )
 
         guard let chosen = candidates.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { candidate in
-            guard ctx.sema.symbols.externalLinkName(for: candidate) == "kk_sequence_builder_yieldAll",
+            guard ctx.sema.symbols.externalLinkName(for: candidate) == "__kk_sequence_builder_yieldAll",
                   let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1
             else {

@@ -26,7 +26,7 @@ struct RuntimeRangeRandomTests {
 
     @Test
     func testIntRangeRandomRespectsStep() {
-        let range = kk_op_step(kk_op_rangeTo(1, 10), 2, nil)
+        let range = __kk_op_step(kk_op_rangeTo(1, 10), 2, nil)
         for _ in 0..<20 {
             var thrown = 0
             let value = kk_range_random(range, &thrown)

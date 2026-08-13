@@ -310,6 +310,144 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-614: `print`/`println` are Kotlin declarations in
+    /// `Stdlib/kotlin/io/Console.kt` on top of the single `__kk_print_raw`
+    /// bridge; every overload (including the argument-less ones) must resolve
+    /// and the newline must be appended on the Kotlin side.
+    @Test
+    func testConsolePrintOverloadsAreKotlinBacked() throws {
+        try compileAndRunKotlin(
+            """
+            data class P(val a: Int)
+
+            fun main() {
+                println()
+                print()
+                print("a")
+                print(1)
+                println()
+                println("b")
+                println(2)
+                println(null)
+                println(P(3))
+                println(listOf(1, 2))
+            }
+            """,
+            expectedOutput: """
+
+            a1
+            b
+            2
+            null
+            P(a=3)
+            [1, 2]
+
+            """
+        )
+    }
+
+    // KSP-625: The public ArrayDeque surface is bundled Kotlin. Empty and bounds checks
+    // and toString stay in Kotlin; only ring-buffer mutation crosses the __kk_arraydeque_* bridges.
+    @Test
+    func testArrayDequeMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val deque = ArrayDeque<Int>()
+                println(deque.isEmpty())
+                deque.addLast(2)
+                deque.addFirst(1)
+                deque.addLast(3)
+                println(deque.size)
+                println(deque.first())
+                println(deque.last())
+                println(deque[1])
+                println(deque)
+                println(deque.removeFirst())
+                println(deque.removeLast())
+                println(deque)
+                try {
+                    ArrayDeque<Int>().first()
+                } catch (e: NoSuchElementException) {
+                    println(e.message)
+                }
+                try {
+                    deque[5]
+                } catch (e: IndexOutOfBoundsException) {
+                    println(e.message)
+                }
+            }
+            """,
+            expectedOutput: """
+            true
+            3
+            1
+            3
+            2
+            [1, 2, 3]
+            1
+            3
+            [2]
+            ArrayDeque is empty.
+            index: 5, size: 1
+
+            """
+        )
+    }
+
+    // KSP-662: Char conversions are bundled in kotlin.text.CharConversions.
+    // Only Unicode case mapping and digit-table lookup cross the __kk_char_* bridges.
+    @Test
+    func testCharConversionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println('a'.uppercaseChar())
+                println('A'.lowercaseChar())
+                println('\\u00DF'.uppercaseChar())
+                println('\\u01C6'.titlecaseChar())
+                println('a'.uppercase())
+                println('\\u00DF'.uppercase())
+                println('\\u01C6'.titlecase())
+                println('7'.digitToInt())
+                println('f'.digitToInt(16))
+                println('z'.digitToIntOrNull())
+                println('g'.digitToIntOrNull(16))
+                println(7.digitToChar())
+                println(10.digitToChar(16))
+                try {
+                    '!'.digitToInt()
+                } catch (e: IllegalArgumentException) {
+                    println("invalid-digit")
+                }
+                try {
+                    1.digitToChar(1)
+                } catch (e: IllegalArgumentException) {
+                    println("invalid-radix")
+                }
+            }
+            """,
+            expectedOutput: """
+            A
+            a
+            \u{00DF}
+            \u{01C5}
+            A
+            SS
+            \u{01C5}
+            7
+            15
+            null
+            null
+            7
+            A
+            invalid-digit
+            invalid-radix
+
+            """
+        )
+    }
+
     /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
     /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
     @Test
@@ -456,6 +594,31 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-625 regression: implicit size/isEmpty reads on user classes must use their
+    // declared properties rather than collection runtime shortcuts.
+    @Test
+    func testImplicitReceiverSizeReadsUserDefinedProperty() throws {
+        try compileAndRunKotlin(
+            """
+            class Box {
+                val size: Int
+                    get() = 5
+                val isEmpty: Boolean
+                    get() = false
+                fun readSize(): Int = size
+                fun readIsEmpty(): Boolean = isEmpty
+            }
+            fun main() {
+                val box = Box()
+                println(box.readSize())
+                println(box.size)
+                println(box.readIsEmpty())
+            }
+            """,
+            expectedOutput: "5\n5\nfalse\n"
+        )
+    }
+
     // KSP-642: rotateLeft / rotateRight は bundled Kotlin (kotlin.Numbers) で
     // shl / ushr / or だけを使って実装される。シフト量のマスク（Int は 5bit、
     // Long は 6bit）に依存するため、0 / 幅ちょうど / 幅超過 / 負値の境界を検証する。
@@ -542,6 +705,26 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// BUG-164: A callable reference passed to a `fun interface` parameter
+    /// must be SAM-converted and the containing function must still be called.
+    @Test
+    func testCallableRefPassedToFunInterfaceParameterRuns() throws {
+        try compileAndRunKotlin(
+            """
+            fun interface IntOp { fun apply(a: Int, b: Int): Int }
+
+            fun useOp(o: IntOp): Int = o.apply(10, 4)
+
+            fun myCompare(a: Int, b: Int): Int = a - b
+
+            fun main() {
+                println(useOp(::myCompare))
+            }
+            """,
+            expectedOutput: "6\n"
+        )
+    }
+
     // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
     // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
     // Verify signed zero, subnormal values, computed NaNs, and payload NaNs
@@ -600,6 +783,7 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
 
     // KSP-417: These APIs use private runtime bridges. This also guards the
     // flat-string return ABI for __kk_string_normalize_flat.
@@ -681,6 +865,81 @@ struct BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "hi:10\nhello:10\n"
+        )
+    }
+
+    // KSP-640 regression: UByte/UShort/UInt/ULong coerceIn/coerceAtLeast/coerceAtMost
+    // are now bundled Kotlin source (RangeCoercion.kt) and should execute through the
+    // normal extension-function path, including unsigned comparisons above Int.max.
+    @Test
+    func testUnsignedCoercionExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                // UByte / UShort
+                println(5.toUByte().coerceIn(1.toUByte(), 10.toUByte()).toInt())
+                println(0.toUByte().coerceIn(1.toUByte(), 10.toUByte()).toInt())
+                println(15.toUByte().coerceIn(1.toUByte(), 10.toUByte()).toInt())
+                println(5.toUByte().coerceAtLeast(10.toUByte()).toInt())
+                println(15.toUByte().coerceAtMost(10.toUByte()).toInt())
+
+                println(500.toUShort().coerceIn(100.toUShort(), 900.toUShort()).toInt())
+                println(50.toUShort().coerceIn(100.toUShort(), 900.toUShort()).toInt())
+                println(1000.toUShort().coerceIn(100.toUShort(), 900.toUShort()).toInt())
+                println(50.toUShort().coerceAtLeast(100.toUShort()).toInt())
+                println(1000.toUShort().coerceAtMost(900.toUShort()).toInt())
+
+                // UInt / ULong with values above Int.max to exercise unsigned comparison.
+                val lowerUInt = Int.MAX_VALUE.toUInt() + 10u
+                val upperUInt = lowerUInt + 20u
+                val middleUInt = lowerUInt + 7u
+                println(middleUInt.coerceIn(lowerUInt, upperUInt) == middleUInt)
+                println((lowerUInt - 1u).coerceIn(lowerUInt, upperUInt) == lowerUInt)
+                println((upperUInt + 1u).coerceIn(lowerUInt, upperUInt) == upperUInt)
+                println((lowerUInt - 1u).coerceAtLeast(lowerUInt) == lowerUInt)
+                println((upperUInt + 1u).coerceAtMost(upperUInt) == upperUInt)
+
+                val lowerULong = Long.MAX_VALUE.toULong() + 10uL
+                val upperULong = lowerULong + 20uL
+                val middleULong = lowerULong + 7uL
+                println(middleULong.coerceIn(lowerULong, upperULong) == middleULong)
+                println((lowerULong - 1uL).coerceIn(lowerULong, upperULong) == lowerULong)
+                println((upperULong + 1uL).coerceIn(lowerULong, upperULong) == upperULong)
+                println((lowerULong - 1uL).coerceAtLeast(lowerULong) == lowerULong)
+                println((upperULong + 1uL).coerceAtMost(upperULong) == upperULong)
+
+                // Range overloads for UInt / ULong.
+                val uintRange = lowerUInt..upperUInt
+                println(middleUInt.coerceIn(uintRange) == middleUInt)
+                val ulongRange = lowerULong..upperULong
+                println(middleULong.coerceIn(ulongRange) == middleULong)
+            }
+            """,
+            expectedOutput: """
+            5
+            1
+            10
+            10
+            10
+            500
+            100
+            900
+            100
+            900
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+
+            """
         )
     }
 }

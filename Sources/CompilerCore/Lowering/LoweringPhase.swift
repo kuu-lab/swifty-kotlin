@@ -35,6 +35,7 @@ final class LoweringPhase: CompilerPhase {
         JvmOverloadsLoweringPass(),
         DataEnumSealedSynthesisPass(),
         EnumEntriesLoweringPass(),
+        ConsolePrintLoweringPass(),
         EnumNameAccessLoweringPass(),
         LambdaClosureConversionPass(),
         InlineLoweringPass(),

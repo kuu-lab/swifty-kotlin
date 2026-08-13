@@ -5,8 +5,6 @@ symbol fq=__localfun_0.x kind=valueParameter vis=private flags=_ type=Int
 symbol fq=annotatedAssignment kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=annotatedExpressionStatement kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=annotatedLocalFun kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=uncheckedCastLocal kind=function vis=public flags=_ sig=recv=_ params=[Any?] ret=uncheckedCastLocal.$0.T
 symbol fq=uncheckedCastLocal.$0.T kind=typeParameter vis=private flags=_
 symbol fq=uncheckedCastLocal.$0.value kind=valueParameter vis=private flags=_

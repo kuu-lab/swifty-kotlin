@@ -75,40 +75,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // groupBy on sequence → kk_sequence_groupBy (STDLIB-470)
-    if callee == lookup.groupByName,
-       arguments.count == 2 || arguments.count == 3
-    {
-        let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            let lambdaID = arguments[1]
-            let closureRawID: KIRExprID
-            if arguments.count == 3 {
-                closureRawID = arguments[2]
-            } else {
-                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                closureRawID = zeroExpr
-            }
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceGroupByName,
-                arguments: [receiverID, lambdaID, closureRawID],
-                result: hofResult,
-                canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result {
-                state.mapExprIDs.insert(result.rawValue)
-                state.mapExprIDs.insert(hofResult.rawValue)
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            return true
-        }
-    }
-
     // max / maxOrNull / minOrNull on sequence (STDLIB-SEQ-FN-065, STDLIB-470)
     if callee == lookup.maxName || callee == lookup.maxOrNullName || callee == lookup.minOrNullName {
         if arguments.count == 1 {
@@ -153,28 +119,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 thrownResult: nil
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
-    }
-
-    if callee == lookup.dropName, arguments.count == 2 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListDropName,
-                arguments: arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
             return true
         }
     }

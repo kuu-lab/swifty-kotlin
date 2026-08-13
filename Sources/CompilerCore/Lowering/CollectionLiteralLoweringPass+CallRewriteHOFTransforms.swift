@@ -348,13 +348,12 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // --- STDLIB-SEQ-023 / STDLIB-535/536/537: sequence/list *To variants with [receiver, dest, lambda, closureRaw?] ---
+    // --- STDLIB-SEQ-023 / STDLIB-535/536/537: list *To variants with [receiver, dest, lambda, closureRaw?] ---
     if callee == lookup.associateByToName || callee == lookup.associateWithToName
         || callee == lookup.groupByToName
     {
         if arguments.count == 3 || arguments.count == 4,
            state.listExprIDs.contains(arguments[0].rawValue)
-            || state.sequenceExprIDs.contains(arguments[0].rawValue)
         {
             let receiverID = arguments[0]
             let destID = arguments[1]
@@ -367,14 +366,10 @@ extension CollectionLiteralLoweringSupport {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let isSequenceReceiver = state.sequenceExprIDs.contains(receiverID.rawValue)
             let kkName: InternedString = switch callee {
-            case lookup.associateByToName:
-                isSequenceReceiver ? lookup.kkSequenceAssociateByToName : lookup.kkListAssociateByToName
-            case lookup.associateWithToName:
-                isSequenceReceiver ? lookup.kkSequenceAssociateWithToName : lookup.kkListAssociateWithToName
-            case lookup.groupByToName:
-                isSequenceReceiver ? lookup.kkSequenceGroupByToName : lookup.kkListGroupByToName
+            case lookup.associateByToName: lookup.kkListAssociateByToName
+            case lookup.associateWithToName: lookup.kkListAssociateWithToName
+            case lookup.groupByToName: lookup.kkListGroupByToName
             default: callee
             }
             let hofResult = module.arena.appendTemporary(type: nil
@@ -558,29 +553,8 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    if callee == lookup.withIndexName || callee == lookup.kkListWithIndexName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWithIndexName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.indexingIterableExprIDs.insert(result.rawValue)
-                state.indexingIterableExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
-    if callee == lookup.forEachIndexedName || callee == lookup.mapIndexedName || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName {
+    // KSP-626: withIndex / forEachIndexed are bundled Kotlin source, not bridges.
+    if callee == lookup.mapIndexedName || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]

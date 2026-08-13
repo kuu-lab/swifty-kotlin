@@ -22,10 +22,7 @@ struct ArrayLookupNames {
     // Array conversion / HOF / utility ABI names (STDLIB-087/088/089)
     let kkArrayToListName: InternedString
     let kkArrayToMutableListName: InternedString
-    let kkListToUByteArrayName: InternedString
-    let kkListToUShortArrayName: InternedString
-    let kkListToUIntArrayName: InternedString
-    let kkListToULongArrayName: InternedString
+
     let kkArrayMapName: InternedString
     let kkArrayFilterName: InternedString
     let kkArrayForEachName: InternedString
@@ -86,10 +83,7 @@ struct ArrayLookupNames {
         kkArraySetName = interner.intern("kk_array_set")
         kkArrayToListName = interner.intern("kk_array_toList")
         kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
-        kkListToUByteArrayName = interner.intern("kk_list_toUByteArray")
-        kkListToUShortArrayName = interner.intern("kk_list_toUShortArray")
-        kkListToUIntArrayName = interner.intern("kk_list_toUIntArray")
-        kkListToULongArrayName = interner.intern("kk_list_toULongArray")
+
         kkArrayMapName = interner.intern("kk_array_map")
         kkArrayFilterName = interner.intern("kk_array_filter")
         kkArrayForEachName = interner.intern("kk_array_forEach")

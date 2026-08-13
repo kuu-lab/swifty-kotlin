@@ -14,7 +14,7 @@ import Testing
 //               repeated freeze is idempotent, isFrozen is stable across multiple queries,
 //               freeze propagation: freezing parent does NOT auto-freeze child (registry is flat),
 //               child can be independently frozen; both parent and child frozen state independent
-//   Debugging - kk_assertions_enabled returns 0 or 1, repeated enable/disable idempotent,
+//   Debugging - __kk_assertions_enabled returns 0 or 1, repeated enable/disable idempotent,
 //               kk_assertions_reset restores to a valid boolean state
 
 // ---------------------------------------------------------------------------
@@ -481,49 +481,49 @@ struct RuntimeNativeRefFreezeTests {
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeNativeRefDebuggingTests {
     @Test func assertionsEnabledReturnsBooleanValue() {
-        let result = kk_assertions_enabled()
+        let result = __kk_assertions_enabled()
         #expect(result == 0 || result == 1,
-                "kk_assertions_enabled must return 0 or 1")
+                "__kk_assertions_enabled must return 0 or 1")
     }
 
     @Test func disableEnableAssertionsIdempotent() {
         _ = kk_assertions_set_enabled(0)
-        #expect(kk_assertions_enabled() == 0)
+        #expect(__kk_assertions_enabled() == 0)
         _ = kk_assertions_set_enabled(0)
-        #expect(kk_assertions_enabled() == 0,
+        #expect(__kk_assertions_enabled() == 0,
                 "Disabling already-disabled assertions must be idempotent")
     }
 
     @Test func enableAssertionsIdempotent() {
         _ = kk_assertions_set_enabled(1)
-        #expect(kk_assertions_enabled() == 1)
+        #expect(__kk_assertions_enabled() == 1)
         _ = kk_assertions_set_enabled(1)
-        #expect(kk_assertions_enabled() == 1,
+        #expect(__kk_assertions_enabled() == 1,
                 "Enabling already-enabled assertions must be idempotent")
     }
 
     @Test func toggleAssertionsRoundTrip() {
         _ = kk_assertions_set_enabled(1)
-        #expect(kk_assertions_enabled() == 1)
+        #expect(__kk_assertions_enabled() == 1)
         _ = kk_assertions_set_enabled(0)
-        #expect(kk_assertions_enabled() == 0)
+        #expect(__kk_assertions_enabled() == 0)
         _ = kk_assertions_set_enabled(1)
-        #expect(kk_assertions_enabled() == 1)
+        #expect(__kk_assertions_enabled() == 1)
     }
 
     @Test func assertionsResetRestoresValidBooleanState() {
         _ = kk_assertions_set_enabled(0)
         _ = kk_assertions_reset()
-        let result = kk_assertions_enabled()
+        let result = __kk_assertions_enabled()
         #expect(result == 0 || result == 1,
                 "kk_assertions_reset must leave assertions in a valid boolean state")
     }
 
     @Test func repeatedAssertionsResetIsIdempotent() {
         _ = kk_assertions_reset()
-        let first = kk_assertions_enabled()
+        let first = __kk_assertions_enabled()
         _ = kk_assertions_reset()
-        let second = kk_assertions_enabled()
+        let second = __kk_assertions_enabled()
         #expect(first == second,
                 "Repeated kk_assertions_reset must yield consistent state")
     }

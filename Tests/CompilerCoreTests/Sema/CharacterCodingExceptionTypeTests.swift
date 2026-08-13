@@ -11,30 +11,60 @@ import Testing
 /// link `__kk_throwable_new`.
 @Suite
 struct CharacterCodingExceptionTypeTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
-        Self._sharedSema = pair
-        return pair
-    }
+    // MARK: - Shared Sema context
 
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        import kotlin.text.CharacterCodingException
+
+        fun throwImported(): Nothing = throw CharacterCodingException()
+        fun throwImportedWithMessage(): Nothing = throw CharacterCodingException("bad input")
+
+        fun catchAsCharacterCoding(): String =
+            try { throw CharacterCodingException("decode failed") }
+            catch (e: CharacterCodingException) { e.message ?: "none" }
+
+        fun catchAsException(): String =
+            try { throw CharacterCodingException("encode failed") }
+            catch (e: Exception) { e.message ?: "none" }
+
+        fun catchAsThrowable(): String =
+            try { throw CharacterCodingException("io failed") }
+            catch (t: Throwable) { t.message ?: "none" }
+        """,
+        """
+        package sample1
+        import kotlin.text.CharacterCodingException
+
+        fun nullable(message: String?): Exception = CharacterCodingException(message)
+        fun explicitNull(): Exception = CharacterCodingException(null)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            result = try (#require(ctx.sema), ctx.interner)
+            result = ctx
         }
-        return try #require(result)
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
     }
 
     // MARK: - Symbol surface
 
     @Test
     func testCharacterCodingExceptionIsRegisteredAsClassInKotlinTextPackage() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let fqName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let symbol = try #require(
@@ -46,7 +76,9 @@ struct CharacterCodingExceptionTypeTests {
 
     @Test
     func testCharacterCodingExceptionHasExceptionDirectSupertype() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let exceptionFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -62,7 +94,9 @@ struct CharacterCodingExceptionTypeTests {
 
     @Test
     func testCharacterCodingExceptionIsAssignableToExceptionAndThrowable() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let characterCodingFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let characterCodingSymbol = try #require(sema.symbols.lookup(fqName: characterCodingFQName))
@@ -102,7 +136,9 @@ struct CharacterCodingExceptionTypeTests {
 
     @Test
     func testCharacterCodingExceptionExposesNoArgAndMessageConstructors() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let exceptionFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
         let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
@@ -147,27 +183,9 @@ struct CharacterCodingExceptionTypeTests {
 
     // MARK: - Source resolution
 
-    @Test
-    func testCharacterCodingExceptionTypeChecksThroughImport() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.CharacterCodingException
+    @Test func testCharacterCodingExceptionTypeChecksThroughImport() throws {
 
-        fun throwImported(): Nothing = throw CharacterCodingException()
-        fun throwImportedWithMessage(): Nothing = throw CharacterCodingException("bad input")
-
-        fun catchAsCharacterCoding(): String =
-            try { throw CharacterCodingException("decode failed") }
-            catch (e: CharacterCodingException) { e.message ?: "none" }
-
-        fun catchAsException(): String =
-            try { throw CharacterCodingException("encode failed") }
-            catch (e: Exception) { e.message ?: "none" }
-
-        fun catchAsThrowable(): String =
-            try { throw CharacterCodingException("io failed") }
-            catch (t: Throwable) { t.message ?: "none" }
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -175,15 +193,9 @@ struct CharacterCodingExceptionTypeTests {
         )
     }
 
-    @Test
-    func testCharacterCodingExceptionAcceptsNullMessageArgument() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.CharacterCodingException
+    @Test func testCharacterCodingExceptionAcceptsNullMessageArgument() throws {
 
-        fun nullable(message: String?): Exception = CharacterCodingException(message)
-        fun explicitNull(): Exception = CharacterCodingException(null)
-        """)
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,

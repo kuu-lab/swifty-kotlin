@@ -337,10 +337,10 @@ enum MemberRuntimeDispatch {
                     charProgressionUsesChar: true
                 )
             }
-            if kind.isULongRangeLike { return "kk_ulong_step" }
-            if kind.isUIntRangeLike { return "kk_uint_step" }
-            if kind.isCharRangeLike { return "kk_char_range_step" }
-            return "kk_op_step"
+            if kind.isULongRangeLike { return "__kk_ulong_step" }
+            if kind.isUIntRangeLike { return "__kk_uint_step" }
+            if kind.isCharRangeLike { return "__kk_char_range_step" }
+            return "__kk_op_step"
         default:
             return nil
         }
@@ -367,10 +367,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lowercase_flat")
         case ("uppercase", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_uppercase_flat")
-        case ("toInt", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_flat", canThrow: true)
-        case ("toIntOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toIntOrNull_flat")
         case ("toDouble", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toDouble_flat", canThrow: true)
         case ("toDoubleOrNull", 0):
@@ -399,8 +395,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
         case ("withIndex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
-        case ("toInt", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("windowed", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
         case ("get", 1):
@@ -438,7 +432,7 @@ enum MemberRuntimeDispatch {
         longMember: String? = nil,
         charMember: String? = nil,
         charProgressionUsesChar: Bool = false
-    ) -> String {
+    ) -> String? {
         if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
             return "kk_char_range_\(charMember)"
         }
@@ -448,6 +442,27 @@ enum MemberRuntimeDispatch {
         if kind.isUIntRangeLike {
             return "kk_uint_range_\(member)"
         }
+
+        // KSP-453: IntRange/IntProgression HOFs are now implemented in bundled
+        // Kotlin source (RangeHOF.kt) and must not be routed to the legacy
+        // kk_range_* runtime entry points.
+        if kind == .intRange || kind == .intProgression {
+            let sourceBacked: Set<String> = [
+                "toList", "toIntArray", "forEach", "map", "mapIndexed", "mapNotNull",
+                "filter", "filterIndexed", "filterNot",
+                "reduce", "reduceIndexed", "fold", "foldIndexed",
+                "find", "findLast",
+                "first_predicate", "firstOrNull", "firstOrNull_predicate",
+                "last_predicate", "lastOrNull", "lastOrNull_predicate",
+                "any", "all", "none",
+                "chunked", "windowed",
+                "take", "drop", "average", "sorted",
+            ]
+            if sourceBacked.contains(member) {
+                return nil
+            }
+        }
+
         let migratedRangeMembers: Set<String> = ["first", "last", "count", "isEmpty", "reversed"]
         if migratedRangeMembers.contains(member) && !kind.isULongRangeLike && !kind.isUIntRangeLike {
             return "__kk_range_\(member)"

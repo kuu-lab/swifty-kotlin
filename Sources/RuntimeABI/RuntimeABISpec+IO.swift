@@ -10,22 +10,7 @@ public extension RuntimeABISpec {
             section: "IO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_readline",
-            parameters: [],
-            returnType: .intptr,
-            section: "IO",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_readln",
-            parameters: [
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_readlnOrNull",
+            name: "__kk_readline_raw",
             parameters: [],
             returnType: .intptr,
             section: "IO",
