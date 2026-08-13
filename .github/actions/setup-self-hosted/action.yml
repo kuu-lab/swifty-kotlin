@@ -41,15 +41,32 @@ runs:
         download_url="https://github.com/BurntSushi/ripgrep/releases/download/${ripgrep_version}/${archive_name}"
 
         mkdir -p "$install_root"
-        curl --fail --location --retry 3 --retry-delay 2 \
-          --output "$archive_path" \
-          "$download_url"
-        printf '%s  %s\n' "$ripgrep_sha256" "$archive_path" | sha256sum --check -
-        tar --extract --gzip --file "$archive_path" --directory "$install_root"
 
-        ripgrep_bin_dir="$install_root/ripgrep-${ripgrep_version}-${ripgrep_target}"
-        if [[ ! -x "$ripgrep_bin_dir/rg" ]]; then
-          echo "Downloaded ripgrep archive did not contain an executable rg binary." >&2
+        installed=false
+        for attempt in 1 2 3 4 5; do
+          rm -f "$archive_path"
+          rm -rf "$install_root"
+          mkdir -p "$install_root"
+
+          if curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 120 \
+            --output "$archive_path" \
+            "$download_url"; then
+            if printf '%s  %s\n' "$ripgrep_sha256" "$archive_path" | sha256sum --check - \
+              && tar --extract --gzip --file "$archive_path" --directory "$install_root"; then
+              ripgrep_bin_dir="$install_root/ripgrep-${ripgrep_version}-${ripgrep_target}"
+              if [[ -x "$ripgrep_bin_dir/rg" ]]; then
+                installed=true
+                break
+              fi
+            fi
+          fi
+
+          echo "ripgrep install attempt $attempt failed; retrying in $((attempt * 10))s..." >&2
+          sleep $((attempt * 10))
+        done
+
+        if [[ "$installed" != true ]]; then
+          echo "Failed to install ripgrep after 5 attempts" >&2
           exit 1
         fi
 

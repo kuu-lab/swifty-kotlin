@@ -234,9 +234,9 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # kotlinc 差分回帰テス�
 |---|---|
 | `CompilerCoreTests` の AST / Driver / Integration / Golden harness など、LLVM 非依存で値検証中心のテスト | Swift Testing (`import Testing`, `@Test`, `#expect`) |
 | `KSwiftKCLITests` / `LSPServerTests` の小さな protocol・parser・flow テスト | Swift Testing |
-| `CompilerBackendTests` の codegen/link 実行、LLVM・subprocess・fixture cleanup に依存するテスト | XCTest |
-| `RuntimeTests` / `RuntimeTestsParallel` と `IsolatedRuntimeXCTestCase` を使うテスト | XCTest |
-| 既存の大きな `XCTestCase` extension 群へ regression を足す場合 | XCTest のまま近接追加 |
+| `CompilerBackendTests` の codegen/link 実行、LLVM・subprocess・fixture cleanup に依存するテスト | Swift Testing (`import Testing`, `@Test`, `#expect`)；共通 helper は assertion を持たない |
+| `RuntimeTests` / `RuntimeTestsParallel` でプロセス全体の runtime state を変更 / GC するテスト | Swift Testing with `.runtimeIsolation(...)` |
+| 既存の大きな `XCTestCase` extension 群へ regression を足す場合 | Swift Testing へ移行するか、近接の既存 Swift Testing suite に追加 |
 
 Swift Testing と XCTest を同一ファイルに混在させない。共通 helper が両方から必要な場合は、assertion API を持たない helper に切り出す。
 

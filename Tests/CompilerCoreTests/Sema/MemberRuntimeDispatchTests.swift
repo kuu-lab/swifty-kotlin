@@ -20,19 +20,19 @@ struct MemberRuntimeDispatchTests {
             (.longRange, "lastOrNull", 0, "kk_long_range_lastOrNull"),
             (.longRange, "lastOrNull", 2, "kk_range_lastOrNull_predicate"),
             (.charProgression, "toList", 0, "kk_char_range_toList"),
-            (.charProgression, "step", 1, "kk_char_range_step"),
+            (.charProgression, "step", 1, "__kk_char_range_step"),
             (.longProgression, "step", 0, "kk_long_range_step"),
-            (.uintProgression, "step", 2, "kk_uint_step"),
+            (.uintProgression, "step", 2, "__kk_uint_step"),
             (.ulongProgression, "contains", 1, "kk_ulong_range_contains"),
             // step(n) as a dot call (arity 1) must resolve to the progression-
             // constructing runtime function, not the step-property getter
             // (KSWIFTK-RUNTIME-0001: (1L..10L).step(2L) used to alias the getter
             // and hand back a raw step value instead of a new range handle).
-            (.intRange, "step", 1, "kk_op_step"),
-            (.longRange, "step", 1, "kk_op_step"),
-            (.longProgression, "step", 1, "kk_op_step"),
-            (.uintRange, "step", 1, "kk_uint_step"),
-            (.ulongRange, "step", 1, "kk_ulong_step"),
+            (.intRange, "step", 1, "__kk_op_step"),
+            (.longRange, "step", 1, "__kk_op_step"),
+            (.longProgression, "step", 1, "__kk_op_step"),
+            (.uintRange, "step", 1, "__kk_uint_step"),
+            (.ulongRange, "step", 1, "__kk_ulong_step"),
         ]
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
@@ -137,8 +137,6 @@ struct MemberRuntimeDispatchTests {
     @Test func testStringRuntimeDispatchUsesFlatStringTable() {
         let cases: [(String, Int, String, Bool, MemberRuntimeArgumentMode, MemberRuntimeThrownResultMode)] = [
             ("lowercase", 0, "kk_string_lowercase_flat", false, .lowered, .none),
-            ("toInt", 0, "kk_string_toInt_flat", true, .lowered, .none),
-            ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
             ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
         ]
 
@@ -227,6 +225,29 @@ struct MemberRuntimeDispatchTests {
             #expect(
                 MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
                 "String.\(memberName)/\(arity) should be source-backed after KSP-410"
+            )
+        }
+        // KSP-414: integer and boolean string parsing members are bundled Kotlin source.
+        let ksp414Cases: [(String, Int)] = [
+            ("toInt", 0), ("toInt", 1),
+            ("toLong", 0),
+            ("toShort", 0),
+            ("toByte", 0), ("toByte", 1),
+            ("toIntOrNull", 0), ("toIntOrNull", 1),
+            ("toLongOrNull", 0),
+            ("toShortOrNull", 0),
+            ("toByteOrNull", 0),
+            ("toUByteOrNull", 0), ("toUByteOrNull", 1),
+            ("toUShortOrNull", 0), ("toUShortOrNull", 1),
+            ("toUIntOrNull", 0), ("toUIntOrNull", 1),
+            ("toULongOrNull", 0), ("toULongOrNull", 1),
+            ("toBoolean", 0), ("toBooleanStrict", 0), ("toBooleanStrictOrNull", 0),
+        ]
+        for (memberName, arity) in ksp414Cases {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
+                "String.\(memberName)/\(arity) should be source-backed after KSP-414"
             )
         }
     }

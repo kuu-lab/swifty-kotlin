@@ -116,8 +116,14 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Contract") { phase, symbols, types, interner, _ in
             phase.registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Precondition") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Precondition") { phase, symbols, types, interner, context in
+            phase.registerSyntheticPreconditionStubs(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                bundledIndex: context.bundledIndex,
+                skipStats: context.skipStats
+            )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Regex") { phase, symbols, types, interner, _ in
             phase.registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
@@ -255,9 +261,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineIntrinsics") { phase, symbols, types, interner in
             phase.registerSyntheticCoroutineIntrinsicsStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "ReadWriteLock") { phase, symbols, types, interner in
-            phase.registerSyntheticReadWriteLockStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeRefRuntime") { phase, symbols, types, interner in
             phase.registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)

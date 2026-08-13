@@ -63,8 +63,9 @@ struct ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
-                ("take", 1, "kk_list_take" as String?),
-                ("drop", 1, "kk_list_drop" as String?),
+                // KSP-427: take / drop / takeLast / dropLast / slice / subList are now bundled Kotlin source.
+                ("take", 1, nil as String?),
+                ("drop", 1, nil as String?),
                 ("reversed", 0, "kk_list_reversed" as String?),
                 ("sorted", 0, "kk_list_sorted" as String?),
                 ("distinct", 0, "kk_list_distinct" as String?),
@@ -982,7 +983,7 @@ struct ListSyntheticMemberLinkTests {
             let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightIndexed"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_reduceRightIndexed")
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_sequence_reduceRightIndexed")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -1001,7 +1002,7 @@ struct ListSyntheticMemberLinkTests {
             }
             // List.reduceRightIndexed is now source-backed; only the Iterable
             // call resolves to the retained runtime bridge.
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexed" }.count == 1)
+            #expect(callLinks.filter { $0 == "kk_sequence_reduceRightIndexed" }.count == 1)
         }
     }
 
@@ -1033,7 +1034,7 @@ struct ListSyntheticMemberLinkTests {
             let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightIndexedOrNull"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_reduceRightIndexedOrNull")
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_sequence_reduceRightIndexedOrNull")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -1052,7 +1053,7 @@ struct ListSyntheticMemberLinkTests {
             }
             // List.reduceRightIndexedOrNull is now source-backed; only the Iterable
             // call resolves to the retained runtime bridge.
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexedOrNull" }.count == 1)
+            #expect(callLinks.filter { $0 == "kk_sequence_reduceRightIndexedOrNull" }.count == 1)
         }
     }
 
@@ -1084,7 +1085,7 @@ struct ListSyntheticMemberLinkTests {
             let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightOrNull"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_reduceRightOrNull")
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_sequence_reduceRightOrNull")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -1098,7 +1099,7 @@ struct ListSyntheticMemberLinkTests {
             }
             // List.reduceRightOrNull is now source-backed; only the Iterable
             // call resolves to the retained runtime bridge.
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightOrNull" }.count == 1)
+            #expect(callLinks.filter { $0 == "kk_sequence_reduceRightOrNull" }.count == 1)
         }
     }
 

@@ -30,50 +30,8 @@ public extension RuntimeABISpec {
     }
 
     static let collectionHOFFunctions: [RuntimeABIFunctionSpec] = {
-        let foldSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_fold",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "initial", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
         let before = [
             "kk_list_forEach",
-        ]
-        let reduceOrNullSpec = hofSpec("kk_list_reduceOrNull")
-        let scanSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_scan",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "initial", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let runningFoldSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_runningFold",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "initial", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let runningReduceSpec = hofSpec("kk_list_runningReduce")
-        let scanReduceSpec = hofSpec("kk_list_scanReduce")
-        let genericAfter = [
-            "kk_list_reduce", "kk_list_groupBy", "kk_list_sortedBy",
         ]
         let destinationLambdaParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -378,36 +336,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let takeSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_take",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let dropSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_drop",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let takeLastSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_takeLast",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
         let sumSpec = RuntimeABIFunctionSpec(
             name: "kk_list_sum",
             parameters: [
@@ -520,9 +448,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
+        let genericAfter = [
+            "kk_list_groupBy",
+            "kk_list_sortedBy",
+        ]
         var functions: [RuntimeABIFunctionSpec] = []
         functions.append(contentsOf: before.map { hofSpec($0) })
-        functions.append(contentsOf: [requireNoNullsSpec, foldSpec])
+        functions.append(contentsOf: [requireNoNullsSpec])
         functions.append(contentsOf: [
                 firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec,
@@ -535,7 +467,7 @@ public extension RuntimeABISpec {
                 return [hofSpec(name)]
             }
         )
-        functions.append(contentsOf: [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec])
+
         functions.append(contentsOf: [
                 associateBySpec, associateByTransformSpec, associateWithSpec, associateSpec, associateToSpec,
                 RuntimeABIFunctionSpec(
@@ -594,7 +526,7 @@ public extension RuntimeABISpec {
                 unzipSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
-                takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
+                sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
 
@@ -690,10 +622,6 @@ public extension RuntimeABISpec {
                 ),
                 hofSpec("kk_list_sortedWith"),
                 hofSpec("kk_list_partition"),
-                stdlibListHOFSpec("takeWhile", arity: 1, fallback: "kk_list_takeWhile"),
-                stdlibListHOFSpec("dropWhile", arity: 1, fallback: "kk_list_dropWhile"),
-                stdlibListHOFSpec("takeLastWhile", arity: 1, fallback: "kk_list_takeLastWhile"),
-                stdlibListHOFSpec("dropLastWhile", arity: 1, fallback: "kk_list_dropLastWhile"),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_maxBy",
                     parameters: [

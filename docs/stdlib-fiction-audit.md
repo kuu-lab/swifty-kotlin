@@ -135,10 +135,11 @@ JDK / kotlinx ライブラリのクラスは「Kotlin stdlib ではない」も�
 ### 検証のうえ「除去しない」と判断したもの
 
 - `kotlin.concurrent.Lock` / `kotlin.concurrent.ReentrantReadWriteLock`（`HeaderHelpers+SyntheticAtomicStubs.swift`）:
-  パッケージ配置は不正確（実型は `java.util.concurrent.locks.*`）だが、これらは**実在 API の
-  `withLock` / `read` / `write` を型検査・ランタイム接続するための実装受け皿**であり、
-  ランタイム実装・テストも伴う。除去すると動作中のロック機能が壊れるため、純粋な「架空」では
-  なく対象外とした（正しくは型を `java.util.concurrent.locks` に寄せる別タスクのリファクタ）。
+  パッケージ配置は不正確（実型は `java.util.concurrent.locks.*`）だが、`kotlin.concurrent.Lock` は
+  実在 API の `withLock` を型検査・ランタイム接続するための実装受け皿であり機能を伴うため対象外とした。
+  `kotlin.concurrent.ReentrantReadWriteLock` および `java.util.concurrent.locks.ReentrantReadWriteLock` / `kotlin.concurrent.read`
+  は実在する ReadWriteLock API の受け皿だったが、使用箇所がテストのみで製品経路から到達不能であったため
+  CLEANUP-STUB-120 で削除した。
 - `kotlin.random.SecureRandom` 等も同様に、実在の `java.security` interop（kotlinc 検証ケースあり）の
   受け皿であり、機能を伴うため対象外。
 

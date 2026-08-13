@@ -1,12 +1,27 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Testing
 
 @Suite
 struct SequenceWindowChunkSourceMigrationTests {
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     @Test
     func migratedSequenceWindowChunkFunctionsAreBundledSourceDefinitions() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let packageFQName = ["kotlin", "sequences"].map(ctx.interner.intern)
         let expectedArities: [String: Set<Int>] = [
@@ -55,8 +70,7 @@ struct SequenceWindowChunkSourceMigrationTests {
 
     @Test
     func migratedSequenceWindowChunkFunctionsDoNotKeepPublicRuntimeLinkedMembers() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let sequenceFQName = ["kotlin", "sequences", "Sequence"].map(ctx.interner.intern)
         let disallowedMemberLinks: [String: Set<String>] = [
@@ -96,3 +110,4 @@ struct SequenceWindowChunkSourceMigrationTests {
         )
     }
 }
+#endif
