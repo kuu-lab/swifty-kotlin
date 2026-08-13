@@ -16,7 +16,7 @@ package kotlinx.coroutines.flow
 //
 // Divergence carried over from the previous runtime implementation: `collect`
 // replays the buffered snapshot and returns instead of suspending forever on a
-// live subscription. StateFlow keeps its own runtime handle until KSP-676.
+// live subscription. StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
 
 public interface SharedFlow<out T> {
     public val replayCache: List<T>

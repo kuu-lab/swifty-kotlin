@@ -294,7 +294,6 @@ extension CallLowerer {
         "containsAll", "binarySearch", "average",
         "addFirst", "addLast",
         "sum", "sumOf", "sumBy", "sumByDouble",
-        "to", // FUNC-002
     ]
 
 }

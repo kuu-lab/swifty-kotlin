@@ -15,20 +15,15 @@ private func runCodegenPipeline(
     // stdlib sources are injected and compiled together with the test module.
     // This avoids a cross-module synthetic-enum ordinal issue that would
     // otherwise cause DurationUnit entry references to lower to zero.
-    let savedStdlibLibraryPath = CompilerOptions.defaultStdlibLibraryPath
-    CompilerOptions.defaultStdlibLibraryPath = nil
-    defer { CompilerOptions.defaultStdlibLibraryPath = savedStdlibLibraryPath }
-
-    // defaultTargetTriple() prepares the shared stdlib cache and overwrites the
-    // explicit source-injection opt-out above.
-    let target = TargetTriple.hostDefault()
+    let target = defaultTargetTriple()
     let options = CompilerOptions(
         moduleName: moduleName,
         inputs: [inputPath],
         outputPath: outputPath,
         emit: emit,
         target: target,
-        irFlags: irFlags
+        irFlags: irFlags,
+        allowDefaultStdlibLibrary: false
     )
     let ctx = CompilationContext(
         options: options,

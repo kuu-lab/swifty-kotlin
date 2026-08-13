@@ -104,7 +104,7 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: syntheticFunctionParameters(parameters),
             returnType: appendableType,
-            externalLinkName: "kk_sequence_joinTo",
+            externalLinkName: "",
             flags: [.synthetic, .operatorFunction],
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
@@ -193,7 +193,7 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: syntheticFunctionParameters(parameters),
             returnType: types.stringType,
-            externalLinkName: "kk_sequence_joinToString",
+            externalLinkName: "",
             flags: [.synthetic, .operatorFunction],
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
@@ -932,7 +932,7 @@ extension DataFlowSemaPhase {
             receiverType: scopeReceiverType,
             parameters: [(name: "value", type: scopeTypeParamType)],
             returnType: types.unitType,
-            externalLinkName: "kk_sequence_builder_yield",
+            externalLinkName: "__kk_sequence_builder_yield",
             symbols: symbols,
             interner: interner
         )
@@ -944,7 +944,7 @@ extension DataFlowSemaPhase {
             receiverType: scopeReceiverType,
             parameters: [(name: "iterator", type: iteratorType)],
             returnType: types.unitType,
-            externalLinkName: "kk_sequence_builder_yieldAll",
+            externalLinkName: "__kk_sequence_builder_yieldAll",
             symbols: symbols,
             interner: interner
         )
@@ -955,7 +955,7 @@ extension DataFlowSemaPhase {
             receiverType: scopeReceiverType,
             parameters: [(name: "elements", type: iterableType)],
             returnType: types.unitType,
-            externalLinkName: "kk_sequence_builder_yieldAll",
+            externalLinkName: "__kk_sequence_builder_yieldAll",
             symbols: symbols,
             interner: interner
         )
@@ -966,7 +966,7 @@ extension DataFlowSemaPhase {
             receiverType: scopeReceiverType,
             parameters: [(name: "sequence", type: sequenceType)],
             returnType: types.unitType,
-            externalLinkName: "kk_sequence_builder_yieldAll",
+            externalLinkName: "__kk_sequence_builder_yieldAll",
             symbols: symbols,
             interner: interner
         )
@@ -988,7 +988,7 @@ extension DataFlowSemaPhase {
         if let packageSymbol = symbols.lookup(fqName: kotlinSequencesPkg) {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         }
-        symbols.setExternalLinkName("kk_sequence_builder_build", for: functionSymbol)
+        symbols.setExternalLinkName("__kk_sequence_builder_build", for: functionSymbol)
 
         let functionTypeParamName = interner.intern("T")
         let functionTypeParamFQName = functionFQName + [functionTypeParamName]
@@ -1109,7 +1109,7 @@ extension DataFlowSemaPhase {
         if let packageSymbol = symbols.lookup(fqName: packageFQName) {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         }
-        symbols.setExternalLinkName("kk_iterator_builder_build", for: functionSymbol)
+        symbols.setExternalLinkName("__kk_iterator_builder_build", for: functionSymbol)
 
         let functionTypeParamName = interner.intern("T")
         let functionTypeParamFQName = functionFQName + [functionTypeParamName]

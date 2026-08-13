@@ -13,7 +13,9 @@ struct BoxingIntegrationTests {
         }
         """
 
-        let ctx = makeContextFromSource(source)
+        // Use .object so bundled stdlib source bodies (including the inline `to`
+        // in kotlin/Tuples.kt) are lowered and available for inlining.
+        let ctx = makeContextFromSource(source, emit: .object)
         try runToLowering(ctx)
 
         let module: KIRModule = try #require(ctx.kir)
@@ -68,42 +70,50 @@ struct BoxingIntegrationTests {
         }
         """
 
-        let ctx = makeContextFromSource(source)
+        // Use .object emit so bundled stdlib source bodies (including Long.until)
+        // are lowered into the KIR module and the bridge call is visible.
+        let ctx = makeContextFromSource(source, emit: .object)
         try runToLowering(ctx)
 
         let module: KIRModule = try #require(ctx.kir)
-        let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
 
-        // `until` is registered with a scalar Long return type (matching the
-        // isRangeExpr duck-typing convention used for range operators), but
-        // kk_op_rangeUntil always returns a boxed RuntimeRangeBox reference at
-        // runtime. Unlike `..`/`downTo`/`step`, the named `until` call carries a
-        // resolved Sema symbol, so a naive return-type-driven ABI lowering pass
-        // would unbox the range object itself as if it were a raw Long — see
-        // kk_unbox_long in RuntimeBoxing.swift, which prints a diagnostic and
-        // pollutes stdout when handed a non-LongBox object pointer.
+        // `until` is now a bundled Kotlin extension that returns LongRange, but
+        // the bridge `__kk_op_rangeUntil` still returns a boxed RuntimeRangeBox
+        // reference at runtime. Unlike `..`/`downTo`/`step`, the named `until`
+        // call carries a resolved Sema symbol, so a naive return-type-driven ABI
+        // lowering pass would unbox the range object itself as if it were a raw
+        // Long — see kk_unbox_long in RuntimeBoxing.swift, which prints a
+        // diagnostic and pollutes stdout when handed a non-LongBox object pointer.
+        // `__kk_op_rangeUntil` is emitted inside the source-backed `Long.until`
+        // helper, not directly in the user `test` body. Collect every range bridge
+        // result across the whole module and make sure none of them are later
+        // unboxed as a raw Long/Int.
         var rangeResults: Set<KIRExprID> = []
-        for instruction in testFunc.body {
-            if case let .call(_, callee, _, result, _, _, _, _) = instruction,
-               ctx.interner.resolve(callee) == "kk_op_rangeUntil",
-               let result
-            {
-                rangeResults.insert(result)
+        for function in findAllKIRFunctions(in: module) {
+            for instruction in function.body {
+                if case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                   ctx.interner.resolve(callee) == "__kk_op_rangeUntil",
+                   let result
+                {
+                    rangeResults.insert(result)
+                }
             }
         }
-        #expect(!rangeResults.isEmpty, "Expected a kk_op_rangeUntil call in the lowered body")
+        #expect(!rangeResults.isEmpty, "Expected a __kk_op_rangeUntil call somewhere in the lowered module")
 
-        let erroneousUnboxCalls = testFunc.body.filter { instruction in
-            if case let .call(_, callee, arguments, _, _, _, _, _) = instruction {
-                let calleeName = ctx.interner.resolve(callee)
-                return (calleeName == "kk_unbox_long" || calleeName == "kk_unbox_int")
-                    && arguments.contains { rangeResults.contains($0) }
+        let erroneousUnboxCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.filter { instruction in
+                if case let .call(_, callee, arguments, _, _, _, _, _) = instruction {
+                    let calleeName = ctx.interner.resolve(callee)
+                    return (calleeName == "kk_unbox_long" || calleeName == "kk_unbox_int")
+                        && arguments.contains { rangeResults.contains($0) }
+                }
+                return false
             }
-            return false
         }
         #expect(
             erroneousUnboxCalls.isEmpty,
-            "kk_op_rangeUntil's boxed range result must not be unboxed. Found \(erroneousUnboxCalls.count) offending call(s)"
+            "__kk_op_rangeUntil's boxed range result must not be unboxed. Found \(erroneousUnboxCalls.count) offending call(s)"
         )
     }
 

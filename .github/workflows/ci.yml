@@ -324,31 +324,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Preserve the existing required-check name while delegating its work to two
-  # parallel jobs. This avoids branch-protection churn during the split.
-  verify-self-hosted-gate:
-    name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
-    if: always()
-    needs:
-      - verify-self-hosted
-      - verify-repository-checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require delegated verification jobs
-        env:
-          SELF_HOSTED_RESULT: ${{ needs.verify-self-hosted.result }}
-          REPOSITORY_CHECKS_RESULT: ${{ needs.verify-repository-checks.result }}
-        run: |
-          if [[ "$SELF_HOSTED_RESULT" != "success" ]]; then
-            echo "verify-self-hosted result: $SELF_HOSTED_RESULT" >&2
-            exit 1
-          fi
-          if [[ "$REPOSITORY_CHECKS_RESULT" != "success" ]]; then
-            echo "verify-repository-checks result: $REPOSITORY_CHECKS_RESULT" >&2
-            exit 1
-          fi
-
   verify-diff:
     name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
     runs-on: ubuntu-latest
@@ -406,9 +381,22 @@ jobs:
           mkdir -p "$KOTLIN_DIR"
 
           if [ ! -f "${KOTLIN_DIR}/kotlinc/bin/kotlinc" ]; then
-            curl -fSL -o "${TOOLS_DIR}/kotlin-compiler.zip" \
-              "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"
-            unzip -q "${TOOLS_DIR}/kotlin-compiler.zip" -d "$KOTLIN_DIR"
+            zip_path="${TOOLS_DIR}/kotlin-compiler.zip"
+            for attempt in 1 2 3 4 5; do
+              if curl -fSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 120 \
+                -o "$zip_path" \
+                "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"; then
+                break
+              fi
+              echo "Kotlin compiler download attempt $attempt failed; retrying in $((attempt * 10))s..." >&2
+              rm -f "$zip_path"
+              sleep $((attempt * 10))
+            done
+            if [ ! -f "$zip_path" ]; then
+              echo "Failed to download Kotlin compiler after 5 attempts" >&2
+              exit 1
+            fi
+            unzip -q "$zip_path" -d "$KOTLIN_DIR"
           fi
           echo "${KOTLIN_DIR}/kotlinc/bin" >> "$GITHUB_PATH"
       - name: Verify prerequisites

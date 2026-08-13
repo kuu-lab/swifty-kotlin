@@ -55,7 +55,10 @@ extension KIRLoweringDriver {
             if case .functionType = sema.types.kind(of: param.type) { return true }
             return false
         }
-        let autoInline = hasLambdaParam && !function.isSuspend
+        let hasNoInlineAnnotation = function.annotations.contains { ann in
+            ann.name == "NoInline" || ann.name == "kotlin.native.NoInline"
+        }
+        let autoInline = hasLambdaParam && !function.isSuspend && !hasNoInlineAnnotation
         let effectiveInline: Bool = function.isInline || autoInline
         let isInlineOnly = !function.isInline && autoInline
         let kirID = arena.appendDecl(.function(KIRFunction(

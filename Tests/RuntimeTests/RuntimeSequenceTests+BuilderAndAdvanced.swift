@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import Runtime
 import Foundation
-import XCTest
+import Testing
 
 private let cpsSequenceBuilderFunctionID = 730_001
 private let cpsSequenceBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, _ in
@@ -8,10 +9,10 @@ private let cpsSequenceBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<I
     switch kk_coroutine_state_enter(continuation, cpsSequenceBuilderFunctionID) {
     case 0:
         _ = kk_coroutine_state_set_label(continuation, 1)
-        return kk_sequence_builder_yield(builderRaw, 7)
+        return __kk_sequence_builder_yield(builderRaw, 7)
     case 1:
         _ = kk_coroutine_state_set_label(continuation, 2)
-        return kk_sequence_builder_yield(builderRaw, 11)
+        return __kk_sequence_builder_yield(builderRaw, 11)
     default:
         return kk_coroutine_state_exit(continuation, 0)
     }
@@ -23,10 +24,10 @@ private let cpsIteratorBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<I
     switch kk_coroutine_state_enter(continuation, cpsIteratorBuilderFunctionID) {
     case 0:
         _ = kk_coroutine_state_set_label(continuation, 1)
-        return kk_iterator_builder_yield(builderRaw, 5)
+        return __kk_iterator_builder_yield(builderRaw, 5)
     case 1:
         _ = kk_coroutine_state_set_label(continuation, 2)
-        return kk_iterator_builder_yield(builderRaw, 8)
+        return __kk_iterator_builder_yield(builderRaw, 8)
     default:
         return kk_coroutine_state_exit(continuation, 0)
     }
@@ -36,66 +37,72 @@ private let cpsIteratorBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<I
 /// tests, split out from `RuntimeSequenceTests` to keep each test
 /// source focused.
 extension RuntimeSequenceTests {
+    @Test
     func testSequenceBuilderBuildYieldsElementsInOrder() {
         // sequence { yield(1); yield(2); yield(3) }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 1)
-            _ = kk_sequence_builder_yield(builderRaw, 2)
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
-        XCTAssertEqual(sequenceElements(seqHandle), [1, 2, 3])
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
+        #expect(sequenceElements(seqHandle) == [1, 2, 3])
     }
 
+    @Test
     func testSequenceBuilderBuildCoroYieldsElementsThroughCPSProducer() {
         let entryPoint = unsafeBitCast(cpsSequenceBuilderEntry, to: Int.self)
-        let seqHandle = kk_sequence_builder_build_coro(entryPoint, cpsSequenceBuilderFunctionID, 0)
-        XCTAssertEqual(sequenceElements(seqHandle), [7, 11])
+        let seqHandle = __kk_sequence_builder_build_coro(entryPoint, cpsSequenceBuilderFunctionID, 0)
+        #expect(sequenceElements(seqHandle) == [7, 11])
     }
 
+    @Test
     func testIteratorBuilderBuildCoroYieldsElementsThroughCPSProducer() {
         let entryPoint = unsafeBitCast(cpsIteratorBuilderEntry, to: Int.self)
-        let iterHandle = kk_iterator_builder_build_coro(entryPoint, cpsIteratorBuilderFunctionID, 0)
+        let iterHandle = __kk_iterator_builder_build_coro(entryPoint, cpsIteratorBuilderFunctionID, 0)
 
-        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
-        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 5)
-        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
-        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 8)
-        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 0)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 5)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
+        #expect(__kk_iterator_builder_next(iterHandle) == 8)
+        #expect(__kk_iterator_builder_hasNext(iterHandle) == 0)
     }
 
+    @Test
     func testSequenceBuilderBuildEmptyBlock() {
         // sequence { }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
-        XCTAssertEqual(sequenceElements(seqHandle), [])
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
+        #expect(sequenceElements(seqHandle) == [])
     }
 
+    @Test
     func testSequenceBuilderBuildSingleElement() {
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 42)
+            _ = __kk_sequence_builder_yield(builderRaw, 42)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
-        XCTAssertEqual(sequenceElements(seqHandle), [42])
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
+        #expect(sequenceElements(seqHandle) == [42])
     }
 
+    @Test
     func testSequenceBuilderBuildWithMap() {
         // sequence { yield(1); yield(2); yield(3) }.map { it * 10 }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 1)
-            _ = kk_sequence_builder_yield(builderRaw, 2)
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         // Apply map: multiply by 10
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -106,9 +113,10 @@ extension RuntimeSequenceTests {
             unsafeBitCast(mapFn, to: Int.self),
             0
         )
-        XCTAssertEqual(sequenceElements(mapped), [10, 20, 30])
+        #expect(sequenceElements(mapped) == [10, 20, 30])
     }
 
+    @Test
     func testSequenceMapPassesSentinelInputsToTransform() {
         let seq = makeSequence([1, runtimeNullSentinelInt, 3])
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -119,36 +127,38 @@ extension RuntimeSequenceTests {
             unsafeBitCast(mapFn, to: Int.self),
             0
         )
-        XCTAssertEqual(sequenceElements(mapped), [2, 99, 6])
+        #expect(sequenceElements(mapped) == [2, 99, 6])
     }
 
+    @Test
     func testSequenceBuilderBuildWithTake() {
         // sequence { yield(1); yield(2); yield(3); yield(4); yield(5) }.take(3).toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 1)
-            _ = kk_sequence_builder_yield(builderRaw, 2)
-            _ = kk_sequence_builder_yield(builderRaw, 3)
-            _ = kk_sequence_builder_yield(builderRaw, 4)
-            _ = kk_sequence_builder_yield(builderRaw, 5)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 4)
+            _ = __kk_sequence_builder_yield(builderRaw, 5)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
         let taken = kk_sequence_take(seqHandle, 3)
-        XCTAssertEqual(sequenceElements(taken), [1, 2, 3])
+        #expect(sequenceElements(taken) == [1, 2, 3])
     }
 
+    @Test
     func testSequenceBuilderBuildWithFilter() {
         // sequence { yield(1); yield(2); yield(3); yield(4) }.filter { it % 2 == 0 }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 1)
-            _ = kk_sequence_builder_yield(builderRaw, 2)
-            _ = kk_sequence_builder_yield(builderRaw, 3)
-            _ = kk_sequence_builder_yield(builderRaw, 4)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 4)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let filterFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             value % 2 == 0 ? 1 : 0
@@ -158,9 +168,10 @@ extension RuntimeSequenceTests {
             unsafeBitCast(filterFn, to: Int.self),
             0
         )
-        XCTAssertEqual(sequenceElements(filtered), [2, 4])
+        #expect(sequenceElements(filtered) == [2, 4])
     }
 
+    @Test
     func testSequenceBuilderBuildYieldAllFromList() {
         // sequence { yieldAll(listOf(10, 20)); yield(30) }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
@@ -170,68 +181,68 @@ extension RuntimeSequenceTests {
             _ = kk_array_set(arr, 0, 10, &thrown)
             _ = kk_array_set(arr, 1, 20, &thrown)
             let list = kk_list_of(arr, 2)
-            _ = kk_sequence_builder_yieldAll(builderRaw, list)
-            _ = kk_sequence_builder_yield(builderRaw, 30)
+            _ = __kk_sequence_builder_yieldAll(builderRaw, list)
+            _ = __kk_sequence_builder_yield(builderRaw, 30)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
-        XCTAssertEqual(sequenceElements(seqHandle), [10, 20, 30])
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
+        #expect(sequenceElements(seqHandle) == [10, 20, 30])
     }
 
+    @Test
     func testSequenceBuilderBuildYieldAllFromLazySequenceIsLazy() {
         // sequence { yieldAll(inner); yield(99) }.take(2).toList()
         _lazyTestYieldCounter = 0
         let outerFnPtr = unsafeBitCast(lazyYieldAllOuterThunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(outerFnPtr)
+        let seqHandle = __kk_sequence_builder_build(outerFnPtr)
 
         let taken = kk_sequence_take(seqHandle, 2)
-        XCTAssertEqual(sequenceElements(taken), [10, 20])
-        XCTAssertLessThanOrEqual(
-            _lazyTestYieldCounter,
-            3,
-            "yieldAll should not eagerly evaluate all 5 elements of the nested sequence before first consumer demand"
-        )
+        #expect(sequenceElements(taken) == [10, 20])
+        #expect(_lazyTestYieldCounter <= 3, "yieldAll should not eagerly evaluate all 5 elements of the nested sequence before first consumer demand")
 
         let full = sequenceElements(seqHandle)
-        XCTAssertEqual(full, [10, 20, 30, 40, 50, 99])
-        XCTAssertEqual(_lazyTestYieldCounter, 5)
+        #expect(full == [10, 20, 30, 40, 50, 99])
+        #expect(_lazyTestYieldCounter == 5)
     }
 
+    @Test
     func testSequenceBuilderBuildReiterableProducesSameElements() {
         // Verify that materializing the same lazy sequence twice produces the same result
         // (cached after first materialization).
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _ = kk_sequence_builder_yield(builderRaw, 7)
-            _ = kk_sequence_builder_yield(builderRaw, 8)
-            _ = kk_sequence_builder_yield(builderRaw, 9)
+            _ = __kk_sequence_builder_yield(builderRaw, 7)
+            _ = __kk_sequence_builder_yield(builderRaw, 8)
+            _ = __kk_sequence_builder_yield(builderRaw, 9)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
-        XCTAssertEqual(sequenceElements(seqHandle), [7, 8, 9])
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
+        #expect(sequenceElements(seqHandle) == [7, 8, 9])
         // Second materialization should produce the same result (cached).
-        XCTAssertEqual(sequenceElements(seqHandle), [7, 8, 9])
+        #expect(sequenceElements(seqHandle) == [7, 8, 9])
     }
 
+    @Test
     func testSequenceBuilderBuildManyElements() {
         // sequence { for (i in 0..99) yield(i) }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             for i in 0 ..< 100 {
-                _ = kk_sequence_builder_yield(builderRaw, i)
+                _ = __kk_sequence_builder_yield(builderRaw, i)
             }
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
         let result = sequenceElements(seqHandle)
-        XCTAssertEqual(result.count, 100)
-        XCTAssertEqual(result.first, 0)
-        XCTAssertEqual(result.last, 99)
+        #expect(result.count == 100)
+        #expect(result.first == 0)
+        #expect(result.last == 99)
     }
 
     // MARK: - STDLIB-563: Lazy evaluation verification
 
+    @Test
     func testSequenceBuilderLazyTakeDoesNotEvaluateEntireBlock() {
         // STDLIB-563: Verify that take(2) on a lazy sequence builder
         // only computes the first 2 elements, not all 5.
@@ -239,72 +250,74 @@ extension RuntimeSequenceTests {
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 4)
+            _ = __kk_sequence_builder_yield(builderRaw, 4)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 5)
+            _ = __kk_sequence_builder_yield(builderRaw, 5)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
         let taken = kk_sequence_take(seqHandle, 2)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [1, 2])
+        #expect(result == [1, 2])
         // The producer should have yielded at most 3 times (2 consumed + 1 ahead
         // before take detects the limit), not all 5. In the truly lazy model,
         // the counter should be <= 3.
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 3,
-            "STDLIB-563: take(2) should not force evaluation of all 5 elements; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 3, "STDLIB-563: take(2) should not force evaluation of all 5 elements; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceBuilderLazyFirstDoesNotEvaluateEntireBlock() {
         // STDLIB-563: first() on a lazy sequence builder should only evaluate
         // until the first element is produced.
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 100)
+            _ = __kk_sequence_builder_yield(builderRaw, 100)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 200)
+            _ = __kk_sequence_builder_yield(builderRaw, 200)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 300)
+            _ = __kk_sequence_builder_yield(builderRaw, 300)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
         var thrown = 0
         let first = kk_sequence_first(seqHandle, &thrown)
-        XCTAssertEqual(first, 100)
-        XCTAssertEqual(thrown, 0)
+        #expect(first == 100)
+        #expect(thrown == 0)
         // The producer should have yielded at most 2 times (1 consumed +
         // possibly 1 ahead), not all 3.
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2,
-            "STDLIB-563: first() should not force evaluation of all 3 elements; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 2, "STDLIB-563: first() should not force evaluation of all 3 elements; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceFirstReturnsFirstElement() {
         let seq = makeSequence([7, 8, 9])
         var thrown = 0
         let first = kk_sequence_first(seq, &thrown)
-        XCTAssertEqual(first, 7)
-        XCTAssertEqual(thrown, 0)
+        #expect(first == 7)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testSequenceFirstOrNullReturnsFirstElement() {
         let seq = makeSequence([7, 8, 9])
         var thrown = 0
         let first = kk_sequence_firstOrNull(seq, &thrown)
-        XCTAssertEqual(first, 7)
-        XCTAssertEqual(thrown, 0)
+        #expect(first == 7)
+        #expect(thrown == 0)
     }
 
     // MARK: - STDLIB-HOF-022: Additional Higher-Order Functions
 
+    @Test
     func testSequenceFilterNot() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let filterFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -315,9 +328,10 @@ extension RuntimeSequenceTests {
             unsafeBitCast(filterFn, to: Int.self),
             0
         )
-        XCTAssertEqual(sequenceElements(filtered), [1, 3, 5]) // Should keep odd numbers
+        #expect(sequenceElements(filtered) == [1, 3, 5]) // Should keep odd numbers
     }
 
+    @Test
     func testSequenceFilterToAppendsMatchingElementsToDestination() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let destination = makeList([99])
@@ -333,10 +347,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, destination)
-        XCTAssertEqual(listElements(destination), [99, 2, 4])
+        #expect(result == destination)
+        #expect(listElements(destination) == [99, 2, 4])
     }
 
+    @Test
     func testSequenceFilterNotToAppendsNonMatchingElementsToDestination() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let destination = makeList([99])
@@ -352,10 +367,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, destination)
-        XCTAssertEqual(listElements(destination), [99, 1, 3, 5])
+        #expect(result == destination)
+        #expect(listElements(destination) == [99, 1, 3, 5])
     }
 
+    @Test
     func testSequenceFind() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let findFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -368,10 +384,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(found, 4) // First element > 3
-        XCTAssertEqual(thrown, 0)
+        #expect(found == 4) // First element > 3
+        #expect(thrown == 0)
     }
 
+    @Test
     func testSequenceFindNotFound() {
         let seq = makeSequence([1, 2, 3])
         let findFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -384,10 +401,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(found, runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        #expect(found == runtimeNullSentinelInt)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testSequenceFindLastHandlesEmptySingleNoMatchAndAllMatchCases() {
         let matchesEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             value.isMultiple(of: 2) ? 1 : 0
@@ -403,119 +421,66 @@ extension RuntimeSequenceTests {
         }
 
         var thrown = 0
-        XCTAssertEqual(
-            kk_sequence_findLast(makeSequence([]), unsafeBitCast(matchesEven, to: Int.self), 0, &thrown),
-            runtimeNullSentinelInt
-        )
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_sequence_findLast(makeSequence([]), unsafeBitCast(matchesEven, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
 
         thrown = 0
-        XCTAssertEqual(kk_sequence_findLast(makeSequence([7]), unsafeBitCast(matchesSeven, to: Int.self), 0, &thrown), 7)
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_sequence_findLast(makeSequence([7]), unsafeBitCast(matchesSeven, to: Int.self), 0, &thrown) == 7)
+        #expect(thrown == 0)
 
         thrown = 0
-        XCTAssertEqual(
-            kk_sequence_findLast(makeSequence([1, 2, 3]), unsafeBitCast(matchesGreaterThanTen, to: Int.self), 0, &thrown),
-            runtimeNullSentinelInt
-        )
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_sequence_findLast(makeSequence([1, 2, 3]), unsafeBitCast(matchesGreaterThanTen, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
 
         thrown = 0
-        XCTAssertEqual(
-            kk_sequence_findLast(makeSequence([2, 4, 6]), unsafeBitCast(matchesPositive, to: Int.self), 0, &thrown),
-            6
-        )
-        XCTAssertEqual(thrown, 0)
+        #expect(kk_sequence_findLast(makeSequence([2, 4, 6]), unsafeBitCast(matchesPositive, to: Int.self), 0, &thrown) == 6)
+        #expect(thrown == 0)
     }
 
-    func testSequencePartitionSplitsMatchingAndNonMatchingElements() {
-        let isEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value.isMultiple(of: 2) ? 1 : 0
-        }
 
-        var thrown = 0
-        let split = kk_sequence_partition(
-            makeSequence([1, 2, 3, 4, 5]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(kk_pair_first(split)), [2, 4])
-        XCTAssertEqual(listElements(kk_pair_second(split)), [1, 3, 5])
-
-        thrown = 0
-        let emptySplit = kk_sequence_partition(
-            makeSequence([]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(kk_pair_first(emptySplit)), [])
-        XCTAssertEqual(listElements(kk_pair_second(emptySplit)), [])
-
-        thrown = 0
-        let allMatchSplit = kk_sequence_partition(
-            makeSequence([2, 4, 6]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(kk_pair_first(allMatchSplit)), [2, 4, 6])
-        XCTAssertEqual(listElements(kk_pair_second(allMatchSplit)), [])
-
-        thrown = 0
-        let noneMatchSplit = kk_sequence_partition(
-            makeSequence([1, 3, 5]),
-            unsafeBitCast(isEven, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(kk_pair_first(noneMatchSplit)), [])
-        XCTAssertEqual(listElements(kk_pair_second(noneMatchSplit)), [1, 3, 5])
-    }
-
+    @Test
     func testSequenceAsIterable() {
         let seq = makeSequence([1, 2, 3])
         let iterable = kk_sequence_asIterable(seq)
         // Should return the same handle
-        XCTAssertEqual(iterable, seq)
+        #expect(iterable == seq)
     }
 
+    @Test
     func testSequenceAsSequence() {
         let seq = makeSequence([1, 2, 3])
-        XCTAssertEqual(kk_sequence_asSequence(seq), seq)
+        #expect(kk_sequence_asSequence(seq) == seq)
     }
 
+    @Test
     func testSequenceOrEmptyReturnsEmptySequenceForNull() {
         let seq = kk_sequence_orEmpty(runtimeNullSentinelInt)
 
-        XCTAssertEqual(sequenceElements(seq), [])
+        #expect(sequenceElements(seq) == [])
     }
 
+    @Test
     func testSequenceOrEmptyReturnsExistingSequenceForNonNull() {
         let seq = makeSequence([1, 2, 3])
 
-        XCTAssertEqual(kk_sequence_orEmpty(seq), seq)
+        #expect(kk_sequence_orEmpty(seq) == seq)
     }
 
+    @Test
     func testSequenceFilterNotLazy() {
         // Test that filterNot is lazy by using a sequence builder
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let filterFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             value == 2 ? 1 : 0  // true only for value 2
@@ -530,29 +495,29 @@ extension RuntimeSequenceTests {
         // Take only first element to verify laziness
         let taken = kk_sequence_take(filtered, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [1]) // Should be [1, 3] but take(1) gives [1]
+        #expect(result == [1]) // Should be [1, 3] but take(1) gives [1]
 
         // Should not have evaluated all elements due to laziness
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 3,
-            "filterNot should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 3, "filterNot should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
     // MARK: - STDLIB-HOF-022: Additional Lazy Higher-Order Functions Tests
 
+    @Test
     func testSequenceMapNotNullLazy() {
         // Test mapNotNull with lazy evaluation
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, runtimeNullSentinelInt) // null value
+            _ = __kk_sequence_builder_yield(builderRaw, runtimeNullSentinelInt) // null value
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             value == runtimeNullSentinelInt ? runtimeNullSentinelInt : value * 2
@@ -568,52 +533,52 @@ extension RuntimeSequenceTests {
         // Take only first element to verify laziness
         let taken = kk_sequence_take(mapped, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [2]) // 1 * 2 = 2, null is filtered out
+        #expect(result == [2]) // 1 * 2 = 2, null is filtered out
 
         // Should not have evaluated all elements due to laziness
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 3,
-            "mapNotNull should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 3, "mapNotNull should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceFilterNotNullLazy() {
         // Test filterNotNull with lazy evaluation
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, runtimeNullSentinelInt) // null value
+            _ = __kk_sequence_builder_yield(builderRaw, runtimeNullSentinelInt) // null value
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let filtered = kk_sequence_filterNotNull(seqHandle)
 
         // Take only first element to verify laziness
         let taken = kk_sequence_take(filtered, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [1]) // null is filtered out
+        #expect(result == [1]) // null is filtered out
 
         // Should not have evaluated all elements due to laziness
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 3,
-            "filterNotNull should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 3, "filterNotNull should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceMapIndexedLazy() {
         // Test mapIndexed with lazy evaluation
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 10)
+            _ = __kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 20)
+            _ = __kk_sequence_builder_yield(builderRaw, 20)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let mapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
             index + value
@@ -629,25 +594,25 @@ extension RuntimeSequenceTests {
         // Take only first element to verify laziness
         let taken = kk_sequence_take(mapped, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [10]) // index 0 + value 10 = 10
+        #expect(result == [10]) // index 0 + value 10 = 10
 
         // Should not have evaluated all elements due to laziness
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2,
-            "mapIndexed should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 2, "mapIndexed should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceOnEachIndexedLazy() {
         _lazyTestYieldCounter = 0
         _lazySequenceOnEachIndexedTrace = []
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 10)
+            _ = __kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 20)
+            _ = __kk_sequence_builder_yield(builderRaw, 20)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let onEachIndexed = kk_sequence_onEachIndexed(
             seqHandle,
@@ -658,12 +623,12 @@ extension RuntimeSequenceTests {
 
         let taken = kk_sequence_take(onEachIndexed, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [10])
-        XCTAssertEqual(_lazySequenceOnEachIndexedTrace, [10])
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2,
-            "onEachIndexed should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(result == [10])
+        #expect(_lazySequenceOnEachIndexedTrace == [10])
+        #expect(_lazyTestYieldCounter <= 2, "onEachIndexed should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceOnEachIndexedSourceBackedSequenceIsLazy() {
         _lazySequenceOnEachIndexedTrace = []
         let seq = makeSequence([10, 20, 30])
@@ -677,53 +642,54 @@ extension RuntimeSequenceTests {
 
         let taken = kk_sequence_take(onEachIndexed, 2)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [10, 20])
-        XCTAssertEqual(_lazySequenceOnEachIndexedTrace, [10, 120])
+        #expect(result == [10, 20])
+        #expect(_lazySequenceOnEachIndexedTrace == [10, 120])
     }
 
+    @Test
     func testSequenceWithIndexLazy() {
         // Test withIndex with lazy evaluation
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 10)
+            _ = __kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 20)
+            _ = __kk_sequence_builder_yield(builderRaw, 20)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let withIndex = kk_sequence_withIndex(seqHandle)
 
         // Take only first element to verify laziness
         let taken = kk_sequence_take(withIndex, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result.count, 1)
+        #expect(result.count == 1)
         // Should be a pair (0, 10)
         let pair = result[0]
         let first = kk_pair_first(pair)
         let second = kk_pair_second(pair)
-        XCTAssertEqual(first, 0) // index
-        XCTAssertEqual(second, 10) // value
+        #expect(first == 0) // index
+        #expect(second == 10) // value
 
         // Should not have evaluated all elements due to laziness
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2,
-            "withIndex should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 2, "withIndex should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceFlatMapLazy() {
         // Test flatMap with lazy evaluation
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
-        let seqHandle = kk_sequence_builder_build(fnPtr)
+        let seqHandle = __kk_sequence_builder_build(fnPtr)
 
         let flatMapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             // Create a list [value, value * 10]
@@ -743,13 +709,13 @@ extension RuntimeSequenceTests {
         // Take only first element to verify laziness
         let taken = kk_sequence_take(flatMapped, 1)
         let result = sequenceElements(taken)
-        XCTAssertEqual(result, [1]) // First element of [1, 10] from first input value 1
+        #expect(result == [1]) // First element of [1, 10] from first input value 1
 
         // Should not have evaluated all elements due to laziness
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2,
-            "flatMap should be lazy; got \(_lazyTestYieldCounter) yields")
+        #expect(_lazyTestYieldCounter <= 2, "flatMap should be lazy; got \(_lazyTestYieldCounter) yields")
     }
 
+    @Test
     func testSequenceMapNotNullCorrectness() {
         // Test correctness of mapNotNull
         let seq = makeSequence([1, 2, 3])
@@ -763,9 +729,10 @@ extension RuntimeSequenceTests {
             nil
         )
         let result = sequenceElements(mapped)
-        XCTAssertEqual(result, [2, 4, 6])
+        #expect(result == [2, 4, 6])
     }
 
+    @Test
     func testSequenceMapNotNullPassesSentinelInputsToTransform() {
         let seq = makeSequence([1, runtimeNullSentinelInt, 3])
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -777,9 +744,10 @@ extension RuntimeSequenceTests {
             0,
             nil
         )
-        XCTAssertEqual(sequenceElements(mapped), [2, 99, 6])
+        #expect(sequenceElements(mapped) == [2, 99, 6])
     }
 
+    @Test
     func testSequenceMapNotNullPreservesZeroResults() {
         let seq = makeSequence([0, 1, 2])
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -791,9 +759,10 @@ extension RuntimeSequenceTests {
             0,
             nil
         )
-        XCTAssertEqual(sequenceElements(mapped), [0, 1, 2])
+        #expect(sequenceElements(mapped) == [0, 1, 2])
     }
 
+    @Test
     func testSequenceFirstNotNullOfOrNullReturnsFirstNonNullResult() {
         let seq = makeSequence([1, 2, 4])
         var thrown = 0
@@ -803,10 +772,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(result, 20)
-        XCTAssertEqual(thrown, 0)
+        #expect(result == 20)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testSequenceFirstNotNullOfOrNullReturnsNullSentinelWhenNoResultMatches() {
         let seq = makeSequence([1, 3, 5])
         var thrown = 0
@@ -816,10 +786,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testSequenceFirstNotNullOfOrNullPropagatesThrownTransform() {
         let seq = makeSequence([1, 2, 3])
         var thrown = 0
@@ -829,10 +800,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testSequenceFirstNotNullOfReturnsFirstNonNullTransformResult() {
         let seq = makeSequence([1, 2, 4])
         let result = kk_sequence_firstNotNullOf(
@@ -841,9 +813,10 @@ extension RuntimeSequenceTests {
             0,
             nil
         )
-        XCTAssertEqual(result, 20)
+        #expect(result == 20)
     }
 
+    @Test
     func testSequenceFirstNotNullOfThrowsWhenEveryTransformResultIsNull() {
         let seq = makeSequence([1, 3, 5])
         var thrown = 0
@@ -853,10 +826,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testSequenceFirstNotNullOfPropagatesThrowingLambda() {
         let seq = makeSequence([1, 2, 3])
         var thrown = 0
@@ -866,10 +840,11 @@ extension RuntimeSequenceTests {
             0,
             &thrown
         )
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testSequenceFilterNotNullPreservesZeroAfterMapNotNull() {
         let seq = makeSequence([0, 1, 2])
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -882,37 +857,41 @@ extension RuntimeSequenceTests {
             nil
         )
         let filtered = kk_sequence_filterNotNull(mapped)
-        XCTAssertEqual(sequenceElements(filtered), [0, 1, 2])
+        #expect(sequenceElements(filtered) == [0, 1, 2])
     }
 
+    @Test
     func testSequenceFilterNotNullCorrectness() {
         // Test correctness of filterNotNull
         let seq = makeSequence([1, runtimeNullSentinelInt, 3, runtimeNullSentinelInt, 5])
         let filtered = kk_sequence_filterNotNull(seq)
         let result = sequenceElements(filtered)
-        XCTAssertEqual(result, [1, 3, 5]) // Only non-null values
+        #expect(result == [1, 3, 5]) // Only non-null values
     }
 
+    @Test
     func testSequenceRequireNoNullsPassesNonNullElements() {
         let seq = makeSequence([1, 3, 5])
         let required = kk_sequence_requireNoNulls(seq)
         var thrown = 0
         let list = kk_sequence_to_list(required, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(list), [1, 3, 5])
+        #expect(thrown == 0)
+        #expect(listElements(list) == [1, 3, 5])
     }
 
+    @Test
     func testSequenceRequireNoNullsThrowsOnNullElement() {
         let seq = makeSequence([1, runtimeNullSentinelInt, 5])
         let required = kk_sequence_requireNoNulls(seq)
         var thrown = 0
         let list = kk_sequence_to_list(required, &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(list, runtimeNullSentinelInt)
+        #expect(thrown != 0)
+        #expect(list == runtimeNullSentinelInt)
     }
 
+    @Test
     func testSequenceMapIndexedCorrectness() {
         // Test correctness of mapIndexed
         let seq = makeSequence([10, 20, 30])
@@ -926,9 +905,10 @@ extension RuntimeSequenceTests {
             nil
         )
         let result = sequenceElements(mapped)
-        XCTAssertEqual(result, [10, 21, 32]) // [0+10, 1+20, 2+30]
+        #expect(result == [10, 21, 32]) // [0+10, 1+20, 2+30]
     }
 
+    @Test
     func testSequenceMapIndexedNotNullCorrectness() {
         let seq = makeSequence([10, 20, 30, 40])
         let mapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
@@ -941,9 +921,10 @@ extension RuntimeSequenceTests {
             nil
         )
         let result = sequenceElements(mapped)
-        XCTAssertEqual(result, [10, 32])
+        #expect(result == [10, 32])
     }
 
+    @Test
     func testSequenceOnEachIndexedCorrectness() {
         let seq = makeSequence([10, 20, 30])
         _lazySequenceOnEachIndexedTrace = []
@@ -954,10 +935,11 @@ extension RuntimeSequenceTests {
             nil
         )
         let result = sequenceElements(transformed)
-        XCTAssertEqual(result, [10, 20, 30])
-        XCTAssertEqual(_lazySequenceOnEachIndexedTrace, [10, 120, 230])
+        #expect(result == [10, 20, 30])
+        #expect(_lazySequenceOnEachIndexedTrace == [10, 120, 230])
     }
 
+    @Test
     func testSequenceForEachVisitsElementsInOrder() {
         let seq = makeSequence([1, 2, 3])
         _lazyTestYieldCounter = 0
@@ -972,26 +954,10 @@ extension RuntimeSequenceTests {
             0
         )
 
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(_lazyTestYieldCounter, 123)
+        #expect(result == 0)
+        #expect(_lazyTestYieldCounter == 123)
     }
-    func testSequenceFoldIndexedAccumulatesIndexAndValueInOrder() {
-        let seq = makeSequence([3, 4, 5])
-        let foldFn: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, acc, value, _ in
-            acc + index * 10 + value
-        }
-
-        let result = kk_sequence_foldIndexed(
-            seq,
-            0,
-            unsafeBitCast(foldFn, to: Int.self),
-            0,
-            nil
-        )
-
-        XCTAssertEqual(result, 42)
-    }
-
+    @Test
     func testSequenceFoldAccumulatesInOrder() {
         let seq = makeSequence([1, 2, 3])
         let foldFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
@@ -1006,9 +972,10 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, 123)
+        #expect(result == 123)
     }
 
+    @Test
     func testSequenceMapToAppendsToDestination() {
         let seq = makeSequence([1, 2, 3])
         let dest = makeList([99])
@@ -1024,10 +991,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, dest)
-        XCTAssertEqual(listElements(result), [99, 10, 20, 30])
+        #expect(result == dest)
+        #expect(listElements(result) == [99, 10, 20, 30])
     }
 
+    @Test
     func testSequenceFlatMapToAppendsFlattenedResults() {
         let seq = makeSequence([1, 2])
         let dest = makeList([50])
@@ -1047,10 +1015,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, dest)
-        XCTAssertEqual(listElements(result), [50, 1, 10, 2, 20])
+        #expect(result == dest)
+        #expect(listElements(result) == [50, 1, 10, 2, 20])
     }
 
+    @Test
     func testSequenceMapNotNullToAppendsOnlyNonNullResults() {
         let seq = makeSequence([1, 2, 3, 4])
         let dest = makeList([50])
@@ -1066,10 +1035,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, dest)
-        XCTAssertEqual(listElements(result), [50, 20, 40])
+        #expect(result == dest)
+        #expect(listElements(result) == [50, 20, 40])
     }
 
+    @Test
     func testSequenceMapIndexedToAppendsIndexedResultsToDestination() {
         let seq = makeSequence([10, 20, 30])
         let dest = makeList([50])
@@ -1085,10 +1055,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, dest)
-        XCTAssertEqual(listElements(result), [50, 10, 21, 32])
+        #expect(result == dest)
+        #expect(listElements(result) == [50, 10, 21, 32])
     }
 
+    @Test
     func testSequenceMapIndexedNotNullToAppendsOnlyNonNullResults() {
         let seq = makeSequence([1, 2, 3, 4])
         let dest = makeList([50])
@@ -1104,10 +1075,11 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, dest)
-        XCTAssertEqual(listElements(result), [50, 1, 5])
+        #expect(result == dest)
+        #expect(listElements(result) == [50, 1, 5])
     }
 
+    @Test
     func testSequenceFlatMapIndexedToAppendsFlattenedResults() {
         let seq = makeSequence([1, 2])
         let dest = makeList([50])
@@ -1127,28 +1099,30 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(result, dest)
-        XCTAssertEqual(listElements(result), [50, 0, 10, 1, 20])
+        #expect(result == dest)
+        #expect(listElements(result) == [50, 0, 10, 1, 20])
     }
 
+    @Test
     func testSequenceWithIndexCorrectness() {
         // Test correctness of withIndex
         let seq = makeSequence([10, 20, 30])
         let withIndex = kk_sequence_withIndex(seq)
         let result = sequenceElements(withIndex)
-        XCTAssertEqual(result.count, 3)
+        #expect(result.count == 3)
         // Check first pair (0, 10)
         let first = kk_pair_first(result[0])
         let second = kk_pair_second(result[0])
-        XCTAssertEqual(first, 0)
-        XCTAssertEqual(second, 10)
+        #expect(first == 0)
+        #expect(second == 10)
         // Check second pair (1, 20)
         let first2 = kk_pair_first(result[1])
         let second2 = kk_pair_second(result[1])
-        XCTAssertEqual(first2, 1)
-        XCTAssertEqual(second2, 20)
+        #expect(first2 == 1)
+        #expect(second2 == 20)
     }
 
+    @Test
     func testSequenceFlatMapCorrectness() {
         // Test correctness of flatMap
         let seq = makeSequence([1, 2])
@@ -1166,9 +1140,10 @@ extension RuntimeSequenceTests {
             0
         )
         let result = sequenceElements(flatMapped)
-        XCTAssertEqual(result, [1, 10, 2, 20]) // [1, 10] + [2, 20]
+        #expect(result == [1, 10, 2, 20]) // [1, 10] + [2, 20]
     }
 
+    @Test
     func testSequenceFlatMapIndexedFlattensIterableResults() {
         let seq = makeSequence([1, 2])
         let flatMapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
@@ -1185,9 +1160,10 @@ extension RuntimeSequenceTests {
             0
         )
 
-        XCTAssertEqual(sequenceElements(flatMapped), [0, 10, 1, 20])
+        #expect(sequenceElements(flatMapped) == [0, 10, 1, 20])
     }
 
+    @Test
     func testSequenceFlatMapIndexedFlattensSequenceResults() {
         let seq = makeSequence([1, 2])
         let flatMapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
@@ -1204,21 +1180,22 @@ extension RuntimeSequenceTests {
             0
         )
 
-        XCTAssertEqual(sequenceElements(flatMapped), [1, 100, 3, 200])
+        #expect(sequenceElements(flatMapped) == [1, 100, 3, 200])
     }
 
+    @Test
     func testSequenceFlatMapIndexedIsLazy() {
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             return 0
         }
-        let seq = kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
+        let seq = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
         let flatMapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
             let arr = kk_array_new(2)
             var thrown = 0
@@ -1234,10 +1211,11 @@ extension RuntimeSequenceTests {
         )
         let taken = kk_sequence_take(flatMapped, 3)
 
-        XCTAssertEqual(sequenceElements(taken), [0, 1, 1])
-        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2)
+        #expect(sequenceElements(taken) == [0, 1, 1])
+        #expect(_lazyTestYieldCounter <= 2)
     }
 
+    @Test
     func testSequenceWindowedTransformCorrectness() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let transformed = kk_sequence_windowed_transform(
@@ -1250,17 +1228,19 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(sequenceElements(transformed), [6, 12, 5])
+        #expect(sequenceElements(transformed) == [6, 12, 5])
     }
 
+    @Test
     func testSequenceWindowedProducesPartialWindows() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let windows = kk_sequence_windowed(seq, 3, 2, 1)
         let nested = sequenceElements(windows).map { listElements($0) }
 
-        XCTAssertEqual(nested, [[1, 2, 3], [3, 4, 5], [5]])
+        #expect(nested == [[1, 2, 3], [3, 4, 5], [5]])
     }
 
+    @Test
     func testSequenceWindowedTransformPropagatesThrowables() {
         let seq = makeSequence([1, 2, 3, 4])
         var thrown = 0
@@ -1274,17 +1254,19 @@ extension RuntimeSequenceTests {
             &thrown
         )
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(transformed, 0)
+        #expect(thrown != 0)
+        #expect(transformed == 0)
     }
 
+    @Test
     func testSequenceChunkedReturnsSequenceOfChunkLists() {
         let chunked = kk_sequence_chunked(makeSequence([1, 2, 3, 4, 5]), 2)
         let chunkHandles = sequenceElements(chunked)
 
-        XCTAssertEqual(chunkHandles.map { listElements($0) }, [[1, 2], [3, 4], [5]])
+        #expect(chunkHandles.map { listElements($0) } == [[1, 2], [3, 4], [5]])
     }
 
+    @Test
     func testSequenceChunkedTransformCorrectness() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let transformed = kk_sequence_chunked_transform(
@@ -1295,9 +1277,10 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        XCTAssertEqual(sequenceElements(transformed), [3, 7, 5])
+        #expect(sequenceElements(transformed) == [3, 7, 5])
     }
 
+    @Test
     func testSequenceChunkedTransformPropagatesThrowables() {
         let seq = makeSequence([1, 2, 3, 4])
         var thrown = 0
@@ -1309,36 +1292,37 @@ extension RuntimeSequenceTests {
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(transformed, 0)
+        #expect(thrown == 0)
+        #expect(transformed != 0)
 
         var iterationThrown = 0
         let materialized = kk_sequence_to_list(transformed, &iterationThrown)
-        XCTAssertNotEqual(iterationThrown, 0)
-        XCTAssertEqual(materialized, runtimeNullSentinelInt)
+        #expect(iterationThrown != 0)
+        #expect(materialized == runtimeNullSentinelInt)
     }
 
     // MARK: - TEST-SEQ-010: Lazy evaluation count verification
 
+    @Test
     func testDistinctByIsLazy() {
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _ = __kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _ = __kk_sequence_builder_yield(builderRaw, 2)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _ = __kk_sequence_builder_yield(builderRaw, 3)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 4)
+            _ = __kk_sequence_builder_yield(builderRaw, 4)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 5)
+            _ = __kk_sequence_builder_yield(builderRaw, 5)
             return 0
         }
         let keySelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             value % 2
         }
-        let seq = kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
+        let seq = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
         let distinct = kk_sequence_distinctBy(
             seq,
             unsafeBitCast(keySelector, to: Int.self),
@@ -1346,34 +1330,27 @@ extension RuntimeSequenceTests {
             nil
         )
         let taken = kk_sequence_take(distinct, 1)
-        XCTAssertEqual(sequenceElements(taken), [1])
-        XCTAssertLessThanOrEqual(
-            _lazyTestYieldCounter,
-            2,
-            "distinctBy should be lazy; take(1) must not force all 5 yields, got \(_lazyTestYieldCounter)"
-        )
+        #expect(sequenceElements(taken) == [1])
+        #expect(_lazyTestYieldCounter <= 2, "distinctBy should be lazy; take(1) must not force all 5 yields, got \(_lazyTestYieldCounter)")
     }
 
+    @Test
     func testFilterIsInstanceIsLazy() {
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 10)
+            _ = __kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 20)
+            _ = __kk_sequence_builder_yield(builderRaw, 20)
             _lazyTestYieldCounter += 1
-            _ = kk_sequence_builder_yield(builderRaw, 30)
+            _ = __kk_sequence_builder_yield(builderRaw, 30)
             return 0
         }
-        let seq = kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
+        let seq = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
         let filtered = kk_sequence_filterIsInstance(seq, 3)
         let taken = kk_sequence_take(filtered, 1)
-        XCTAssertEqual(sequenceElements(taken), [10])
-        XCTAssertLessThanOrEqual(
-            _lazyTestYieldCounter,
-            2,
-            "filterIsInstance should be lazy; take(1) must not force all 3 yields, got \(_lazyTestYieldCounter)"
-        )
+        #expect(sequenceElements(taken) == [10])
+        #expect(_lazyTestYieldCounter <= 2, "filterIsInstance should be lazy; take(1) must not force all 3 yields, got \(_lazyTestYieldCounter)")
     }
 
     // MARK: - Helpers
@@ -1398,7 +1375,7 @@ extension RuntimeSequenceTests {
         var thrown = 0
         for (index, element) in elements.enumerated() {
             _ = kk_array_set(arrayRaw, index, element, &thrown)
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
         }
         return arrayRaw
     }
@@ -1408,3 +1385,4 @@ extension RuntimeSequenceTests {
         return kk_list_of(arrayRaw, elements.count)
     }
 }
+#endif

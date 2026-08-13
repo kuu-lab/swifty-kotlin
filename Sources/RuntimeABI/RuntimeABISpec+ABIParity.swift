@@ -160,16 +160,7 @@ public extension RuntimeABISpec {
             p("code", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_char_isHighSurrogate", parameters: [
-            p("value", .intptr),
-        ]),
         abiParitySpec("kk_char_isISOControl", parameters: [
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_char_isLowSurrogate", parameters: [
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_char_isSurrogate", parameters: [
             p("value", .intptr),
         ]),
         abiParitySpec("kk_char_isTitleCase", parameters: [
@@ -374,10 +365,7 @@ public extension RuntimeABISpec {
             p("predicateFnPtr", .intptr),
             p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_flow_state_in", parameters: [
-            p("flowHandle", .intptr),
-            p("initialValue", .intptr),
-        ]),
+        // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
         abiParitySpec("kk_freezable_atomic_ref_compareAndSet", parameters: [
             p("refHandle", .intptr),
             p("expectedRaw", .intptr),
@@ -574,31 +562,6 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_list_dropLast", parameters: [
-            p("listRaw", .intptr),
-            p("count", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_list_foldRight", parameters: [
-            p("listRaw", .intptr),
-            p("initial", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_foldRightIndexed", parameters: [
-            p("listRaw", .intptr),
-            p("initial", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_reduceRight", parameters: [
-            p("listRaw", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -643,17 +606,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_mem_scope_exit", parameters: [
             p("handle", .intptr),
         ]),
-        abiParitySpec("kk_mutable_state_flow_create", parameters: [
-            p("initialValue", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_state_flow_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_state_flow_try_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
+        // KSP-676: MutableStateFlow is bundled Kotlin source; these C bridges are gone.
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
@@ -711,20 +664,10 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_shared_flow_collect", parameters: [
-            p("handle", .intptr),
-            p("collectorFnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_shared_flow_replay_cache", parameters: [
-            p("handle", .intptr),
-        ]),
+        // KSP-676: SharedFlow / StateFlow collect and replayCache are bundled
+        // Kotlin source; the C bridges have been removed.
         abiParitySpec("kk_shared_immutable_init", parameters: [
             p("objectRaw", .intptr),
-        ]),
-        abiParitySpec("kk_state_flow_value", parameters: [
-            p("handle", .intptr),
         ]),
         // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
         // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
@@ -745,24 +688,24 @@ public extension RuntimeABISpec {
             p("outByteCount", .nullableIntptrPointer),
             p("outHash", .nullableIntptrPointer),
         ], returnType: .nullableUInt8Pointer),
-        abiParitySpec("kk_string_toBooleanStrictOrNull_flat", parameters: [
+        abiParitySpec("__kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_string_toByte_flat", parameters: [
+        abiParitySpec("__kk_string_toByte_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte", parameters: [
+        abiParitySpec("__kk_string_toByte", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte_radix_flat", parameters: [
+        abiParitySpec("__kk_string_toByte_radix_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
@@ -770,31 +713,31 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte_radix", parameters: [
+        abiParitySpec("__kk_string_toByte_radix", parameters: [
             p("strRaw", .intptr),
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByteOrNull_flat", parameters: [
+        abiParitySpec("__kk_string_toByteOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_string_toShortOrNull_flat", parameters: [
+        abiParitySpec("__kk_string_toShortOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_string_toShort_flat", parameters: [
+        abiParitySpec("__kk_string_toShort_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toShort", parameters: [
+        abiParitySpec("__kk_string_toShort", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),

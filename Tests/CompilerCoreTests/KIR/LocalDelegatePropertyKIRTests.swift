@@ -56,7 +56,7 @@ struct LocalDelegatePropertyKIRTests {
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_long)
+            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_any)
             // rather than literally "println", so identify it positionally instead:
             // main is `val x by IntProp(); println(x)`, so the getValue call must be
             // followed by exactly one more call — println — that consumes its result.
@@ -299,19 +299,24 @@ struct LocalDelegatePropertyKIRTests {
             // Values derived from kk_lazy_get_value's result, following the
             // boxing call the Int value goes through before println.
             var derivedValues: Set<KIRExprID> = []
-            var lastCallArguments: [KIRExprID] = []
+            var printCallArguments: [[KIRExprID]] = []
             for instruction in mainBody {
                 guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
-                if ctx.interner.resolve(callee) == "kk_lazy_get_value", let result {
+                let calleeName = ctx.interner.resolve(callee)
+                if calleeName == "kk_lazy_get_value", let result {
                     derivedValues.insert(result)
                 } else if let result, arguments.contains(where: { derivedValues.contains($0) }) {
                     derivedValues.insert(result)
                 }
-                lastCallArguments = arguments
+                if calleeName == "println" || calleeName == "__kk_print_raw" || calleeName.hasPrefix("kk_println") {
+                    printCallArguments.append(arguments)
+                }
             }
             #expect(!derivedValues.isEmpty, "expected a kk_lazy_get_value call in main")
             #expect(
-                lastCallArguments.contains(where: { derivedValues.contains($0) }),
+                printCallArguments.filter { arguments in
+                    arguments.contains(where: { derivedValues.contains($0) })
+                }.count == 2,
                 "println should print the lazily computed value, not the Lazy handle"
             )
         }
@@ -411,9 +416,7 @@ struct LocalDelegatePropertyKIRTests {
             // StdlibDelegateLoweringPass, which runs after this stage.
             let createIndex = try #require(callees.firstIndex(of: "lazy"))
             let getValueIndex = try #require(callees.firstIndex(of: "kk_lazy_get_value"))
-            let printIndices = callees.indices.filter {
-                callees[$0] == "println" || callees[$0].hasPrefix("kk_println")
-            }
+            let printIndices = callees.indices.filter { callees[$0] == "println" }
             let firstPrintIndex = try #require(printIndices.first)
 
             #expect(createIndex < firstPrintIndex, "the delegate must be created at the declaration")

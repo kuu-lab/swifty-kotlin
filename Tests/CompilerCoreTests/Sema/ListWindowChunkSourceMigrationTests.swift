@@ -4,10 +4,24 @@ import Testing
 
 @Suite
 struct ListWindowChunkSourceMigrationTests {
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     @Test
     func migratedListWindowChunkFunctionsAreBundledSourceDefinitions() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let packageFQName = ["kotlin", "collections"].map(ctx.interner.intern)
         let expectedArities: [String: Set<Int>] = [
@@ -50,8 +64,7 @@ struct ListWindowChunkSourceMigrationTests {
 
     @Test
     func migratedListWindowChunkFunctionsDoNotKeepPublicRuntimeLinkedMembers() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let listFQName = ["kotlin", "collections", "List"].map(ctx.interner.intern)
         let iterableFQName = ["kotlin", "collections", "Iterable"].map(ctx.interner.intern)

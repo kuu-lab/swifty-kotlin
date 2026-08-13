@@ -269,11 +269,11 @@ struct BundledDeclarationIndex: Sendable {
         // implementations are only valid for concrete List receivers. Keep the
         // runtime bridge for nominal Iterable<T> receivers until they get their
         // own Kotlin source. joinTo/joinToString/any/all/last/... moved to
-        // Stdlib/kotlin/collections/Iterables.kt in KSP-435.
+        // Stdlib/kotlin/collections/Iterables.kt in KSP-435; reduceRight*
+        // and the remaining Iterable HOFs moved in KSP-632.
         switch interner.resolve(key.name) {
         case "filter",
-             "reduce", "reduceIndexed",
-             "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
+             "reduce", "reduceIndexed":
             return key.arity == 1
         default:
             return false
@@ -537,7 +537,7 @@ struct BundledDeclarationIndex: Sendable {
         // these to Iterable suppressed the dedicated Iterable synthetic stub
         // that some of these members have (e.g. reduce, via
         // registerIterableReduceMember, which links to the generic
-        // runtimeCollectionElements(from:)-based kk_list_reduce bridge),
+        // runtimeCollectionElements(from:)-based kk_sequence_reduce bridge),
         // leaving a plain Iterable receiver (e.g. Set<T>, or a value
         // statically typed Iterable<T>) with no matching candidate at all.
         // Sema's overload fallback then picked an unrelated same-named source
@@ -845,6 +845,12 @@ struct BundledDeclarationIndex: Sendable {
             if path.count == 1, let defaultPackage = defaultImportedNameToPackage[first] {
                 return defaultPackage + path
             }
+            // Nested types of default-imported top-level nominals (e.g.
+            // CharProgression.Companion) must keep their default package prefix
+            // so bundled companion-object extensions are keyed under the real owner.
+            if path.count > 1, let defaultPackage = defaultImportedNameToPackage[first] {
+                return defaultPackage + path
+            }
             if path.count == 1 || topLevelNominalNames.contains(first) {
                 return packageFQName + path
             }
@@ -951,8 +957,8 @@ struct BundledDeclarationIndex: Sendable {
         // declared in bundled .kt files. These must resolve to the same FQ name
         // as the symbol created later by HeaderHelpers so the KSP-002 skip guard
         // matches. Source-defined names take precedence below.
-        let synthesizedNamesByPackage: [[InternedString]: [String]] = [
-            [kotlin, collections]: [
+        let synthesizedNamesByPackage: [([InternedString], [String])] = [
+            ([kotlin, collections], [
                 "Iterable", "MutableIterable",
                 "Collection", "MutableCollection",
                 "List", "MutableList",
@@ -961,22 +967,22 @@ struct BundledDeclarationIndex: Sendable {
                 "Iterator", "MutableIterator",
                 "ListIterator", "MutableListIterator",
                 "RandomAccess",
-            ],
-            [kotlin, sequences]: ["Sequence"],
-            [kotlin, ranges]: [
+            ]),
+            ([kotlin, sequences], ["Sequence"]),
+            ([kotlin, ranges], [
                 "ClosedRange", "OpenEndRange",
                 "IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange",
                 "IntProgression", "LongProgression", "CharProgression",
                 "UIntProgression", "ULongProgression",
-            ],
-            [kotlin, text]: [
+            ]),
+            ([kotlin, text], [
                 "Regex", "MatchResult", "MatchGroup",
                 "StringBuilder", "Appendable", "CharSequence",
-            ],
-            [kotlin, io]: [
+            ]),
+            ([kotlin, io], [
                 "File", "InputStream", "OutputStream",
-            ],
-            [kotlin]: [
+            ]),
+            ([kotlin], [
                 "Array",
                 "ByteArray", "ShortArray", "IntArray", "LongArray",
                 "FloatArray", "DoubleArray", "CharArray", "BooleanArray",
@@ -984,11 +990,11 @@ struct BundledDeclarationIndex: Sendable {
                 "Pair", "Triple", "Result",
                 "Throwable", "Exception", "Error", "RuntimeException",
                 "Comparator",
-            ],
-            [kotlin, reflect]: [
+            ]),
+            ([kotlin, reflect], [
                 "KClass", "KClassifier", "KType", "KTypeParameter",
                 "KTypeProjection", "KCallable", "KFunction", "KProperty",
-            ],
+            ]),
         ]
 
         var map: [InternedString: [InternedString]] = [:]
@@ -1005,7 +1011,9 @@ struct BundledDeclarationIndex: Sendable {
 
         // Source-defined top-level nominal names take precedence over the seed.
         for pkg in defaultImportPackages {
-            for name in topLevelNominalNamesByPackage[pkg] ?? [] {
+            let sourceNames = (topLevelNominalNamesByPackage[pkg] ?? [])
+                .sorted { interner.resolve($0) < interner.resolve($1) }
+            for name in sourceNames {
                 map[name] = pkg
             }
         }

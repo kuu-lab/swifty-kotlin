@@ -13,13 +13,13 @@ public func kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
 }
 
-@_cdecl("kk_uint_downTo")
-public func kk_uint_downTo(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_uint_downTo")
+public func __kk_uint_downTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
 }
 
-@_cdecl("kk_uint_step")
-public func kk_uint_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
+@_cdecl("__kk_uint_step")
+public func __kk_uint_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     runtimeUnsignedStep(rangeRaw, stepValue)
 }
 
@@ -48,7 +48,7 @@ public func kk_uint_range_iterator(_ rangeRaw: Int) -> Int {
 
 @_cdecl("kk_uint_range_hasNext")
 public func kk_uint_range_hasNext(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return kk_iterator_builder_hasNext(iterRaw) }
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return __kk_iterator_builder_hasNext(iterRaw) }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else { return 0 }
     let current = UInt(bitPattern: iterator.current)
     let last = UInt(bitPattern: iterator.last)
@@ -59,7 +59,7 @@ public func kk_uint_range_hasNext(_ iterRaw: Int) -> Int {
 
 @_cdecl("kk_uint_range_next")
 public func kk_uint_range_next(_ iterRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return kk_iterator_builder_next(iterRaw) }
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil { return __kk_iterator_builder_next(iterRaw) }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else { return 0 }
     let current = iterator.current
     let uCurrent = UInt(bitPattern: current)
@@ -664,13 +664,13 @@ public func kk_ulong_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
 }
 
-@_cdecl("kk_ulong_downTo")
-public func kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_ulong_downTo")
+public func __kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
 }
 
-@_cdecl("kk_ulong_step")
-public func kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
+@_cdecl("__kk_ulong_step")
+public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     runtimeUnsignedStep(rangeRaw, stepValue)
 }
 

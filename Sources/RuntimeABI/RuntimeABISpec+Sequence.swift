@@ -87,14 +87,7 @@ public extension RuntimeABISpec {
         ),
         // Sequence builder
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_create",
-            parameters: [],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_yield",
+            name: "__kk_sequence_builder_yield",
             parameters: [
                 RuntimeABIParameter(name: "builderRaw", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -105,7 +98,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-553: yieldAll(iterable)
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_yieldAll",
+            name: "__kk_sequence_builder_yieldAll",
             parameters: [
                 RuntimeABIParameter(name: "builderRaw", type: .intptr),
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
@@ -114,7 +107,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_build",
+            name: "__kk_sequence_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
@@ -124,7 +117,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_builder_build_coro",
+            name: "__kk_sequence_builder_build_coro",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "functionID", type: .intptr),
@@ -136,7 +129,7 @@ public extension RuntimeABISpec {
         ),
         // Iterator builder (STDLIB-331/564)
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_build",
+            name: "__kk_iterator_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
             ],
@@ -145,7 +138,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_build_coro",
+            name: "__kk_iterator_builder_build_coro",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "functionID", type: .intptr),
@@ -156,7 +149,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_yield",
+            name: "__kk_iterator_builder_yield",
             parameters: [
                 RuntimeABIParameter(name: "builderRaw", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -165,7 +158,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_hasNext",
+            name: "__kk_iterator_builder_hasNext",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],
@@ -173,7 +166,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_next",
+            name: "__kk_iterator_builder_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],
@@ -182,7 +175,7 @@ public extension RuntimeABISpec {
         ),
         // CORO-004 Phase 2: suspension-aware consumer API
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_hasNext_coro",
+            name: "__kk_iterator_builder_hasNext_coro",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuationRaw", type: .intptr),
@@ -191,7 +184,7 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_iterator_builder_next_coro",
+            name: "__kk_iterator_builder_next_coro",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],
@@ -493,290 +486,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // STDLIB-275: joinTo/joinToString, sumOf, associate, associateBy
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_joinTo",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_joinToString",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_joinToString_transform",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("sumOf", arity: 1, fallback: "kk_sequence_sumOf"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("sumBy", arity: 1, fallback: "kk_sequence_sumBy"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("sumByDouble", arity: 1, fallback: "kk_sequence_sumByDouble"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("associate", arity: 1, fallback: "kk_sequence_associate"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("associateTo", arity: 2, fallback: "kk_sequence_associateTo"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("associateBy", arity: 1, fallback: "kk_sequence_associateBy"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("associateByTo", arity: 2, fallback: "kk_sequence_associateByTo"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_partition",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("associateWith", arity: 1, fallback: "kk_sequence_associateWith"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("associateWithTo", arity: 2, fallback: "kk_sequence_associateWithTo"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_minByOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_minBy",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_maxBy",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_maxByOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_maxWith",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_maxWithOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_minOf",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_minOfOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_maxOfOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_minWithOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_minWith",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_maxOf",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
         // STDLIB-276: windowed, onEach
         // STDLIB-277: emptySequence / ifEmpty
         RuntimeABIFunctionSpec(
@@ -1332,18 +1041,6 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("groupByTo", arity: 2, fallback: "kk_sequence_groupByTo"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_sequence_max",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
@@ -1426,18 +1123,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-091: reduce
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_reduce",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
         // STDLIB-556: reduceIndexed
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceIndexed",
@@ -1453,6 +1138,18 @@ public extension RuntimeABISpec {
         // STDLIB-SEQ-015: reduceIndexedOrNull
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceIndexedOrNull",
+            parameters: [
+                RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Sequence"
+        ),
+        // STDLIB-SEQ-FN-091: reduce
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_reduce",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
