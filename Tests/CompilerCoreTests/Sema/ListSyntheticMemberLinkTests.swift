@@ -749,6 +749,36 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testIterableDistinctByBindsBundledSource() throws {
+        let source = """
+        fun deduplicate(values: List<Int>): List<Int> {
+            return values.distinctBy { value -> value % 2 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnostics = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!ctx.diagnostics.hasError, "Expected List.distinctBy to type-check cleanly, got: \(diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "distinctBy"
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let fileID = try #require(sema.symbols.sourceFileID(for: chosenCallee))
+            #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListCollectionOps.kt")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+        }
+    }
+
+    @Test
     func testIterableSumByResolvesToListRuntime() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int {
@@ -773,9 +803,15 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.sumBy surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "sumBy"]
+            let memberFQName = ["kotlin", "collections", "sumBy"]
                 .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
+            let memberSymbol = try #require(sema.symbols.lookupAll(fqName: memberFQName).first { symbolID in
+                guard let fileID = sema.symbols.sourceFileID(for: symbolID),
+                      ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListCollectionOps.kt",
+                      sema.symbols.functionSignature(for: symbolID)?.receiverType != nil
+                else { return false }
+                return true
+            })
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
@@ -786,7 +822,9 @@ struct ListSyntheticMemberLinkTests {
             #expect(selectorType.params.count == 1)
             #expect(signature.returnType == sema.types.intType)
 
-            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+            let callLinks = sema.bindings.callBindings.values
+                .filter { $0.chosenCallee == memberSymbol }
+                .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
             #expect(callLinks.isEmpty)
@@ -818,9 +856,15 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "sumByDouble"]
+            let memberFQName = ["kotlin", "collections", "sumByDouble"]
                 .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
+            let memberSymbol = try #require(sema.symbols.lookupAll(fqName: memberFQName).first { symbolID in
+                guard let fileID = sema.symbols.sourceFileID(for: symbolID),
+                      ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListCollectionOps.kt",
+                      sema.symbols.functionSignature(for: symbolID)?.receiverType != nil
+                else { return false }
+                return true
+            })
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
@@ -831,7 +875,9 @@ struct ListSyntheticMemberLinkTests {
             #expect(selectorType.params.count == 1)
             #expect(signature.returnType == sema.types.doubleType)
 
-            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+            let callLinks = sema.bindings.callBindings.values
+                .filter { $0.chosenCallee == memberSymbol }
+                .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
             #expect(callLinks.isEmpty)
@@ -933,9 +979,15 @@ struct ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Iterable.minusElement surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Iterable", "minusElement"]
+            let memberFQName = ["kotlin", "collections", "minusElement"]
                 .map { ctx.interner.intern($0) }
-            let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
+            let memberSymbol = try #require(sema.symbols.lookupAll(fqName: memberFQName).first { symbolID in
+                guard let fileID = sema.symbols.sourceFileID(for: symbolID),
+                      ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListCollectionOps.kt",
+                      sema.symbols.functionSignature(for: symbolID)?.receiverType != nil
+                else { return false }
+                return true
+            })
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
@@ -946,7 +998,9 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(ctx.interner.resolve(returnSymbol.name) == "List")
 
-            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+            let callLinks = sema.bindings.callBindings.values
+                .filter { $0.chosenCallee == memberSymbol }
+                .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
             #expect(callLinks.isEmpty)
