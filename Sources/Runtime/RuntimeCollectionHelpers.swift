@@ -193,7 +193,46 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeSequenceSourceValues(from: rawValue) {
         return values
     }
+    // Kotlin source implementations of Iterable (for example
+    // `String.asIterable()`) are ordinary objects with an Iterable itable, not
+    // runtime collection boxes or Sequence objects. Drive their iterator
+    // through the same dynamic interface used by generic for-loops.
+    if let iteratorRaw = runtimeSourceIterableIterator(rawValue) {
+        var values: [RuntimeValue] = []
+        while kk_iterator_hasNext(iteratorRaw) != 0 {
+            let element = kk_iterator_next(iteratorRaw)
+            values.append(runtimeSourceIteratorValue(element, iteratorRaw: iteratorRaw))
+        }
+        return values
+    }
     return nil
+}
+
+private let ksp409CharSequenceIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.text.Ksp409CharSequenceIterator"
+)
+
+/// Source-backed `CharIterator` returns its concrete Char representation at
+/// the iterator ABI boundary. Preserve that type when a generic runtime bridge
+/// materializes the iterator as `RuntimeValue`.
+func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeValue {
+    let isCharSequenceIterator: Bool = if runtimeObjectTypeID(rawValue: iteratorRaw) == ksp409CharSequenceIteratorTypeID {
+        true
+    } else if let pointer = UnsafeMutableRawPointer(bitPattern: iteratorRaw),
+              runtimeIsObjectPointer(pointer),
+              let iterator = tryCast(pointer, to: RuntimeObjectBox.self),
+              let source = iterator.values.first?.legacyRawValue
+    {
+        // Library-produced object literals may use classID 0, but the
+        // KSP-409 iterator still captures its CharSequence as the first slot.
+        runtimeStringFromRaw(source) != nil
+    } else {
+        false
+    }
+    if isCharSequenceIterator {
+        return RuntimeValue(charScalar: kk_unbox_char(rawValue))
+    }
+    return RuntimeValue(raw: rawValue)
 }
 
 func runtimeIterableElements(from rawValue: Int) -> [Int]? {
