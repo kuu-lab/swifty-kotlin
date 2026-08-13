@@ -225,5 +225,3 @@ public func kk_list_flatten(_ listRaw: Int) -> Int {
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
-
-
