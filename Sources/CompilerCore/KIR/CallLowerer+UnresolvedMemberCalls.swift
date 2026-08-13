@@ -147,12 +147,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_minOfWith")
             case "minOfWithOrNull":
                 return interner.intern("kk_list_minOfWithOrNull")
-            case "onEach":
-                return interner.intern("kk_list_onEach")
-            case "onEachIndexed":
-                return interner.intern("kk_list_onEachIndexed")
-            case "partition":
-                return interner.intern("kk_list_partition")
             case "binarySearch":
                 if hasHOFLambdaArg && argumentCount == 2 {
                     return interner.intern("kk_list_binarySearch_compare")
@@ -353,8 +347,6 @@ extension CallLowerer {
             return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
-        case "partition":
-            return interner.intern("kk_list_partition")
         case "maxBy":
             return interner.intern("kk_list_maxBy")
         case "maxByOrNull":
@@ -387,10 +379,6 @@ extension CallLowerer {
             return interner.intern("kk_list_minOfWith")
         case "minOfWithOrNull":
             return interner.intern("kk_list_minOfWithOrNull")
-        case "onEach":
-            return interner.intern("kk_list_onEach")
-        case "onEachIndexed":
-            return interner.intern("kk_list_onEachIndexed")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
         case "binarySearch":
