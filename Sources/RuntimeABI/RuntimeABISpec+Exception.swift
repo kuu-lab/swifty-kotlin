@@ -512,17 +512,6 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_reentrant_read_write_lock_read",
-            parameters: [
-                RuntimeABIParameter(name: "lock", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_assertions_enabled",
             parameters: [],
             returnType: .intptr,
