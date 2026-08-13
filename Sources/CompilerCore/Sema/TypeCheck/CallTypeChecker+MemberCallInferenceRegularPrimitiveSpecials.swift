@@ -206,71 +206,8 @@ extension CallTypeChecker {
         // link name into codegen; the old early-return bound only the result type, so
         // the linker saw raw "_isNaN"/"_nextUp" symbols.
 
-        // Unsigned coercion: UByte/UShort/UInt/ULong.coerceIn(min, max) (STDLIB-500).
-        // Int/Long/Double/Float and Byte/Short are handled by bundled Kotlin source
-        // (RangeCoercion.kt), so only unsigned types need the synthetic stub fast-path.
-        if args.count == 2, interner.resolve(calleeName) == "coerceIn" {
-            let receiverForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let unsignedTypes = [
-                sema.types.ubyteType,
-                sema.types.ushortType,
-                sema.types.uintType,
-                sema.types.ulongType,
-            ]
-            if unsignedTypes.contains(receiverForCheck) {
-                _ = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck) }
-                let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
-
-        // Unsigned range coercion: UInt/ULong.coerceIn(range).
-        if args.count == 1, interner.resolve(calleeName) == "coerceIn" {
-            let receiverForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            if receiverForCheck == sema.types.uintType || receiverForCheck == sema.types.ulongType {
-                let argExprID = args[0].expr
-                let rangeElementType = unsignedCoerceInRangeElementType(
-                    for: argExprID,
-                    sema: sema,
-                    interner: interner
-                )
-                if rangeElementType == receiverForCheck {
-                    _ = driver.inferExpr(argExprID, ctx: ctx, locals: &locals, expectedType: receiverForCheck)
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-
-        // Unsigned coercion: UByte/UShort/UInt/ULong.coerceAtLeast(min) / coerceAtMost(max).
-        // Int/Long/Double/Float and Byte/Short are handled by bundled Kotlin source
-        // (RangeCoercion.kt), so only unsigned types need the synthetic stub fast-path.
-        if args.count == 1 {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
-                let receiverForCheck = safeCall
-                    ? sema.types.makeNonNullable(lookupReceiverType)
-                    : lookupReceiverType
-                let unsignedTypes = [
-                    sema.types.ubyteType,
-                    sema.types.ushortType,
-                    sema.types.uintType,
-                    sema.types.ulongType,
-                ]
-                if unsignedTypes.contains(receiverForCheck) {
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: receiverForCheck)
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
+        // Unsigned coercion (UByte/UShort/UInt/ULong) is handled by bundled Kotlin source
+        // (RangeCoercion.kt); no primitive fast-path is needed.
 
         // Int/Long bit extraction functions preserve the receiver type (STDLIB-BIT-007).
         // count* are resolved as bundled Kotlin extensions (KSP-643).

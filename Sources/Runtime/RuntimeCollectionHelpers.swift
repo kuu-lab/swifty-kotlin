@@ -824,10 +824,10 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(UInt(bitPattern: ulongBox.value))"
     }
     if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
-        return String(floatBox.value)
+        return runtimeFormatFloatingPoint(floatBox.value)
     }
     if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
-        return String(doubleBox.value)
+        return runtimeFormatFloatingPoint(doubleBox.value)
     }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"

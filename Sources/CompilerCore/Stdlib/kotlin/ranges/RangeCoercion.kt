@@ -2,7 +2,7 @@ package kotlin.ranges
 
 // MIGRATION-RANGE-003
 // coerceIn / coerceAtLeast / coerceAtMost migrated to Kotlin source for
-// Int, Long, Double, Float, Byte, Short.
+// Int, Long, Double, Float, Byte, Short, UByte, UShort, UInt, ULong.
 
 public fun Int.coerceIn(minimumValue: Int, maximumValue: Int): Int {
     if (minimumValue > maximumValue) {
@@ -83,3 +83,61 @@ public fun Short.coerceIn(minimumValue: Short, maximumValue: Short): Short {
 public fun Short.coerceAtLeast(minimumValue: Short): Short = if (this < minimumValue) minimumValue else this
 
 public fun Short.coerceAtMost(maximumValue: Short): Short = if (this > maximumValue) maximumValue else this
+
+public fun UByte.coerceIn(minimumValue: UByte, maximumValue: UByte): UByte {
+    if (minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    return if (this < minimumValue) minimumValue else if (this > maximumValue) maximumValue else this
+}
+
+public fun UByte.coerceAtLeast(minimumValue: UByte): UByte = if (this < minimumValue) minimumValue else this
+
+public fun UByte.coerceAtMost(maximumValue: UByte): UByte = if (this > maximumValue) maximumValue else this
+
+public fun UShort.coerceIn(minimumValue: UShort, maximumValue: UShort): UShort {
+    if (minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    return if (this < minimumValue) minimumValue else if (this > maximumValue) maximumValue else this
+}
+
+public fun UShort.coerceAtLeast(minimumValue: UShort): UShort = if (this < minimumValue) minimumValue else this
+
+public fun UShort.coerceAtMost(maximumValue: UShort): UShort = if (this > maximumValue) maximumValue else this
+
+public fun UInt.coerceIn(minimumValue: UInt, maximumValue: UInt): UInt {
+    if (minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    return if (this < minimumValue) minimumValue else if (this > maximumValue) maximumValue else this
+}
+
+public fun UInt.coerceAtLeast(minimumValue: UInt): UInt = if (this < minimumValue) minimumValue else this
+
+public fun UInt.coerceAtMost(maximumValue: UInt): UInt = if (this > maximumValue) maximumValue else this
+
+public fun UInt.coerceIn(range: UIntRange): UInt {
+    if (range.isEmpty()) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum ${range.last} is less than minimum ${range.first}.")
+    }
+    return if (this < range.first) range.first else if (this > range.last) range.last else this
+}
+
+public fun ULong.coerceIn(minimumValue: ULong, maximumValue: ULong): ULong {
+    if (minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    return if (this < minimumValue) minimumValue else if (this > maximumValue) maximumValue else this
+}
+
+public fun ULong.coerceAtLeast(minimumValue: ULong): ULong = if (this < minimumValue) minimumValue else this
+
+public fun ULong.coerceAtMost(maximumValue: ULong): ULong = if (this > maximumValue) maximumValue else this
+
+public fun ULong.coerceIn(range: ULongRange): ULong {
+    if (range.isEmpty()) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum ${range.last} is less than minimum ${range.first}.")
+    }
+    return if (this < range.first) range.first else if (this > range.last) range.last else this
+}
