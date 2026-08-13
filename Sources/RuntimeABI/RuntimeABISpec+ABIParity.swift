@@ -365,10 +365,7 @@ public extension RuntimeABISpec {
             p("predicateFnPtr", .intptr),
             p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_flow_state_in", parameters: [
-            p("flowHandle", .intptr),
-            p("initialValue", .intptr),
-        ]),
+        // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
         abiParitySpec("kk_freezable_atomic_ref_compareAndSet", parameters: [
             p("refHandle", .intptr),
             p("expectedRaw", .intptr),
@@ -634,17 +631,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_mem_scope_exit", parameters: [
             p("handle", .intptr),
         ]),
-        abiParitySpec("kk_mutable_state_flow_create", parameters: [
-            p("initialValue", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_state_flow_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_state_flow_try_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
+        // KSP-676: MutableStateFlow is bundled Kotlin source; these C bridges are gone.
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
@@ -702,20 +689,10 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_shared_flow_collect", parameters: [
-            p("handle", .intptr),
-            p("collectorFnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_shared_flow_replay_cache", parameters: [
-            p("handle", .intptr),
-        ]),
+        // KSP-676: SharedFlow / StateFlow collect and replayCache are bundled
+        // Kotlin source; the C bridges have been removed.
         abiParitySpec("kk_shared_immutable_init", parameters: [
             p("objectRaw", .intptr),
-        ]),
-        abiParitySpec("kk_state_flow_value", parameters: [
-            p("handle", .intptr),
         ]),
         // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
         // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
