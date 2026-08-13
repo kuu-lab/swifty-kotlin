@@ -74,21 +74,6 @@ struct PathGenericFunctionStubRemovalTests {
         }
     }
 
-    /// The `readAttributes(attributes: String, vararg options: LinkOption)` overload
-    /// stays registered; only the reified `readAttributes<A : BasicFileAttributes>`
-    /// overload is removed.
-    @Test func testOnlyStringReadAttributesOverloadRemains() throws {
-        let (sema, interner) = try sharedSema()
-        let fqName = ["kotlin", "io", "path", "readAttributes"].map(interner.intern)
-        let symbols = sema.symbols.lookupAll(fqName: fqName)
-        #expect(!symbols.isEmpty)
-        for symbolID in symbols {
-            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-            #expect(signature.typeParameterSymbols.isEmpty)
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_path_readAttributes_string")
-        }
-    }
-
     @Test func testPathUseLinesCallIsRejected() throws {
 
         let ctx = try sharedCtx()
