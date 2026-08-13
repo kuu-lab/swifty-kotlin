@@ -4,7 +4,9 @@
 import Foundation
 import Testing
 
-/// Test-only shims for KSP-426 List sort/max/min runtime entry points.
+/// Test-only shims for KSP-426 List sort/max/min runtime entry points that
+/// remain test-only after source migration. The generic `kk_list_sortedBy`
+/// bridge is provided by production Runtime for Set/Iterable receivers.
 /// These `@_cdecl` implementations are linked only by `RuntimeCollectionHOFTests`
 /// to keep the historical ABI test surface working after the production
 /// runtime functions were removed in favor of bundled Kotlin source.
@@ -222,26 +224,6 @@ private func runtimeListExtremumOfWith(
     }
     return bestValue
 }
-
-
-@_cdecl("kk_list_sortedBy")
-public func kk_list_sortedBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    guard let sorted = runtimeSortByElements(
-        list.elements,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        descending: false,
-        primitiveKind: nil,
-        outThrown: outThrown
-    ) else {
-        return handleCollectionLambdaThrow(outThrown?.pointee ?? 0, outThrown)
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
-}
-
 @_cdecl("kk_list_sortedBy_primitive")
 public func kk_list_sortedBy_primitive(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ kindRaw: Int32, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {

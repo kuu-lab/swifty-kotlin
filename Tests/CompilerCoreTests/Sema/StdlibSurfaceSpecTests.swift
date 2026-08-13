@@ -53,7 +53,6 @@ struct StdlibSurfaceSpecTests {
             list("sumByDouble", 1),
             list("firstNotNullOf", 1),
             list("firstNotNullOfOrNull", 1),
-            list("maxOfOrNull", 1),
             list("onEach", 1),
             list("onEachIndexed", 1),
             list("associateTo", 2),

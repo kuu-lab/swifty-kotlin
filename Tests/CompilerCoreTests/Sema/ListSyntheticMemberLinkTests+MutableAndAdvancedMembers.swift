@@ -81,6 +81,29 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testListSortingAcceptsUserComparableElements() throws {
+        let source = """
+        class Version(val value: Int) : Comparable<Version> {
+            override fun compareTo(other: Version): Int = value - other.value
+        }
+
+        fun render(values: List<Version>): List<Int> {
+            return values.sorted().map { it.value }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected user-defined Comparable list sorting to type-check, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
     func testListConversionMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun convert(values: List<Int>) {

@@ -38,6 +38,25 @@ extension CallLowerer {
             receiverType: receiverType,
             sema: sema,
             interner: interner
+        ) {
+            switch collectionKind {
+            case .set, .collection, .iterable:
+                // List sorting is source-backed, but Iterable/Collection/Set
+                // receivers still use the collection-compatible runtime ABI.
+                switch memberName {
+                case "sortedBy":
+                    return interner.intern("kk_list_sortedBy")
+                default:
+                    break
+                }
+            default:
+                break
+            }
+        }
+        if let collectionKind = MemberRuntimeDispatch.collectionReceiverKind(
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
         ),
            // Only allow the early-return for kinds that map cleanly to their own
            // surface-spec entries (.list, .map, .sequence).  .set, .collection,

@@ -2383,7 +2383,7 @@ extension CallTypeChecker {
                     if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                         let comparableSelectorType = sema.types.make(.classType(ClassType(
                             classSymbol: comparableSymbol,
-                            args: [.in(selectorType)],
+                            args: [.invariant(selectorType)],
                             nullability: .nonNull
                         )))
                         isNominalComparable = sema.types.isSubtype(selectorType, comparableSelectorType)
@@ -2424,7 +2424,7 @@ extension CallTypeChecker {
                 if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                     let comparableElementType = sema.types.make(.classType(ClassType(
                         classSymbol: comparableSymbol,
-                        args: [.in(collectionElementType)],
+                        args: [.invariant(collectionElementType)],
                         nullability: .nonNull
                     )))
                     if !sema.types.isSubtype(collectionElementType, comparableElementType) {
@@ -2963,7 +2963,7 @@ extension CallTypeChecker {
                 if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                     let comparableElementType = sema.types.make(.classType(ClassType(
                         classSymbol: comparableSymbol,
-                        args: [.in(collectionElementType)],
+                        args: [.invariant(collectionElementType)],
                         nullability: .nonNull
                     )))
                     if !sema.types.isSubtype(collectionElementType, comparableElementType) {
@@ -3026,7 +3026,7 @@ extension CallTypeChecker {
                     if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                         let comparableSelectorType = sema.types.make(.classType(ClassType(
                             classSymbol: comparableSymbol,
-                            args: [.in(selectorType)],
+                            args: [.invariant(selectorType)],
                             nullability: .nonNull
                         )))
                         isNominalComparable = sema.types.isSubtype(selectorType, comparableSelectorType)
@@ -3134,7 +3134,7 @@ extension CallTypeChecker {
                         if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                             let comparableSelectorType = sema.types.make(.classType(ClassType(
                                 classSymbol: comparableSymbol,
-                                args: [.in(selectorType)],
+                                args: [.invariant(selectorType)],
                                 nullability: .nonNull
                             )))
                             isNominalComparable = sema.types.isSubtype(selectorType, comparableSelectorType)

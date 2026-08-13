@@ -1143,4 +1143,63 @@ public func kk_list_partition(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _
     return kk_pair_new(matchingList, nonMatchingList)
 }
 
-// MARK: - MutableList in-place sort (STDLIB-205)
+// MARK: - Collection sorting compatibility
+
+// `sortedBy` is source-backed for List receivers, but Iterable/Collection/Set
+// receivers (for example Map.entries) still use this ABI-compatible bridge.
+@_cdecl("kk_list_sortedBy")
+public func kk_list_sortedBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let elements = runtimeCollectionElements(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    guard let sorted = runtimeSortByElements(
+        elements,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        descending: false,
+        primitiveKind: nil,
+        outThrown: outThrown
+    ) else {
+        return handleCollectionLambdaThrow(outThrown?.pointee ?? 0, outThrown)
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
+}
+
+private func runtimeSortByElements(
+    _ elements: [Int],
+    fnPtr: Int,
+    closureRaw: Int,
+    descending: Bool,
+    primitiveKind: RuntimePrimitiveCompareKind?,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> [(offset: Int, element: Int)]? {
+    var indexed: [(offset: Int, element: Int, key: Int)] = []
+    indexed.reserveCapacity(elements.count)
+    for elem in elements {
+        var thrown = 0
+        let key = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 {
+            if let outThrown {
+                outThrown.pointee = thrown
+            } else {
+                fatalError("KSwiftK panic [\\(runtimePanicDiagnosticCode)]: Uncaught exception in collection HOF lambda. outThrown was nil.")
+            }
+            return nil
+        }
+        indexed.append((offset: indexed.count, element: elem, key: key))
+    }
+    let sorted = indexed.sorted { lhs, rhs in
+        let comparison: Int
+        if let primitiveKind {
+            comparison = runtimeComparePrimitiveValues(lhs.key, rhs.key, kind: primitiveKind)
+        } else {
+            comparison = runtimeCompareValues(lhs.key, rhs.key)
+        }
+        if comparison != 0 {
+            return descending ? comparison > 0 : comparison < 0
+        }
+        return lhs.offset < rhs.offset
+    }
+    return sorted.map { (offset: $0.offset, element: $0.element) }
+}
