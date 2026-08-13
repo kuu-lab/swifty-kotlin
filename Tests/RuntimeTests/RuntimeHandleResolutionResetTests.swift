@@ -1,3 +1,4 @@
+#if canImport(Testing)
 import Dispatch
 import Foundation
 @testable import Runtime
@@ -101,3 +102,4 @@ struct RuntimeHandleResolutionResetTests {
         return runtimeIsObjectPointer(ptr)
     }
 }
+#endif

@@ -34,6 +34,13 @@ if [[ "$(uname -s)" == "Darwin" ]] && ! xcrun --find xctest >/dev/null 2>&1; the
     fi
 fi
 
+# When the repository is fully migrated to Swift Testing, `--num-workers` is
+# unsupported by `swift test`. Treat XCTest as unavailable so the flag is not
+# auto-appended below.
+if [[ "$xctest_available" == true ]] && ! grep -rq --include='*.swift' "import XCTest" "$SCRIPT_DIR/../Tests"; then
+    xctest_available=false
+fi
+
 has_parallel_flag=false
 has_workers_flag=false
 has_jobs_flag=false
