@@ -385,7 +385,7 @@
 - [x] KSP-629: List→配列変換（unsigned 4）を Kotlin 化する（前提: KSP-628。`kk_list_toUByteArray/toUShortArray/toUIntArray/toULongArray` 削除）
 - [x] KSP-630: Iterator.forEach/withIndex を**新規実装**する（実装も計画も無かった真空地帯。参照実装: `kk_list_forEach`（RuntimeCollectionHOF）/ IndexedValue。実装先 `collections/Iterators.kt`。diff 新規）
 - [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
-- [ ] KSP-632: IterableRegistry 残余の HOF を Kotlin 化する（KSP-435 対象外の登録分: `reduceRight(Indexed)`/`sumBy(Double)`/`plusElement`/`minusElement`/`minus`。着手時 `rg 'registerIterable' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で固定）
+- [x] KSP-632: IterableRegistry 残余の HOF を Kotlin 化する（KSP-435 対象外の登録分: `reduceRight(Indexed)`/`sumBy(Double)`/`plusElement`/`minusElement`/`minus`。着手時 `rg 'registerIterable' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で固定）
 - [x] KSP-633: IterableRegistry の殻を .kt 化する（`MutableIterable`/`AbstractCollection`/`AbstractMutableCollection` interface/abstract class 宣言）
 - [x] KSP-634: maxWith/minWith を KSP-461 の明示対象に追記する（現状 rg パターン包含の推定のみ — KSP-461 のタスク文へ明示列挙を追加する編集タスク）
   - KSP-461 に「Comparator 消費側」の項を追加し、`maxWith(OrNull)`/`minWith(OrNull)` の実体が `RuntimeCollectionHOFMaxMin.swift` / `RuntimeSequenceAssociation.swift` の 8 関数であること、KSP-461 の rg パターンには含まれず削除担当は KSP-426 / KSP-444 であることを明示した（コード変更なし）
