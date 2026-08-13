@@ -23,6 +23,60 @@ struct ExceptionSyntheticStubTests {
         return try #require(result)
     }
 
+    private static nonisolated(unsafe) var _sharedSourceSema: (SemaModule, StringInterner)?
+
+    private static let resolveSources: [String] = [
+        """
+        fun noArg(): RuntimeException = NoWhenBranchMatchedException()
+        fun message(message: String?): RuntimeException = NoWhenBranchMatchedException(message)
+        fun messageCause(message: String?, cause: Throwable?): RuntimeException = NoWhenBranchMatchedException(message, cause)
+        fun cause(cause: Throwable?): RuntimeException = NoWhenBranchMatchedException(cause)
+        """,
+        """
+        import kotlin.text.CharacterCodingException
+
+        fun noArg(): Exception = CharacterCodingException()
+        fun message(message: String?): Exception = CharacterCodingException(message)
+        fun catchCharacterCoding(): String =
+            try { throw CharacterCodingException("bad input") }
+            catch (e: CharacterCodingException) { e.message ?: "caught" }
+        """,
+        """
+        fun noArg(): RuntimeException = ConcurrentModificationException()
+        fun message(message: String?): RuntimeException = ConcurrentModificationException(message)
+        fun messageCause(message: String?, cause: Throwable?): RuntimeException = ConcurrentModificationException(message, cause)
+        fun cause(cause: Throwable?): RuntimeException = ConcurrentModificationException(cause)
+        """,
+        """
+        fun noArg(): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException()
+        fun message(message: String?): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException(message)
+        """,
+        """
+        fun noArg(): RuntimeException = NegativeArraySizeException()
+        fun message(message: String?): RuntimeException = NegativeArraySizeException(message)
+        """,
+    ]
+
+    private func sharedSourceSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSourceSema { return cached }
+        let pair = try makeSema(sources: Self.resolveSources)
+        Self._sharedSourceSema = pair
+        return pair
+    }
+
+    private func makeSema(sources: [String]) throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        let packaged = sources.enumerated().map { index, source in
+            "package sample\(index)\n\(source)"
+        }
+        try withTemporaryFiles(contents: packaged) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     @Test func testNoWhenBranchMatchedExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try sharedSema()
 
@@ -71,12 +125,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testNoWhenBranchMatchedExceptionResolvesInSource() throws {
-        _ = try makeSema(source: """
-        fun noArg(): RuntimeException = NoWhenBranchMatchedException()
-        fun message(message: String?): RuntimeException = NoWhenBranchMatchedException(message)
-        fun messageCause(message: String?, cause: Throwable?): RuntimeException = NoWhenBranchMatchedException(message, cause)
-        fun cause(cause: Throwable?): RuntimeException = NoWhenBranchMatchedException(cause)
-        """)
+        _ = try sharedSourceSema()
     }
 
     @Test func testCharacterCodingExceptionSurfaceIsRegistered() throws {
@@ -117,15 +166,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testCharacterCodingExceptionResolvesInSource() throws {
-        _ = try makeSema(source: """
-        import kotlin.text.CharacterCodingException
-
-        fun noArg(): Exception = CharacterCodingException()
-        fun message(message: String?): Exception = CharacterCodingException(message)
-        fun catchCharacterCoding(): String =
-            try { throw CharacterCodingException("bad input") }
-            catch (e: CharacterCodingException) { e.message ?: "caught" }
-        """)
+        _ = try sharedSourceSema()
     }
 
     @Test func testConcurrentModificationExceptionSurfaceIsRegistered() throws {
@@ -176,12 +217,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testConcurrentModificationExceptionResolvesInSource() throws {
-        _ = try makeSema(source: """
-        fun noArg(): RuntimeException = ConcurrentModificationException()
-        fun message(message: String?): RuntimeException = ConcurrentModificationException(message)
-        fun messageCause(message: String?, cause: Throwable?): RuntimeException = ConcurrentModificationException(message, cause)
-        fun cause(cause: Throwable?): RuntimeException = ConcurrentModificationException(cause)
-        """)
+        _ = try sharedSourceSema()
     }
 
     @Test func testArrayIndexOutOfBoundsExceptionSurfaceIsRegistered() throws {
@@ -222,10 +258,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testArrayIndexOutOfBoundsExceptionResolvesInSource() throws {
-        _ = try makeSema(source: """
-        fun noArg(): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException()
-        fun message(message: String?): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException(message)
-        """)
+        _ = try sharedSourceSema()
     }
 
     @Test func testNegativeArraySizeExceptionSurfaceIsRegistered() throws {
@@ -266,10 +299,7 @@ struct ExceptionSyntheticStubTests {
     }
 
     @Test func testNegativeArraySizeExceptionResolvesInSource() throws {
-        _ = try makeSema(source: """
-        fun noArg(): RuntimeException = NegativeArraySizeException()
-        fun message(message: String?): RuntimeException = NegativeArraySizeException(message)
-        """)
+        _ = try sharedSourceSema()
     }
 }
 #endif
