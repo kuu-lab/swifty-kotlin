@@ -174,36 +174,6 @@ extension CallLowerer {
                 default:
                     break
                 }
-            case "reduce":
-                return interner.intern("kk_list_reduce")
-            case "reduceIndexed":
-                return interner.intern("kk_list_reduceIndexed")
-            case "reduceIndexedOrNull":
-                return interner.intern("kk_list_reduceIndexedOrNull")
-            case "foldRight":
-                return interner.intern("kk_list_foldRight")
-            case "foldRightIndexed":
-                return interner.intern("kk_list_foldRightIndexed")
-            case "reduceRight":
-                return interner.intern("kk_list_reduceRight")
-            case "reduceRightIndexed":
-                return interner.intern("kk_list_reduceRightIndexed")
-            case "reduceRightIndexedOrNull":
-                return interner.intern("kk_list_reduceRightIndexedOrNull")
-            case "reduceRightOrNull":
-                return interner.intern("kk_list_reduceRightOrNull")
-            case "runningFold":
-                return interner.intern("kk_list_runningFold")
-            case "runningReduce":
-                return interner.intern("kk_list_runningReduce")
-            case "scan":
-                return interner.intern("kk_list_scan")
-            case "runningFoldIndexed":
-                return interner.intern("kk_list_runningFoldIndexed")
-            case "runningReduceIndexed":
-                return interner.intern("kk_list_runningReduceIndexed")
-            case "scanIndexed":
-                return interner.intern("kk_list_scanIndexed")
             default:
                 break
             }
@@ -461,15 +431,8 @@ extension CallLowerer {
             let sortedWithName = interner.intern("sortedWith")
             let sortedByDescendingName = interner.intern("sortedByDescending")
             let sortedDescendingName = interner.intern("sortedDescending")
-            let joinToName = interner.intern("joinTo")
-            let joinToStringName = interner.intern("joinToString")
-            let sumOfName = interner.intern("sumOf")
-            let sumByName = interner.intern("sumBy")
-            let sumByDoubleName = interner.intern("sumByDouble")
             let firstNotNullOfName = interner.intern("firstNotNullOf")
             let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
-            let associateName = interner.intern("associate")
-            let associateByName = interner.intern("associateBy")
             let firstName = interner.intern("first")
             let firstOrNullName = interner.intern("firstOrNull")
             let lastName = interner.intern("last")
@@ -512,34 +475,10 @@ extension CallLowerer {
                 default:
                     return nil
                 }
-            case joinToName:
-                return interner.intern("kk_sequence_joinTo")
-            case joinToStringName:
-                return interner.intern("kk_sequence_joinToString")
-            case sumOfName:
-                return interner.intern("kk_sequence_sumOf")
-            case sumByName:
-                return interner.intern("kk_sequence_sumBy")
-            case sumByDoubleName:
-                return interner.intern("kk_sequence_sumByDouble")
             case firstNotNullOfName:
                 return interner.intern("kk_sequence_firstNotNullOf")
             case firstNotNullOfOrNullName:
                 return interner.intern("kk_sequence_firstNotNullOfOrNull")
-            case associateName:
-                return interner.intern("kk_sequence_associate")
-            case associateByName:
-                return interner.intern("kk_sequence_associateBy")
-            case interner.intern("associateTo"):
-                return interner.intern("kk_sequence_associateTo")
-            case interner.intern("associateByTo"):
-                return interner.intern("kk_sequence_associateByTo")
-            case interner.intern("associateWith"):
-                return interner.intern("kk_sequence_associateWith")
-            case interner.intern("associateWithTo"):
-                return interner.intern("kk_sequence_associateWithTo")
-            case interner.intern("groupByTo"):
-                return interner.intern("kk_sequence_groupByTo")
             case interner.intern("flatMapIndexedTo"):
                 return interner.intern("kk_sequence_flatMapIndexedTo")
             case interner.intern("flatMapTo"):
@@ -649,42 +588,14 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toSortedSet")
             case interner.intern("toHashSet"):
                 return interner.intern("kk_sequence_toHashSet")
-            case interner.intern("partition"):
-                return interner.intern("kk_sequence_partition")
-            case interner.intern("minBy"):
-                return interner.intern("kk_sequence_minBy")
             case interner.intern("min"):
                 return interner.intern("kk_sequence_min")
-            case interner.intern("maxBy"):
-                return interner.intern("kk_sequence_maxBy")
-            case interner.intern("minByOrNull"):
-                return interner.intern("kk_sequence_minByOrNull")
-            case interner.intern("maxByOrNull"):
-                return interner.intern("kk_sequence_maxByOrNull")
-            case interner.intern("maxWith"):
-                return interner.intern("kk_sequence_maxWith")
-            case interner.intern("maxWithOrNull"):
-                return interner.intern("kk_sequence_maxWithOrNull")
-            case interner.intern("minOf"):
-                return interner.intern("kk_sequence_minOf")
-            case interner.intern("minOfOrNull"):
-                return interner.intern("kk_sequence_minOfOrNull")
-            case interner.intern("maxOfOrNull"):
-                return interner.intern("kk_sequence_maxOfOrNull")
-            case interner.intern("minWithOrNull"):
-                return interner.intern("kk_sequence_minWithOrNull")
-            case interner.intern("minWith"):
-                return interner.intern("kk_sequence_minWith")
-            case interner.intern("maxOf"):
-                return interner.intern("kk_sequence_maxOf")
             case interner.intern("unzip"):
                 return interner.intern("kk_sequence_unzip")
             case interner.intern("foldIndexed"):
                 return interner.intern("kk_sequence_foldIndexed")
             case interner.intern("runningFold"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_runningFold"
-                    : "kk_sequence_runningFold")
+                return interner.intern("kk_sequence_runningFold")
             case interner.intern("scan"):
                 return interner.intern("kk_sequence_scan")
             case interner.intern("runningFoldIndexed"):
@@ -702,13 +613,9 @@ extension CallLowerer {
             case interner.intern("reduceIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceIndexedOrNull")
             case interner.intern("reduceRightIndexed"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_reduceRightIndexed"
-                    : "kk_sequence_reduceRightIndexed")
+                return interner.intern("kk_sequence_reduceRightIndexed")
             case interner.intern("reduceRightOrNull"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_reduceRightOrNull"
-                    : "kk_sequence_reduceRightOrNull")
+                return interner.intern("kk_sequence_reduceRightOrNull")
             case interner.intern("reduceRightIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             case interner.intern("runningReduceIndexed"):
@@ -813,7 +720,7 @@ extension CallLowerer {
         case "reduce":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduce")
+                return interner.intern("kk_sequence_reduce")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -822,7 +729,7 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduce")
+                    return interner.intern("kk_sequence_reduce")
                 }
             }
         case "requireNoNulls":
@@ -835,7 +742,7 @@ extension CallLowerer {
         case "reduceRight":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRight")
+                return interner.intern("kk_sequence_reduceRight")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -844,13 +751,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRight")
+                    return interner.intern("kk_sequence_reduceRight")
                 }
             }
         case "reduceIndexed":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceIndexed")
+                return interner.intern("kk_sequence_reduceIndexed")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -859,13 +766,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceIndexed")
+                    return interner.intern("kk_sequence_reduceIndexed")
                 }
             }
         case "reduceRightIndexed":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightIndexed")
+                return interner.intern("kk_sequence_reduceRightIndexed")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -874,13 +781,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightIndexed")
+                    return interner.intern("kk_sequence_reduceRightIndexed")
                 }
             }
         case "reduceRightOrNull":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightOrNull")
+                return interner.intern("kk_sequence_reduceRightOrNull")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -889,13 +796,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightOrNull")
+                    return interner.intern("kk_sequence_reduceRightOrNull")
                 }
             }
         case "reduceRightIndexedOrNull":
             switch knownNames.collectionKind(of: symbol) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightIndexedOrNull")
+                return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -904,7 +811,7 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightIndexedOrNull")
+                    return interner.intern("kk_sequence_reduceRightIndexedOrNull")
                 }
             }
         default:

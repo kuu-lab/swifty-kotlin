@@ -75,10 +75,10 @@ expr e@22:13 name(ml2) type=kotlin.collections.MutableList<String> ref=__local_5
 expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println#1
 expr e@25:21 string(x) type=String
 expr e@25:28 int(1) type=Int
-expr e@25:21#1 memberCall recv=e@25:21 callee=to args=[_:e@25:28] type=kotlin.Pair<String, Int>
+expr e@25:21#1 memberCall recv=e@25:21 callee=to args=[_:e@25:28] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@25:31 string(y) type=String
 expr e@25:38 int(2) type=Int
-expr e@25:31#1 memberCall recv=e@25:31 callee=to args=[_:e@25:38] type=kotlin.Pair<String, Int>
+expr e@25:31#1 memberCall recv=e@25:31 callee=to args=[_:e@25:38] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@25:15 call callee=e@25:15#1 args=[_:e@25:21#1,_:e@25:31#1] type=kotlin.collections.Map<String, out Int> call=kotlin.collections.mapOf#1 targs=[String,Int]
 expr e@25:5 localDecl map mutable=0 type=_ init=e@25:15 type=Unit ref=__local_6.map
 expr e@26:39 name(map) type=kotlin.collections.Map<String, out Int> ref=__local_6.map

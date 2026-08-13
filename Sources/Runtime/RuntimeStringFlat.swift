@@ -319,8 +319,8 @@ public func kk_string_singleOrNull_flat(
     return Int(codeUnits[0])
 }
 
-@_cdecl("kk_string_toBoolean_flat")
-public func kk_string_toBoolean_flat(
+@_cdecl("__kk_string_toBoolean_flat")
+public func __kk_string_toBoolean_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -330,8 +330,8 @@ public func kk_string_toBoolean_flat(
     return source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0
 }
 
-@_cdecl("kk_string_toBooleanStrict_flat")
-public func kk_string_toBooleanStrict_flat(
+@_cdecl("__kk_string_toBooleanStrict_flat")
+public func __kk_string_toBooleanStrict_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -351,8 +351,8 @@ public func kk_string_toBooleanStrict_flat(
     }
 }
 
-@_cdecl("kk_string_toBooleanStrictOrNull_flat")
-public func kk_string_toBooleanStrictOrNull_flat(
+@_cdecl("__kk_string_toBooleanStrictOrNull_flat")
+public func __kk_string_toBooleanStrictOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -369,41 +369,19 @@ public func kk_string_toBooleanStrictOrNull_flat(
     }
 }
 
-@_cdecl("kk_string_toInt_flat")
-public func kk_string_toInt_flat(
+@_cdecl("__kk_string_toInt_flat")
+public func __kk_string_toInt_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toInt(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+    __kk_string_toInt(kk_string_from_flat(data, length, byteCount, hash), outThrown)
 }
 
-@_cdecl("kk_string_toInt_radix_flat")
-public func kk_string_toInt_radix_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ radix: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_toInt_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
-}
-
-@_cdecl("kk_string_toIntOrNull_flat")
-public func kk_string_toIntOrNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    kk_string_toIntOrNull(kk_string_from_flat(data, length, byteCount, hash))
-}
-
-@_cdecl("kk_string_toIntOrNull_radix_flat")
-public func kk_string_toIntOrNull_radix_flat(
+@_cdecl("__kk_string_toInt_radix_flat")
+public func __kk_string_toInt_radix_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -411,64 +389,21 @@ public func kk_string_toIntOrNull_radix_flat(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+    __kk_string_toInt_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-@_cdecl("kk_string_toLong_flat")
-public func kk_string_toLong_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_toLong(kk_string_from_flat(data, length, byteCount, hash), outThrown)
-}
-
-@_cdecl("kk_string_toLongOrNull_flat")
-public func kk_string_toLongOrNull_flat(
+@_cdecl("__kk_string_toIntOrNull_flat")
+public func __kk_string_toIntOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_toLongOrNull(kk_string_from_flat(data, length, byteCount, hash))
+    __kk_string_toIntOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
-@_cdecl("kk_string_toShort_flat")
-public func kk_string_toShort_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_toShort(kk_string_from_flat(data, length, byteCount, hash), outThrown)
-}
-
-@_cdecl("kk_string_toShortOrNull_flat")
-public func kk_string_toShortOrNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    kk_string_toShortOrNull(kk_string_from_flat(data, length, byteCount, hash))
-}
-
-@_cdecl("kk_string_toByte_flat")
-public func kk_string_toByte_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_toByte(kk_string_from_flat(data, length, byteCount, hash), outThrown)
-}
-
-@_cdecl("kk_string_toByte_radix_flat")
-public func kk_string_toByte_radix_flat(
+@_cdecl("__kk_string_toIntOrNull_radix_flat")
+public func __kk_string_toIntOrNull_radix_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -476,17 +411,82 @@ public func kk_string_toByte_radix_flat(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toByte_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+    __kk_string_toIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-@_cdecl("kk_string_toByteOrNull_flat")
-public func kk_string_toByteOrNull_flat(
+@_cdecl("__kk_string_toLong_flat")
+public func __kk_string_toLong_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    __kk_string_toLong(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+}
+
+@_cdecl("__kk_string_toLongOrNull_flat")
+public func __kk_string_toLongOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_toByteOrNull(kk_string_from_flat(data, length, byteCount, hash))
+    __kk_string_toLongOrNull(kk_string_from_flat(data, length, byteCount, hash))
+}
+
+@_cdecl("__kk_string_toShort_flat")
+public func __kk_string_toShort_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    __kk_string_toShort(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+}
+
+@_cdecl("__kk_string_toShortOrNull_flat")
+public func __kk_string_toShortOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    __kk_string_toShortOrNull(kk_string_from_flat(data, length, byteCount, hash))
+}
+
+@_cdecl("__kk_string_toByte_flat")
+public func __kk_string_toByte_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    __kk_string_toByte(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+}
+
+@_cdecl("__kk_string_toByte_radix_flat")
+public func __kk_string_toByte_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    __kk_string_toByte_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+}
+
+@_cdecl("__kk_string_toByteOrNull_flat")
+public func __kk_string_toByteOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    __kk_string_toByteOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 @_cdecl("__kk_string_toFloat_flat")
@@ -588,8 +588,8 @@ public func kk_string_toTypedArray_flat(
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_string_toUByteOrNull_radix_flat")
-public func kk_string_toUByteOrNull_radix_flat(
+@_cdecl("__kk_string_toUByteOrNull_radix_flat")
+public func __kk_string_toUByteOrNull_radix_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -597,11 +597,11 @@ public func kk_string_toUByteOrNull_radix_flat(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toUByteOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+    __kk_string_toUByteOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-@_cdecl("kk_string_toUShortOrNull_radix_flat")
-public func kk_string_toUShortOrNull_radix_flat(
+@_cdecl("__kk_string_toUShortOrNull_radix_flat")
+public func __kk_string_toUShortOrNull_radix_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -609,11 +609,11 @@ public func kk_string_toUShortOrNull_radix_flat(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toUShortOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+    __kk_string_toUShortOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-@_cdecl("kk_string_toUIntOrNull_radix_flat")
-public func kk_string_toUIntOrNull_radix_flat(
+@_cdecl("__kk_string_toUIntOrNull_radix_flat")
+public func __kk_string_toUIntOrNull_radix_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -621,7 +621,7 @@ public func kk_string_toUIntOrNull_radix_flat(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toUIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+    __kk_string_toUIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
 @_cdecl("kk_string_windowedSequence_partial_flat")

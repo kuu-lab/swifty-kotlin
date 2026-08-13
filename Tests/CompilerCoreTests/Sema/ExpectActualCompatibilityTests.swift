@@ -4,144 +4,149 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
-    private static let sharedPosSources: [String] = [
-            """
-            package sample0
-            expect class Box<T>
-            """,
-            """
-            package sample0
-            actual class Box<T>
-            """,
-            """
-            package sample2
-            expect val platformName: String
-            """,
-            """
-            package sample2
-            actual val platformName: String = "kswift"
-            """,
-            """
-            package sample3
-            expect fun <T> identity(value: T): T
-            """,
-            """
-            package sample3
-            actual fun <T> identity(value: T): T = value
-            fun useIdentity(): Int = identity(42)
-            """
-    ]
-
-    private static let sharedNegSources: [String] = [
-            """
-            package sample1
-            expect val counter: Int
-            """,
-            """
-            package sample1
-            actual var counter: Int = 0
-            """,
-            """
-            package sample4
-            interface MarkerA
-            interface MarkerB
-            expect class PlatformBox : MarkerA
-            """,
-            """
-            package sample4
-            interface MarkerA
-            interface MarkerB
-            actual class PlatformBox : MarkerB
-            """
-    ]
-
-    private static nonisolated(unsafe) var _sharedPosCtx: CompilationContext?
-    private static nonisolated(unsafe) var _sharedNegCtx: CompilationContext?
-
-    private func sharedPosCtx() throws -> CompilationContext {
-        if let cached = Self._sharedPosCtx { return cached }
-        let ctx = makeContextFromSources(Self.sharedPosSources)
-        try runSema(ctx)
-        Self._sharedPosCtx = ctx
-        return ctx
+    private struct TestCase {
+        let name: String
+        let sources: [String]
+        let assertion: (CompilationContext) throws -> Void
     }
 
-    private func sharedNegCtx() throws -> CompilationContext {
-        if let cached = Self._sharedNegCtx { return cached }
-        let ctx = makeContextFromSources(Self.sharedNegSources)
-        try runSema(ctx)
-        Self._sharedNegCtx = ctx
-        return ctx
-    }
+    @Test func testExpectActualCompatibility() throws {
+        let cases: [TestCase] = [
+            TestCase(
+                name: "genericExpectActualClassLinks",
+                sources: [
+                    """
+                    package sample.kmp
+                    expect class Box<T>
+                    """,
+                    """
+                    package sample.kmp
+                    actual class Box<T>
+                    """,
+                ],
+                assertion: { ctx in
+                    let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                    #expect(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
 
-    @Test func testGenericExpectActualClassLinks() throws {
-        let ctx = try sharedPosCtx()
-        let errors = ctx.diagnostics.diagnostics.filter { diagnostic in
-            if case .error = diagnostic.severity { return true }
-            return false
-        }
-        #expect(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
+                    let sema = try #require(ctx.sema)
+                    let fqName = [
+                        ctx.interner.intern("sample"),
+                        ctx.interner.intern("kmp"),
+                        ctx.interner.intern("Box"),
+                    ]
+                    let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+                    let expectSymbol = try #require(symbols.first { $0.kind == .class && $0.flags.contains(.expectDeclaration) })
+                    let actualSymbol = try #require(symbols.first { $0.kind == .class && $0.flags.contains(.actualDeclaration) })
+                    #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+                }
+            ),
+            TestCase(
+                name: "expectValDoesNotMatchActualVar",
+                sources: [
+                    """
+                    package sample.kmp
+                    expect val counter: Int
+                    """,
+                    """
+                    package sample.kmp
+                    actual var counter: Int = 0
+                    """,
+                ],
+                assertion: { ctx in
+                    let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
+                        guard diagnostic.severity == .error else { return nil }
+                        return diagnostic.code
+                    }
+                    #expect(
+                        errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"),
+                        "Expected unresolved expect/actual mismatch, got: \(ctx.diagnostics.diagnostics)"
+                    )
+                }
+            ),
+            TestCase(
+                name: "expectValPropertyMatchesActualValWithStringType",
+                sources: [
+                    """
+                    package sample.kmp.platform
+                    expect val platformName: String
+                    """,
+                    """
+                    package sample.kmp.platform
+                    actual val platformName: String = "kswift"
+                    """,
+                ],
+                assertion: { ctx in
+                    let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                    #expect(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
 
-        let sema = try #require(ctx.sema)
-        let fqName = [ctx.interner.intern("sample0"), ctx.interner.intern("Box")]
-        let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
-        let expectSymbol = try #require(symbols.first { symbol in
-            symbol.kind == .class && symbol.flags.contains(.expectDeclaration)
-        })
-        let actualSymbol = try #require(symbols.first { symbol in
-            symbol.kind == .class && symbol.flags.contains(.actualDeclaration)
-        })
-        #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
-    }
-
-    @Test func testExpectValPropertyMatchesActualValWithStringType() throws {
-        let ctx = try sharedPosCtx()
-        let errors = ctx.diagnostics.diagnostics.filter { diagnostic in
-            if case .error = diagnostic.severity { return true }
-            return false
-        }
-        #expect(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
-
-        let sema = try #require(ctx.sema)
-        let fqName = [
-            ctx.interner.intern("sample2"),
-            ctx.interner.intern("platformName"),
+                    let sema = try #require(ctx.sema)
+                    let fqName = [
+                        ctx.interner.intern("sample"),
+                        ctx.interner.intern("kmp"),
+                        ctx.interner.intern("platform"),
+                        ctx.interner.intern("platformName"),
+                    ]
+                    let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+                    let expectSymbol = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.expectDeclaration) })
+                    let actualSymbol = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.actualDeclaration) })
+                    #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+                }
+            ),
+            TestCase(
+                name: "expectActualGenericFunctionCallIsNotAmbiguous",
+                sources: [
+                    """
+                    package sample.kmp.funconly
+                    expect fun <T> identity(value: T): T
+                    """,
+                    """
+                    package sample.kmp.funconly
+                    actual fun <T> identity(value: T): T = value
+                    fun useIdentity(): Int = identity(42)
+                    """,
+                ],
+                assertion: { ctx in
+                    let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                    #expect(
+                        errors.isEmpty,
+                        "Expected no semantic errors (in particular no ambiguous overload), got: \(errors)"
+                    )
+                }
+            ),
+            TestCase(
+                name: "expectClassSupertypeMismatchIsRejected",
+                sources: [
+                    """
+                    package sample.kmp
+                    interface MarkerA
+                    interface MarkerB
+                    expect class PlatformBox : MarkerA
+                    """,
+                    """
+                    package sample.kmp
+                    interface MarkerA
+                    interface MarkerB
+                    actual class PlatformBox : MarkerB
+                    """,
+                ],
+                assertion: { ctx in
+                    let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
+                        guard diagnostic.severity == .error else { return nil }
+                        return diagnostic.code
+                    }
+                    #expect(
+                        errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"),
+                        "Expected unresolved expect/actual mismatch, got: \(ctx.diagnostics.diagnostics)"
+                    )
+                }
+            ),
         ]
-        let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
-        let expectSymbol = try #require(symbols.first { symbol in
-            symbol.kind == .property && symbol.flags.contains(.expectDeclaration)
-        })
-        let actualSymbol = try #require(symbols.first { symbol in
-            symbol.kind == .property && symbol.flags.contains(.actualDeclaration)
-        })
-        #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
-    }
 
-    @Test func testExpectActualGenericFunctionCallIsNotAmbiguous() throws {
-        let ctx = try sharedPosCtx()
-        let errors = ctx.diagnostics.diagnostics.filter { diagnostic in
-            if case .error = diagnostic.severity { return true }
-            return false
+        for testCase in cases {
+            let ctx = makeContextFromSources(testCase.sources)
+            try runSema(ctx)
+            try testCase.assertion(ctx)
         }
-        #expect(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
-    }
-
-    @Test func testExpectValDoesNotMatchActualVar() throws {
-        let ctx = try sharedNegCtx()
-        let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
-            guard diagnostic.severity == .error else { return nil }
-            return diagnostic.code
-        }
-        #expect(errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"))
-    }
-
-    @Test func testExpectClassSupertypeMismatchIsRejected() throws {
-        let ctx = try sharedNegCtx()
-        let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
-            guard diagnostic.severity == .error else { return nil }
-            return diagnostic.code
-        }
-        #expect(errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"))
     }
 }
 #endif

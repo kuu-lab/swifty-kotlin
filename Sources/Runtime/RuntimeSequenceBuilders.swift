@@ -8,19 +8,13 @@ import Foundation
 
 // MARK: - Sequence Builder (sequence { yield(x) })
 
-@_cdecl("kk_sequence_builder_create")
-public func kk_sequence_builder_create() -> Int {
-    let builder = RuntimeSequenceBuilderBox()
-    return registerRuntimeObject(builder)
-}
-
 /// Resolve a raw handle to a RuntimeSequenceCoroutineBuilderProxy, or nil.
 private func runtimeCoroutineBuilderProxy(from rawValue: Int) -> RuntimeSequenceCoroutineBuilderProxy? {
     resolveRuntimeHandle(rawValue, as: RuntimeSequenceCoroutineBuilderProxy.self)
 }
 
-@_cdecl("kk_sequence_builder_yield")
-public func kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
+@_cdecl("__kk_sequence_builder_yield")
+public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
     // STDLIB-563: If the handle is a coroutine builder proxy, yield lazily.
     if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
         return proxy.coroutine.yieldValue(value)
@@ -34,15 +28,15 @@ public func kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
     // the continuation-based yield. CPS producers return COROUTINE_SUSPENDED;
     // legacy producers block until the consumer requests the next element.
     if runtimeIteratorBuilderBox(from: builderRaw) != nil {
-        return kk_iterator_builder_yield(builderRaw, value)
+        return __kk_iterator_builder_yield(builderRaw, value)
     }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_builder_yield received invalid builder handle")
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yield received invalid builder handle")
 }
 
 // MARK: - yieldAll(iterable) (STDLIB-553)
 
-@_cdecl("kk_sequence_builder_yieldAll")
-public func kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
+@_cdecl("__kk_sequence_builder_yieldAll")
+public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
     // STDLIB-563: If the handle is a coroutine builder proxy, yield each element lazily.
     if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
         if let seq = runtimeSequenceBox(from: collectionRaw) {
@@ -66,16 +60,16 @@ public func kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int
             }
         } else if runtimeIteratorBuilderBox(from: collectionRaw) != nil
                || runtimeListIteratorBox(from: collectionRaw) != nil {
-            while kk_iterator_builder_hasNext(collectionRaw) != 0 {
-                _ = proxy.coroutine.yieldValue(kk_iterator_builder_next(collectionRaw))
+            while __kk_iterator_builder_hasNext(collectionRaw) != 0 {
+                _ = proxy.coroutine.yieldValue(__kk_iterator_builder_next(collectionRaw))
             }
         } else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_builder_yieldAll received invalid collection handle (expected List, Array, Set, Sequence, or Iterator)")
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid collection handle (expected List, Array, Set, Sequence, or Iterator)")
         }
         return 0
     }
     guard let builder = runtimeSequenceBuilderBox(from: builderRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_builder_yieldAll received invalid builder handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid builder handle")
     }
     // Accept List, Array, Set, Sequence, or Iterator as the iterable source.
     if let elements = runtimeSequenceSourceElements(from: collectionRaw) {
@@ -84,27 +78,27 @@ public func kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int
         builder.elements.append(contentsOf: set.elements)
     } else if runtimeIteratorBuilderBox(from: collectionRaw) != nil
            || runtimeListIteratorBox(from: collectionRaw) != nil {
-        while kk_iterator_builder_hasNext(collectionRaw) != 0 {
-            builder.elements.append(kk_iterator_builder_next(collectionRaw))
+        while __kk_iterator_builder_hasNext(collectionRaw) != 0 {
+            builder.elements.append(__kk_iterator_builder_next(collectionRaw))
         }
     } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_builder_yieldAll received invalid collection handle (expected List, Array, Set, Sequence, or Iterator)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid collection handle (expected List, Array, Set, Sequence, or Iterator)")
     }
     return 0
 }
 
-@_cdecl("kk_sequence_builder_build")
-public func kk_sequence_builder_build(_ fnPtr: Int, _ closureRaw: Int = 0) -> Int {
+@_cdecl("__kk_sequence_builder_build")
+public func __kk_sequence_builder_build(_ fnPtr: Int, _ closureRaw: Int = 0) -> Int {
     // STDLIB-563: Legacy direct ABI path. Non-CPS callbacks still run on a
     // dedicated producer thread; compiler-generated builders use
-    // kk_sequence_builder_build_coro instead.
+    // __kk_sequence_builder_build_coro instead.
     let coroutine = RuntimeSequenceCoroutine(fnPtr: fnPtr, closureRaw: closureRaw)
     let seq = RuntimeSequenceBox(steps: [.lazyBuilder(coroutine: coroutine)])
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_builder_build_coro")
-public func kk_sequence_builder_build_coro(_ entryPointRaw: Int, _ functionID: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_builder_build_coro")
+public func __kk_sequence_builder_build_coro(_ entryPointRaw: Int, _ functionID: Int, _ closureRaw: Int) -> Int {
     let coroutine = RuntimeSequenceCoroutine(
         fnPtr: entryPointRaw,
         closureRaw: closureRaw,
@@ -124,16 +118,16 @@ private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBui
     resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
 }
 
-@_cdecl("kk_iterator_builder_build")
-public func kk_iterator_builder_build(_ fnPtr: Int) -> Int {
+@_cdecl("__kk_iterator_builder_build")
+public func __kk_iterator_builder_build(_ fnPtr: Int) -> Int {
     let builder = RuntimeIteratorBuilderBox(fnPtr: fnPtr)
     let builderHandle = registerRuntimeObject(builder)
     builder.bindRegisteredHandle(builderHandle)
     return builderHandle
 }
 
-@_cdecl("kk_iterator_builder_build_coro")
-public func kk_iterator_builder_build_coro(_ entryPointRaw: Int, _ functionID: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_iterator_builder_build_coro")
+public func __kk_iterator_builder_build_coro(_ entryPointRaw: Int, _ functionID: Int, _ closureRaw: Int) -> Int {
     let builder = RuntimeIteratorBuilderBox(
         fnPtr: entryPointRaw,
         closureRaw: closureRaw,
@@ -145,8 +139,8 @@ public func kk_iterator_builder_build_coro(_ entryPointRaw: Int, _ functionID: I
     return builderHandle
 }
 
-@_cdecl("kk_iterator_builder_yield")
-public func kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
+@_cdecl("__kk_iterator_builder_yield")
+public func __kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
     guard let builder = runtimeIteratorBuilderBox(from: builderRaw) else {
         // Fall back: the handle might be a RuntimeSequenceBuilderBox when yield
         // is shared between sequence/iterator builders in older lowering paths.
@@ -154,13 +148,13 @@ public func kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
             seqBuilder.elements.append(value)
             return 0
         }
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_yield received invalid builder handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_yield received invalid builder handle")
     }
     return builder.yieldValue(value)
 }
 
-@_cdecl("kk_iterator_builder_hasNext")
-public func kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_iterator_builder_hasNext")
+public func __kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
     // Support both RuntimeIteratorBuilderBox and RuntimeListIteratorBox
     // for backwards compatibility with older lowering paths.
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
@@ -169,11 +163,11 @@ public func kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
     if let iter = runtimeListIteratorBox(from: iterRaw) {
         return iter.index < iter.elements.count ? 1 : 0
     }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_hasNext received invalid iterator handle")
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_hasNext received invalid iterator handle")
 }
 
-@_cdecl("kk_iterator_builder_next")
-public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_iterator_builder_next")
+public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
         return iter.consumeNext()
     }
@@ -186,18 +180,18 @@ public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
         iter.index += 1
         return value
     }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_next received invalid iterator handle")
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_next received invalid iterator handle")
 }
 
 // MARK: - CORO-004 Phase 2: suspension-aware iterator builder consumer API
 //
 // These entry points are for future compiler use when the for-loop lowering is
 // updated to handle COROUTINE_SUSPENDED returns from hasNext/next.  They must
-// NOT replace kk_iterator_builder_hasNext / kk_iterator_builder_next because
+// NOT replace __kk_iterator_builder_hasNext / __kk_iterator_builder_next because
 // existing callers do not check for the COROUTINE_SUSPENDED sentinel.
 //
-// Calling convention for kk_iterator_builder_hasNext_coro:
-//   - Returns 1  → hasNext == true  (element ready; call kk_iterator_builder_next)
+// Calling convention for __kk_iterator_builder_hasNext_coro:
+//   - Returns 1  → hasNext == true  (element ready; call __kk_iterator_builder_next)
 //   - Returns 0  → hasNext == false (iterator exhausted)
 //   - Returns kk_coroutine_suspended() → caller must propagate COROUTINE_SUSPENDED
 //     and re-enter after the coroutine is resumed; the resumed value carries the
@@ -208,13 +202,13 @@ public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
 /// `continuationRaw` must be the raw handle of the CURRENT caller continuation
 /// (i.e. the value of the `continuation` parameter passed into the enclosing
 /// suspend entry point).  When 0, falls back to the blocking path.
-@_cdecl("kk_iterator_builder_hasNext_coro")
-public func kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw: Int) -> Int {
+@_cdecl("__kk_iterator_builder_hasNext_coro")
+public func __kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw: Int) -> Int {
     guard let iter = runtimeIteratorBuilderBox(from: iterRaw) else {
         if let iter = runtimeListIteratorBox(from: iterRaw) {
             return iter.index < iter.elements.count ? 1 : 0
         }
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_hasNext_coro received invalid iterator handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_hasNext_coro received invalid iterator handle")
     }
     if continuationRaw != 0,
        let callerState = runtimeContinuationState(from: continuationRaw)
@@ -226,12 +220,12 @@ public func kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw: 
 
 /// Consume the current element after a successful hasNext.
 ///
-/// This variant mirrors `kk_iterator_builder_next` but is named separately so
-/// the compiler can emit it alongside `kk_iterator_builder_hasNext_coro`
+/// This variant mirrors `__kk_iterator_builder_next` but is named separately so
+/// the compiler can emit it alongside `__kk_iterator_builder_hasNext_coro`
 /// without confusion.  The consumer-side read is always synchronous (state is
 /// already `.hasValue` when hasNext returned 1), so no continuation is needed.
-@_cdecl("kk_iterator_builder_next_coro")
-public func kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_iterator_builder_next_coro")
+public func __kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
         return iter.consumeNext()
     }
@@ -243,7 +237,7 @@ public func kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
         iter.index += 1
         return value
     }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_next_coro received invalid iterator handle")
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_next_coro received invalid iterator handle")
 }
 
 /// Sentinel value used by kk_sequence_builder (lazy coroutine) to signal

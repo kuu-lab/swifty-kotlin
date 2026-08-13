@@ -819,7 +819,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toInt",
+            name: "__kk_string_toInt",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -828,7 +828,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toInt_radix",
+            name: "__kk_string_toInt_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "radix", type: .intptr),
@@ -838,7 +838,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toIntOrNull",
+            name: "__kk_string_toIntOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -846,7 +846,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toIntOrNull_radix",
+            name: "__kk_string_toIntOrNull_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "radix", type: .intptr),
@@ -857,7 +857,7 @@ public extension RuntimeABISpec {
         ),
         // SPEC-NUM-0007: no-arg unsigned parsers
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUByteOrNull",
+            name: "__kk_string_toUByteOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -866,7 +866,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUShortOrNull",
+            name: "__kk_string_toUShortOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -875,7 +875,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUIntOrNull",
+            name: "__kk_string_toUIntOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -884,7 +884,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toULongOrNull",
+            name: "__kk_string_toULongOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -893,7 +893,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUByteOrNull_radix",
+            name: "__kk_string_toUByteOrNull_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "radix", type: .intptr),
@@ -903,7 +903,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUShortOrNull_radix",
+            name: "__kk_string_toUShortOrNull_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "radix", type: .intptr),
@@ -913,7 +913,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUIntOrNull_radix",
+            name: "__kk_string_toUIntOrNull_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "radix", type: .intptr),
@@ -923,7 +923,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toULongOrNull_radix",
+            name: "__kk_string_toULongOrNull_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "radix", type: .intptr),
@@ -950,7 +950,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toLong",
+            name: "__kk_string_toLong",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -959,7 +959,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toLongOrNull",
+            name: "__kk_string_toLongOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -984,7 +984,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toInt_flat",
+            name: "__kk_string_toInt_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -996,7 +996,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toInt_radix_flat",
+            name: "__kk_string_toInt_radix_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1012,7 +1012,7 @@ public extension RuntimeABISpec {
         // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex, ignoreCase)
         // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase
         RuntimeABIFunctionSpec(
-            name: "kk_string_toIntOrNull_flat",
+            name: "__kk_string_toIntOrNull_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1025,7 +1025,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
         RuntimeABIFunctionSpec(
-            name: "kk_string_toIntOrNull_radix_flat",
+            name: "__kk_string_toIntOrNull_radix_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1038,7 +1038,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUByteOrNull_radix_flat",
+            name: "__kk_string_toUByteOrNull_radix_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1051,7 +1051,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUShortOrNull_radix_flat",
+            name: "__kk_string_toUShortOrNull_radix_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1064,7 +1064,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toUIntOrNull_radix_flat",
+            name: "__kk_string_toUIntOrNull_radix_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1077,7 +1077,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toULongOrNull_radix_flat",
+            name: "__kk_string_toULongOrNull_radix_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1114,7 +1114,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toLong_flat",
+            name: "__kk_string_toLong_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1126,7 +1126,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toLongOrNull_flat",
+            name: "__kk_string_toLongOrNull_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1228,7 +1228,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-142: String.toBoolean
         RuntimeABIFunctionSpec(
-            name: "kk_string_toBoolean_flat",
+            name: "__kk_string_toBoolean_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1240,7 +1240,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toBooleanStrict_flat",
+            name: "__kk_string_toBooleanStrict_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1432,43 +1432,9 @@ public extension RuntimeABISpec {
             section: "ByteArray"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_isSupplementaryCodePoint",
-            parameters: [
-                RuntimeABIParameter(name: "codepoint", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_isSurrogatePair",
-            parameters: [
-                RuntimeABIParameter(name: "high", type: .intptr),
-                RuntimeABIParameter(name: "low", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_char_isIdentifierIgnorable",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_toChars",
-            parameters: [
-                RuntimeABIParameter(name: "codePoint", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_toCodePoint",
-            parameters: [
-                RuntimeABIParameter(name: "high", type: .intptr),
-                RuntimeABIParameter(name: "low", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"

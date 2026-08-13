@@ -1181,7 +1181,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduceRight", for: memberSymbol)
+        symbols.setExternalLinkName("kk_sequence_reduceRight", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1261,7 +1261,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduce", for: memberSymbol)
+        symbols.setExternalLinkName("kk_sequence_reduce", for: memberSymbol)
         let operationParameterName = interner.intern("operation")
         let operationParameterSymbol = symbols.define(
             kind: .valueParameter,
@@ -1355,7 +1355,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduceIndexed", for: memberSymbol)
+        symbols.setExternalLinkName("kk_sequence_reduceIndexed", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1556,7 +1556,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduceRightIndexed", for: memberSymbol)
+        symbols.setExternalLinkName("kk_sequence_reduceRightIndexed", for: memberSymbol)
         let operationParameterName = interner.intern("operation")
         let operationParameterSymbol = symbols.define(
             kind: .valueParameter,
@@ -1638,7 +1638,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduceRightIndexedOrNull", for: memberSymbol)
+        symbols.setExternalLinkName("kk_sequence_reduceRightIndexedOrNull", for: memberSymbol)
         let operationParameterName = interner.intern("operation")
         let operationParameterSymbol = symbols.define(
             kind: .valueParameter,
@@ -1720,7 +1720,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .inlineFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduceRightOrNull", for: memberSymbol)
+        symbols.setExternalLinkName("kk_sequence_reduceRightOrNull", for: memberSymbol)
         let operationParameterName = interner.intern("operation")
         let operationParameterSymbol = symbols.define(
             kind: .valueParameter,
