@@ -13,13 +13,13 @@ public func kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
 }
 
-@_cdecl("kk_uint_downTo")
-public func kk_uint_downTo(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_uint_downTo")
+public func __kk_uint_downTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
 }
 
-@_cdecl("kk_uint_step")
-public func kk_uint_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
+@_cdecl("__kk_uint_step")
+public func __kk_uint_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     runtimeUnsignedStep(rangeRaw, stepValue)
 }
 
@@ -664,13 +664,13 @@ public func kk_ulong_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
 }
 
-@_cdecl("kk_ulong_downTo")
-public func kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
+@_cdecl("__kk_ulong_downTo")
+public func __kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
 }
 
-@_cdecl("kk_ulong_step")
-public func kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
+@_cdecl("__kk_ulong_step")
+public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     runtimeUnsignedStep(rangeRaw, stepValue)
 }
 

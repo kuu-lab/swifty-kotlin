@@ -4,216 +4,235 @@ import Testing
 
 @Suite struct AbstractOpenOverrideTests {
 
-    @Test func testAbstractOpenOverrideCases() throws {
-        let sources: [String] = [
-            // testOriginalAbstractOpenOverrideCase
-            """
-            package sample0
+    // MARK: - Shared Sema contexts
 
-                    abstract class Shape {
-                        abstract fun area(): Double
-                        open fun describe(): String = "I am a shape"
-                    }
-                    class Circle(val r: Double) : Shape() {
-                        override fun area(): Double = 3.14159 * r * r
-                        override fun describe(): String = "Circle"
-                    }
-                    class Rect(val w: Double, val h: Double) : Shape() {
-                        override fun area(): Double = w * h
-                    }
-                    fun main() {
-                        val c = Circle(5.0)
-                        println(c.describe())
-                        println(c.area())
-                        val r = Rect(3.0, 4.0)
-                        println(r.describe())
-                        println(r.area())
-                    }
-            """,
-            // testMissingAbstractOverride
-            """
-            package sample1
+    private static let positiveSources: [String] = [
+        """
+        package sample0
+        abstract class Shape {
+            abstract fun area(): Double
+            open fun describe(): String = "I am a shape"
+        }
+        class Circle(val r: Double) : Shape() {
+            override fun area(): Double = 3.14159 * r * r
+            override fun describe(): String = "Circle"
+        }
+        class Rect(val w: Double, val h: Double) : Shape() {
+            override fun area(): Double = w * h
+        }
+        fun main() {
+            val c = Circle(5.0)
+            println(c.describe())
+            println(c.area())
+            val r = Rect(3.0, 4.0)
+            println(r.describe())
+            println(r.area())
+        }
+        """,
+        """
+        package sample1
+        abstract class Shape {
+            abstract fun area(): Double
+            open fun describe(): String = "Shape"
+        }
 
-                    abstract class Shape {
-                        abstract fun area(): Double
-                        open fun describe(): String = "I am a shape"
-                    }
-                    class Circle(val r: Double) : Shape() {
-                        // Missing override for abstract area()
-                        override fun describe(): String = "Circle"
-                    }
-            """,
-            // testMissingOverrideModifier
-            """
-            package sample2
+        abstract class RegularShape : Shape() {
+            abstract override fun area(): Double
+            override fun describe(): String = "Regular Shape"
+        }
 
-                    abstract class Shape {
-                        abstract fun area(): Double
-                        open fun describe(): String = "I am a shape"
-                    }
-                    class Circle(val r: Double) : Shape() {
-                        override fun area(): Double = 3.14159 * r * r
-                        fun describe(): String = "Circle" // Missing override modifier
-                    }
-            """,
-            // testAbstractOverrideChaining
-            """
-            package sample3
+        class Circle(val r: Double) : RegularShape() {
+            override fun area(): Double = 3.14159 * r * r
+            final override fun describe(): String = "Circle"
+        }
+        """,
+        """
+        package sample2
+        interface CommandProcessor {
+            val pluginId: String
+            val displayName: String
+        }
 
-                    abstract class Shape {
-                        abstract fun area(): Double
-                        open fun describe(): String = "Shape"
-                    }
+        class MyCommandProcessor(
+            override val pluginId: String,
+            override val displayName: String
+        ) : CommandProcessor
 
-                    abstract class RegularShape : Shape() {
-                        abstract override fun area(): Double
-                        override fun describe(): String = "Regular Shape"
-                    }
+        fun main() {
+            val p = MyCommandProcessor("id", "name")
+            println(p.pluginId)
+        }
+        """,
+        """
+        package sample3
+        abstract class Container {
+            abstract var items: List<String>
+        }
 
-                    class Circle(val r: Double) : RegularShape() {
-                        override fun area(): Double = 3.14159 * r * r
-                        final override fun describe(): String = "Circle"
-                    }
-            """,
-            // testFinalOverrideTermination
-            """
-            package sample4
+        class Box(override var items: List<String>) : Container()
+        """,
+        """
+        package sample4
+        interface CommandProcessor {
+            val pluginId: String
+            val displayName: String
+        }
 
-                    open class Shape {
-                        open fun describe(): String = "Shape"
-                    }
+        class MyCommandProcessor(
+            override val pluginId: String
+        ) : CommandProcessor {
+            override val displayName: String = "static-name"
+        }
+        """,
+    ]
 
-                    class Circle : Shape() {
-                        final override fun describe(): String = "Circle"
-                    }
+    private static let negativeSources: [String] = [
+        """
+        package sample5
+        abstract class Shape {
+            abstract fun area(): Double
+            open fun describe(): String = "I am a shape"
+        }
+        class Circle(val r: Double) : Shape() {
+            // Missing override for abstract area()
+            override fun describe(): String = "Circle"
+        }
+        """,
+        """
+        package sample6
+        abstract class Shape {
+            abstract fun area(): Double
+            open fun describe(): String = "I am a shape"
+        }
+        class Circle(val r: Double) : Shape() {
+            override fun area(): Double = 3.14159 * r * r
+            fun describe(): String = "Circle" // Missing override modifier
+        }
+        """,
+        """
+        package sample7
+        open class Shape {
+            open fun describe(): String = "Shape"
+        }
 
-                    // This should error - cannot override final
-                    class ColoredCircle : Circle() {
-                        override fun describe(): String = "Colored Circle"
-                    }
-            """,
-            // testPrimaryConstructorOverridePropertiesImplementInterface
-            """
-            package sample5
+        class Circle : Shape() {
+            final override fun describe(): String = "Circle"
+        }
 
-                    interface CommandProcessor {
-                        val pluginId: String
-                        val displayName: String
-                    }
+        // This should error - cannot override final
+        class ColoredCircle : Circle() {
+            override fun describe(): String = "Colored Circle"
+        }
+        """,
+        """
+        package sample8
+        interface CommandProcessor {
+            val pluginId: String
+            val displayName: String
+        }
 
-                    class MyCommandProcessor(
-                        override val pluginId: String,
-                        override val displayName: String
-                    ) : CommandProcessor
+        class MyCommandProcessor(
+            val pluginId: String
+        ) : CommandProcessor
+        """,
+    ]
 
-                    fun main() {
-                        val p = MyCommandProcessor("id", "name")
-                        println(p.pluginId)
-                    }
-            """,
-            // testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember
-            """
-            package sample6
+    private static nonisolated(unsafe) var _positiveCtx: CompilationContext?
+    private static nonisolated(unsafe) var _negativeCtx: CompilationContext?
 
-                    abstract class Container {
-                        abstract var items: List<String>
-                    }
-
-                    class Box(override var items: List<String>) : Container()
-            """,
-            // testMixedPrimaryConstructorAndBodyOverrideProperties
-            """
-            package sample7
-
-                    interface CommandProcessor {
-                        val pluginId: String
-                        val displayName: String
-                    }
-
-                    class MyCommandProcessor(
-                        override val pluginId: String
-                    ) : CommandProcessor {
-                        override val displayName: String = "static-name"
-                    }
-            """,
-            // testMissingPrimaryConstructorOverrideStillReportsAbstractMember
-            """
-            package sample8
-
-                    interface CommandProcessor {
-                        val pluginId: String
-                        val displayName: String
-                    }
-
-                    class MyCommandProcessor(
-                        val pluginId: String
-                    ) : CommandProcessor
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
+    private func positiveCtx() throws -> CompilationContext {
+        if let cached = Self._positiveCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.positiveSources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-
-            // testOriginalAbstractOpenOverrideCase
-            do {
-                let diags = diagnosticsForPath(paths[0], in: ctx)
-                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diags)
-                assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: diags)
-                assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: diags)
-                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: diags)
-                assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: diags)
-                #expect(!(diags.contains(where: { $0.severity == .error })))
-            }
-
-            // testMissingAbstractOverride
-            do {
-                assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diagnosticsForPath(paths[1], in: ctx))
-            }
-
-            // testMissingOverrideModifier
-            do {
-                assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: diagnosticsForPath(paths[2], in: ctx))
-            }
-
-            // testAbstractOverrideChaining
-            do {
-                let diags = diagnosticsForPath(paths[3], in: ctx)
-                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: diags)
-                #expect(!(diags.contains(where: { $0.severity == .error })))
-            }
-
-            // testFinalOverrideTermination
-            do {
-                assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: diagnosticsForPath(paths[4], in: ctx))
-            }
-
-            // testPrimaryConstructorOverridePropertiesImplementInterface
-            do {
-                let diags = diagnosticsForPath(paths[5], in: ctx)
-                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diags)
-                #expect(!(diags.contains(where: { $0.severity == .error })))
-            }
-
-            // testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember
-            do {
-                let diags = diagnosticsForPath(paths[6], in: ctx)
-                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diags)
-                #expect(!(diags.contains(where: { $0.severity == .error })))
-            }
-
-            // testMixedPrimaryConstructorAndBodyOverrideProperties
-            do {
-                let diags = diagnosticsForPath(paths[7], in: ctx)
-                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diags)
-                #expect(!(diags.contains(where: { $0.severity == .error })))
-            }
-
-            // testMissingPrimaryConstructorOverrideStillReportsAbstractMember
-            do {
-                assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diagnosticsForPath(paths[8], in: ctx))
-            }
+            result = ctx
         }
+        let ctx = try #require(result)
+        Self._positiveCtx = ctx
+        return ctx
+    }
+
+    private func negativeCtx() throws -> CompilationContext {
+        if let cached = Self._negativeCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.negativeSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._negativeCtx = ctx
+        return ctx
+    }
+
+    // MARK: - Original Test Case Validation
+
+    @Test func testOriginalAbstractOpenOverrideCase() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMissingAbstractOverride() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+    }
+
+    @Test func testMissingOverrideModifier() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
+    }
+
+    // MARK: - Advanced Test Cases
+
+    @Test func testAbstractOverrideChaining() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testFinalOverrideTermination() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    // MARK: - Primary constructor `override val` / `override var` properties
+
+    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
+        let ctx = try positiveCtx()
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
+        let ctx = try negativeCtx()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
 }
