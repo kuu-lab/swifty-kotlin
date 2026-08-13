@@ -380,13 +380,14 @@ struct DataFlowAndSemaRegressionTests {
                     fun main(): Double = Shape(2.0).area()
 
             """,
-            // testSyntheticClassConstructorMatchingFactoryFunctionSignatureIsNotAmbiguous
+            // testClassConstructorMatchingFactoryFunctionSignatureIsNotAmbiguousAfterPathStubCleanup
             """
             package sample15
 
-                    import kotlin.io.path.Path
+                    class Fixture(val value: String)
+                    fun Fixture(raw: String): Fixture = Fixture(raw + " factory")
 
-                    fun makePath(raw: String): Path = Path(raw)
+                    fun makeFixture(raw: String): Fixture = Fixture(raw)
 
             """,
             // testTopLevelFunctionSignatureResolvesLaterDeclaredClass
@@ -812,7 +813,7 @@ struct DataFlowAndSemaRegressionTests {
 
             }
 
-            // === testSyntheticClassConstructorMatchingFactoryFunctionSignatureIsNotAmbiguous ===
+            // === testClassConstructorMatchingFactoryFunctionSignatureIsNotAmbiguousAfterPathStubCleanup ===
 
             do {
 
@@ -822,17 +823,8 @@ struct DataFlowAndSemaRegressionTests {
 
                 let sample15Diagnostics = diagnosticsForPath(sample15Path, in: ctx)
 
-                // Regression test for a bug the KSP-CAP-006 merge fix itself
-                // introduced and then had to correct: `kotlin.io.path.Path` is
-                // registered as a synthetic class whose own (synthetic) constructor
-                // has the exact same signature, `(String) -> Path`, as the
-                // coexisting top-level factory function `fun Path(pathString:
-                // String): Path`. Naively merging the constructor into the call
-                // candidate set produced two indistinguishable overloads, so every
-                // `Path(...)` call resolved to `<error>` instead of picking the
-                // (equally valid) function. The fix de-duplicates by parameter
-                // signature before merging; this pins that behavior using the real
-                // bundled stub rather than a hand-rolled reproduction.
+                // Keep the constructor/factory merge regression local because
+                // CLEANUP-STUB-117 intentionally removes the synthetic Path API.
                     assertNoDiagnostic("KSWIFTK-SEMA-0001", in: sample15Diagnostics)
                     assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sample15Diagnostics)
                     assertNoDiagnostic("KSWIFTK-SEMA-0023", in: sample15Diagnostics)
