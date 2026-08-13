@@ -1,12 +1,5 @@
 // swiftlint:disable file_length
 
-/// Centralized FQ-name suffixes used to discriminate the binarySearch
-/// overloads from the element-based one. Module-internal so the helper
-/// files split from this dispatcher (`+SyntheticListStubs`, `+SyntheticArrayStubs`)
-/// can reference them without duplication.
-let binarySearchCompareFQSuffix = "binarySearch$compare"
-let binarySearchComparatorFQSuffix = "binarySearch$comparator"
-
 extension DataFlowSemaPhase {
     /// Register `kotlin.Comparable<in T>` interface stub with `operator fun compareTo(other: T): Int`.
     func registerSyntheticComparableStub(

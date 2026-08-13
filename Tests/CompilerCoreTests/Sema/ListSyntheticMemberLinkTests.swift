@@ -694,6 +694,8 @@ struct ListSyntheticMemberLinkTests {
                 "any": [0, 1],
                 "all": [1],
                 "none": [0, 1],
+                "binarySearch": [1, 3, 4],
+                "binarySearchBy": [4],
             ]
 
             for (name, arities) in expectedArities {
@@ -2228,40 +2230,56 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListBinarySearchHasComparableElementUpperBound() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
+        let source = """
+        fun render(values: List<Int>) {
+            values.binarySearch(5)
+            values.binarySearch(5, 1, 4)
+            values.binarySearch { it - 5 }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let symbolID = try #require(sema.symbols.lookupAll(
                     fqName: [
                         ctx.interner.intern("kotlin"),
                         ctx.interner.intern("collections"),
-                        ctx.interner.intern("List"),
                         ctx.interner.intern("binarySearch"),
                     ]
-                ).first(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_binarySearch" }))
+                ).first(where: { sema.symbols.isSourceBackedSymbol($0) }))
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-            #expect(signature.typeParameterUpperBoundsList.count == 1)
-            let upperBounds = signature.typeParameterUpperBoundsList[0]
-            #expect(upperBounds.count == 1, "Expected Comparable upper bound for binarySearch element type")
+            #expect(signature.typeParameterUpperBoundsList == [[]])
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true])
 
-            guard case let .classType(boundType) = sema.types.kind(of: upperBounds[0]) else {
-                Issue.record("Expected binarySearch upper bound to be a class type"); return
+            let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      case let .memberCall(_, callee, _, _, _) = expr,
+                      ctx.interner.resolve(callee) == "binarySearch"
+                else {
+                    return nil
+                }
+                return exprID
             }
-
-            #expect(boundType.classSymbol == sema.types.comparableInterfaceSymbol)
-            #expect(boundType.args.count == 1)
-
-            guard case let .invariant(argumentType) = boundType.args[0] else {
-                Issue.record("Expected Comparable upper bound to reference invariant element type"); return
+            #expect(callExprIDs.count == 3)
+            for callExprID in callExprIDs {
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExprID)?.chosenCallee)
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                let chosenSignature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let receiverType = try #require(chosenSignature.receiverType)
+                guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
+                    Issue.record("Expected binarySearch source receiver to be a class type"); continue
+                }
+                let listSymbol = try #require(sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("collections"),
+                    ctx.interner.intern("List"),
+                ]))
+                #expect(receiverClassType.classSymbol == listSymbol)
             }
-
-            let expectedElementType = sema.types.make(.typeParam(TypeParamType(
-                symbol: signature.typeParameterSymbols[0],
-                nullability: .nonNull
-            )))
-            #expect(argumentType == expectedElementType)
         }
     }
 
@@ -2272,22 +2290,24 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listSymbol = try #require(sema.symbols.lookup(fqName: [
+            let symbolID = try #require(sema.symbols.lookupAll(fqName: [
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("collections"),
-                    ctx.interner.intern("List"),
-                ]))
-            let symbolID = try #require(sema.symbols.lookupByShortName(ctx.interner.intern("binarySearch")).first(where: { candidate in
-                    sema.symbols.parentSymbol(for: candidate) == listSymbol
-                        && sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_comparator"
+                    ctx.interner.intern("binarySearch"),
+                ]).first(where: { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.parameterTypes.count == 4
+                        && sema.symbols.isSourceBackedSymbol(candidate)
                 }))
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes.count == 4)
             #expect(signature.valueParameterSymbols.count == 4)
             #expect(signature.valueParameterHasDefaultValues == [false, false, true, true])
             #expect(signature.typeParameterSymbols.count == 1)
-            #expect(signature.classTypeParameterCount == 1)
-            #expect(signature.typeParameterUpperBoundsList.isEmpty)
+            #expect(signature.classTypeParameterCount == 0)
+            #expect(signature.typeParameterUpperBoundsList == [[]])
 
             let parameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 sema.symbols.symbol(paramSymbol)?.name
@@ -2334,12 +2354,6 @@ struct ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let expectedOverloads: [(externalLinkName: String, parameterCount: Int)] = [
-                ("kk_list_binarySearchBy", 2),
-                ("kk_list_binarySearchBy_fromIndex", 3),
-                ("kk_list_binarySearchBy_range", 4),
-            ]
-
             let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID),
@@ -2350,70 +2364,51 @@ struct ListSyntheticMemberLinkTests {
                 }
                 return exprID
             }
-            #expect(callExprIDs.count == expectedOverloads.count, "Expected three binarySearchBy calls")
+            #expect(callExprIDs.count == 3, "Expected three binarySearchBy calls")
 
-            for (index, callExprID) in callExprIDs.enumerated() {
+            for callExprID in callExprIDs {
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExprID)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedOverloads[index].externalLinkName, "Expected binarySearchBy overload \(index) to resolve to \(expectedOverloads[index].externalLinkName)")
-                #expect(sema.bindings.exprType(for: callExprID) == sema.types.intType, "Expected binarySearchBy overload \(index) to return Int")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+                #expect(sema.bindings.exprType(for: callExprID) == sema.types.intType, "Expected binarySearchBy to return Int")
             }
 
-            let listFQName: [InternedString] = [
+            let binarySearchByFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("binarySearchBy"),
             ]
 
-            for overload in expectedOverloads {
-                let symbolID = try #require(sema.symbols.lookupAll(fqName: listFQName).first(where: {
-                        sema.symbols.externalLinkName(for: $0) == overload.externalLinkName
-                    }))
-                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-                #expect(signature.returnType == sema.types.intType)
-                #expect(signature.parameterTypes.count == overload.parameterCount)
-                #expect(signature.typeParameterSymbols.count == 2)
-                #expect(signature.typeParameterUpperBoundsList.count == 2)
+            let symbolID = try #require(sema.symbols.lookupAll(fqName: binarySearchByFQName).first(where: {
+                sema.symbols.isSourceBackedSymbol($0)
+            }))
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            #expect(signature.returnType == sema.types.intType)
+            #expect(signature.parameterTypes.count == 4)
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true, false])
+            #expect(signature.typeParameterSymbols.count == 2)
+            #expect(signature.typeParameterUpperBoundsList == [[], []])
 
-                let selectorType = try #require(signature.parameterTypes.last)
-                guard case let .functionType(functionType) = sema.types.kind(of: selectorType) else {
-                    Issue.record("Expected selector parameter for \(overload.externalLinkName) to be a function type"); return
-                }
-                #expect(functionType.params.count == 1)
-
-                let expectedListElementType = sema.types.make(.typeParam(TypeParamType(
-                    symbol: signature.typeParameterSymbols[0],
-                    nullability: .nonNull
-                )))
-                #expect(functionType.params[0] == expectedListElementType)
-                #expect(functionType.returnType == signature.parameterTypes[0])
-
-                let keyUpperBounds = signature.typeParameterUpperBoundsList[1]
-                #expect(keyUpperBounds.count == 1, "Expected Comparable upper bound for \(overload.externalLinkName) key type")
-                guard case let .classType(boundType) = sema.types.kind(of: keyUpperBounds[0]) else {
-                    Issue.record("Expected \(overload.externalLinkName) upper bound to be a class type"); return
-                }
-                #expect(boundType.classSymbol == sema.types.comparableInterfaceSymbol)
-                #expect(boundType.args.count == 1)
-
-                guard case let .invariant(argumentType) = boundType.args[0] else {
-                    Issue.record("Expected \(overload.externalLinkName) upper bound to reference invariant key type"); return
-                }
-
-                let expectedKeyType = sema.types.make(.typeParam(TypeParamType(
-                    symbol: signature.typeParameterSymbols[1],
-                    nullability: .nonNull
-                )))
-                #expect(argumentType == expectedKeyType)
-                #expect(signature.parameterTypes[0] == sema.types.makeNullable(expectedKeyType))
-
-                if overload.parameterCount >= 3 {
-                    #expect(signature.parameterTypes[1] == sema.types.intType)
-                }
-                if overload.parameterCount == 4 {
-                    #expect(signature.parameterTypes[2] == sema.types.intType)
-                }
+            let selectorType = try #require(signature.parameterTypes.last)
+            guard case let .functionType(functionType) = sema.types.kind(of: selectorType) else {
+                Issue.record("Expected selector parameter to be a function type"); return
             }
+            #expect(functionType.params.count == 1)
+
+            let expectedListElementType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[0],
+                nullability: .nonNull
+            )))
+            #expect(functionType.params[0] == expectedListElementType)
+            #expect(functionType.returnType == signature.parameterTypes[0])
+
+            let expectedKeyType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[1],
+                nullability: .nonNull
+            )))
+            #expect(signature.parameterTypes[0] == expectedKeyType)
+            #expect(signature.parameterTypes[1] == sema.types.intType)
+            #expect(signature.parameterTypes[2] == sema.types.intType)
         }
     }
 

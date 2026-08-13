@@ -187,22 +187,6 @@ extension CallLowerer {
             return [finalArguments[0]] + comparatorArgs
         }
 
-        if loweredCallee == interner.intern("kk_list_binarySearch_comparator"),
-           finalArguments.count == 5,
-           sourceArgExprs.count >= 2
-        {
-            let comparatorArgs = makeComparatorObjectArgumentPair(
-                loweredComparatorID: finalArguments[2],
-                sema: sema,
-                arena: arena,
-                instructions: &instructions
-            )
-            var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
-            adapted.append(contentsOf: comparatorArgs)
-            adapted.append(contentsOf: finalArguments[3...])
-            return adapted
-        }
-
         let comparatorSelectorCallees: Set<InternedString> = [
             interner.intern("kk_list_maxOfWith"),
             interner.intern("kk_list_maxOfWithOrNull"),

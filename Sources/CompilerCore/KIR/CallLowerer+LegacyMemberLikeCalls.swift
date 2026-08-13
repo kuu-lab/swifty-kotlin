@@ -208,7 +208,23 @@ extension CallLowerer {
             else {
                 return false
             }
-            return Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName))
+            if Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName)) {
+                return true
+            }
+            let sourceBackedListSearchNames: Set<String> = [
+                "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast",
+                "lastIndexOf", "contains", "containsAll", "any", "all", "none",
+                "count", "binarySearch", "binarySearchBy",
+            ]
+            guard sourceBackedListSearchNames.contains(interner.resolve(calleeName)) else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            return isConcreteListLikeType(
+                sema.types.makeNonNullable(receiverType),
+                sema: sema,
+                interner: interner
+            )
         }()
         // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
         // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).

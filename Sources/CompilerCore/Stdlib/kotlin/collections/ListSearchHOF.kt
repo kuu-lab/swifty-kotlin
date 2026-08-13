@@ -1,6 +1,7 @@
 package kotlin.collections
 
 import kotlin.internal.__valuesEqual
+import kotlin.comparisons.compareValuesUnchecked
 
 // MIGRATION-COL-005
 // List search and predicate HOFs migrated to Kotlin source.
@@ -229,4 +230,101 @@ public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
         i++
     }
     return true
+}
+
+private fun checkListBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
+    if (fromIndex > toIndex) {
+        throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")
+    }
+    if (fromIndex < 0) {
+        throw IndexOutOfBoundsException("fromIndex ($fromIndex) is less than zero.")
+    }
+    if (toIndex > size) {
+        throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
+    }
+}
+
+public fun <T> List<T>.binarySearch(
+    element: T,
+    fromIndex: Int = 0,
+    toIndex: Int = this.size
+): Int {
+    checkListBinarySearchBounds(size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val comparison = compareValuesUnchecked(this[mid], element)
+        if (comparison < 0) {
+            low = mid + 1
+        } else if (comparison > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+public fun <T> List<T>.binarySearch(comparison: (T) -> Int): Int {
+    var low = 0
+    var high = size - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val result = comparison(this[mid])
+        if (result < 0) {
+            low = mid + 1
+        } else if (result > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+public fun <T> List<T>.binarySearch(
+    element: T,
+    comparator: Comparator<in T>,
+    fromIndex: Int = 0,
+    toIndex: Int = this.size
+): Int {
+    checkListBinarySearchBounds(size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val comparison = comparator.compare(this[mid], element)
+        if (comparison < 0) {
+            low = mid + 1
+        } else if (comparison > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+public fun <T, K> List<T>.binarySearchBy(
+    key: K,
+    fromIndex: Int = 0,
+    toIndex: Int = this.size,
+    selector: (T) -> K
+): Int {
+    checkListBinarySearchBounds(size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val comparison = compareValuesUnchecked(selector(this[mid]), key)
+        if (comparison < 0) {
+            low = mid + 1
+        } else if (comparison > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
 }

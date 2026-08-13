@@ -126,5 +126,25 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
             expected: "true\nfalse\n3\nfalse\ntrue\n"
         )
     }
+
+    @Test
+    func codegenListBinarySearchUsesSourceImplementation() throws {
+        let source = """
+        fun main() {
+            val nums = listOf(1, 3, 5, 7, 9)
+            println(nums.binarySearch(5))
+            println(nums.binarySearch(4))
+            println(nums.binarySearch(5, 1, 4))
+            println(nums.binarySearch { it - 7 })
+            println(nums.binarySearchBy(7) { it })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListBinarySearchSource",
+            expected: "2\n-3\n2\n3\n3\n"
+        )
+    }
 }
 #endif

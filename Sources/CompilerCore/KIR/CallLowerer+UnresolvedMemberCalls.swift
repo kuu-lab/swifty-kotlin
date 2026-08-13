@@ -155,25 +155,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_partition")
             case "subList":
                 return interner.intern("kk_list_subList")
-            case "binarySearch":
-                if hasHOFLambdaArg && argumentCount == 2 {
-                    return interner.intern("kk_list_binarySearch_compare")
-                }
-                if argumentCount > 2 {
-                    return interner.intern("kk_list_binarySearch_comparator")
-                }
-                return interner.intern("kk_list_binarySearch")
-            case "binarySearchBy":
-                switch argumentCount {
-                case 2:
-                    return interner.intern("kk_list_binarySearchBy")
-                case 3:
-                    return interner.intern("kk_list_binarySearchBy_fromIndex")
-                case 4:
-                    return interner.intern("kk_list_binarySearchBy_range")
-                default:
-                    break
-                }
             case "reduce":
                 return interner.intern("kk_list_reduce")
             case "reduceIndexed":
@@ -425,14 +406,6 @@ extension CallLowerer {
             return interner.intern("kk_list_onEachIndexed")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
-        case "binarySearch":
-            if hasHOFLambdaArg && argumentCount == 2 {
-                return interner.intern("kk_list_binarySearch_compare")
-            }
-            if argumentCount > 2 {
-                return interner.intern("kk_list_binarySearch_comparator")
-            }
-            return interner.intern("kk_list_binarySearch")
         default:
             break
         }

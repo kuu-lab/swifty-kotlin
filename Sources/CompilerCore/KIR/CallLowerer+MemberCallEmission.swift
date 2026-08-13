@@ -371,19 +371,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + producerArgs + jobArgs
         }
-        if loweredCallee == interner.intern("kk_list_binarySearch_comparator") {
-            materializeBinarySearchDefaultArguments(
-                normalized.defaultMask,
-                receiverExpr: receiver.expr,
-                loweredReceiverID: receiver.loweredID,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions,
-                arguments: &finalArguments,
-                sourceArgLabels: sourceArgLabels
-            )
-        }
         if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
            finalArguments.count >= 3
         {
@@ -1115,11 +1102,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
             interner.intern("kk_array_copyOf_newSize_init"),
-            interner.intern("kk_list_binarySearch_compare"),
-            interner.intern("kk_list_binarySearch_comparator"),
-            interner.intern("kk_list_binarySearchBy"),
-            interner.intern("kk_list_binarySearchBy_fromIndex"),
-            interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
     }
