@@ -124,6 +124,17 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_kclass_js",
             "kk_kclass_register_annotation",
             "kk_list_zip_transform",
+            // KSP-445: Sequence fold/scan HOFs are source-backed in bundled
+            // kotlin.collections/sequences; runtime bridge is no longer exported.
+            "kk_sequence_foldIndexed",
+            "kk_sequence_reduceIndexed",
+            "kk_sequence_reduceIndexedOrNull",
+            "kk_sequence_runningFold",
+            "kk_sequence_runningFoldIndexed",
+            "kk_sequence_runningReduce",
+            "kk_sequence_runningReduceIndexed",
+            "kk_sequence_scan",
+            "kk_sequence_scanIndexed",
             // KSP-430: Map higher-order functions are now source-backed in
             // bundled MapHOF.kt; these ABI entries remain for compatibility
             // with the synthetic stub externalLinkName literals.
