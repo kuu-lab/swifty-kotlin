@@ -537,7 +537,7 @@ struct BundledDeclarationIndex: Sendable {
         // these to Iterable suppressed the dedicated Iterable synthetic stub
         // that some of these members have (e.g. reduce, via
         // registerIterableReduceMember, which links to the generic
-        // runtimeCollectionElements(from:)-based kk_list_reduce bridge),
+        // runtimeCollectionElements(from:)-based kk_sequence_reduce bridge),
         // leaving a plain Iterable receiver (e.g. Set<T>, or a value
         // statically typed Iterable<T>) with no matching candidate at all.
         // Sema's overload fallback then picked an unrelated same-named source
