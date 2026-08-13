@@ -63,8 +63,9 @@ struct ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
-                ("take", 1, "kk_list_take" as String?),
-                ("drop", 1, "kk_list_drop" as String?),
+                // KSP-427: take / drop / takeLast / dropLast / slice / subList are now bundled Kotlin source.
+                ("take", 1, nil as String?),
+                ("drop", 1, nil as String?),
                 ("reversed", 0, "kk_list_reversed" as String?),
                 ("sorted", 0, "kk_list_sorted" as String?),
                 ("distinct", 0, "kk_list_distinct" as String?),

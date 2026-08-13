@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-08-06
+最終更新: 2026-08-13
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -38,7 +38,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 36 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36、詳細は該当節） |
+| DEBT-DIFF-007 | 16 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）でさらに解除を進め、2026-08-13 実測で active な 007 系は 16 件。`array_hof.kt` は 2026-08-13 現在 active（タグ無し）） |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -265,38 +265,27 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 
 以下、残り37件を分類ごとに記載する。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
 
-### グループ2: enum/data class/interface(残り10件、うち1件解除済み)
+### グループ2: enum/data class/interface(残り6件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `comparable_interface.kt` | ローカル(関数内)宣言の generic `fun <T> ... where T : Comparable<T>` が型パラメータ/where節を一切保持しない(`.localFunDecl` AST ノードと `inferLocalFunDeclExpr` に型パラメータのフィールド自体が無い)。副次的にnullable引数を渡す3行も要修正 | AST `.localFunDecl` とその type checker にトップレベル関数と同様の type params/where clause サポートを追加 |
 | `context_receivers.kt` | kotlinc 2.4 の named `context(name: Type)` 構文に kswiftc パーサーが未対応(旧・匿名 context 型リストのみ対応)で、Sema も最初の context 型を extension receiver に読み替えるだけでネストしたスコープに伝播しない | context parameter の設計を要する中規模タスク(クイックパッチ不可) |
 | `data_class_inheritance.kt` | 意図的な負テスト(コメントで明言)だが、ネストしたクラス(`Container.Outer : Inner`)が `validateSupertypesAreOpen` の対象外になっている点は独立した実バグ | 診断golden(DEBT-DIFF-006の`error_type_inference.kt`と同方針)へ移設し、ネストクラスのopen検証漏れは別途調査 |
 | `data_class_inheritance_valid.kt` | `if (other !is BaseEntity) return false` のようなガード節後、`other` の smart-cast 状態が後続コードへ伝播しない(`ControlFlowTypeChecker.inferIfExpr` は else 無しの分岐の flowState をブロック内の後続文へ引き継がない設計)。広範囲に影響しうる一般的なcorrectnessギャップ。2ファイル(L17/L44)がdata class ctorのval/var欠落という別ミスも持つ | `ExprTypeChecker.blockExpr` の逐次処理が現状 statement ごとに同じ `ctx` を使い回しており、Nothing型分岐後のflowStateを次のstatementへ運んでいない。`inferExpr`/`inferIfExpr` の戻り値契約を拡張する必要がある中規模タスク |
 | `enum_basic.kt`(未解除、範囲縮小) | 元々の root cause だった「明示的companionがあると`values()`/`valueOf()`/`entries`の合成がスキップされる」「`EnumEntries<T>`が空マーカーで`.size`等が解決できない」の2点は2026-07-29に実装・修正済み(下記「2026-07-29 enum修正」参照)。残る唯一のブロッカーは別バグ: enum の companion object に**ユーザー自身が定義した**関数(`fun opposite(...)`)が `EnumClass.opposite(...)` 静的呼び出し構文で解決できない(`Unresolved member function`)。values()/entries等の合成メンバーとは無関係の既存バグで、companion なしの2026-07-29修正前のmasterでも同じ症状を確認済み(再現: `enum class D { A,B; companion object { fun f(): Int = 1 } }; fun main() { D.f() }`) | companion object の**ユーザー宣言**メンバーが `EnumClass.member()` 構文で解決できない root cause を調査(合成メンバー用に新設した経路と、既存のcompanion member解決経路の相互作用を疑う) |
 | `enum_edge_cases.kt`(未解除、範囲縮小) | 同じく values()/entries 側は2026-07-29修正で解消。残るブロッカーは、entry 固有 body を持つ enum 定数(`C { override fun toString() = "C-special" }`)を `ComplexEnum.C` の形で参照すると `Ambiguous overload resolution` + `Unresolved member function 'C'` になる別バグ(未調査) | entry-specific body を持つ enum 定数の `EnumClass.ENTRY` 参照を調査 |
 | `generic_typealias.kt` | `typealias A = B` / `typealias B = A` の循環定義が使用箇所でしか検出されず(`Helpers+TypeAliasExpansion.swift`)、未使用ならコンパイルが通ってしまう | 宣言済み typealias 全件に対する eager cycle check を追加 |
-| `interface_conflict_resolution.kt` | interface同士の衝突(`SimpleConflict`)は検出できるが、concreteな親クラスを持つ多重interface実装(`SuperPriority : ConcreteBase(), Left, Right`)の衝突は見逃す | override衝突チェックにconcrete superclass併存時の分岐を追加 |
-| `override_variance.kt` / `override_variance_advanced.kt` | `Unit` を明示的な値として使う式(`= Unit`)がどこでも解決できない(`inferNameRefExpr` は `null`/`this` は特別扱いするが `Unit` は素通りしてunresolvedになる) — 他のケースにも波及しうる一般的ギャップ。`override_variance.kt` は無効な Java 風 `throws X` 節も含む。`override_variance_advanced.kt` は `protected fun` を `interface` 内に書けてしまう検証漏れも別途持つ | `inferNameRefExpr`(`ExprTypeChecker+NameLambdaAndCallableRefInference.swift`)に`Unit`の特別解決を追加。`throws`節除去、`protected in interface`検証追加は別途 |
 
 #### 2026-07-29 enum修正(`enum_entries_function.kt` は解除済み)
 
 上表の `enum_basic.kt`/`enum_edge_cases.kt` の root cause として記載されていた、(1) enum が明示的 companion object を持つと `values()`/`valueOf()`/`entries` の合成がスキップされる、(2) `EnumEntries<T>` が空マーカーで `.size`/`.forEach` 等が解決できない、の2点を実装・修正した(`HeaderCollection.swift`, `HeaderHelpers+SyntheticEnumStubs.swift`, `DataEnumSealedSynthesisPass+EnumSynthesis.swift`, `CompilerKnownNames.swift`。回帰は `Tests/CompilerCoreTests/Sema/EnumAPISurfaceInventoryTests.swift`、`Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests+EnumEntriesEdgeCases.swift`、新規 `Scripts/diff_cases/enum_values_and_entries.kt`)。`enum_entries_function.kt`(`enumEntries<Color>()` トップレベル関数版)はこの修正で candidate 側が通るようになり、ref 側の残エラーが `import kotlin.enums.enumEntries` 欠落という test input mistake だったため、import を追加して `SKIP-DIFF` を解除した。`enum_basic.kt`/`enum_edge_cases.kt` は上表の通り別バグで依然ブロックされている。
 
-### グループ3: common stdlib gap(残り15件)
+### グループ3: common stdlib gap(残り2件) — `array_hof.kt` は 2026-08-13 現在 SKIP-DIFF タグ無しで active（`--force-run-skipped` で PASS）
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
 | `advanced_type_inference.kt` | `@ExperimentalTypeInference` を関数に直接付与(本来はアノテーションクラスへのメタ注釈のみ許可)しているのを kswiftc は許してしまう。修正後は `buildList`/`buildMap` の generic 型引数forwardingで別途詰まる | `@ExperimentalTypeInference` 誤用チェック追加、`buildList`/`buildMap` のgeneric forwarding調査 |
-| `array_hof.kt`(未解除、範囲縮小) | 2026-07-29 に `mapIndexed`/`filterIndexed`/`mapNotNull`/`filterNot`/`filterNotNull`/`reduceIndexed`/`first`/`firstOrNull`/`last`/`lastOrNull` の10メソッドを実装・修正済み(`CallTypeChecker+ArrayMemberFallback.swift`の Sema allowlist gate `isSupportedArrayMember` に不足していた。KIR側は`CallLowerer+UnresolvedMemberCalls.swift`と`CollectionLiteralLoweringPass+VirtualCallRewrite+Array.swift`の重複ディスパッチ両方に登録、Runtime側は`RuntimeCollectionHOFArray.swift`に`@_cdecl`追加。副次的に`first()`/`last()`のゼロ引数/述語判定が`argumentCount`でなく`hofArity`を見るべきだったSIGSEGVも修正。全10メソッドの出力をkotlincと突き合わせ完全一致を確認、回帰は`ArraySyntheticMemberLinkTests.swift`/`CodegenBackendIntegrationTests+ArrayHOF.swift`)。残る唯一のブロッカーは`flatMap`: kswiftc未実装に加え、このテストの`arr.flatMap { arrayOf(it, it*10) }`という書き方自体が実kotlincでも型エラー(`flatMap`の transform は`Iterable<R>`を返す必要があるが`Array`はIterableでないため`cannot infer type for type parameter 'R'`で拒否される、test input mistake)。作業中に見つけた無関係な既存クラッシュ(`Array.any/all/none/count`の closure-materialization SIGSEGV)は別セッションで修正済み(`d8b0436dae`) | `flatMap`をArrayに追加登録した上で、テストの`arrayOf(it, it*10)`を`listOf(it, it*10)`等Iterableを返す形に修正 |
-| `bitwise_operators.kt` / `char_operations.kt` | `Char.rangeTo()`の明示的ドット呼び出し(`c1.rangeTo(c2)`)が未解決 — `..`演算子専用の特別扱いのみで、通常のメンバー関数として登録されていない(`ExprTypeChecker+BinaryAndFlowInference.swift:370`付近) | `rangeTo`を`Char`の通常解決可能メンバーとして登録。各ファイル固有の無効行(型不一致比較、`toIntOrNull`等)は別途修正 |
-| `chunked_transform.kt` | ファイル全体が実在しない `chunked(size, step)` オーバーロードを前提に書かれている(実Kotlinの`chunked`は`size`と任意の`transform`のみ、step付きは`windowed`) | `chunked(size, step[, transform])` の呼び出し20箇所超を `windowed(size, step[, ..., transform])` へ書き換え。分量が大きいため今回は未着手 |
 | `list_binary_search_compare.kt` | `main()` 内ローカル宣言の `data class Person(...)` の合成コンストラクタが解決できない("Unresolved function 'Person'")。ローカルクラス宣言収集の未調査ギャップ | `BuildASTPhase+MemberCollection.swift`/`+DeclBuilders.swift` でローカルdata classの扱いを調査。L150の型不一致行は別途修正 |
-| `list_reversed_asreversed.kt` | `String.asReversed()`(実Kotlinに存在しない)を除去した後も、`MutableList.asReversed()[i] = value`(view経由の書き込みで元リストを変更する)が kswiftc で "Array reference is null" 例外を投げる | `asReversed()`が返すview実装のset操作を調査・修正 |
-| `match_result.kt` | `MatchResult.range`/`MatchGroup.range`が`Int`型で登録されており(`HeaderHelpers+SyntheticRegexStubs.swift:162-180`)`IntRange`であるべき。destructuring の2件目(`component2()`)も値が入らない | `range`プロパティの型を`IntRange`に修正。destructuring 2項目束縛のバグを調査 |
-| `range_basic.kt` | `.end`(実際は`.endInclusive`/`.last`)や`IntRange.toIntArray()`(IntRangeは`Collection`でなく`Iterable`)をrefは正しく拒否するが、kswiftcのSemaは寛容な fallback リスト(`CallLowerer+MemberCallSupport.swift`の`unresolvedCollectionMemberNames`)がこれを素通りさせ、対応するLoweringルールが無いため生のシンボル名がそのままcodegenへ渡り**診断エラーではなくリンカエラー**になる | fallbackリスト(~60件)がLoweringで実際にハンドルされない名前を許してしまう設計を監査し、未対応名は`unresolved reference`にフォールバックさせる |
-| `string_chunked_windowed.kt` / `windowed_step_partial.kt`(未解除、範囲縮小) | `chunkedSequence`/`windowedSequence`のtransformコールバック引数(実際は`CharSequence`型)で`.length`のようなCharSequence正規メンバーが解決できない件はBUG-152(#5068)で解消済み。残るブロッカーは別件: `s.windowed(3, 1, true) { it.uppercase() }` のように transform 付き `chunked`/`windowed` を呼ぶと、実kotlincも`cannot infer type for type parameter 'R'`で拒否する(transform戻り値からRを推論できない、kotlinc自体の制約)。kswiftc側は`No viable overload found for call`+`Unresolved member function`のcascadeで失敗理由が異なる | test input を型注釈明示や`map`への書き換えで回避できるか検討するか、candidate-onlyの制約緩和が可能か調査(kotlinc側の制約なので完全なparityは望めない可能性) |
-| `string_materialization.kt` | 存在しない`String.toTypedArray()`を除去した後も2件残存: (1)`"cba".toSortedSet().toList()`が`[a,b,c]`ではなく生の文字コード`[97,98,99]`を返す(Char boxing漏れ) (2)`"ab".iterator()`(CharIterator)が壊れている — `.next()`が空文字を返し、消費後の`.hasNext()`が誤って`true`を返す | `toSortedSet()`のChar要素boxingとCharIteratorの実装を調査・修正 |
 
 ### グループ4: coroutine Flow(残り3件)
 
@@ -306,21 +295,18 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 | `flow_builders.kt` | `channelFlow{}`/`callbackFlow{}`内で`emit()`を使うテスト自体が実Kotlinでは無効(`ProducerScope`は`send`/`trySend`のみ)。kswiftcは意図的にchannelFlow/callbackFlowを`flow{}`にエイリアスしており`emit`を受理してしまうため、`send`に直すと今度は未実装で失敗する | DEBT-DIFF-003のChannel/produce未実装まわりと合わせて解消する。channelFlow/callbackFlowを real ProducerScope としてモデル化する設計が必要 |
 | `flow_error_handling.kt` | `onErrorReturn`/`onErrorResume`(real Kotlinでは`ERROR`レベルでdeprecated、`catch{emit()}`/`catch{emitAll()}`推奨)をkswiftcが誤って受理。修正すると`onCompletion`(非推奨でない実オペレーター)が未実装で失敗する | テストを`catch{}`形式に書き換え。`Flow.onCompletion`を実装 |
 
-### グループ5: reflection(残り3件)
+### グループ5: reflection(残り2件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `annotation_reflection.kt` | `declarationModifiers`(`BuildASTPhase+ModifiersAndNames.swift`)がアノテーション引数のトークン列を素朴にスキャンしており、`@MyAnnotation(value = "hello")`のような named 引数 `value`/`inline` を後続宣言の修飾子(value class/inline)と誤認する — 6行で再現する一般的なパースバグ | `declarationAnnotations`/`AnnotationParsingSupport.parseAnnotation`と同様にアノテーション引数のトークン範囲をスキップするよう修正 |
 | `kclass_members.kt` | `KClass.properties`/`memberProperties`/`functions`等はSemaの特別扱い(`CallTypeChecker+KClassMemberCallInference.swift`)で合成`List<Any>`を返すのみで、要素の`KFunction`/`KProperty`が実装を持たず`.name`等が解決できない(KSP-496で意図的に未対応と明記) | KSP-496のRuntimeオブジェクトモデル作業待ち |
 | `mock_objects.kt` | `VisibilityChecker.isAccessible`が「外側クラスから入れ子private classのメンバーへ」のみ許可し、逆方向(入れ子private classのコンストラクタを、同じ外側クラスの兄弟メソッドから呼ぶ)を誤って拒否する。テスト自体もrefで別の理由(publicコンストラクタがprivateクラスを露出)により拒否される設計ミスあり | `VisibilityChecker.swift`の入れ子private classコンストラクタ可視性チェックを、outer class自身のスコープに対して行うよう修正 |
 
-### グループ6: JVM interop/time(残り4件)
+### グループ6: JVM interop/time(残り1件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `jvm_preview.kt` | `-jvm-target 21`(`@JvmRecord`用)と`kotlin.math.PI`のimport(完全修飾`kotlin.math.PI`を式中に直接書くと"Unresolved reference 'kotlin'"になる別の小さなギャップ)を足すと両方コンパイルは通るが、2つ目のトップレベル`"""..."""".trimIndent()`プロパティ(`sqlQuery`)が`null`を返す(1つ目の`jsonTemplate`は正常)。最小再現(2つのトップレベル`val = """...""".trimIndent()`プロパティを並べるだけ)でも同じ症状を確認済み — トップレベルString初期化子が2件目以降で失われる一般的な初期化順序バグの可能性がある | トップレベルプロパティ初期化子が2件目以降で失われる根本原因を調査(優先度高、影響範囲が広い可能性) |
-| `platform_time_conversion.kt` / `time_edge_cases.kt` | `Instant.fromEpochMilliseconds(1_234)`のようなcompanion-extension呼び出しでInt literalがLongへwideningされない実バグ(両ファイル共通)。`platform_time_conversion.kt`は`toKotlinInstant()`/`toKotlinDuration()`(java.time→kotlin.time方向)も未実装。`time_edge_cases.kt`は`Duration.Companion`の`.seconds`/`.milliseconds`に必要なimportをrefでは要求するがkswiftcは省略を許容しており、要import化すると上記wideningバグが露出する | Int→Long literal wideningをcompanion-extension呼び出し全般で修正(共通根本原因)。`toKotlinInstant`/`toKotlinDuration`実装、importを要求する形にテスト修正 |
-| `test_primitive_conversions.kt` | 存在しない`Char.toUInt()`/`toULong()`/`UByte.toChar()`/`UShort.toChar()`をrefは拒否するが、kswiftcは`UByte`/`UShort.toChar()`は正しく拒否しつつ`Char.toUInt/toULong`だけ独自拡張として誤って受理する。さらに標準の`Int.toChar()`を誤って"deprecated"と警告する | テストの4つの無効行を削除。`Char.toUInt/toULong`の独自拡張を見直し、`Int.toChar()`の誤deprecation警告を修正 |
+| `platform_time_conversion.kt` | `Instant.fromEpochMilliseconds(...)` など companion-extension 呼び出しで Int literal が Long へ widening されない実バグ。`toKotlinInstant()`/`toKotlinDuration()` も未実装 | Int→Long literal widening を companion-extension 呼び出し全般で修正。`toKotlinInstant`/`toKotlinDuration` 実装 |
 
 ### 未実装機能・deepなブロッカー: `contract_returns.kt` / `contracts_basic.kt`
 

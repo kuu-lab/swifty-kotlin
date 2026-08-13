@@ -850,10 +850,7 @@ extension CallLowerer {
     private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
         Set([
             interner.intern("kk_list_random"),
-            interner.intern("kk_list_take"),
-            interner.intern("kk_list_takeLast"),
             interner.intern("kk_sequence_takeLast"),
-            interner.intern("kk_list_drop"),
             interner.intern("kk_list_max"),
             interner.intern("kk_list_minBy"),
             interner.intern("kk_list_min"),
@@ -868,8 +865,6 @@ extension CallLowerer {
             interner.intern("kk_list_sumBy"),
             interner.intern("kk_list_sumByDouble"),
             interner.intern("kk_list_distinctBy"),
-            interner.intern("kk_list_takeWhile"),
-            interner.intern("kk_list_dropLastWhile"),
             interner.intern("__kk_iterable_firstNotNullOf"),
             interner.intern("__kk_iterable_firstNotNullOfOrNull"),
             interner.intern("__kk_iterable_any"),

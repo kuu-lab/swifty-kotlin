@@ -562,11 +562,6 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_list_dropLast", parameters: [
-            p("listRaw", .intptr),
-            p("count", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],

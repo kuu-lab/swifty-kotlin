@@ -145,6 +145,12 @@ public func __kk_throwable_rawStackFrames(_ throwableRaw: Int) -> Int {
     return arrayRaw
 }
 
+@_cdecl("__kk_print_raw")
+public func __kk_print_raw(_ messageRaw: Int) {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+    Swift.print(message, terminator: "")
+}
+
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
@@ -1635,50 +1641,6 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
         }
     }
     return result
-}
-
-/// KSP-614: single low-level console bridge behind `kotlin.io.print`/`println`.
-/// Renders `value` with the runtime's boxed-value formatter and writes it to
-/// stdout without a trailing newline. Newline handling lives in Kotlin
-/// (`Stdlib/kotlin/io/Console.kt`).
-@_cdecl("__kk_print_raw")
-public func __kk_print_raw(_ obj: Int) {
-    Swift.print(runtimeRenderAnyForPrint(obj), terminator: "")
-}
-
-@_cdecl("kk_println_string_flat")
-public func kk_println_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self))
-    return 0
-}
-
-/// Runtime support for printing aggregate String values without a trailing newline.
-@_cdecl("kk_print_string_flat")
-public func kk_print_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null", terminator: "")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self), terminator: "")
-    return 0
 }
 
 /// Runtime support for kotlin.io.DEFAULT_BUFFER_SIZE.

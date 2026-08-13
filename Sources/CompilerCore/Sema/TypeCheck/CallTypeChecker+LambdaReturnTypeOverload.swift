@@ -63,6 +63,18 @@ extension CallTypeChecker {
                 inferredNonLambdaArgTypes[index] = driver.inferExpr(
                     argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
                 )
+            case .uintLiteral:
+                // Contextualize suffixed unsigned literals too. Kotlin narrows
+                // constants such as 1u to UByte/UShort parameters when the value
+                // fits, which is needed by source-backed unsigned extensions.
+                let literalExpectedType = uniformUnsignedLiteralParameterType(
+                    at: index,
+                    candidates: candidates,
+                    sema: sema
+                )
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                )
             case .unaryExpr(let op, let operandID, _):
                 guard (op == .unaryPlus || op == .unaryMinus),
                       case .intLiteral = ast.arena.expr(operandID)
@@ -419,6 +431,37 @@ extension CallTypeChecker {
             guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
                   primitive == .long || primitive == .uint || primitive == .ulong ||
                   primitive == .byte || primitive == .short
+            else {
+                return nil
+            }
+            if let result, result != nonNullParameterType {
+                return nil
+            }
+            result = nonNullParameterType
+        }
+        return result
+    }
+
+    /// Returns the single unsigned parameter type shared by all candidates for a
+    /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
+    /// allows a constant UInt literal to narrow to UByte/UShort or widen to
+    /// ULong when the expected parameter type requires it.
+    private func uniformUnsignedLiteralParameterType(
+        at index: Int,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> TypeID? {
+        var result: TypeID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+            else {
+                return nil
+            }
+            let nonNullParameterType = sema.types.makeNonNullable(parameterType)
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
+                  primitive == .ubyte || primitive == .ushort ||
+                  primitive == .uint || primitive == .ulong
             else {
                 return nil
             }

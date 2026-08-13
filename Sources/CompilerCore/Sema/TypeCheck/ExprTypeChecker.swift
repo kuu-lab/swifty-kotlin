@@ -45,9 +45,14 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: longType)
             return longType
 
-        case .uintLiteral:
-            sema.bindings.bindExprType(id, type: sema.types.uintType)
-            return sema.types.uintType
+        case let .uintLiteral(value, _):
+            let literalType = uintLiteralType(
+                expectedType: expectedType,
+                sema: sema,
+                literalValue: value
+            )
+            sema.bindings.bindExprType(id, type: literalType)
+            return literalType
 
         case .ulongLiteral:
             sema.bindings.bindExprType(id, type: sema.types.ulongType)
@@ -1005,6 +1010,29 @@ final class ExprTypeChecker {
         case .byte: return (literalValue >= -128 && literalValue <= 127) ? sema.types.byteType : defaultType
         case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : defaultType
         default: return defaultType
+        }
+    }
+
+    /// Resolves a suffixed unsigned integer literal against an expected unsigned
+    /// type. Kotlin permits constant unsigned literals such as 1u to narrow to
+    /// UByte/UShort (and widen to ULong) at a call site when the value fits.
+    private func uintLiteralType(expectedType: TypeID?, sema: SemaModule, literalValue: UInt64) -> TypeID {
+        guard let expectedType else {
+            return sema.types.uintType
+        }
+        let nonNullExpected = sema.types.makeNonNullable(expectedType)
+        guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullExpected) else {
+            return sema.types.uintType
+        }
+        switch primitive {
+        case .ulong:
+            return sema.types.ulongType
+        case .ubyte:
+            return literalValue <= UInt64(UInt8.max) ? sema.types.ubyteType : sema.types.uintType
+        case .ushort:
+            return literalValue <= UInt64(UInt16.max) ? sema.types.ushortType : sema.types.uintType
+        default:
+            return sema.types.uintType
         }
     }
 }

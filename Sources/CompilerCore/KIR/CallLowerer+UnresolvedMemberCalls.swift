@@ -153,8 +153,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_onEachIndexed")
             case "partition":
                 return interner.intern("kk_list_partition")
-            case "subList":
-                return interner.intern("kk_list_subList")
             default:
                 break
             }

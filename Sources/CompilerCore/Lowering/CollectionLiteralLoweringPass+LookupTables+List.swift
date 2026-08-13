@@ -73,8 +73,6 @@ struct ListLookupNames {
     let kkListMaxOfWithOrNullName: InternedString
     let kkListMinOfWithName: InternedString
     let kkListMinOfWithOrNullName: InternedString
-    let kkListTakeName: InternedString
-    let kkListDropName: InternedString
     let kkListSumName: InternedString
     let kkListReversedName: InternedString
     let kkListAsReversedName: InternedString
@@ -95,7 +93,6 @@ struct ListLookupNames {
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
     let kkListPartitionName: InternedString
-    let kkListTakeWhileName: InternedString
     // ListIterator member names (STDLIB-538)
     let listIteratorMemberName: InternedString
     let hasPreviousName: InternedString
@@ -169,8 +166,6 @@ struct ListLookupNames {
         kkListMaxOfWithOrNullName = interner.intern("kk_list_maxOfWithOrNull")
         kkListMinOfWithName = interner.intern("kk_list_minOfWith")
         kkListMinOfWithOrNullName = interner.intern("kk_list_minOfWithOrNull")
-        kkListTakeName = interner.intern("kk_list_take")
-        kkListDropName = interner.intern("kk_list_drop")
         kkListSumName = interner.intern("kk_list_sum")
         kkListReversedName = interner.intern("kk_list_reversed")
         kkListAsReversedName = interner.intern("kk_list_as_reversed")
@@ -191,7 +186,6 @@ struct ListLookupNames {
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")
         kkListPartitionName = interner.intern("kk_list_partition")
-        kkListTakeWhileName = interner.intern("kk_list_takeWhile")
         // ListIterator member names (STDLIB-538)
         listIteratorMemberName = interner.intern("listIterator")
         hasPreviousName = interner.intern("hasPrevious")

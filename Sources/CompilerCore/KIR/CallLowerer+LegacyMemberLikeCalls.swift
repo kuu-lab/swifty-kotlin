@@ -2548,8 +2548,6 @@ extension CallLowerer {
                     primitiveSelectorKind != nil ? "kk_list_sortedByDescending_primitive" : "kk_list_sortedByDescending"
                 case "distinctBy":
                     "kk_list_distinctBy"
-                case "dropLastWhile":
-                    "kk_list_dropLastWhile"
                 case "sortedWith":
                     "kk_list_sortedWith"
                 case "maxOf":
@@ -2595,7 +2593,6 @@ extension CallLowerer {
                         callArguments.append(kindExpr)
                     }
                     let canThrow = runtimeCallee == "kk_list_distinctBy"
-                        || runtimeCallee == "kk_list_dropLastWhile"
                         || runtimeCallee == "kk_list_minBy"
                         || runtimeCallee == "kk_list_min"
                     instructions.append(.call(

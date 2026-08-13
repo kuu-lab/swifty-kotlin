@@ -2707,6 +2707,14 @@ struct RuntimeStringArrayTests {
         Int(bitPattern: makeRuntimeString(value))
     }
 
+    private func kk_println_any(_ value: Int) {
+        __kk_print_raw(rawFromRuntimeString(runtimeRenderAnyForPrint(value) + "\n"))
+    }
+
+    private func kk_println_any(_ value: UnsafeMutableRawPointer?) {
+        kk_println_any(Int(bitPattern: value))
+    }
+
     private func makeRuntimeArray(_ values: [Int]) -> Int {
         let array = kk_array_new(values.count)
         var thrown = 0

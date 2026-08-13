@@ -25,6 +25,10 @@ struct NativeEmitter {
     /// DW_ATE_signed – DWARF attribute encoding for signed integers.
     static let dwarfATESigned: UInt32 = 5
 
+    /// Legacy void/no-argument runtime call set retained for ABI compatibility.
+    /// Print and println are source-backed, so this intentionally stays empty.
+    static let knownVoidNoArgCallees: Set<String> = []
+
     /// Quick lookup for runtime ABI function specs by symbol name.
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
