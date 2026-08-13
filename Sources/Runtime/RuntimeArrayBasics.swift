@@ -188,60 +188,6 @@ public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
 }
 
-// MARK: - List to unsigned primitive array conversions (KSP-629)
-
-/// Collection<UByte>.toUByteArray(): UByteArray
-@_cdecl("kk_list_toUByteArray")
-public func kk_list_toUByteArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toUByteArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_int(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<UShort>.toUShortArray(): UShortArray
-@_cdecl("kk_list_toUShortArray")
-public func kk_list_toUShortArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toUShortArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_int(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<UInt>.toUIntArray(): UIntArray
-@_cdecl("kk_list_toUIntArray")
-public func kk_list_toUIntArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toUIntArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_int(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
-/// Collection<ULong>.toULongArray(): ULongArray
-@_cdecl("kk_list_toULongArray")
-public func kk_list_toULongArray(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toULongArray")
-    }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_ulong(elem)
-    }
-    return registerRuntimeObject(box)
-}
-
 // MARK: - Primitive array to List conversions
 
 /// IntArray.toList(): List<Int>

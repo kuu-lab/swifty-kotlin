@@ -66,7 +66,7 @@ struct CodegenBackendMathEdgeCasesTests {
 
             // DEBT-DIFF-006 regression: keep List<Double> iteration in the
             // same test method so SwiftPM does not grow the generated
-            // XCTest discovery expression with another entry.
+            // Swift Testing discovery expression with another entry.
             val values = listOf(3.2, 3.7, -2.3)
             for (value in values) {
                 println(round(value))

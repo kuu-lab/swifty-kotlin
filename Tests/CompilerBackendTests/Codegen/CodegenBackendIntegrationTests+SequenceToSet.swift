@@ -6,11 +6,7 @@ import Testing
 
 @Suite
 struct CodegenBackendSequenceToSetTests {
-    #if canImport(ObjectiveC)
     private let pipelineHelper = CodegenBackendTestSupport()
-    #else
-    private let pipelineHelper = CodegenBackendTestSupport(name: "SequenceToSet", testClosure: { _ in })
-    #endif
 
     private func assertKotlinOutput(
         _ source: String,

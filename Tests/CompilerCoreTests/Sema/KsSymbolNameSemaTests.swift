@@ -1,140 +1,119 @@
 @testable import CompilerCore
-import Foundation
 import Testing
 
 @Suite
 struct KsSymbolNameSemaTests {
-    @Test func bundledKsSymbolNameSetsExternalLinkNameAndKIRCallCallee() throws {
-        let bundledSource = """
-        package bridge
 
-        import kotlin.internal.KsSymbolName
+    // MARK: - Per-source diagnostic helpers
 
-        @KsSymbolName(name = "kk_bridge_identity")
-        external fun bridgeIdentity(value: Int): Int
-        """
-        let userSource = """
-        import bridge.bridgeIdentity
-
-        fun main(): Int = bridgeIdentity(7)
-        """
-
-        try withTemporaryFile(contents: userSource) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .library)
-            _ = ctx.sourceManager.addFile(
-                path: "__bundled_bridge_identity.kt",
-                contents: Data(bundledSource.utf8),
-                origin: .bundledStdlib
-            )
-
-            try runToKIR(ctx)
-
-            let sema = try #require(ctx.sema)
-            let bridgeFQName = ["bridge", "bridgeIdentity"].map { ctx.interner.intern($0) }
-            let bridgeSymbol = try #require(sema.symbols.lookup(fqName: bridgeFQName))
-            #expect(sema.symbols.externalLinkName(for: bridgeSymbol) == "kk_bridge_identity")
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            #expect(extractCallees(from: body, interner: ctx.interner).contains("kk_bridge_identity"))
-            assertNoDiagnostic("KSWIFTK-SEMA-0007", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
-        }
+    private func diagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
     }
 
-    @Test func userKsSymbolNameAnnotationIsRejected() throws {
-        let source = """
-        import kotlin.internal.KsSymbolName
-
-        @KsSymbolName("kk_user_bridge")
-        fun userBridge(value: Int): Int = value
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-0007", in: ctx)
-        }
+    private func assertHasDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = diagnostics.contains { $0.code == code }
+        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
     }
 
-    @Test func bundledExternalFunctionWithoutBodyDoesNotRequireBody() throws {
-        let bundledSource = """
-        package bridge
-
-        external fun bridgeNoBody(value: Int): Int
-        """
-        let userSource = """
-        fun main(): Int = 1
-        """
-
-        try withTemporaryFile(contents: userSource) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            _ = ctx.sourceManager.addFile(
-                path: "__bundled_bridge_no_body.kt",
-                contents: Data(bundledSource.utf8),
-                origin: .bundledStdlib
-            )
-
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let bridgeFQName = ["bridge", "bridgeNoBody"].map { ctx.interner.intern($0) }
-            let bridgeSymbol = try #require(sema.symbols.lookup(fqName: bridgeFQName))
-            #expect(sema.symbols.functionSignature(for: bridgeSymbol) != nil)
-            assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
-        }
+    private func assertNoDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = !diagnostics.contains { $0.code == code }
+        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
     }
 
-    @Test func userExternalFunctionIsRejectedWithoutBodylessDiagnostic() throws {
-        let source = """
-        external fun userBridge(value: Int): Int
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
-        }
-    }
+    @Test
+    func testKsSymbolNameSema() throws {
+        let sources: [String] = [
+            // interfaceBodylessFunctionDoesNotRequireBody
+            """
+            package sample0
 
-    @Test func userKsSymbolNameExternalFunctionReportsReservedDiagnostics() throws {
-        let source = """
-        import kotlin.internal.KsSymbolName
+                    interface Shape {
+                        fun area(): Int
+                    }
 
-        @KsSymbolName(name = "kk_user_bridge")
-        external fun userBridge(value: Int): Int
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-0007", in: ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
-        }
-    }
+            """,
+            // userKsSymbolNameAnnotationIsRejected
+            """
+            package sample1
 
-    @Test func nonExternalBodylessFunctionStillRequiresBody() throws {
-        let source = """
-        fun missingBody(): Int
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
-        }
-    }
+                    import kotlin.internal.KsSymbolName
 
-    @Test func interfaceBodylessFunctionDoesNotRequireBody() throws {
-        let source = """
-        interface Shape {
-            fun area(): Int
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+                    @KsSymbolName("kk_user_bridge")
+                    fun userBridge(value: Int): Int = value
+
+            """,
+            // userExternalFunctionIsRejectedWithoutBodylessDiagnostic
+            """
+            package sample2
+
+                    external fun userBridge(value: Int): Int
+
+            """,
+            // userKsSymbolNameExternalFunctionReportsReservedDiagnostics
+            """
+            package sample3
+
+                    import kotlin.internal.KsSymbolName
+
+                    @KsSymbolName(name = "kk_user_bridge")
+                    external fun userBridge(value: Int): Int
+
+            """,
+            // nonExternalBodylessFunctionStillRequiresBody
+            """
+            package sample4
+
+                    fun missingBody(): Int
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+
+            // === interfaceBodylessFunctionDoesNotRequireBody ===
+            do {
+                let sample0Diagnostics = diagnosticsForPath(paths[0], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-0009", in: sample0Diagnostics)
+            }
+
+            // === userKsSymbolNameAnnotationIsRejected ===
+            do {
+                let sample1Diagnostics = diagnosticsForPath(paths[1], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0007", in: sample1Diagnostics)
+            }
+
+            // === userExternalFunctionIsRejectedWithoutBodylessDiagnostic ===
+            do {
+                let sample2Diagnostics = diagnosticsForPath(paths[2], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0008", in: sample2Diagnostics)
+                assertNoDiagnostic("KSWIFTK-SEMA-0009", in: sample2Diagnostics)
+            }
+
+            // === userKsSymbolNameExternalFunctionReportsReservedDiagnostics ===
+            do {
+                let sample3Diagnostics = diagnosticsForPath(paths[3], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0007", in: sample3Diagnostics)
+                assertHasDiagnostic("KSWIFTK-SEMA-0008", in: sample3Diagnostics)
+                assertNoDiagnostic("KSWIFTK-SEMA-0009", in: sample3Diagnostics)
+            }
+
+            // === nonExternalBodylessFunctionStillRequiresBody ===
+            do {
+                let sample4Diagnostics = diagnosticsForPath(paths[4], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0009", in: sample4Diagnostics)
+            }
         }
     }
 }

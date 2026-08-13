@@ -75,18 +75,6 @@ struct CollectionLiteralLookupTables {
     var kkListAssociateToName: InternedString { listLookup.kkListAssociateToName }
     var kkListForEachName: InternedString { listLookup.kkListForEachName }
     var kkCollectionToCollectionName: InternedString { listLookup.kkCollectionToCollectionName }
-    var kkListFoldName: InternedString { listLookup.kkListFoldName }
-    var kkListFoldRightName: InternedString { listLookup.kkListFoldRightName }
-    var kkListReduceName: InternedString { listLookup.kkListReduceName }
-    var kkListReduceRightName: InternedString { listLookup.kkListReduceRightName }
-    var kkListReduceRightIndexedName: InternedString { listLookup.kkListReduceRightIndexedName }
-    var kkListReduceRightIndexedOrNullName: InternedString { listLookup.kkListReduceRightIndexedOrNullName }
-    var kkListReduceRightOrNullName: InternedString { listLookup.kkListReduceRightOrNullName }
-    var kkListReduceOrNullName: InternedString { listLookup.kkListReduceOrNullName }
-    var kkListScanName: InternedString { listLookup.kkListScanName }
-    var kkListRunningFoldName: InternedString { listLookup.kkListRunningFoldName }
-    var kkListRunningReduceName: InternedString { listLookup.kkListRunningReduceName }
-    var kkListScanReduceName: InternedString { listLookup.kkListScanReduceName }
     var kkListGroupByName: InternedString { listLookup.kkListGroupByName }
     var kkListGroupByTransformName: InternedString { listLookup.kkListGroupByTransformName }
     var kkListSortedByName: InternedString { listLookup.kkListSortedByName }
@@ -107,13 +95,6 @@ struct CollectionLiteralLookupTables {
     var kkIndexingIterableNextName: InternedString { listLookup.kkIndexingIterableNextName }
     var kkListOnEachName: InternedString { listLookup.kkListOnEachName }
     var kkListOnEachIndexedName: InternedString { listLookup.kkListOnEachIndexedName }
-    var kkListFoldIndexedName: InternedString { listLookup.kkListFoldIndexedName }
-    var kkListFoldRightIndexedName: InternedString { listLookup.kkListFoldRightIndexedName }
-    var kkListReduceIndexedName: InternedString { listLookup.kkListReduceIndexedName }
-    var kkListReduceIndexedOrNullName: InternedString { listLookup.kkListReduceIndexedOrNullName }
-    var kkListRunningFoldIndexedName: InternedString { listLookup.kkListRunningFoldIndexedName }
-    var kkListRunningReduceIndexedName: InternedString { listLookup.kkListRunningReduceIndexedName }
-    var kkListScanIndexedName: InternedString { listLookup.kkListScanIndexedName }
     var kkListSumOfName: InternedString { listLookup.kkListSumOfName }
     var kkListSumByName: InternedString { listLookup.kkListSumByName }
     var kkListSumByDoubleName: InternedString { listLookup.kkListSumByDoubleName }
@@ -326,10 +307,7 @@ struct CollectionLiteralLookupTables {
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-    var kkListToUByteArrayName: InternedString { arrayLookup.kkListToUByteArrayName }
-    var kkListToUShortArrayName: InternedString { arrayLookup.kkListToUShortArrayName }
-    var kkListToUIntArrayName: InternedString { arrayLookup.kkListToUIntArrayName }
-    var kkListToULongArrayName: InternedString { arrayLookup.kkListToULongArrayName }
+
     var kkArrayMapName: InternedString { arrayLookup.kkArrayMapName }
     var kkArrayFilterName: InternedString { arrayLookup.kkArrayFilterName }
     var kkArrayForEachName: InternedString { arrayLookup.kkArrayForEachName }
@@ -459,11 +437,6 @@ struct CollectionLiteralLookupTables {
     var kkBuildListWithCapacityName: InternedString { builderDSLLookup.kkBuildListWithCapacityName }
     var kkBuildSetName: InternedString { builderDSLLookup.kkBuildSetName }
     var kkBuildMapName: InternedString { builderDSLLookup.kkBuildMapName }
-    var addAllName: InternedString { builderDSLLookup.addAllName }
-    var putName: InternedString { builderDSLLookup.putName }
-    var kkBuilderSetAddName: InternedString { builderDSLLookup.kkBuilderSetAddName }
-    var kkBuilderSetAddAllName: InternedString { builderDSLLookup.kkBuilderSetAddAllName }
-    var kkBuilderMapPutName: InternedString { builderDSLLookup.kkBuilderMapPutName }
     var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }
     var kkMutableSetRemoveName: InternedString { builderDSLLookup.kkMutableSetRemoveName }
     var builderDSLNames: Set<InternedString> { builderDSLLookup.builderDSLNames }

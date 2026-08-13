@@ -758,7 +758,7 @@ struct RuntimeStringArrayTests {
     func testFlatStringBooleanRuntimeAPIsReturnRawScalars() {
         #expect(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0) == 1)
         #expect(kk_string_isNullOrBlank_flat(nil, 0, 0, 0) == 1)
-        #expect(kk_string_toBoolean_flat(nil, 0, 0, 0) == 0)
+        #expect(__kk_string_toBoolean_flat(nil, 0, 0, 0) == 0)
 
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             #expect(kk_string_isEmpty_flat(data, length, byteCount, hash) == 0)
@@ -783,12 +783,12 @@ struct RuntimeStringArrayTests {
         }
 
         withFlatString("true") { data, length, byteCount, hash in
-            #expect(kk_string_toBoolean_flat(data, length, byteCount, hash) == 1)
-            #expect(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 1)
+            #expect(__kk_string_toBoolean_flat(data, length, byteCount, hash) == 1)
+            #expect(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 1)
         }
 
         withFlatString("false") { data, length, byteCount, hash in
-            #expect(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 0)
+            #expect(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 0)
         }
     }
 
@@ -813,57 +813,57 @@ struct RuntimeStringArrayTests {
 
     @Test
     func testFlatStringParseScalarRuntimeAPIsUseFlattenedStringFields() {
-        #expect(kk_unbox_bool(kk_string_toBoolean_flat(nil, 0, 0, 0)) == 0)
+        #expect(kk_unbox_bool(__kk_string_toBoolean_flat(nil, 0, 0, 0)) == 0)
 
         withFlatString("true") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(kk_string_toBoolean_flat(data, length, byteCount, hash)) == 1)
-            #expect(kk_unbox_bool(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil)) == 1)
-            #expect(kk_string_toBooleanStrictOrNull_flat(data, length, byteCount, hash) == 1)
+            #expect(kk_unbox_bool(__kk_string_toBoolean_flat(data, length, byteCount, hash)) == 1)
+            #expect(kk_unbox_bool(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil)) == 1)
+            #expect(__kk_string_toBooleanStrictOrNull_flat(data, length, byteCount, hash) == 1)
         }
 
         withFlatString("42") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(__kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 42)
             #expect(thrown == 0)
-            #expect(kk_string_toLong_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(__kk_string_toLong_flat(data, length, byteCount, hash, &thrown) == 42)
             #expect(thrown == 0)
-            #expect(kk_string_toShort_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(__kk_string_toShort_flat(data, length, byteCount, hash, &thrown) == 42)
             #expect(thrown == 0)
-            #expect(kk_string_toByte_flat(data, length, byteCount, hash, &thrown) == 42)
+            #expect(__kk_string_toByte_flat(data, length, byteCount, hash, &thrown) == 42)
             #expect(thrown == 0)
-            #expect(kk_string_toIntOrNull_flat(data, length, byteCount, hash) == 42)
-            #expect(kk_string_toLongOrNull_flat(data, length, byteCount, hash) == 42)
-            #expect(kk_string_toShortOrNull_flat(data, length, byteCount, hash) == 42)
-            #expect(kk_string_toByteOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toIntOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toLongOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toShortOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(__kk_string_toByteOrNull_flat(data, length, byteCount, hash) == 42)
         }
 
         withFlatString("ff") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_toInt_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(__kk_string_toInt_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
             #expect(thrown == 0)
-            #expect(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(__kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
             #expect(thrown == 0)
-            #expect(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
             #expect(thrown == 0)
-            #expect(kk_string_toByte_radix_flat(data, length, byteCount, hash, 16, &thrown) == 0)
+            #expect(__kk_string_toByte_radix_flat(data, length, byteCount, hash, 16, &thrown) == 0)
             #expect(thrown != 0)
         }
 
         withFlatString("ffff") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt16.max))
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt16.max))
             #expect(thrown == 0)
         }
 
         withFlatString("ffffffff") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt32.max))
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt32.max))
             #expect(thrown == 0)
         }
 
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
             #expect(thrown == 0)
         }
 
@@ -885,11 +885,11 @@ struct RuntimeStringArrayTests {
 
         withFlatString("nope") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 0)
+            #expect(__kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 0)
             #expect(thrown != 0)
             let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
             #expect(thrownOutput.contains("NumberFormatException"))
-            #expect(kk_string_toIntOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
+            #expect(__kk_string_toIntOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
             #expect(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
             #expect(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash) == runtimeNullSentinelInt)
         }
@@ -1940,13 +1940,13 @@ struct RuntimeStringArrayTests {
     func testStringToIntSuccessAndFailure() {
         var thrown = 0
         withFlatString("42") { data, length, byteCount, hash in
-            let value = kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
+            let value = __kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
             #expect(thrown == 0)
             #expect(value == 42)
         }
 
         withFlatString("4x") { data, length, byteCount, hash in
-            _ = kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
+            _ = __kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
         }
         #expect(thrown != 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
@@ -1958,7 +1958,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("10") { data, length, byteCount, hash in
-            _ = kk_string_toInt_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            _ = __kk_string_toInt_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
         #expect(thrown != 0)
@@ -1971,11 +1971,11 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("ff") { data, length, byteCount, hash in
-            #expect(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(__kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
             #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            #expect(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
     }
@@ -1985,7 +1985,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
         #expect(result == runtimeNullSentinelInt)
@@ -1999,15 +1999,15 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("ff") { data, length, byteCount, hash in
-            #expect(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == 255)
             #expect(thrown == 0)
         }
         withFlatString("100") { data, length, byteCount, hash in
-            #expect(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            #expect(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
     }
@@ -2017,7 +2017,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
         #expect(result == runtimeNullSentinelInt)
@@ -2031,15 +2031,15 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("ffff") { data, length, byteCount, hash in
-            #expect(kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt16.max))
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt16.max))
             #expect(thrown == 0)
         }
         withFlatString("10000") { data, length, byteCount, hash in
-            #expect(kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            #expect(kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
     }
@@ -2049,7 +2049,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
         #expect(result == runtimeNullSentinelInt)
@@ -2063,15 +2063,15 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("ffffffff") { data, length, byteCount, hash in
-            #expect(kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt32.max))
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(UInt32.max))
             #expect(thrown == 0)
         }
         withFlatString("100000000") { data, length, byteCount, hash in
-            #expect(kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            #expect(kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
     }
@@ -2081,7 +2081,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
         #expect(result == runtimeNullSentinelInt)
@@ -2095,15 +2095,15 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
-            #expect(kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
             #expect(thrown == 0)
         }
         withFlatString("10000000000000000") { data, length, byteCount, hash in
-            #expect(kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
         withFlatString("xz") { data, length, byteCount, hash in
-            #expect(kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
+            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == runtimeNullSentinelInt)
             #expect(thrown == 0)
         }
     }
@@ -2113,7 +2113,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         let result = withFlatString("10") { data, length, byteCount, hash in
-            kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+            __kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
         }
 
         #expect(result == runtimeNullSentinelInt)

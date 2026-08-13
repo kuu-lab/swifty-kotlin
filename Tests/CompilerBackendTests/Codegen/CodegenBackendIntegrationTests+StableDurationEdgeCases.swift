@@ -26,7 +26,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: target,
-        irFlags: irFlags
+        irFlags: irFlags,
+        allowDefaultStdlibLibrary: false
     )
     let ctx = CompilationContext(
         options: options,

@@ -6,9 +6,9 @@ import Testing
 /// STDLIB-TEXT-FN-107: `fun String.toShortOrNull(): Short?` in `kotlin.text`.
 ///
 /// Verifies:
-/// - The synthetic stub registered for `String.toShortOrNull` links to the
-///   runtime symbol `kk_string_toShortOrNull` declared in
-///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
+/// - `String.toShortOrNull` is source-backed after KSP-414 and no longer
+///   exposes a public `kk_string_toShortOrNull` runtime link; it bridges through
+///   the private `__kk_string_toShortOrNull` runtime symbol.
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Short?`.
 /// - An elvis fallback on the nullable result type-checks correctly, narrowing
@@ -38,14 +38,20 @@ struct StringToShortOrNullFunctionTests {
         let fq = ["kotlin", "text", "toShortOrNull"].map { interner.intern($0) }
         let allLinks = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            allLinks.contains("kk_string_toShortOrNull"),
-            "lookupAll for toShortOrNull must include kk_string_toShortOrNull; got: \(allLinks)"
+            !allLinks.contains("kk_string_toShortOrNull") && !allLinks.contains("__kk_string_toShortOrNull"),
+            "lookupAll for toShortOrNull must not include public or private string parse links; got: \(allLinks)"
         )
 
         let symbol = try #require(sema.symbols.lookup(fqName: fq))
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_toShortOrNull",
-            "String.toShortOrNull should link to kk_string_toShortOrNull"
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "String.toShortOrNull should be source-backed and have no C external link"
+        )
+
+        let bridgeFq = ["kotlin", "text", "__kk_string_toShortOrNull"].map { interner.intern($0) }
+        #expect(
+            sema.symbols.externalLinkName(for: try #require(sema.symbols.lookup(fqName: bridgeFq))) == "__kk_string_toShortOrNull",
+            "Private __kk_string_toShortOrNull bridge should be registered"
         )
     }
 }
