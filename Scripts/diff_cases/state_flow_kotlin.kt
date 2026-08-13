@@ -1,3 +1,5 @@
+// SKIP-DIFF (DEBT-DIFF-001): KSwiftK's bundled stateIn/shareIn signatures intentionally differ from JVM kotlinx.coroutines, so kotlinc cannot be an oracle.
+
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
