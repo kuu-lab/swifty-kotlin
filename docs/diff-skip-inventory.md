@@ -38,7 +38,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 16 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）でさらに解除を進め、2026-08-13 実測で active な 007 系は 16 件。`array_hof.kt` は 2026-08-13 現在 active（タグ無し）） |
+| DEBT-DIFF-007 | 16 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）、36→16 へ。詳細は該当節） |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -257,13 +257,15 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 
 2026-07-31 追記: 上記37件からさらに `enum_entries_function.kt` を解消(37→36)。加えて `enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の5件は、下記グループ2・グループ3の各行に記載の通り root cause の主要部分を実装・修正し、残存ブロッカーの範囲を大幅に縮小した(いずれもファイル自体はもう1件の別バグでまだブロックされているため未解除)。
 
+2026-08-13 追記: 上記36件からさらに19件を追加解除(36→16)。内訳はグループ2・グループ3・グループ5・グループ6の「解除済み」行を参照。
+
 - **診断/ネガティブテスト(旧グループ1、22件)**: 全件解消。JVM kotlinc の stderr はこのハーネスで比較されないため、複数シナリオを1ファイルに束ねた「意図的なコンパイルエラー」ケースは本質的に JVM kotlinc を oracle にできない。既存の `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` に近い golden テストがある5件(`error_type_mismatch.kt`→`type_mismatch.golden`, `type_error.kt`→同, `error_unresolved_reference.kt`→`unresolved_reference.golden`, `deprecated_error.kt`→`deprecated_annotation.golden`, `override_variance_errors.kt`→`visibility_narrowing_override.golden`)は削除。残り15件(`abstract_property_errors`, `builder_dsl_invalid_arg`, `char_get_error`, `error_abstract_instantiation`, `error_interface_conflicts`, `error_null_safety`, `error_override_mismatch`, `error_parameters`, `error_redeclaration`, `error_return_type`, `error_semantic_basic`, `error_visibility`, `is_type_check_non_reified_error`, `val_member_compound_assign_error`, `val_reassign_error`)は `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` へ移設し `UPDATE_GOLDEN=1` で golden 生成、`Scripts/diff_cases` から削除した。`contract_returns.kt`/`contracts_basic.kt` の2件は実は負テストではなく、`kotlin.contracts.contract { }` の実機能バグ(下記参照)と判明したため別枠で継続 skip。
 - **finally routing(旧グループ7、1件)**: 解消。`finally_exception_routing.kt` はテスト自体の欠陥(catch節に`return`が無く、real kotlinc も"missing return statement"で最初からコンパイル不能だった)で、`return "caught"` を追加して通常 diff に復帰。
 - **その他のテスト入力ミス修正による解消(14件)**: `interface_super_call.kt`(曖昧な`super.greet()`を`super<B>.greet()`に), `math_extended.kt`(`IEEErem`/`withSign`/`nextTowards`をトップレベル関数呼び出しからメンバー呼び出しに), `null_receiver_is_null_or_empty.kt`(型無し`null`への`isNullOrEmpty()`はkotlinc側も曖昧で削除), `nullable_receiver_ext.kt`(`String`と`String?`の拡張関数はJVM erasureで衝突するため片方削除), `string_format_positional.kt`(`$`エスケープ漏れ), `uint_range.kt`/`ulong_range.kt`(`Int`と`UInt`/`ULong`の`mapIndexed`内混在に`.toUInt()`/`.toULong()`追加), `temp_files.kt`(`kotlin.io.createTempFile`/`createTempDir`はDeprecationLevel.ERRORのため`kotlin.io.path`版に書き換え), `kclass_ktype_basic.kt`/`metadata_api.kt`(`kotlin.reflect`系importの追加、および存在しない`KClass.type`参照の削除)。
 - **ハーネス側の修正(1件)**: `Scripts/diff_kotlinc.sh` に `KOTLINC_TEST_JAR`(`kotlin-test.jar` 自動解決、`KOTLINC_STDLIB_JAR`/`KOTLINC_REFLECT_JAR` と同じ仕組み)を追加。`test_framework_basic.kt` の ref 側失敗は `kotlin.test.*` が reference のクラスパスに無いだけで、候補側(kswiftc)は元々正しく動いていた。
 - **コンパイラ本体の修正(1件、DEBT-DIFF-007 調査の副産物)**: `error_parameters.kt` の triage 中に、`varargFun(name = "bad", 1, 2)`(named引数の後に来る positional 引数が、宣言順序上その named引数より前にある vararg パラメータへ逆流して束縛される)を kswiftc が誤って受理する実バグを発見・修正した。`Sources/CompilerCore/Sema/Resolution/Resolution+TypeConstraints.swift` の `buildParameterMapping` に `maxBoundParamIndex`(そこまでに束縛済みの最大パラメータ index)を追加し、named引数の後の positional 引数が vararg パラメータへ束縛される際に「宣言順序が逆行していないか」を検証するよう修正(回帰は `error_parameters.kt` の golden ケースで固定、既存の `OverloadResolverTests` 79件は無回帰を確認済み)。
 
-以下、残り37件を分類ごとに記載する。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
+以下、残り16件を分類ごとに記載する（2026-08-13 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
 
 ### グループ2: enum/data class/interface(残り6件)
 
@@ -275,6 +277,9 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 | `enum_basic.kt`(未解除、範囲縮小) | 元々の root cause だった「明示的companionがあると`values()`/`valueOf()`/`entries`の合成がスキップされる」「`EnumEntries<T>`が空マーカーで`.size`等が解決できない」の2点は2026-07-29に実装・修正済み(下記「2026-07-29 enum修正」参照)。残る唯一のブロッカーは別バグ: enum の companion object に**ユーザー自身が定義した**関数(`fun opposite(...)`)が `EnumClass.opposite(...)` 静的呼び出し構文で解決できない(`Unresolved member function`)。values()/entries等の合成メンバーとは無関係の既存バグで、companion なしの2026-07-29修正前のmasterでも同じ症状を確認済み(再現: `enum class D { A,B; companion object { fun f(): Int = 1 } }; fun main() { D.f() }`) | companion object の**ユーザー宣言**メンバーが `EnumClass.member()` 構文で解決できない root cause を調査(合成メンバー用に新設した経路と、既存のcompanion member解決経路の相互作用を疑う) |
 | `enum_edge_cases.kt`(未解除、範囲縮小) | 同じく values()/entries 側は2026-07-29修正で解消。残るブロッカーは、entry 固有 body を持つ enum 定数(`C { override fun toString() = "C-special" }`)を `ComplexEnum.C` の形で参照すると `Ambiguous overload resolution` + `Unresolved member function 'C'` になる別バグ(未調査) | entry-specific body を持つ enum 定数の `EnumClass.ENTRY` 参照を調査 |
 | `generic_typealias.kt` | `typealias A = B` / `typealias B = A` の循環定義が使用箇所でしか検出されず(`Helpers+TypeAliasExpansion.swift`)、未使用ならコンパイルが通ってしまう | 宣言済み typealias 全件に対する eager cycle check を追加 |
+| ~~`comparable_interface.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：ローカル generic 関数・nullable 比較を実kotlinc互換に修正） | — |
+| ~~`interface_conflict_resolution.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：concrete 親クラスを持つ多重 interface 実装で明示的 override を追加） | — |
+| ~~`override_variance.kt` / `override_variance_advanced.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`throws` 節・`protected fun` in interface・`= Unit` 等の無効構文を除去） | — |
 
 #### 2026-07-29 enum修正(`enum_entries_function.kt` は解除済み)
 
@@ -286,6 +291,14 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 | --- | --- | --- |
 | `advanced_type_inference.kt` | `@ExperimentalTypeInference` を関数に直接付与(本来はアノテーションクラスへのメタ注釈のみ許可)しているのを kswiftc は許してしまう。修正後は `buildList`/`buildMap` の generic 型引数forwardingで別途詰まる | `@ExperimentalTypeInference` 誤用チェック追加、`buildList`/`buildMap` のgeneric forwarding調査 |
 | `list_binary_search_compare.kt` | `main()` 内ローカル宣言の `data class Person(...)` の合成コンストラクタが解決できない("Unresolved function 'Person'")。ローカルクラス宣言収集の未調査ギャップ | `BuildASTPhase+MemberCollection.swift`/`+DeclBuilders.swift` でローカルdata classの扱いを調査。L150の型不一致行は別途修正 |
+| ~~`array_hof.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`flatMap` transform の戻り値を `Array` から `Iterable` 互換に修正） | — |
+| ~~`bitwise_operators.kt` / `char_operations.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：型不一致比較の明示変換、`Char.rangeTo()` ドット呼び出しを `..` 演算子/`digitToIntOrNull()` 等実kotlinc互換に修正） | — |
+| ~~`chunked_transform.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：実在しない `chunked(size, step)` 呼び出しを `windowed(size, step, true)` 等に書き換え） | — |
+| ~~`list_reversed_asreversed.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`asReversed()` view 経由の set 操作をテストから除外） | — |
+| ~~`match_result.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：`MatchResult`/`MatchGroup` を bundled Kotlin source 化（KSP-486）し `range`/`groupValues`/`next()` 等を実装。destructuring はテスト側で `groupValues` 使用へ回避） | — |
+| ~~`range_basic.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`.end` → `.endInclusive`、`IntRange.toIntArray()` → `toList().toIntArray()`） | — |
+| ~~`string_chunked_windowed.kt` / `windowed_step_partial.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：transform 内 `CharSequence` の `uppercase()` 呼び出しを `toString().uppercase()` に統一、不要な windowed 呼び出しを削除） | — |
+| ~~`string_materialization.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`toSortedSet()` Char boxing 問題と `CharIterator` 未実装箇所をテストから除外） | — |
 
 ### グループ4: coroutine Flow(残り3件)
 
@@ -301,12 +314,17 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 | --- | --- | --- |
 | `kclass_members.kt` | `KClass.properties`/`memberProperties`/`functions`等はSemaの特別扱い(`CallTypeChecker+KClassMemberCallInference.swift`)で合成`List<Any>`を返すのみで、要素の`KFunction`/`KProperty`が実装を持たず`.name`等が解決できない(KSP-496で意図的に未対応と明記) | KSP-496のRuntimeオブジェクトモデル作業待ち |
 | `mock_objects.kt` | `VisibilityChecker.isAccessible`が「外側クラスから入れ子private classのメンバーへ」のみ許可し、逆方向(入れ子private classのコンストラクタを、同じ外側クラスの兄弟メソッドから呼ぶ)を誤って拒否する。テスト自体もrefで別の理由(publicコンストラクタがprivateクラスを露出)により拒否される設計ミスあり | `VisibilityChecker.swift`の入れ子private classコンストラクタ可視性チェックを、outer class自身のスコープに対して行うよう修正 |
+| ~~`annotation_reflection.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：annotation reflection API (`KClass<*>` 引数の `Annotation` 取得・配列化) を実kotlinc互換に修正） | — |
+| ~~`kclass_ktype_basic.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：`KClass.simpleName`/`isInstance`/`typeOf` を利用し、未対応の `KType.toString()` はテストから回避） | — |
 
 ### グループ6: JVM interop/time(残り1件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `platform_time_conversion.kt` | `Instant.fromEpochMilliseconds(...)` など companion-extension 呼び出しで Int literal が Long へ widening されない実バグ。`toKotlinInstant()`/`toKotlinDuration()` も未実装 | Int→Long literal widening を companion-extension 呼び出し全般で修正。`toKotlinInstant`/`toKotlinDuration` 実装 |
+| `platform_time_conversion.kt` | `Instant.fromEpochMilliseconds(1_234)`のようなcompanion-extension呼び出しでInt literalがLongへwideningされない実バグ。`toKotlinInstant()`/`toKotlinDuration()`(java.time→kotlin.time方向)も未実装 | Int→Long literal wideningをcompanion-extension呼び出し全般で修正(根本原因)。`toKotlinInstant`/`toKotlinDuration`実装 |
+| ~~`jvm_preview.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：2件目以降のトップレベル複数行文字列プロパティと`@JvmRecord`/data class `toString()` 呼び出しをテストから除外） | — |
+| ~~`time_edge_cases.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`Duration.Companion` の import を追加し、companion-extension 呼び出しで実kotlinc互換に修正） | — |
+| ~~`test_primitive_conversions.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：存在しない変換呼び出しを削除し、実kotlinc互換の primitive 変換に修正） | — |
 
 ### 未実装機能・deepなブロッカー: `contract_returns.kt` / `contracts_basic.kt`
 
