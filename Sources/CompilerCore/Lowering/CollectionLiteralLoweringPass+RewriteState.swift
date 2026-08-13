@@ -14,7 +14,6 @@ extension CollectionLiteralLoweringSupport {
 
         var listIteratorExprIDs: Set<Int32> = []
         var mapIteratorExprIDs: Set<Int32> = []
-        var stringIteratorExprIDs: Set<Int32> = []
         var iteratorBuilderExprIDs: Set<Int32> = []
         var indexingIterableExprIDs: Set<Int32> = []
         var indexingIterableIteratorExprIDs: Set<Int32> = []
@@ -69,9 +68,6 @@ extension CollectionLiteralLoweringSupport {
             }
             if mapIteratorExprIDs.contains(from.rawValue) {
                 mapIteratorExprIDs.insert(to.rawValue)
-            }
-            if stringIteratorExprIDs.contains(from.rawValue) {
-                stringIteratorExprIDs.insert(to.rawValue)
             }
             if fileExprIDs.contains(from.rawValue) {
                 fileExprIDs.insert(to.rawValue)

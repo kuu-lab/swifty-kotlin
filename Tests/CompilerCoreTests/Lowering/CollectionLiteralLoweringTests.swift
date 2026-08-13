@@ -149,12 +149,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(
-            callees.contains("kk_string_iterator_flat"),
-            "String iterator lowering should target the flat ABI, got: \(callees)"
-        )
-        #expect(
-            !callees.contains("kk_string_iterator"),
-            "String iterator lowering must not leave the raw String ABI, got: \(callees)"
+            !callees.contains { $0.hasPrefix("kk_string_") && $0.contains("iterator") },
+            "String iterator lowering must use the bundled Kotlin iterator, got: \(callees)"
         )
     }
 

@@ -236,9 +236,6 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             let flatNames = [
-                "kk_string_toSortedSet_flat",
-                "kk_string_toCollection_flat",
-                "kk_string_withIndex_flat",
                 "kk_string_zipWithNext_flat",
                 "kk_string_zipWithNextTransform_flat",
                 "kk_string_zip_flat",
@@ -253,9 +250,6 @@ struct BuildKIRCodegenRegressionTests {
             }
 
             let rawNames = [
-                "kk_string_toSortedSet",
-                "kk_string_toCollection",
-                "kk_string_withIndex",
                 "kk_string_zipWithNext",
                 "kk_string_zipWithNextTransform",
                 "kk_string_zip",

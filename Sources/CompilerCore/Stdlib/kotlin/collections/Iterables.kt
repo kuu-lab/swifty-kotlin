@@ -5,6 +5,13 @@ package kotlin.collections
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
 // so it works for List, Set and any user-defined Iterable alike.
 
+public fun <T> Iterable<T>.toList(): List<T> {
+    val result = mutableListOf<T>()
+    val iterator = iterator()
+    while (iterator.hasNext()) result.add(iterator.next())
+    return result
+}
+
 public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)

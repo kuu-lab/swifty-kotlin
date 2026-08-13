@@ -658,9 +658,6 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_hasNext(iterRaw)
     }
-    if runtimeStringIteratorBox(from: iterRaw) != nil {
-        return kk_string_iterator_hasNext(iterRaw)
-    }
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
@@ -683,9 +680,6 @@ public func kk_iterator_next(_ iterRaw: Int) -> Int {
     }
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_next(iterRaw)
-    }
-    if runtimeStringIteratorBox(from: iterRaw) != nil {
-        return kk_string_iterator_next(iterRaw)
     }
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_next(iterRaw)

@@ -1749,9 +1749,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         let hex = String(format: "%x", UInt(bitPattern: raw) % 0x1_0000_0000)
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
-    if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        return runtimeRenderStringIterableForPrint(iterableBox.source)
-    }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
@@ -1788,11 +1785,6 @@ func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
     default:
         return runtimeRenderAnyForPrint(value.payload0)
     }
-}
-
-private func runtimeRenderStringIterableForPrint(_ string: String) -> String {
-    let rendered = string.unicodeScalars.map { String(Character($0)) }.joined(separator: ", ")
-    return "[\(rendered)]"
 }
 
 private func runtimeNormalizeScientificExponent(_ rendered: String) -> String {

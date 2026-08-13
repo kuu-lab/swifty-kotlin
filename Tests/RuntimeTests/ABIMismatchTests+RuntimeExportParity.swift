@@ -81,7 +81,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_string_chunked_sequence_transform",
             "__kk_string_toByte",
             "__kk_string_toByte_radix",
-            "kk_string_toCharArray",
             "__kk_string_toRegex_with_option",
             "__kk_string_toRegex_with_options",
             "__kk_string_toShort",

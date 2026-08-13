@@ -366,15 +366,11 @@ struct StringSyntheticMemberLinkTests {
                         )
                     }
 
-                    let expected: [String: String] = [
-                        "toList": "kk_string_toList",
-                        "toCharArray": "kk_string_toCharArray_flat",
-                        "toTypedArray": "kk_string_toTypedArray_flat",
-                    ]
-                    for (member, expectedLink) in expected {
+                    let sourceBackedMembers = ["toList", "toMutableList", "toCharArray", "toTypedArray"]
+                    for member in sourceBackedMembers {
                         #expect(
-                            externalLink(for: member, sema: sema, interner: interner) == expectedLink,
-                            "String.\(member) should link to \(expectedLink)"
+                            externalLink(for: member, sema: sema, interner: interner) == nil,
+                            "String.\(member) must resolve to bundled Kotlin source"
                         )
                     }
         }
@@ -394,16 +390,11 @@ struct StringSyntheticMemberLinkTests {
         do {
             // Originally testStringCollectionAndSequenceResultStubsUseFlatExternalLinks
                     let expected: [(member: String, parameterCount: Int, link: String)] = [
-                        ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
-                        ("toCollection", 1, "kk_string_toCollection_flat"),
-                        ("asIterable", 0, "kk_string_asIterable_flat"),
                         ("chunked", 1, "kk_string_chunked_flat"),
                         ("windowed", 1, "kk_string_windowed_default"),
                         ("windowed", 2, "kk_string_windowed"),
                         ("windowed", 3, "kk_string_windowed_partial"),
                         ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
-                        ("asSequence", 0, "kk_string_asSequence_flat"),
-                        ("withIndex", 0, "kk_string_withIndex_flat"),
                     ]
 
                     for item in expected {
@@ -1419,7 +1410,7 @@ struct StringSyntheticMemberLinkTests {
 
                 let chosenCalleeCandidate = callExprIDs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }.first
                 let chosenCallee = try #require(chosenCalleeCandidate)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_withIndex_flat")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
 
             }
 

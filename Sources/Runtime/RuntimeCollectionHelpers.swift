@@ -181,9 +181,6 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeCollectionValues(from: rawValue) {
         return values
     }
-    if let stringIterable = runtimeStringIterableBox(from: rawValue) {
-        return stringIterable.source.utf16.map { RuntimeValue(charScalar: Int($0)) }
-    }
     if let indexingIterable = runtimeIndexingIterableBox(from: rawValue),
        let list = runtimeListBox(from: indexingIterable.listRaw)
     {
@@ -214,32 +211,6 @@ func runtimeListIteratorBox(from rawValue: Int) -> RuntimeListIteratorBox? {
         return nil
     }
     return tryCast(ptr, to: RuntimeListIteratorBox.self)
-}
-
-func runtimeStringIteratorBox(from rawValue: Int) -> RuntimeStringIteratorBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeStringIteratorBox.self)
-}
-
-func runtimeStringIterableBox(from rawValue: Int) -> RuntimeStringIterableBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeStringIterableBox.self)
 }
 
 func runtimeIndexingIterableBox(from rawValue: Int) -> RuntimeIndexingIterableBox? {
@@ -445,22 +416,6 @@ private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoint
 func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {
     let raw = registerRuntimeObject(box as AnyObject)
     registerIteratorItable(raw: raw, hasNext: runtimeMapIteratorHasNextThunk, next: runtimeMapIteratorNextThunk)
-    return raw
-}
-
-private let runtimeStringIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_string_iterator_hasNext(iterRaw)
-}
-
-private let runtimeStringIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_string_iterator_next(iterRaw)
-}
-
-func registerRuntimeObject(_ box: RuntimeStringIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    registerIteratorItable(raw: raw, hasNext: runtimeStringIteratorHasNextThunk, next: runtimeStringIteratorNextThunk)
     return raw
 }
 

@@ -1273,65 +1273,21 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toList" {
+                if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toList_flat"),
+                        callee: interner.intern("kk_string_toInt_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
+                        canThrow: true,
                         thrownResult: nil
                     ))
                     return result
                 }
-                if calleeStr == "toMutableList" {
+                if calleeStr == "toIntOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toMutableList"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toSortedSet" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toSortedSet_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toCollection" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toCollection_flat"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "asIterable" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_asIterable_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toCharArray" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toCharArray_flat"),
+                        callee: interner.intern("kk_string_toIntOrNull_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1439,39 +1395,6 @@ extension CallLowerer {
                         arguments: callArguments,
                         result: result,
                         canThrow: hasTransform,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "asSequence" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_asSequence_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "asIterable" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_asIterable_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "withIndex" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_withIndex_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
                         thrownResult: nil
                     ))
                     return result
@@ -2849,28 +2772,6 @@ extension CallLowerer {
                     isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
-                default:
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-            // String Iterable<Char> — route toList/iterator to specialised runtime (STDLIB-317)
-            if isStringIterableType(nonNullReceiverType, sema: sema, interner: interner) {
-                let runtimeCallee: String? = switch interner.resolve(calleeName) {
-                case "toList":
-                    "kk_string_iterable_toList"
-                case "iterator":
-                    "kk_string_iterable_iterator"
                 default:
                     nil
                 }

@@ -659,6 +659,19 @@ public func kk_list_toHashSet(_ listRaw: Int) -> Int {
 
 
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
+    let isObjectPointer: Bool = if let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) {
+        runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: pointer))
+        }
+    } else {
+        false
+    }
+    if isObjectPointer,
+       let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+       let charBox = tryCast(pointer, to: RuntimeCharBox.self)
+    {
+        return RuntimeValue(charScalar: charBox.value)
+    }
     if !currentValues.isEmpty,
        currentValues.allSatisfy({ $0.tag == RuntimeValue.charTag })
     {
