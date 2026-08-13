@@ -27,6 +27,7 @@ extension CallLowerer {
     }
 
 
+    // KSP-423: preserve the Kotlin defaults when a named range argument skips fromIndex.
     func materializeBinarySearchDefaultArguments(
         _ defaultMask: Int64,
         receiverExpr: ExprID,
