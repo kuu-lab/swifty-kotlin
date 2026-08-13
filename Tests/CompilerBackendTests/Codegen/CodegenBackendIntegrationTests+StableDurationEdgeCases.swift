@@ -19,7 +19,9 @@ private func runCodegenPipeline(
     CompilerOptions.defaultStdlibLibraryPath = nil
     defer { CompilerOptions.defaultStdlibLibraryPath = savedStdlibLibraryPath }
 
-    let target = defaultTargetTriple()
+    // defaultTargetTriple() prepares the shared stdlib cache and overwrites the
+    // explicit source-injection opt-out above.
+    let target = TargetTriple.hostDefault()
     let options = CompilerOptions(
         moduleName: moduleName,
         inputs: [inputPath],
