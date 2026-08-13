@@ -13,9 +13,9 @@ import Testing
 //   - String.lowercase(Locale)             → kk_string_lowercase_locale_flat
 //   - String.uppercase(Locale)             → kk_string_uppercase_locale_flat
 //   - String.compareTo(String, Locale)     → __kk_string_compareTo_locale_flat
-//   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
-//   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
-//   - String.toIntOrNull(radix)            → kk_string_toIntOrNull_radix
+//   - String.toInt(radix)                  → source-backed (bridges through __kk_string_toInt_radix)
+//   - String.toIntOrNull()                 → source-backed (bridges through __kk_string_toIntOrNull)
+//   - String.toIntOrNull(radix)            → source-backed (bridges through __kk_string_toIntOrNull_radix)
 //   - String.format(format, vararg args)   → __kk_string_format_flat  (platform fmt, no locale overload)
 //   - String.Companion.format(locale, format, vararg args) → __kk_string_format_locale_flat
 //   - Char.uppercase()                     → __kk_char_uppercase_string  (returns String per Kotlin spec)

@@ -86,6 +86,23 @@ struct LibMetadataSerializationTests {
         #expect(!decoded[0].isSealedClass)
     }
 
+    @Test func testMetadataEncoderDecoderRoundTripForOpenClassFlag() {
+        let record = MetadataRecord(
+            kind: .class,
+            mangledName: "_kk_open_Base",
+            fqName: "demo.Base",
+            isOpenClass: true
+        )
+        let encoder = MetadataEncoder()
+        let serialized = encoder.serialize([record])
+        #expect(serialized.contains("openClass=1"))
+
+        let decoder = MetadataDecoder()
+        let decoded = decoder.decode(serialized)
+        #expect(decoded.count == 1)
+        #expect(decoded[0].isOpenClass)
+    }
+
     @Test func testMetadataEncoderDecoderRoundTripForSealedClassFlag() {
         let record = MetadataRecord(
             kind: .class,
@@ -299,6 +316,45 @@ struct LibMetadataSerializationTests {
             #expect(pointSymbol != nil)
             #expect(pointSymbol?.flags.contains(.dataType) ?? false)
             #expect(!(pointSymbol?.flags.contains(.sealedType) ?? true))
+        }
+    }
+
+    @Test func testMetadataImportRestoresOpenClassFlagViaLibrary() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtOpenClass",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=1
+        class _kk_Base fq=ext.Base schema=v1 fields=0 layoutWords=2 vtable=0 itable=0 openClass=1
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "OpenClassImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let baseSymbol = sema.symbols.allSymbols().first { symbol in
+                ctx.interner.resolve(symbol.name) == "Base" && symbol.kind == .class
+            }
+            #expect(baseSymbol != nil)
+            #expect(baseSymbol?.flags.contains(.openType) ?? false)
+            #expect(!(baseSymbol?.flags.contains(.sealedType) ?? true))
         }
     }
 

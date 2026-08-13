@@ -32,6 +32,14 @@ struct RuntimeKTypeReflectionTests {
         }
     }
 
+    private func kk_println_any(_ value: Int) {
+        __kk_print_raw(makeRuntimeString(runtimeRenderAnyForPrint(value) + "\n"))
+    }
+
+    private func kk_println_any(_ value: UnsafeMutableRawPointer?) {
+        kk_println_any(Int(bitPattern: value))
+    }
+
     private func registerKClassMetadata(typeToken: Int, qualifiedName: String, simpleName: String) {
         let qualifiedNameRaw = makeRuntimeString(qualifiedName)
         let simpleNameRaw = makeRuntimeString(simpleName)

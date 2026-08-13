@@ -33,9 +33,9 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // KSP-628: the List receivers of toTypedArray / to{Char,Boolean,Short,Double,
-    // Float,Int,Long,Byte}Array are source-backed (ArrayConversions.kt) and lower
-    // through normal function resolution.
+    // KSP-628 + KSP-629: the List receivers of toTypedArray /
+    // to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array
+    // are source-backed (ArrayConversions.kt) and lower through normal function resolution.
 
     // toTypedArray() on array → kk_array_copyOf (STDLIB-087)
     if callee == lookup.toTypedArrayName, arguments.count == 1 {
@@ -46,35 +46,6 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkArrayCopyOfName,
-                arguments: [receiverID],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
-    }
-
-    let unsignedArrayCallee: InternedString? = switch callee {
-    case lookup.toUByteArrayName: lookup.kkListToUByteArrayName
-    case lookup.toUShortArrayName: lookup.kkListToUShortArrayName
-    case lookup.toUIntArrayName: lookup.kkListToUIntArrayName
-    case lookup.toULongArrayName: lookup.kkListToULongArrayName
-    default: nil
-    }
-    if let unsignedArrayCallee, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: unsignedArrayCallee,
                 arguments: [receiverID],
                 result: toArrayResult,
                 canThrow: false,

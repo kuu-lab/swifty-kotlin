@@ -68,6 +68,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `digital_signature.kt`: `Signature` / `CertificateFactory` / `CertPathValidator` parity for signing and certificate validation
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
+- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` の bundled Kotlin source 移行後の candidate-only 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと異なるため `SKIP-DIFF`、kotlinx classpath 必須）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity

@@ -4,60 +4,220 @@ import Foundation
 import Testing
 
 extension CompilerCoreTests {
-    @Test func testCallRejectsSpreadForNonVarargParameter() throws {
-        let source = """
-        fun take(x: Int) = x
-        fun use() = take(*1)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
+    @Test func testImportsAndExtensionResolutionSema() throws {
+        let sources: [String] = [
+            // testCallRejectsSpreadForNonVarargParameter
+            """
+            package sample0
+                    fun take(x: Int) = x
+                    fun use() = take(*1)
 
-    @Test func testSemaAllowsOverloadedTopLevelFunctionsWithoutDuplicateDiagnostic() throws {
-        let source = """
-        fun pick(x: Int) = x
-        fun pick(x: String) = x
-        fun use() = pick(1)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
 
-        assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
+            // testSemaAllowsOverloadedTopLevelFunctionsWithoutDuplicateDiagnostic
+            """
+            package sample1
+                    fun pick(x: Int) = x
+                    fun pick(x: String) = x
+                    fun use() = pick(1)
 
-    /// KSP-673: a package-scope extension sharing the callee's simple name but
-    /// declaring an unrelated receiver must not blot out the implicit
-    /// receiver's own member in an unqualified call.
-    @Test func testUnqualifiedCallPrefersImplicitReceiverMemberOverForeignExtension() throws {
-        let source = """
-        class Counter(var value: Int) {
-            fun compareAndSet(expected: Int, newValue: Int): Boolean = true
+            """,
+
+            // testUnqualifiedCallPrefersImplicitReceiverMemberOverForeignExtension
+            """
+            package sample2
+                    class Counter(var value: Int) {
+                        fun compareAndSet(expected: Int, newValue: Int): Boolean = true
+                    }
+                    class Flag(var raised: Boolean)
+                    fun Flag.compareAndSet(expected: Boolean, newValue: Boolean): Boolean = true
+                    fun Counter.bump(): Boolean = compareAndSet(value, value + 1)
+
+            """,
+
+            // testInferredExpressionBodyReturnTypeCanFlowIntoTypedCall
+            """
+            package sample3
+                    fun foo() = 1
+                    fun takesInt(a: Int) = a
+                    fun bar() = takesInt(foo())
+
+            """,
+
+            // testSemaResolvesNullableReceiverExtensionWithoutSafeCall
+            """
+            package sample4
+                    fun String?.isNullOrEmpty(): Boolean = this == null || this.length == 0
+
+                    fun useNullableReceiver(s: String?): Int {
+                        val fromNullable = s.isNullOrEmpty()
+                        val fromNullLiteral = null.isNullOrEmpty()
+                        return if (fromNullable || fromNullLiteral) 1 else 0
+                    }
+
+            """,
+
+            // testSemaResolvesUnqualifiedExtensionCallWithImplicitReceiver
+            """
+            package sample5
+                    fun String.ext() = 1
+                    fun String.wrap() = ext()
+
+            """,
+
+            // testGenericIdentityFunctionIsInferredAtCallSite
+            """
+            package sample6
+                    fun <T> id(x: T): T = x
+                    fun takesInt(a: Int) = a
+                    fun main() = takesInt(id(1))
+
+            """,
+
+            // testGenericConstraintFailureReportsTypeDiagnostic
+            """
+            package sample7
+                    fun <T> id(x: T): T = x
+                    fun bad(): Boolean = id(1)
+
+            """,
+
+            // testImportAliasUnresolvedPathDiagnostic
+            """
+            package sample8
+                    package app
+                    import nonexistent.Thing as X
+                    fun use() = 1
+
+            """,
+
+            // testImportAliasEmptyAliasNameIsIgnored
+            """
+            package sample9
+                    package app
+                    import kotlin.io.println as
+                    fun use() = 1
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testCallRejectsSpreadForNonVarargParameter
+
+            do {
+                let sample0Path = paths[0]
+                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+
+            }
+            // testSemaAllowsOverloadedTopLevelFunctionsWithoutDuplicateDiagnostic
+
+            do {
+                let sample1Path = paths[1]
+                let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0001", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+
+            }
+            // testUnqualifiedCallPrefersImplicitReceiverMemberOverForeignExtension
+
+            do {
+                let sample2Path = paths[2]
+                let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: sampleDiags)
+
+            }
+            // testInferredExpressionBodyReturnTypeCanFlowIntoTypedCall
+
+            do {
+                let sample3Path = paths[3]
+                let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+
+            }
+            // testSemaResolvesNullableReceiverExtensionWithoutSafeCall
+
+            do {
+                let sample4Path = paths[4]
+                let sampleDiags = diagnosticsForPath(sample4Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0051", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+
+            }
+            // testSemaResolvesUnqualifiedExtensionCallWithImplicitReceiver
+
+            do {
+                let sample5Path = paths[5]
+                let sampleDiags = diagnosticsForPath(sample5Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+
+            }
+            // testGenericIdentityFunctionIsInferredAtCallSite
+
+            do {
+                let sample6Path = paths[6]
+                let sampleDiags = diagnosticsForPath(sample6Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+
+            }
+            // testGenericConstraintFailureReportsTypeDiagnostic
+
+            do {
+                let sample7Path = paths[7]
+                let sampleDiags = diagnosticsForPath(sample7Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+
+            }
+            // testImportAliasUnresolvedPathDiagnostic
+
+            do {
+                let sample8Path = paths[8]
+                let sampleDiags = diagnosticsForPath(sample8Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0024", in: sampleDiags)
+
+            }
+            // testImportAliasEmptyAliasNameIsIgnored
+
+            do {
+                let sample9Path = paths[9]
+                let sampleDiags = diagnosticsForPath(sample9Path, in: ctx)
+
+
+                        // Parser should insert missing token; alias with empty name is skipped
+                        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: sampleDiags)
+
+            }
+
         }
-        class Flag(var raised: Boolean)
-        fun Flag.compareAndSet(expected: Boolean, newValue: Boolean): Boolean = true
-        fun Counter.bump(): Boolean = compareAndSet(value, value + 1)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    @Test func testInferredExpressionBodyReturnTypeCanFlowIntoTypedCall() throws {
-        let source = """
-        fun foo() = 1
-        fun takesInt(a: Int) = a
-        fun bar() = takesInt(foo())
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
 
     @Test func testBuildASTParsesExtensionFunctionReceiverType() throws {
         let source = """
@@ -87,6 +247,7 @@ extension CompilerCoreTests {
         }
     }
 
+
     @Test func testBuildASTParsesNullableExtensionFunctionReceiverType() throws {
         let source = """
         fun String?.echoNullable(): String = this ?: ""
@@ -114,24 +275,6 @@ extension CompilerCoreTests {
         }
     }
 
-    @Test func testSemaResolvesNullableReceiverExtensionWithoutSafeCall() throws {
-        let source = """
-        fun String?.isNullOrEmpty(): Boolean = this == null || this.length == 0
-
-        fun useNullableReceiver(s: String?): Int {
-            val fromNullable = s.isNullOrEmpty()
-            val fromNullLiteral = null.isNullOrEmpty()
-            return if (fromNullable || fromNullLiteral) 1 else 0
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0051", in: ctx)
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
 
     @Test func testBuildASTParsesClassTypeParameterVariance() throws {
         let source = """
@@ -154,40 +297,6 @@ extension CompilerCoreTests {
         #expect(classDecl.typeParams.map { ctx.interner.resolve($0.name) } == ["T", "U", "V"])
     }
 
-    @Test func testSemaResolvesUnqualifiedExtensionCallWithImplicitReceiver() throws {
-        let source = """
-        fun String.ext() = 1
-        fun String.wrap() = ext()
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
-    @Test func testGenericIdentityFunctionIsInferredAtCallSite() throws {
-        let source = """
-        fun <T> id(x: T): T = x
-        fun takesInt(a: Int) = a
-        fun main() = takesInt(id(1))
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
-
-    @Test func testGenericConstraintFailureReportsTypeDiagnostic() throws {
-        let source = """
-        fun <T> id(x: T): T = x
-        fun bad(): Boolean = id(1)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-    }
 
     @Test func testSemaResolvesTopLevelFunctionAcrossFilesInSamePackage() throws {
         let sources = [
@@ -206,6 +315,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
+
     @Test func testSemaResolvesExplicitImportAcrossPackages() throws {
         let sources = [
             """
@@ -223,6 +333,7 @@ extension CompilerCoreTests {
 
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
+
 
     @Test func testExplicitImportWinsOverDefaultImportForSameName() throws {
         let sources = [
@@ -253,6 +364,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
     }
 
+
     @Test func testImportAliasWildcardDiagnostic() throws {
         let sources = [
             """
@@ -270,6 +382,7 @@ extension CompilerCoreTests {
 
         assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
     }
+
 
     @Test func testImportAliasDuplicateDiagnostic() throws {
         let sources = [
@@ -291,17 +404,6 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    @Test func testImportAliasUnresolvedPathDiagnostic() throws {
-        let source = """
-        package app
-        import nonexistent.Thing as X
-        fun use() = 1
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-    }
 
     @Test func testImportAliasResolvesAcrossPackages() throws {
         let sources = [
@@ -320,6 +422,7 @@ extension CompilerCoreTests {
 
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
+
 
     @Test func testImportAliasReturnTypeIsInferred() throws {
         let sources = [
@@ -345,6 +448,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
+
     @Test func testImportAliasMultipleDistinctAliasesInSameFile() throws {
         let sources = [
             """
@@ -366,6 +470,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
+
     @Test func testImportAliasCoexistsWithNonAliasedImport() throws {
         let sources = [
             """
@@ -386,18 +491,5 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    @Test func testImportAliasEmptyAliasNameIsIgnored() throws {
-        let source = """
-        package app
-        import kotlin.io.println as
-        fun use() = 1
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        // Parser should insert missing token; alias with empty name is skipped
-        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-    }
 }
 #endif

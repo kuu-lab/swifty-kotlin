@@ -31,8 +31,8 @@ struct SequenceElementAtOrNullFunctionTests {
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         #expect(
-            links.contains("kk_sequence_elementAtOrNull"),
-            Comment(rawValue: "Expected Sequence.elementAtOrNull synthetic member to link to kk_sequence_elementAtOrNull, found: \(links)")
+            links.isEmpty,
+            Comment(rawValue: "Expected Sequence.elementAtOrNull to be backed by source, found: \(links)")
         )
     }
 }

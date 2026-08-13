@@ -121,16 +121,9 @@ extension CallTypeChecker {
     }
 
     func builderDSLKind(for name: InternedString, interner: StringInterner) -> BuilderDSLKind? {
-        let knownNames = KnownCompilerNames(interner: interner)
-        switch name {
-        // buildList is fully Kotlinized and uses @ExperimentalTypeInference (KSP-622).
-        case knownNames.buildSet:
-            return .buildSet
-        case knownNames.buildMap:
-            return .buildMap
-        default:
-            return nil
-        }
+        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
+        // and use @ExperimentalTypeInference. They no longer use builder-DSL special handling.
+        return nil
     }
 
     func shouldUseBuilderDSLSpecialHandling(
@@ -166,12 +159,9 @@ extension CallTypeChecker {
         else {
             return false
         }
-        let knownNames = KnownCompilerNames(interner: interner)
         if symbol.fqName[1] == collectionsName {
-            // buildList is fully Kotlinized (KSP-622); buildSet/buildMap still use
-            // builder DSL special handling until their own migration (KSP-623).
-            return calleeName == knownNames.buildSet
-                || calleeName == knownNames.buildMap
+            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
+            return false
         }
         return false
     }

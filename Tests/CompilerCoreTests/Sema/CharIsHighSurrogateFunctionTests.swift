@@ -4,76 +4,251 @@ import Testing
 
 /// STDLIB-TEXT-PROP-006: Validates that `Char.isHighSurrogate()` resolves through
 /// Sema for plain Char receivers as well as literal / branch contexts.
-/// KSP-663: This is now a bundled Kotlin source function in kotlin.text
-/// (no synthetic `kk_char_isHighSurrogate` runtime link).
+/// KSP-663: this is backed by bundled Kotlin source and has no synthetic runtime link.
 @Suite
 struct CharIsHighSurrogateFunctionTests {
 
-    // MARK: - Shared Sema context
+    // MARK: - Per-source diagnostic helpers
 
-    private static let sharedSources: [String] = [
-        """
-        package sample0
-        fun highSurrogateCheck(ch: Char): Boolean {
-            return ch.isHighSurrogate()
-        }
-
-        fun highSurrogateCheckLiteral(): Boolean {
-            return 'A'.isHighSurrogate()
-        }
-
-        fun highSurrogateCheckBoundary(): Boolean {
-            return '\\uD800'.isHighSurrogate()
-        }
-
-        fun highSurrogateCheckIfBranch(ch: Char): Int {
-            return if (ch.isHighSurrogate()) 1 else 0
-        }
-        """,
-        """
-        package sample1
-        fun noop() {}
-        """
-    ]
-
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
-
-    private func sharedCtx() throws -> CompilationContext {
-        if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.sharedSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedCtx = ctx
-        return ctx
-    }
-    @Test func testCharIsHighSurrogateResolvesInSource() throws {
-
-        let ctx = try sharedCtx()
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected Char.isHighSurrogate() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+    private func diagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
     }
 
-    @Test func testCharIsHighSurrogateResolvesToSourceFunction() throws {
-        let ctx = try sharedCtx()
-        let sema = try #require(ctx.sema)
-        let fq = ["kotlin", "text", "isHighSurrogate"].map { ctx.interner.intern($0) }
-        let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
+    private func diagnosticsForPath(
+        _ path: String,
+        withCode code: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
+    }
+
+    private func assertHasDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = diagnostics.contains { $0.code == code }
+        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
+    }
+
+    private func assertNoDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = !diagnostics.contains { $0.code == code }
+        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
+    }
+
+    // MARK: - Path-aware expression search helpers
+
+    private func firstExprIDInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { return exprID }
+        }
+        return nil
+    }
+
+    private func lastExprIDInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        var result: ExprID?
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { result = exprID }
+        }
+        return result
+    }
+
+    private func allExprIDsInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        var results: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { results.append(exprID) }
+        }
+        return results
+    }
+
+    private func memberCallExprIDsInPath(
+        named name: String,
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        interner: StringInterner
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, callee, _, _, range) = expr,
+                  interner.resolve(callee) == name,
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else {
+                return nil
             }
-            return signature.receiverType == sema.types.charType
-                && signature.parameterTypes.isEmpty
-        })
-        #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isHighSurrogate() should return Boolean")
-        #expect(sema.symbols.symbol(symbol)?.declSite != nil, "Char.isHighSurrogate() should be backed by Kotlin source")
-        #expect(sema.symbols.externalLinkName(for: symbol) == nil, "Char.isHighSurrogate() should have no C external link")
+            return exprID
+        }
     }
+
+    private func firstUserObjectLiteralDeclIDInPath(
+        in ast: ASTModule,
+        path: String,
+        sourceManager: SourceManager
+    ) -> DeclID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .objectLiteral(_, declID, _) = expr,
+                  let declID,
+                  let range = ast.arena.exprRange(exprID),
+                  sourceManager.path(of: range.start.file) == path
+            else { continue }
+            return declID
+        }
+        return nil
+    }
+
+    private func findMainBodyStatementsInPath(
+        in ast: ASTModule,
+        path: String,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> [ExprID]? {
+        guard let fileID = sourceManager.fileID(forPath: path) else { return nil }
+        for file in ast.files {
+            guard file.fileID == fileID else { continue }
+            for declID in file.topLevelDecls {
+                guard let decl = ast.arena.decl(declID),
+                      case let .funDecl(function) = decl,
+                      interner.resolve(function.name) == "main",
+                      case let .block(statements, _) = function.body
+                else { continue }
+                return statements
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Consolidated runSema clean tests
+
+    @Test
+    func testRunSemaClean() throws {
+
+        let sources: [String] = [
+            // testCharIsHighSurrogateResolvesInSource
+            """
+            package sample0
+
+                    fun highSurrogateCheck(ch: Char): Boolean {
+                        return ch.isHighSurrogate()
+                    }
+
+                    fun highSurrogateCheckLiteral(): Boolean {
+                        return 'A'.isHighSurrogate()
+                    }
+
+                    fun highSurrogateCheckBoundary(): Boolean {
+                        return '\\uD800'.isHighSurrogate()
+                    }
+
+                    fun highSurrogateCheckIfBranch(ch: Char): Int {
+                        return if (ch.isHighSurrogate()) 1 else 0
+                    }
+
+            """,
+            // testCharIsHighSurrogateResolvesToRuntimeLink
+            """
+            package sample1
+            fun noop() {}
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+
+            let sema = try #require(ctx.sema)
+
+            let interner = ctx.interner
+
+            // === testCharIsHighSurrogateResolvesInSource ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                let errors = sample0Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    "Expected Char.isHighSurrogate() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+
+            }
+
+            // === testCharIsHighSurrogateResolvesToSourceFunction ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+                let path = sample1Path
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                var resolvedLink: String?
+
+                    let fq = ["kotlin", "text", "isHighSurrogate"].map { interner.intern($0) }
+                    let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+                        guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                            return false
+                        }
+                        return signature.receiverType == sema.types.charType
+                            && signature.parameterTypes.isEmpty
+                    })
+                    resolvedLink = sema.symbols.externalLinkName(for: symbol)
+                    #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isHighSurrogate() should return Boolean")
+
+                #expect(sema.symbols.symbol(symbol)?.declSite != nil, "Char.isHighSurrogate() should be backed by Kotlin source")
+                #expect(resolvedLink == nil, "Char.isHighSurrogate() should have no C external link")
+
+            }
+
+        }
+    }
+
 }
+
 #endif

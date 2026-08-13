@@ -235,9 +235,11 @@ class RuntimeArrayBox {
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
+    var backingSetBox: RuntimeSetBox?
 
     init(length: Int, classID: Int64) {
         self.classID = classID
+        self.backingSetBox = nil
         super.init(length: length)
     }
 }

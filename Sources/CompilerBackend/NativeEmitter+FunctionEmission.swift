@@ -18,6 +18,7 @@ extension NativeEmitter {
         runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
         usesRuntimeCallbackRawABI: Bool = false,
         returnsRawStringRuntimeCallback: Bool = false,
+        nameCounter: GeneratedNameCounter,
         diContext: DebugInfoContext? = nil
     ) throws {
         guard let builder = bindings.createBuilder(context: context) else {
@@ -87,7 +88,7 @@ extension NativeEmitter {
             if labelBlocks[id] != nil {
                 continue
             }
-            if let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "L\(id)") {
+            if let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: nameCounter.nextName("L")) {
                 labelBlocks[id] = block
             }
         }
@@ -187,7 +188,6 @@ extension NativeEmitter {
             body: function.body,
             interner: interner
         )
-        var generatedStringLiteralCount: Int32 = 0
         let builderState = EmissionBuilderState(
             builder: builder,
             int64Type: int64Type,
@@ -249,7 +249,7 @@ extension NativeEmitter {
                            lowering: typeLowering,
                            defaultType: int64Type
                        ),
-                       name: "copy_slot_\(target.rawValue)"
+                       name: nameCounter.nextName("copy_slot_")
                    )
                 {
                     let initialValue = zeroLLVMValue(
@@ -1296,65 +1296,65 @@ extension NativeEmitter {
                 // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
                 // reduceRightIndexedOrNull/reduceRightOrNull are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
-                "kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBoolean_flat",
+                "__kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBoolean_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBooleanStrict_flat",
+                "__kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBooleanStrict_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBooleanStrictOrNull_flat",
+                "__kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBooleanStrictOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toInt_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toInt_flat",
+                "__kk_string_toInt_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toInt_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toInt_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toInt_radix_flat",
+                "__kk_string_toInt_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toInt_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toIntOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toIntOrNull_flat",
+                "__kk_string_toIntOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toIntOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toIntOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toIntOrNull_radix_flat",
+                "__kk_string_toIntOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toIntOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toUByteOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toUByteOrNull_radix_flat",
+                "__kk_string_toUByteOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toUByteOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toUShortOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toUShortOrNull_radix_flat",
+                "__kk_string_toUShortOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toUShortOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toUIntOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toUIntOrNull_radix_flat",
+                "__kk_string_toUIntOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toUIntOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toULongOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toULongOrNull_radix_flat",
+                "__kk_string_toULongOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toULongOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
@@ -1370,14 +1370,14 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toLong_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toLong_flat",
+                "__kk_string_toLong_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toLong_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toLongOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toLongOrNull_flat",
+                "__kk_string_toLongOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toLongOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
@@ -1392,31 +1392,31 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toShort_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toShort_flat",
+                "__kk_string_toShort_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toShort_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toShortOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toShortOrNull_flat",
+                "__kk_string_toShortOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toShortOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toByte_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByte_flat",
+                "__kk_string_toByte_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByte_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toByte_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByte_radix_flat",
+                "__kk_string_toByte_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByte_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toByteOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByteOrNull_flat",
+                "__kk_string_toByteOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByteOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
@@ -1789,13 +1789,12 @@ extension NativeEmitter {
             let expectedType = expressionRawID.map { KIRExprID(rawValue: $0) }.flatMap(module.arena.exprType)
             return emitConstantValue(
                 expression,
-                expressionRawID: expressionRawID,
                 expectedType: expectedType,
                 state: builderState,
                 parameterValues: parameterValues,
                 internalFunctions: internalFunctions,
                 globalVariables: globalVariables,
-                generatedStringLiteralCount: &generatedStringLiteralCount,
+                nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
                     declareExternalFunction(named: name, argumentCount: argCount, appendThrownChannel: appendThrown)
                 },
@@ -1810,7 +1809,7 @@ extension NativeEmitter {
                     lowering: typeLowering,
                     defaultType: int64Type
                 )
-                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: "load_\(id.rawValue)")
+                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: nameCounter.nextName("load_"))
                     ?? (zeroLLVMValue(
                         for: module.arena.exprType(id),
                         lowering: typeLowering,
@@ -1876,7 +1875,7 @@ extension NativeEmitter {
                 {
                     globalValue = bridgeStringAggregateToRuntimeRaw(
                         storedValue,
-                        suffix: "store_result_global_\(result.rawValue)"
+                        suffix: nameCounter.nextName("store_result_global_")
                     ) ?? storedValue
                 }
                 _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
@@ -1891,7 +1890,7 @@ extension NativeEmitter {
             if let block = labelBlocks[label] {
                 return block
             }
-            let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "L\(label)")
+            let block = bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: nameCounter.nextName("L"))
             if let block {
                 labelBlocks[label] = block
             }
@@ -2321,22 +2320,20 @@ extension NativeEmitter {
                     continue
                 }
 
-                if calleeName == "kk_println_float" || calleeName == "kk_println_double"
-                    || calleeName == "kk_println_long" || calleeName == "kk_println_char"
-                    || calleeName == "kk_println_bool" || calleeName == "kk_println_ulong"
-                {
-                    let printValue = argumentValues.first ?? zeroValue
-                    if let printFunction = declareExternalFunction(
+                // Keep this collection empty: all print/println calls are lowered
+                // through the bundled Kotlin source and the raw print bridge.
+                if Self.knownVoidNoArgCallees.contains(calleeName) {
+                    if let runtimeFunction = declareExternalFunction(
                         named: calleeName,
-                        argumentCount: 1,
+                        argumentCount: 0,
                         appendThrownChannel: false
                     ) {
                         _ = bindings.buildCall(
                             builder,
-                            functionType: printFunction.type,
-                            callee: printFunction.value,
-                            arguments: [printValue],
-                            name: "println_\(calleeName)_\(instructionIndex)"
+                            functionType: runtimeFunction.type,
+                            callee: runtimeFunction.value,
+                            arguments: [],
+                            name: "\(calleeName)_\(instructionIndex)"
                         )
                     }
                     if usesThrownChannel, let thrownResult {
@@ -3133,7 +3130,7 @@ extension NativeEmitter {
                 if let globalPtr = globalVariables[symbol] {
                     if let loaded = bindings.buildLoad(
                         builder, type: int64Type, pointer: globalPtr,
-                        name: "load_global_\(symbol.rawValue)"
+                        name: nameCounter.nextName("load_global_")
                     ) {
                         let loadedValue = if isStringAggregateType(module.arena.exprType(result)) {
                             bridgeRuntimeRawToStringAggregate(
