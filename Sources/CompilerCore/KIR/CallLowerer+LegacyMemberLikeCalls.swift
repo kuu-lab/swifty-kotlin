@@ -352,7 +352,7 @@ extension CallLowerer {
         // branch below already covers) had no other fallback here, so it fell
         // all the way through to a bare-Kotlin-name "give up" call and
         // produced an unresolved `_reduceRightOrNull` link error.
-        // kk_list_reduceRightOrNull already reads its receiver through
+        // kk_sequence_reduceRightOrNull already reads its receiver through
         // runtimeCollectionElements (List- and Set-compatible), so any
         // concrete collection Sema didn't already bind can use it directly.
         if args.count == 1,
@@ -366,7 +366,7 @@ extension CallLowerer {
             // it keeps going through the dedicated
             // useSequenceRuntimeForCollectionFallback dispatch below (which
             // correctly picks kk_sequence_reduceRightOrNull), rather than
-            // being misrouted to kk_list_reduceRightOrNull and panicking on
+            // being misrouted to kk_sequence_reduceRightOrNull and panicking on
             // an "invalid list handle" (a Sequence handle is not a List
             // handle).
             if isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner),
@@ -374,7 +374,7 @@ extension CallLowerer {
             {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_list_reduceRightOrNull"),
+                    callee: interner.intern("kk_sequence_reduceRightOrNull"),
                     arguments: [loweredReceiverID] + normalizedArgIDs,
                     result: result,
                     canThrow: true,
@@ -1273,28 +1273,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toInt_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toIntOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toIntOrNull_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1520,17 +1498,6 @@ extension CallLowerer {
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
             if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
-                if calleeStr == "toInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toInt_radix_flat"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "windowed" {
                     instructions.append(.call(
                         symbol: nil,
@@ -2338,21 +2305,15 @@ extension CallLowerer {
                 } else if calleeName == interner.intern("subtract") {
                     runtimeCallee = "kk_sequence_subtract"
                 } else if calleeName == interner.intern("reduceRight") {
-                    runtimeCallee = useIterableRuntimeForCollectionFallback
-                        ? "kk_list_reduceRight"
-                        : "kk_sequence_reduceRight"
+                    runtimeCallee = "kk_sequence_reduceRight"
                 } else if calleeName == interner.intern("reduce") {
                     runtimeCallee = "kk_sequence_reduce"
                 } else if calleeName == interner.intern("runningReduceIndexed") {
                     runtimeCallee = "kk_sequence_runningReduceIndexed"
                 } else if calleeName == interner.intern("reduceRightIndexed") {
-                    runtimeCallee = useIterableRuntimeForCollectionFallback
-                        ? "kk_list_reduceRightIndexed"
-                        : "kk_sequence_reduceRightIndexed"
+                    runtimeCallee = "kk_sequence_reduceRightIndexed"
                 } else if calleeName == interner.intern("reduceRightOrNull") {
-                    runtimeCallee = useIterableRuntimeForCollectionFallback
-                        ? "kk_list_reduceRightOrNull"
-                        : "kk_sequence_reduceRightOrNull"
+                    runtimeCallee = "kk_sequence_reduceRightOrNull"
                 } else if calleeName == interner.intern("reduceRightIndexedOrNull") {
                     runtimeCallee = "kk_sequence_reduceRightIndexedOrNull"
                 } else if calleeName == interner.intern("shuffled") {
@@ -2406,10 +2367,8 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_reduceOrNull"
                         || runtimeCallee == "kk_sequence_reduce"
                         || runtimeCallee == "kk_sequence_reduceRightIndexed"
-                        || runtimeCallee == "kk_list_reduceRightIndexed"
                         || runtimeCallee == "kk_sequence_reduceRight"
                         || runtimeCallee == "kk_sequence_reduceRightOrNull"
-                        || runtimeCallee == "kk_list_reduceRightOrNull"
                         || runtimeCallee == "kk_sequence_reduceRightIndexedOrNull"
                         || runtimeCallee == "kk_sequence_runningReduceIndexed"
                         || runtimeCallee == "kk_sequence_ifEmpty"
@@ -2442,9 +2401,7 @@ extension CallLowerer {
                     }
                     if runtimeCallee == "kk_sequence_indexOfFirst"
                         || runtimeCallee == "kk_sequence_reduceRightIndexed"
-                        || runtimeCallee == "kk_list_reduceRightIndexed"
-                        || runtimeCallee == "kk_sequence_reduceRightOrNull"
-                        || runtimeCallee == "kk_list_reduceRightOrNull",
+                        || runtimeCallee == "kk_sequence_reduceRightOrNull",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -2468,7 +2425,7 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if runtimeCallee == "kk_sequence_reduceRight" || runtimeCallee == "kk_list_reduceRight",
+                    if runtimeCallee == "kk_sequence_reduceRight",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(

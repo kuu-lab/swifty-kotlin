@@ -4,16 +4,8 @@ import Testing
 
 @Suite
 struct NativeCInteropCArrayPointerVarTypeAliasTests {
-
-    // MARK: - Shared Sema context
-
-    private static let sharedSources: [String] = [
-        """
-        package sample0
-        fun noop() {}
-        """,
-        """
-        package sample1
+    @Test func testCArrayPointerVar() throws {
+        let source = """
         import kotlinx.cinterop.CArrayPointerVar
         import kotlinx.cinterop.CPointed
 
@@ -21,26 +13,12 @@ struct NativeCInteropCArrayPointerVarTypeAliasTests {
             return value
         }
         """
-    ]
 
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
-    private func sharedCtx() throws -> CompilationContext {
-        if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.sharedSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedCtx = ctx
-        return ctx
-    }
-    @Test func testCArrayPointerVarTypeAliasSurface() throws {
+        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
 
-        let ctx = try sharedCtx()
-        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPackage = ["kotlinx", "cinterop"].map { interner.intern($0) }
@@ -60,16 +38,10 @@ struct NativeCInteropCArrayPointerVarTypeAliasTests {
             args: [.invariant(typeParameterType)],
             nullability: .nonNull
         )))
-
         #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
         #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
         #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
     }
 
-    @Test func testCArrayPointerVarResolvesInSource() throws {
-
-        let ctx = try sharedCtx()
-        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
 }
 #endif

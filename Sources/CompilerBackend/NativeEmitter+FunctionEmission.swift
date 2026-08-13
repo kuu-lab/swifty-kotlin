@@ -1296,65 +1296,65 @@ extension NativeEmitter {
                 // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
                 // reduceRightIndexedOrNull/reduceRightOrNull are bundled
                 // Kotlin source (StringHOF.kt); no flat emission spec.
-                "kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBoolean_flat",
+                "__kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBoolean_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBooleanStrict_flat",
+                "__kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBooleanStrict_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBooleanStrictOrNull_flat",
+                "__kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBooleanStrictOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toInt_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toInt_flat",
+                "__kk_string_toInt_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toInt_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toInt_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toInt_radix_flat",
+                "__kk_string_toInt_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toInt_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toIntOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toIntOrNull_flat",
+                "__kk_string_toIntOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toIntOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toIntOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toIntOrNull_radix_flat",
+                "__kk_string_toIntOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toIntOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toUByteOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toUByteOrNull_radix_flat",
+                "__kk_string_toUByteOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toUByteOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toUShortOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toUShortOrNull_radix_flat",
+                "__kk_string_toUShortOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toUShortOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toUIntOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toUIntOrNull_radix_flat",
+                "__kk_string_toUIntOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toUIntOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toULongOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toULongOrNull_radix_flat",
+                "__kk_string_toULongOrNull_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toULongOrNull_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
@@ -1370,14 +1370,14 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toLong_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toLong_flat",
+                "__kk_string_toLong_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toLong_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toLongOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toLongOrNull_flat",
+                "__kk_string_toLongOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toLongOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
@@ -1392,31 +1392,31 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toShort_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toShort_flat",
+                "__kk_string_toShort_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toShort_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toShortOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toShortOrNull_flat",
+                "__kk_string_toShortOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toShortOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toByte_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByte_flat",
+                "__kk_string_toByte_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByte_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toByte_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByte_radix_flat",
+                "__kk_string_toByte_radix_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByte_radix_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toByteOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByteOrNull_flat",
+                "__kk_string_toByteOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByteOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),

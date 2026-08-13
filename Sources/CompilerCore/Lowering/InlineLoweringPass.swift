@@ -126,7 +126,28 @@ final class InlineLoweringPass: LoweringPass {
                         return bodylessInlineSymbols.contains(symbol)
                     }
                 }
-                .sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
+                .sorted(by: { lhs, rhs in
+                    let lhsName = ctx.interner.resolve(lhs.name)
+                    let rhsName = ctx.interner.resolve(rhs.name)
+                    if lhsName != rhsName { return lhsName < rhsName }
+                    if lhs.params.count != rhs.params.count { return lhs.params.count < rhs.params.count }
+                    if let lhsRange = lhs.sourceRange, let rhsRange = rhs.sourceRange {
+                        if lhsRange.start.file.rawValue != rhsRange.start.file.rawValue {
+                            return lhsRange.start.file.rawValue < rhsRange.start.file.rawValue
+                        }
+                        if lhsRange.start.offset != rhsRange.start.offset {
+                            return lhsRange.start.offset < rhsRange.start.offset
+                        }
+                        if lhsRange.end.offset != rhsRange.end.offset {
+                            return lhsRange.end.offset < rhsRange.end.offset
+                        }
+                    } else if lhs.sourceRange != nil {
+                        return false
+                    } else if rhs.sourceRange != nil {
+                        return true
+                    }
+                    return lhs.symbol.rawValue < rhs.symbol.rawValue
+                })
             guard !pending.isEmpty else { return }
             let sortedInlineFunctions = inlineFunctionsBySymbol.values.sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
             let byName = Dictionary(grouping: sortedInlineFunctions, by: \.name)

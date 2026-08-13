@@ -6,9 +6,9 @@ import Testing
 /// STDLIB-TEXT-FN-106: `fun String.toShort(): Short` in `kotlin.text`.
 ///
 /// Verifies:
-/// - The synthetic stub registered for `String.toShort` links to the runtime
-///   symbol `kk_string_toShort_flat` declared in
-///   `Sources/RuntimeABI/RuntimeABISpec+ABIParity.swift`.
+/// - `String.toShort` is source-backed after KSP-414 and no longer exposes a
+///   public `kk_string_toShort` runtime link; it bridges through the private
+///   `__kk_string_toShort` runtime symbol.
 /// - The extension resolves cleanly from source code on both a parameter
 ///   receiver and a string-literal receiver (Short is widened to Int in ABI).
 @Suite
@@ -35,14 +35,20 @@ struct StringToShortFunctionTests {
         let fq = ["kotlin", "text", "toShort"].map { interner.intern($0) }
         let allLinks = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            allLinks.contains("kk_string_toShort"),
-            "lookupAll for toShort must include kk_string_toShort; got: \(allLinks)"
+            !allLinks.contains("kk_string_toShort") && !allLinks.contains("__kk_string_toShort"),
+            "lookupAll for toShort must not include public or private string parse links; got: \(allLinks)"
         )
 
         let symbol = try #require(sema.symbols.lookup(fqName: fq))
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_toShort",
-            "String.toShort should link to kk_string_toShort"
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "String.toShort should be source-backed and have no C external link"
+        )
+
+        let bridgeFq = ["kotlin", "text", "__kk_string_toShort"].map { interner.intern($0) }
+        #expect(
+            sema.symbols.externalLinkName(for: try #require(sema.symbols.lookup(fqName: bridgeFq))) == "__kk_string_toShort",
+            "Private __kk_string_toShort bridge should be registered"
         )
     }
 }

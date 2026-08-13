@@ -367,10 +367,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lowercase_flat")
         case ("uppercase", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_uppercase_flat")
-        case ("toInt", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_flat", canThrow: true)
-        case ("toIntOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toIntOrNull_flat")
         case ("toDouble", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toDouble_flat", canThrow: true)
         case ("toDoubleOrNull", 0):
@@ -399,8 +395,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
         case ("withIndex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
-        case ("toInt", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("windowed", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
         case ("get", 1):
