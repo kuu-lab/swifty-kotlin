@@ -131,7 +131,8 @@ extension CallTypeChecker {
         @discardableResult
         func bindBundledListSourceFunction(
             typeArguments: [TypeID],
-            parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+            parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) }),
+            receiverElementType: TypeID? = nil
         ) -> Bool {
             guard (!isSequenceReceiver || isListFactoryReceiver),
                   receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
@@ -153,7 +154,17 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return receiverClassifier.isConcreteListLikeType(signatureReceiver)
+                guard receiverClassifier.isConcreteListLikeType(signatureReceiver) else {
+                    return false
+                }
+                guard let receiverElementType else {
+                    return true
+                }
+                return extractListElementType(
+                    signatureReceiver,
+                    sema: sema,
+                    interner: interner
+                ) == receiverElementType
             }) else {
                 return false
             }
@@ -1500,7 +1511,10 @@ extension CallTypeChecker {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
                     if ["sum", "average"].contains(calleeStr), !isSequenceReceiver {
-                        _ = bindBundledListSourceFunction(typeArguments: [])
+                        _ = bindBundledListSourceFunction(
+                            typeArguments: [],
+                            receiverElementType: calleeStr == "average" ? collectionElementType : nil
+                        )
                     }
                     if calleeStr == "reversed", !isSequenceReceiver {
                         _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])

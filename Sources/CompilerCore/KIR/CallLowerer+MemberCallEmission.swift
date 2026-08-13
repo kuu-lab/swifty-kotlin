@@ -601,20 +601,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_sequence_sumOf")
-            || loweredCallee == interner.intern("kk_sequence_sumBy")
-            || loweredCallee == interner.intern("kk_sequence_sumByDouble"),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
         if loweredCallee == interner.intern("kk_sequence_flatMapIndexedTo"),
            finalArguments.count == 3
         {
@@ -861,27 +847,6 @@ extension CallLowerer {
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_maxOfWith"),
             interner.intern("kk_list_minOfWith"),
-            interner.intern("kk_list_fold"),
-            interner.intern("kk_list_foldRight"),
-            interner.intern("kk_list_reduce"),
-            interner.intern("kk_list_reduceRight"),
-            interner.intern("kk_list_reduceRightIndexed"),
-            interner.intern("kk_list_reduceRightIndexedOrNull"),
-            interner.intern("kk_list_reduceRightOrNull"),
-            interner.intern("kk_list_reduceOrNull"),
-            interner.intern("kk_list_scan"),
-            interner.intern("kk_list_runningFold"),
-            interner.intern("kk_list_runningReduce"),
-            interner.intern("kk_list_scanReduce"),
-            interner.intern("kk_list_foldIndexed"),
-            interner.intern("kk_list_foldRightIndexed"),
-            interner.intern("kk_list_reduceIndexed"),
-            interner.intern("kk_list_reduceIndexedOrNull"),
-            interner.intern("kk_list_runningFoldIndexed"),
-            interner.intern("kk_list_runningReduceIndexed"),
-            interner.intern("kk_list_scanIndexed"),
-            interner.intern("kk_list_takeWhile"),
-            interner.intern("kk_list_dropLastWhile"),
             interner.intern("__kk_iterable_firstNotNullOf"),
             interner.intern("__kk_iterable_firstNotNullOfOrNull"),
             interner.intern("__kk_iterable_any"),

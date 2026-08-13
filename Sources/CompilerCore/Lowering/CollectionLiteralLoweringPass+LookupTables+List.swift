@@ -51,13 +51,6 @@ struct ListLookupNames {
     let kkIndexingIterableNextName: InternedString
     let kkListOnEachName: InternedString
     let kkListOnEachIndexedName: InternedString
-    let kkListFoldIndexedName: InternedString
-    let kkListFoldRightIndexedName: InternedString
-    let kkListReduceIndexedName: InternedString
-    let kkListReduceIndexedOrNullName: InternedString
-    let kkListRunningFoldIndexedName: InternedString
-    let kkListRunningReduceIndexedName: InternedString
-    let kkListScanIndexedName: InternedString
     let kkListMaxOrNullName: InternedString
     let kkListMinOrNullName: InternedString
     let kkListMaxByName: InternedString
@@ -77,8 +70,6 @@ struct ListLookupNames {
     let kkListMaxOfWithOrNullName: InternedString
     let kkListMinOfWithName: InternedString
     let kkListMinOfWithOrNullName: InternedString
-    let kkListTakeName: InternedString
-    let kkListDropName: InternedString
     let kkListSortedName: InternedString
     let kkListShuffledName: InternedString
     let kkListShuffledRandomName: InternedString
@@ -141,13 +132,6 @@ struct ListLookupNames {
         kkIndexingIterableNextName = interner.intern("kk_indexing_iterable_next")
         kkListOnEachName = interner.intern("kk_list_onEach")
         kkListOnEachIndexedName = interner.intern("kk_list_onEachIndexed")
-        kkListFoldIndexedName = interner.intern("kk_list_foldIndexed")
-        kkListFoldRightIndexedName = interner.intern("kk_list_foldRightIndexed")
-        kkListReduceIndexedName = interner.intern("kk_list_reduceIndexed")
-        kkListReduceIndexedOrNullName = interner.intern("kk_list_reduceIndexedOrNull")
-        kkListRunningFoldIndexedName = interner.intern("kk_list_runningFoldIndexed")
-        kkListRunningReduceIndexedName = interner.intern("kk_list_runningReduceIndexed")
-        kkListScanIndexedName = interner.intern("kk_list_scanIndexed")
         kkListMaxOrNullName = interner.intern("kk_list_maxOrNull")
         kkListMinOrNullName = interner.intern("kk_list_minOrNull")
         kkListMaxByName = interner.intern("kk_list_maxBy")
@@ -167,8 +151,6 @@ struct ListLookupNames {
         kkListMaxOfWithOrNullName = interner.intern("kk_list_maxOfWithOrNull")
         kkListMinOfWithName = interner.intern("kk_list_minOfWith")
         kkListMinOfWithOrNullName = interner.intern("kk_list_minOfWithOrNull")
-        kkListTakeName = interner.intern("kk_list_take")
-        kkListDropName = interner.intern("kk_list_drop")
         kkListSortedName = interner.intern("kk_list_sorted")
         kkListShuffledName = interner.intern("kk_list_shuffled")
         kkListShuffledRandomName = interner.intern("kk_list_shuffled_random")

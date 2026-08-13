@@ -132,6 +132,25 @@ struct RuntimeTypesTests {
     }
 
     @Test
+    func runtimeListBoxReversedViewReflectsBaseMutations() {
+        let base = RuntimeListBox(elements: [10, 20, 30])
+        let baseRaw = registerRuntimeObject(base, typeID: listRuntimeTypeID)
+        let viewRaw = kk_list_as_reversed(baseRaw)
+        let view = runtimeListBox(from: viewRaw)
+
+        #expect(view?.elements == [30, 20, 10])
+
+        base.elements[0] = 99
+        #expect(view?.elements == [30, 20, 99])
+
+        base.elements.append(40)
+        #expect(view?.elements == [40, 30, 20, 99])
+
+        base.elements.remove(at: 1)
+        #expect(view?.elements == [40, 30, 99])
+    }
+
+    @Test
     func runtimeMapBoxStoresRuntimeValues() {
         let map = RuntimeMapBox(keys: [1], values: [2])
         map.keyValues[0] = RuntimeValue(raw: 10)

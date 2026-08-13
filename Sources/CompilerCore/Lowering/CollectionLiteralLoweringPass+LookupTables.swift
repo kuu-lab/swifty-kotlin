@@ -95,13 +95,6 @@ struct CollectionLiteralLookupTables {
     var kkIndexingIterableNextName: InternedString { listLookup.kkIndexingIterableNextName }
     var kkListOnEachName: InternedString { listLookup.kkListOnEachName }
     var kkListOnEachIndexedName: InternedString { listLookup.kkListOnEachIndexedName }
-    var kkListFoldIndexedName: InternedString { listLookup.kkListFoldIndexedName }
-    var kkListFoldRightIndexedName: InternedString { listLookup.kkListFoldRightIndexedName }
-    var kkListReduceIndexedName: InternedString { listLookup.kkListReduceIndexedName }
-    var kkListReduceIndexedOrNullName: InternedString { listLookup.kkListReduceIndexedOrNullName }
-    var kkListRunningFoldIndexedName: InternedString { listLookup.kkListRunningFoldIndexedName }
-    var kkListRunningReduceIndexedName: InternedString { listLookup.kkListRunningReduceIndexedName }
-    var kkListScanIndexedName: InternedString { listLookup.kkListScanIndexedName }
     var kkListMaxOrNullName: InternedString { listLookup.kkListMaxOrNullName }
     var kkListMinOrNullName: InternedString { listLookup.kkListMinOrNullName }
     var kkListMaxByName: InternedString { listLookup.kkListMaxByName }
@@ -121,8 +114,6 @@ struct CollectionLiteralLookupTables {
     var kkListMaxOfWithOrNullName: InternedString { listLookup.kkListMaxOfWithOrNullName }
     var kkListMinOfWithName: InternedString { listLookup.kkListMinOfWithName }
     var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
-    var kkListTakeName: InternedString { listLookup.kkListTakeName }
-    var kkListDropName: InternedString { listLookup.kkListDropName }
     var kkListSortedName: InternedString { listLookup.kkListSortedName }
     var kkListShuffledName: InternedString { listLookup.kkListShuffledName }
     var kkListShuffledRandomName: InternedString { listLookup.kkListShuffledRandomName }

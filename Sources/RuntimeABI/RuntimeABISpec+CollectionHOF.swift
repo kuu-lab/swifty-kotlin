@@ -269,25 +269,14 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         )
-        let withIndexSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_withIndex",
+        let asReversedSpec = RuntimeABIFunctionSpec(
+            name: "__kk_list_as_reversed",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
-        )
-        let forEachIndexedSpec = RuntimeABIFunctionSpec(
-            name: stdlibListHOFName("forEachIndexed", arity: 1, fallback: "kk_list_forEachIndexed"),
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
         )
         let maxOrNullSpec = RuntimeABIFunctionSpec(
             name: "kk_list_maxOrNull",
@@ -318,36 +307,6 @@ public extension RuntimeABISpec {
             name: "kk_list_min",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let takeSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_take",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let dropSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_drop",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let takeLastSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_takeLast",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -495,10 +454,10 @@ public extension RuntimeABISpec {
             + [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                unzipSpec, withIndexSpec, forEachIndexedSpec,
+                unzipSpec, asReversedSpec,
                 maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
-                takeSpec, dropSpec, takeLastSpec, sortedSpec,
+                sortedSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
 

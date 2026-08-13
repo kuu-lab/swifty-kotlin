@@ -989,6 +989,19 @@ public func kk_list_minus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
+// KSP-428: Keep asReversed lazy so mutations of a MutableList are visible
+// through the returned view.
+@_cdecl("__kk_list_as_reversed")
+public func kk_list_as_reversed(_ listRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    return registerRuntimeObject(
+        RuntimeListBox(reversedViewOf: list),
+        typeID: listRuntimeTypeID
+    )
+}
+
 // MARK: - asSequence (STDLIB-471)
 
 @_cdecl("kk_list_asSequence")

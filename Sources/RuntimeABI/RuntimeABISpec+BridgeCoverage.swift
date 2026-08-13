@@ -87,10 +87,6 @@ private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
 private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_list_of_not_null", section: "Collection", params: ["arrayRaw", "count"]),
-    bridgeSpec("kk_list_slice", section: "Collection", params: ["listRaw", "rangeRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_list_slice_iterable", section: "Collection", params: ["listRaw", "indicesRaw"],
-            isThrowing: false),
     bridgeSpec("kk_list_toHashSet", section: "Collection", params: ["listRaw"]),
 ]
 

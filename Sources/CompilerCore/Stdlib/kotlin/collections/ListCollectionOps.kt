@@ -1,5 +1,6 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
 // KSP-428
@@ -116,6 +117,13 @@ public fun List<Int>.average(): Double {
     return total.toDouble() / size.toDouble()
 }
 
+public fun List<Double>.average(): Double {
+    if (size == 0) return Double.NaN
+    var total = 0.0
+    for (element in this) total += element
+    return total / size.toDouble()
+}
+
 public fun <T> Iterable<T>.reversed(): List<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
@@ -131,14 +139,11 @@ public fun <T> Iterable<T>.reversed(): List<T> {
     return result
 }
 
+@KsSymbolName("__kk_list_as_reversed")
+private external fun <T> __kk_list_as_reversed(list: List<T>): List<T>
+
 public fun <T> List<T>.asReversed(): List<T> {
-    val result = mutableListOf<T>()
-    var i = size - 1
-    while (i >= 0) {
-        result.add(this[i])
-        i--
-    }
-    return result
+    return __kk_list_as_reversed(this)
 }
 
 public fun <T> Iterable<T>.plusElement(element: T): List<T> {
