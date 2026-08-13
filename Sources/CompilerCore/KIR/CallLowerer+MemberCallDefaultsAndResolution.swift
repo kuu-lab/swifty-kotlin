@@ -26,6 +26,82 @@ extension CallLowerer {
         }
     }
 
+
+    func materializeBinarySearchDefaultArguments(
+        _ defaultMask: Int64,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction],
+        arguments: inout [KIRExprID],
+        sourceArgLabels: [InternedString?]
+    ) {
+        let intType = sema.types.intType
+        var cachedZeroExpr: KIRExprID?
+        var cachedSizeExpr: KIRExprID?
+
+        func makeZeroExpr() -> KIRExprID {
+            if let cachedZeroExpr {
+                return cachedZeroExpr
+            }
+            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            cachedZeroExpr = zeroExpr
+            return zeroExpr
+        }
+
+        func makeSizeExpr() -> KIRExprID {
+            if let cachedSizeExpr {
+                return cachedSizeExpr
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let sizeCallee = unresolvedCollectionMemberCallee(
+                memberName: "size",
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) ?? interner.intern("__kk_list_size")
+            let sizeExpr = arena.appendTemporary(type: intType)
+            emitNonThrowingCall(
+                callee: sizeCallee,
+                arg: loweredReceiverID,
+                result: sizeExpr,
+                into: &instructions
+            )
+            cachedSizeExpr = sizeExpr
+            return sizeExpr
+        }
+
+        if defaultMask == 0 {
+            if arguments.count <= 3 {
+                arguments.append(makeZeroExpr())
+                arguments.append(makeSizeExpr())
+            } else if arguments.count == 4 {
+                let explicitLabel = sourceArgLabels.last ?? nil
+                if let explicitLabel, interner.resolve(explicitLabel) == "toIndex" {
+                    arguments.insert(makeZeroExpr(), at: 3)
+                } else {
+                    arguments.append(makeSizeExpr())
+                }
+            }
+            return
+        }
+
+        if (defaultMask & (Int64(1) << 2)) != 0,
+           arguments.count > 3
+        {
+            arguments[3] = makeZeroExpr()
+        }
+
+        if (defaultMask & (Int64(1) << 3)) != 0,
+           arguments.count > 4
+        {
+            arguments[4] = makeSizeExpr()
+        }
+    }
+
     func materializeArrayCopyIntoDefaultArguments(
         _ defaultMask: Int64,
         sema: SemaModule,

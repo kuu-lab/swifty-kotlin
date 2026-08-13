@@ -366,6 +366,34 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + producerArgs + jobArgs
         }
+        let isComparatorBinarySearch: Bool = {
+            guard loweredCallee == interner.intern("binarySearch"),
+                  let chosenCallee,
+                  let signature = sema.symbols.functionSignature(for: chosenCallee)
+            else {
+                return false
+            }
+            return signature.parameterTypes.contains { parameterType in
+                guard let (_, symbol) = resolveClassTypeSymbol(parameterType, sema: sema)
+                else {
+                    return false
+                }
+                return interner.resolve(symbol.name) == "Comparator"
+            }
+        }()
+        if isComparatorBinarySearch {
+            materializeBinarySearchDefaultArguments(
+                normalized.defaultMask,
+                receiverExpr: receiver.expr,
+                loweredReceiverID: receiver.loweredID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArguments,
+                sourceArgLabels: sourceArgLabels
+            )
+        }
         if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
            finalArguments.count >= 3
         {

@@ -137,13 +137,17 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
             println(nums.binarySearch(5, 1, 4))
             println(nums.binarySearch { it - 7 })
             println(nums.binarySearchBy(7) { it })
+            val natural = naturalOrder<Int>()
+            println(nums.binarySearch(6, natural))
+            println(nums.binarySearch(6, natural, toIndex = 4))
+            println(nums.binarySearch(6, natural, fromIndex = 1, toIndex = 4))
         }
         """
 
         try assertKotlinOutput(
             source,
             moduleName: "ListBinarySearchSource",
-            expected: "2\n-3\n2\n3\n3\n"
+            expected: "2\n-3\n2\n3\n3\n-4\n-4\n-4\n"
         )
     }
 }
