@@ -746,7 +746,7 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkPrintRawSignature() throws {
+    func printRawSignature() throws {
         let spec = try requireSpec("__kk_print_raw")
         #expect(spec.returnType == .void)
         #expect(spec.parameters.count == 1)

@@ -237,8 +237,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                ir.contains("@kk_fn_println"),
-                "KSP-614: the String result is passed to the bundled Kotlin `println` declaration"
+                ir.contains("@__kk_print_raw"),
+                "Virtual dispatch String result should be passed to the raw print runtime bridge"
             )
         }
     }
@@ -755,7 +755,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty_flat"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_equals_flat"), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
                 .call(
@@ -807,7 +807,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .label(900),
                 .copy(from: completionLoaded, to: whenResult),
                 .label(901),
-                .call(symbol: nil, callee: interner.intern("println"), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(
                     symbol: nil,
                     callee: interner.intern("kk_coroutine_continuation_new"),
@@ -888,15 +888,14 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_isNullOrBlank_flat"))
         #expect(ir.contains("@kk_string_equals_flat"))
         #expect(!ir.contains("@kk_string_equals("))
+        #expect(ir.contains("@__kk_print_raw"))
+        #expect(ir.contains("{ ptr, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
         #expect(ir.contains("@kk_coroutine_state_set_spill"))
         #expect(ir.contains("@kk_coroutine_state_get_spill"))
         #expect(ir.contains("@kk_coroutine_state_set_completion"))
         #expect(ir.contains("@kk_coroutine_state_get_completion"))
-        // KSP-614: `println` is an ordinary Kotlin function now, so the emitter
-        // must not rewrite it into a runtime print symbol of its own.
-        #expect(ir.contains("@println("))
         #expect(!ir.contains("@kk_println_any"))
         #expect(!ir.contains("@kk_println_string_flat"))
         #expect(ir.contains("@kk_register_frame_map"))

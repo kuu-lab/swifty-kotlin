@@ -2320,22 +2320,20 @@ extension NativeEmitter {
                     continue
                 }
 
-                if calleeName == "kk_println_float" || calleeName == "kk_println_double"
-                    || calleeName == "kk_println_long" || calleeName == "kk_println_char"
-                    || calleeName == "kk_println_bool" || calleeName == "kk_println_ulong"
-                {
-                    let printValue = argumentValues.first ?? zeroValue
-                    if let printFunction = declareExternalFunction(
+                // Keep this collection empty: all print/println calls are lowered
+                // through the bundled Kotlin source and the raw print bridge.
+                if Self.knownVoidNoArgCallees.contains(calleeName) {
+                    if let runtimeFunction = declareExternalFunction(
                         named: calleeName,
-                        argumentCount: 1,
+                        argumentCount: 0,
                         appendThrownChannel: false
                     ) {
                         _ = bindings.buildCall(
                             builder,
-                            functionType: printFunction.type,
-                            callee: printFunction.value,
-                            arguments: [printValue],
-                            name: "println_\(calleeName)_\(instructionIndex)"
+                            functionType: runtimeFunction.type,
+                            callee: runtimeFunction.value,
+                            arguments: [],
+                            name: "\(calleeName)_\(instructionIndex)"
                         )
                     }
                     if usesThrownChannel, let thrownResult {
