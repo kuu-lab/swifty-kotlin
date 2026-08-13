@@ -137,8 +137,6 @@ struct MemberRuntimeDispatchTests {
     @Test func testStringRuntimeDispatchUsesFlatStringTable() {
         let cases: [(String, Int, String, Bool, MemberRuntimeArgumentMode, MemberRuntimeThrownResultMode)] = [
             ("lowercase", 0, "kk_string_lowercase_flat", false, .lowered, .none),
-            ("toInt", 0, "kk_string_toInt_flat", true, .lowered, .none),
-            ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
         ]
 
         for (memberName, arity, expectedLinkName, canThrow, argumentMode, thrownResultMode) in cases {

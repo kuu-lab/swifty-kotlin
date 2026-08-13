@@ -393,8 +393,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
         case ("withIndex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
-        case ("toInt", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("get", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
         case ("compareTo", 1):

@@ -1464,17 +1464,6 @@ extension CallLowerer {
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
             if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
-                if calleeStr == "toInt" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toInt_radix_flat"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toRegex" {
                     let argType = sema.bindings.exprTypes[args[0].expr]
                     let isSetArg: Bool = {
