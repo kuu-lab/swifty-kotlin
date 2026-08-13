@@ -40,7 +40,9 @@ final class InlineLoweringPass: LoweringPass {
             return (function.symbol, function)
         })
         if let imported = ctx.sema?.importedInlineFunctions {
-            for (symbol, function) in imported where inlineFunctionsBySymbol[symbol] == nil {
+            for (symbol, function) in imported.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                where inlineFunctionsBySymbol[symbol] == nil
+            {
                 inlineFunctionsBySymbol[symbol] = function
             }
         }
@@ -76,7 +78,10 @@ final class InlineLoweringPass: LoweringPass {
             unitType: unitType
         )
 
-        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+        let inlineFunctionsByName = Dictionary(
+            grouping: Self.stableFunctionOrder(inlineFunctionsBySymbol.values),
+            by: \.name
+        )
 
         module.arena.transformFunctions { [self] function in
             inlineTransform(
@@ -90,6 +95,12 @@ final class InlineLoweringPass: LoweringPass {
             )
         }
         module.recordLowering(Self.name)
+    }
+
+    static func stableFunctionOrder<Functions: Sequence>(
+        _ functions: Functions
+    ) -> [KIRFunction] where Functions.Element == KIRFunction {
+        functions.sorted { $0.symbol.rawValue < $1.symbol.rawValue }
     }
 
     /// Rewrite the bodies that later get spliced into callers so they no longer
@@ -107,13 +118,17 @@ final class InlineLoweringPass: LoweringPass {
     ) {
         guard !bodylessInlineSymbols.isEmpty else { return }
         var originals = allFunctionsBySymbol
-        for (symbol, function) in inlineFunctionsBySymbol where originals[symbol] == nil {
+        for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            where originals[symbol] == nil
+        {
             originals[symbol] = function
         }
         var expandedBySymbol: [SymbolID: KIRFunction] = [:]
 
         for _ in 0 ..< 4 {
-            let pending = originals.values.filter { function in
+            // Expanding a snapshot appends expressions to the module arena. A
+            // Dictionary's per-instance iteration order must not choose IDs.
+            let pending = Self.stableFunctionOrder(originals.values.filter { function in
                 let current = expandedBySymbol[function.symbol] ?? function
                 return current.body.contains { instruction in
                     guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
@@ -123,9 +138,12 @@ final class InlineLoweringPass: LoweringPass {
                     }
                     return bodylessInlineSymbols.contains(symbol)
                 }
-            }
+            })
             guard !pending.isEmpty else { return }
-            let byName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+            let byName = Dictionary(
+                grouping: Self.stableFunctionOrder(inlineFunctionsBySymbol.values),
+                by: \.name
+            )
             for function in pending {
                 let expanded = inlineTransform(
                     function: function,

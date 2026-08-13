@@ -1281,9 +1281,7 @@ import Testing
             defer { try? fm.removeItem(at: workDir) }
 
             let artifactBase1 = workDir.appendingPathComponent("deterministic_1").path
-            let artifactBase2 = emit == .object
-                ? artifactBase1
-                : workDir.appendingPathComponent("deterministic_2").path
+            let artifactBase2 = workDir.appendingPathComponent("deterministic_2").path
             var first = try readCodegenArtifact(inputPath: path, emit: emit, outputPath: artifactBase1)
             var second = try readCodegenArtifact(inputPath: path, emit: emit, outputPath: artifactBase2)
             if emit == .llvmIR {
@@ -1294,9 +1292,12 @@ import Testing
                 first = stripPathDependentBytes(first, outputPath: artifactBase1)
                 second = stripPathDependentBytes(second, outputPath: artifactBase2)
             }
+            let mismatch = first == second
+                ? nil
+                : determinismMismatchDescription(first: first, second: second)
             #expect(
-                first == second,
-                "LLVM/KIR artifact mismatch: \(determinismMismatchDescription(first: first, second: second))"
+                mismatch == nil,
+                "Codegen artifact mismatch: \(mismatch ?? "unknown mismatch")"
             )
         }
     }

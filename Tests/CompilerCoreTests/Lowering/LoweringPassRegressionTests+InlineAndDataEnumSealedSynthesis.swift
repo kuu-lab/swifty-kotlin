@@ -5,6 +5,29 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
+    func testInlineLoweringOrdersSnapshotExpansionBySymbol() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols: [Int32] = [30, -4, 12, 2]
+        let functions = symbols.map { rawValue in
+            KIRFunction(
+                symbol: SymbolID(rawValue: rawValue),
+                name: interner.intern("inline_\(rawValue)"),
+                params: [],
+                returnType: types.unitType,
+                body: [.returnUnit],
+                isSuspend: false,
+                isInline: true
+            )
+        }
+
+        let orderedSymbols = InlineLoweringPass.stableFunctionOrder(functions.reversed())
+            .map(\.symbol.rawValue)
+
+        #expect(orderedSymbols == symbols.sorted())
+    }
+
+    @Test
     func testInlineLoweringExpandsInlineBodyAndRewritesResultUse() throws {
         let interner = StringInterner()
         let arena = KIRArena()
