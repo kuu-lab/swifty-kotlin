@@ -201,29 +201,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // take(n) on list → kk_list_take
-    if callee == lookup.takeName, arguments.count == 2 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListTakeName,
-                arguments: arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
     // forEach on sequence → kk_sequence_forEach (STDLIB-095)
     if callee == lookup.forEachName,
        arguments.count == 2 || arguments.count == 3

@@ -828,7 +828,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildList"), "buildList should be rewritten")
-        #expect(callees.contains("kk_build_list"), "buildList should become kk_build_list")
+        #expect(callees.contains("__kk_build_list"), "buildList should become __kk_build_list")
     }
 
     @Test
@@ -866,8 +866,8 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
         #expect(
-            callees.contains("kk_build_list_with_capacity"),
-            "buildList(capacity) should become kk_build_list_with_capacity"
+            callees.contains("__kk_build_list_with_capacity"),
+            "buildList(capacity) should become __kk_build_list_with_capacity"
         )
     }
 
@@ -929,6 +929,23 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
+    // MARK: - buildSet rewriting (STDLIB-072)
+
+    @Test
+    func testBuildSetRewrittenToKkBuildSet() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let callee = interner.intern("buildSet")
+        let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("buildSet"), "buildSet should be rewritten")
+        #expect(callees.contains("__kk_build_set"), "buildSet should become __kk_build_set")
+    }
+
     // MARK: - buildMap rewriting (STDLIB-071)
 
     @Test
@@ -943,86 +960,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
-        #expect(callees.contains("kk_build_map"), "buildMap should become kk_build_map")
-    }
-
-    @Test
-    func testStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let sourceExpr = arena.appendExpr(.temporary(0))
-        let delimitersExpr = arena.appendExpr(.temporary(1))
-        let splitResult = arena.appendExpr(.temporary(4))
-        let printlnResult = arena.appendExpr(.temporary(5))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("__kk_string_split"),
-                    arguments: [sourceExpr, delimitersExpr],
-                    result: splitResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_println_any"),
-                    arguments: [splitResult],
-                    result: printlnResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        try runPass(module: module, kirCtx: ctx)
-
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("__kk_string_split"))
-        #expect(callees.contains("kk_list_to_string"),
-                      "split result should be recognized as list and routed through kk_list_to_string")
-    }
-
-    @Test
-    func testSourceBackedStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
-        let source = """
-        fun main() {
-            val parts = "1,2,3".split(",")
-            println(parts)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            let module = try #require(ctx.kir)
-            let kirCtx = KIRContext(
-                diagnostics: ctx.diagnostics,
-                options: ctx.options,
-                interner: ctx.interner,
-                sema: ctx.sema
-            )
-
-            try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            #expect(callees.contains("split"), "Expected public split to stay source-backed, got: \(callees)")
-            #expect(
-                callees.contains("kk_list_to_string"),
-                "source-backed split result should still be recognized as list for println rewrite"
-            )
-        }
+        #expect(callees.contains("__kk_build_map"), "buildMap should become __kk_build_map")
     }
 
     @Test
@@ -1450,39 +1388,6 @@ struct CollectionLiteralLoweringTests {
         #expect(
             !callees.contains("kk_list_indexOf"),
             "virtualCall(indexOf) on List-typed parameter should not be rewritten to deleted kk_list_indexOf, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListTake() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "take", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_take"),
-            "virtualCall(take) on List-typed parameter should be rewritten to kk_list_take, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDrop() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "drop", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_drop"),
-            "virtualCall(drop) on List-typed parameter should be rewritten to kk_list_drop, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDropLastWhile() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "dropLastWhile", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_dropLastWhile"),
-            "virtualCall(dropLastWhile) on List-typed parameter should be rewritten to kk_list_dropLastWhile, got: \(callees)"
         )
     }
 

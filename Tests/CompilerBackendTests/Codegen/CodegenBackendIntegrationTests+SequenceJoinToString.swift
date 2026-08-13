@@ -6,7 +6,7 @@ import Testing
 
 @Suite
 struct CodegenBackendSequenceJoinToStringTests {
-    @Test func testCodegenSequenceJoinToStringUsesRuntimeHelper() throws {
+    @Test func testCodegenSequenceJoinToStringDoesNotUseRuntimeHelper() throws {
         let source = """
         fun render(): String {
             return sequenceOf(1, 2, 3).joinToString(separator = ":", prefix = "[", postfix = "]")
@@ -20,7 +20,7 @@ struct CodegenBackendSequenceJoinToStringTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_sequence_joinToString"))
+            #expect(!callees.contains("kk_sequence_joinToString"), "Sequence.joinToString should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

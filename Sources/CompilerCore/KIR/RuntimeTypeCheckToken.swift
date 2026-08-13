@@ -13,6 +13,8 @@ enum RuntimeTypeCategory {
     case ulong
     case ubyte
     case ushort
+    case byte
+    case short
     // REFL-002: Additional primitive categories for precise ::class tokens.
     case long
     case double
@@ -35,6 +37,8 @@ enum RuntimeTypeCategory {
         case .ulong:    RuntimeTypeCheckToken.ulongBase
         case .ubyte:    RuntimeTypeCheckToken.ubyteBase
         case .ushort:   RuntimeTypeCheckToken.ushortBase
+        case .byte:     RuntimeTypeCheckToken.byteBase
+        case .short:    RuntimeTypeCheckToken.shortBase
         case .long:     RuntimeTypeCheckToken.longBase
         case .double:   RuntimeTypeCheckToken.doubleBase
         case .float:    RuntimeTypeCheckToken.floatBase
@@ -56,6 +60,8 @@ enum RuntimeTypeCategory {
         case .ulong:    PrimitiveType.ulong.kotlinName
         case .ubyte:    PrimitiveType.ubyte.kotlinName
         case .ushort:   PrimitiveType.ushort.kotlinName
+        case .byte:     PrimitiveType.byte.kotlinName
+        case .short:    PrimitiveType.short.kotlinName
         case .long:     PrimitiveType.long.kotlinName
         case .double:   PrimitiveType.double.kotlinName
         case .float:    PrimitiveType.float.kotlinName
@@ -90,6 +96,8 @@ enum RuntimeTypeCheckToken {
     static let ulongBase: Int64 = 8
     static let ubyteBase: Int64 = 9
     static let ushortBase: Int64 = 10
+    static let byteBase: Int64 = 16
+    static let shortBase: Int64 = 17
     // REFL-002: Additional primitive bases for Long, Double, Float, Char.
     static let longBase: Int64 = 11
     static let doubleBase: Int64 = 12
@@ -125,6 +133,8 @@ enum RuntimeTypeCheckToken {
         case .primitive(.ulong, _):     category = .ulong
         case .primitive(.ubyte, _):     category = .ubyte
         case .primitive(.ushort, _):    category = .ushort
+        case .primitive(.byte, _):      category = .byte
+        case .primitive(.short, _):      category = .short
         case .primitive(.boolean, _):   category = .boolean
         // REFL-002: Classify additional primitive types so ::class tokens
         // carry distinct base values instead of falling through to .unknown.
@@ -168,6 +178,10 @@ enum RuntimeTypeCheckToken {
             encode(base: ubyteBase, nullable: nullable)
         case builtinNames.ushort:
             encode(base: ushortBase, nullable: nullable)
+        case builtinNames.byte:
+            encode(base: byteBase, nullable: nullable)
+        case builtinNames.short:
+            encode(base: shortBase, nullable: nullable)
         case builtinNames.boolean:
             encode(base: booleanBase, nullable: nullable)
         // REFL-002: Encode additional primitive builtin names.
@@ -259,6 +273,10 @@ enum RuntimeTypeCheckToken {
             return PrimitiveType.float.kotlinName
         case .primitive(.double, _):
             return PrimitiveType.double.kotlinName
+        case .primitive(.byte, _):
+            return PrimitiveType.byte.kotlinName
+        case .primitive(.short, _):
+            return PrimitiveType.short.kotlinName
         case let .classType(classType):
             guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
                 return nil
@@ -292,6 +310,10 @@ enum RuntimeTypeCheckToken {
             return "kotlin.UByte"
         case .ushort:
             return "kotlin.UShort"
+        case .byte:
+            return "kotlin.Byte"
+        case .short:
+            return "kotlin.Short"
         case .long:
             return "kotlin.Long"
         case .double:

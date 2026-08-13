@@ -31,18 +31,6 @@ struct ListLookupNames {
     let kkListForEachName: InternedString
     let kkCollectionToCollectionName: InternedString
     // Additional higher-order collection function ABI names (STDLIB-005)
-    let kkListFoldName: InternedString
-    let kkListFoldRightName: InternedString
-    let kkListReduceName: InternedString
-    let kkListReduceRightName: InternedString
-    let kkListReduceRightIndexedName: InternedString
-    let kkListReduceRightIndexedOrNullName: InternedString
-    let kkListReduceRightOrNullName: InternedString
-    let kkListReduceOrNullName: InternedString
-    let kkListScanName: InternedString
-    let kkListRunningFoldName: InternedString
-    let kkListRunningReduceName: InternedString
-    let kkListScanReduceName: InternedString
     let kkListGroupByName: InternedString
     let kkListGroupByTransformName: InternedString
     let kkListSortedByName: InternedString
@@ -58,11 +46,9 @@ struct ListLookupNames {
     let kkListZipWithNextBridgeName: InternedString
     let kkListZipWithNextTransformBridgeName: InternedString
     let kkListUnzipName: InternedString
-    let kkListWithIndexName: InternedString
     let kkIndexingIterableIteratorName: InternedString
     let kkIndexingIterableHasNextName: InternedString
     let kkIndexingIterableNextName: InternedString
-    let kkListForEachIndexedName: InternedString
     let kkListOnEachName: InternedString
     let kkListOnEachIndexedName: InternedString
     let kkListFoldIndexedName: InternedString
@@ -104,7 +90,6 @@ struct ListLookupNames {
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
     let kkListPartitionName: InternedString
-    let kkListTakeWhileName: InternedString
     // ListIterator member names (STDLIB-538)
     let listIteratorMemberName: InternedString
     let hasPreviousName: InternedString
@@ -136,18 +121,6 @@ struct ListLookupNames {
         kkListAssociateToName = interner.intern("kk_list_associateTo")
         kkListForEachName = interner.intern("kk_list_forEach")
         kkCollectionToCollectionName = interner.intern("__kk_collection_toCollection")
-        kkListFoldName = interner.intern("kk_list_fold")
-        kkListFoldRightName = interner.intern("kk_list_foldRight")
-        kkListReduceName = interner.intern("kk_list_reduce")
-        kkListReduceRightName = interner.intern("kk_list_reduceRight")
-        kkListReduceRightIndexedName = interner.intern("kk_list_reduceRightIndexed")
-        kkListReduceRightIndexedOrNullName = interner.intern("kk_list_reduceRightIndexedOrNull")
-        kkListReduceRightOrNullName = interner.intern("kk_list_reduceRightOrNull")
-        kkListReduceOrNullName = interner.intern("kk_list_reduceOrNull")
-        kkListScanName = interner.intern("kk_list_scan")
-        kkListRunningFoldName = interner.intern("kk_list_runningFold")
-        kkListRunningReduceName = interner.intern("kk_list_runningReduce")
-        kkListScanReduceName = interner.intern("kk_list_scanReduce")
         kkListGroupByName = interner.intern("kk_list_groupBy")
         kkListGroupByTransformName = interner.intern("kk_list_groupByTransform")
         kkListSortedByName = interner.intern("kk_list_sortedBy")
@@ -163,11 +136,9 @@ struct ListLookupNames {
         kkListZipWithNextBridgeName = interner.intern("__kk_list_zipWithNext")
         kkListZipWithNextTransformBridgeName = interner.intern("__kk_list_zipWithNextTransform")
         kkListUnzipName = interner.intern("kk_list_unzip")
-        kkListWithIndexName = interner.intern("kk_list_withIndex")
         kkIndexingIterableIteratorName = interner.intern("kk_indexing_iterable_iterator")
         kkIndexingIterableHasNextName = interner.intern("kk_indexing_iterable_hasNext")
         kkIndexingIterableNextName = interner.intern("kk_indexing_iterable_next")
-        kkListForEachIndexedName = interner.intern("kk_list_forEachIndexed")
         kkListOnEachName = interner.intern("kk_list_onEach")
         kkListOnEachIndexedName = interner.intern("kk_list_onEachIndexed")
         kkListFoldIndexedName = interner.intern("kk_list_foldIndexed")
@@ -209,7 +180,6 @@ struct ListLookupNames {
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")
         kkListPartitionName = interner.intern("kk_list_partition")
-        kkListTakeWhileName = interner.intern("kk_list_takeWhile")
         // ListIterator member names (STDLIB-538)
         listIteratorMemberName = interner.intern("listIterator")
         hasPreviousName = interner.intern("hasPrevious")

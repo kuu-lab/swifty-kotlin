@@ -251,7 +251,6 @@ package struct KnownCompilerNames {
     let suspendCoroutineUninterceptedOrReturn: InternedString
     let flow: InternedString
     let emit: InternedString
-    let to: InternedString
     let notNull: InternedString
     let emptyListFn: InternedString
     let emptySetFn: InternedString
@@ -436,7 +435,6 @@ package struct KnownCompilerNames {
         suspendCoroutineUninterceptedOrReturn = interner.intern("suspendCoroutineUninterceptedOrReturn")
         flow = interner.intern("flow")
         emit = interner.intern("emit")
-        to = interner.intern("to")
         notNull = interner.intern("notNull")
         emptyListFn = interner.intern("emptyList")
         emptySetFn = interner.intern("emptySet")
@@ -587,7 +585,11 @@ package struct KnownCompilerNames {
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {
         switch name {
-        case byte, short, int:
+        case byte:
+            types.withNullability(nullability, for: types.byteType)
+        case short:
+            types.withNullability(nullability, for: types.shortType)
+        case int:
             types.withNullability(nullability, for: types.intType)
         case long:
             types.withNullability(nullability, for: types.longType)

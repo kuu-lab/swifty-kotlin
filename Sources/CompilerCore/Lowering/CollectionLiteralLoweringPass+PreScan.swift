@@ -80,9 +80,8 @@ extension CollectionLiteralLoweringSupport {
         }
 
         if fqName[1] == collectionsName {
-            return callee == lookup.buildListName
-                || callee == lookup.buildSetName
-                || callee == lookup.buildMapName
+            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
+            return false
         }
         return false
     }
@@ -306,6 +305,21 @@ extension CollectionLiteralLoweringSupport {
             sequenceExprIDs: &sequenceExprIDs,
             stringExprIDs: &stringExprIDs
         )
+        // KSP-453: Source-backed IntRange/IntProgression HOFs are emitted as
+        // ordinary .call instructions. Track their results so downstream list
+        // operations (size, isEmpty, etc.) still lower correctly.
+        if let result, !arguments.isEmpty, rangeExprIDs.contains(arguments[0].rawValue) {
+            let listProducingRangeHOFs: Set<InternedString> = [
+                lookup.toListName, lookup.mapName, lookup.mapIndexedName, lookup.mapNotNullName,
+                lookup.filterName, lookup.filterIndexedName, lookup.filterNotName,
+                lookup.chunkedName, lookup.windowedName, lookup.takeName, lookup.dropName, lookup.sortedName,
+            ]
+            if listProducingRangeHOFs.contains(callee) {
+                listExprIDs.insert(result.rawValue)
+            } else if callee == lookup.toIntArrayName {
+                arrayExprIDs.insert(result.rawValue)
+            }
+        }
         // STDLIB-565: Classify File constructor calls.
         // KNOWN LIMITATION: Only direct File("...") / kk_file_new constructor
         // calls are seeded here.  File receivers originating from function
@@ -398,8 +412,7 @@ extension CollectionLiteralLoweringSupport {
             || callee == lookup.kkListTakeName || callee == lookup.kkListDropName
             || callee == lookup.kkListSortedName
             || callee == lookup.kkListShuffledName
-            || callee == lookup.kkListShuffledRandomName
-            || callee == lookup.kkListScanName || callee == lookup.kkListRunningFoldName,
+            || callee == lookup.kkListShuffledRandomName,
             listExprIDs.contains(src)
         {
             listExprIDs.insert(result.rawValue)
@@ -482,7 +495,6 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.kkListSortedName
                 || callee == lookup.kkListShuffledName
                 || callee == lookup.kkListShuffledRandomName
-                || callee == lookup.kkListScanName || callee == lookup.kkListRunningFoldName
             {
                 if let result { listExprIDs.insert(result.rawValue) }
             }

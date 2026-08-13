@@ -4,18 +4,16 @@ symbol fq=__local_2.s2 kind=local vis=private flags=_ type=String
 symbol fq=__local_3.s3 kind=local vis=private flags=_ type=String
 symbol fq=__local_4.s4 kind=local vis=private flags=_ type=String
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
-symbol fq=kotlin.byteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ByteArray vararg=[1]
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.byteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Byte] ret=kotlin.ByteArray vararg=[1]
 symbol fq=kotlin.text.Charset kind=class vis=public flags=_ type=kotlin.text.Charset
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fcharsets_object package=_
   decl main fun main sym=main
-expr e@5:29 int(72) type=Int
-expr e@5:33 int(101) type=Int
-expr e@5:38 int(108) type=Int
-expr e@5:43 int(108) type=Int
-expr e@5:48 int(111) type=Int
+expr e@5:29 int(72) type=Byte
+expr e@5:33 int(101) type=Byte
+expr e@5:38 int(108) type=Byte
+expr e@5:43 int(108) type=Byte
+expr e@5:48 int(111) type=Byte
 expr e@5:17 call callee=e@5:17#1 args=[_:e@5:29,_:e@5:33,_:e@5:38,_:e@5:43,_:e@5:48] type=kotlin.ByteArray call=kotlin.byteArrayOf
 expr e@5:5 localDecl bytes mutable=0 type=_ init=e@5:17 type=Unit ref=__local_0.bytes
 expr e@6:14 name(bytes) type=kotlin.ByteArray ref=__local_0.bytes

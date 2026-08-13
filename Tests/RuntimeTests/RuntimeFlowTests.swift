@@ -652,48 +652,9 @@ struct RuntimeFlowTests {
         #expect(elapsedMs >= 1.0, "delayEach should delay collection by at least the requested interval.")
     }
 
-    @Test func testMutableSharedFlowRetainsReplayCacheAndCollectsSnapshot() {
-        let flowHandle = kk_mutable_shared_flow_create(2)
-        _ = kk_mutable_shared_flow_emit(flowHandle, 10)
-        _ = kk_mutable_shared_flow_emit(flowHandle, 20)
-        _ = kk_mutable_shared_flow_emit(flowHandle, 30)
-
-        let replayHandle = kk_shared_flow_replay_cache(flowHandle)
-        let replay = runtimeListBox(from: replayHandle)?.elements ?? []
-        #expect(replay == [20, 30])
-
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-        _ = kk_shared_flow_collect(flowHandle, collectorPtr, 0, nil)
-
-        let snapshot = runtimeFlowTestState.snapshot()
-        #expect(snapshot.values == [20, 30])
-    }
-
-    @Test func testMutableStateFlowTracksLatestValueAndCollectsCurrentSnapshot() {
-        let stateHandle = kk_mutable_state_flow_create(7)
-        #expect(kk_state_flow_value(stateHandle) == 7)
-
-        _ = kk_mutable_state_flow_emit(stateHandle, 11)
-        #expect(kk_state_flow_value(stateHandle) == 11)
-
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-        _ = kk_shared_flow_collect(stateHandle, collectorPtr, 0, nil)
-
-        let snapshot = runtimeFlowTestState.snapshot()
-        #expect(snapshot.values == [11])
-    }
-
-    @Test func testShareInAndStateInMaterializeFromColdFlowSource() {
-        let coldFlow = runtimeFlowOf([1, 2, 3])
-
-        let sharedHandle = kk_flow_share_in(coldFlow, 2)
-        let replayHandle = kk_shared_flow_replay_cache(sharedHandle)
-        let replay = runtimeListBox(from: replayHandle)?.elements ?? []
-        #expect(replay == [2, 3])
-
-        let stateHandle = kk_flow_state_in(coldFlow, 0)
-        #expect(kk_state_flow_value(stateHandle) == 3)
-    }
+    // KSP-676: MutableStateFlow / StateFlow / Flow.stateIn are bundled Kotlin
+    // source now; behavior is covered by Scripts/diff_cases/state_flow_kotlin.kt
+    // and StdlibArtifactRegressionTests instead of runtime-handle tests.
 
     @Test func testCatchConsumesUpstreamFailure() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)

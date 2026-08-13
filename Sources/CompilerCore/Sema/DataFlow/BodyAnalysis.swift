@@ -57,7 +57,8 @@ extension DataFlowSemaPhase {
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
-        recursionDepth: Int = 0
+        recursionDepth: Int = 0,
+        usageRange: SourceRange? = nil
     ) -> TypeID? {
         guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
             diagnostics?.error(
@@ -145,7 +146,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth
+                    recursionDepth: recursionDepth,
+                    usageRange: usageRange
                 )
                 if resolved.kind == .typeAlias {
                     if let underlying = resolveTypeAliasUnderlying(
@@ -168,6 +170,30 @@ extension DataFlowSemaPhase {
                 }
                 return types.make(.classType(ClassType(classSymbol: resolved.id, args: resolvedArgs, nullability: nullability)))
             }
+            if candidates.isEmpty,
+               let builtinNestedSymbol = resolveBuiltinClassNestedType(
+                   path: path,
+                   types: types,
+                   symbols: symbols,
+                   interner: interner
+               ),
+               isNominalTypeSymbol(builtinNestedSymbol.kind)
+            {
+                let resolvedArgs = resolveTypeArgRefs(
+                    argRefs,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth
+                )
+                return types.make(.classType(ClassType(classSymbol: builtinNestedSymbol.id, args: resolvedArgs, nullability: nullability)))
+            }
             let stringBuilderName = interner.intern("StringBuilder")
             let kotlinTextStringBuilderFQName = [
                 interner.intern("kotlin"),
@@ -186,7 +212,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 )
                 return types.make(.classType(ClassType(
                     classSymbol: stringBuilderSymbol,
@@ -197,7 +224,7 @@ extension DataFlowSemaPhase {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0025",
                 "Unresolved type '\(interner.resolve(shortName))'.",
-                range: nil
+                range: usageRange
             )
             return types.errorType
 
@@ -216,7 +243,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) else {
                     return nil
                 }
@@ -234,7 +262,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 )
             }
             var paramTypes: [TypeID] = []
@@ -250,7 +279,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) else {
                     return nil
                 }
@@ -267,7 +297,8 @@ extension DataFlowSemaPhase {
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
                 diagnostics: diagnostics,
-                recursionDepth: recursionDepth + 1
+                recursionDepth: recursionDepth + 1,
+                usageRange: usageRange
             ) ?? types.unitType
             return types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
@@ -290,7 +321,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -308,7 +340,8 @@ extension DataFlowSemaPhase {
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
                 diagnostics: diagnostics,
-                recursionDepth: recursionDepth + 1
+                recursionDepth: recursionDepth + 1,
+                usageRange: usageRange
             ) else {
                 return nil
             }
@@ -318,7 +351,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                range: usageRange
             )
         }
     }
@@ -448,7 +482,8 @@ extension DataFlowSemaPhase {
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
-        recursionDepth: Int = 0
+        recursionDepth: Int = 0,
+        usageRange: SourceRange? = nil
     ) -> [TypeArg] {
         var result: [TypeArg] = []
         result.reserveCapacity(argRefs.count)
@@ -466,7 +501,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.invariant(resolved))
             case let .out(innerRef):
@@ -481,7 +517,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.out(resolved))
             case let .in(innerRef):
@@ -496,7 +533,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.in(resolved))
             case .star:
@@ -868,6 +906,35 @@ extension DataFlowSemaPhase {
             guard let lastExprID = exprIDs.last else { return false }
             return isSelfRecursiveCall(lastExprID, functionName: functionName, ast: ast)
         }
+    }
+
+    /// Resolve a nested type reference (e.g. `Char.Companion`) inside a builtin
+    /// type's synthetic class symbol when normal nominal lookup fails.
+    private func resolveBuiltinClassNestedType(
+        path: [InternedString],
+        types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SemanticSymbol? {
+        guard path.count > 1, let first = path.first else { return nil }
+
+        let rootClassSymbol: SymbolID?
+        if first == interner.intern("Char") {
+            rootClassSymbol = types.charClassSymbol
+        } else if first == interner.intern("String") {
+            rootClassSymbol = types.stringClassSymbol
+        } else if first == interner.intern("Any") {
+            rootClassSymbol = types.anyClassSymbol
+        } else {
+            rootClassSymbol = nil
+        }
+
+        guard let root = rootClassSymbol, let rootInfo = symbols.symbol(root) else {
+            return nil
+        }
+        let nestedFQName = rootInfo.fqName + Array(path.dropFirst())
+        guard let symbolID = symbols.lookupAll(fqName: nestedFQName).first else { return nil }
+        return symbols.symbol(symbolID)
     }
 
     /// Check if the given expression is a call to a function with the given name.

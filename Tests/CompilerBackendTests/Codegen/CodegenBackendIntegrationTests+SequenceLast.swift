@@ -100,7 +100,10 @@ struct CodegenBackendSequenceLastTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_sequence_last"))
+            #expect(
+                !callees.contains("kk_sequence_last"),
+                "Expected Sequence.last to be backed by source, got callees: \(callees.sorted())"
+            )
         }
     }
 }

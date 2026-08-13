@@ -8,7 +8,7 @@
 //
 // `enum class`es carrying a constructor property (`enum class S(val code: Int)`)
 // are deliberately absent: reading such a property does not link at all
-// (BUG-188), independently of string conversion.
+// (BUG-205), independently of string conversion.
 enum class Direction { NORTH, EAST, SOUTH, WEST }
 
 fun describe(d: Direction): String = "heading $d"

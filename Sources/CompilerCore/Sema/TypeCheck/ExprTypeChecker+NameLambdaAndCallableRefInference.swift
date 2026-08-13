@@ -119,7 +119,7 @@ extension ExprTypeChecker {
         switch primitive {
         case .boolean, .char:
             return ctx.sema.types.intType
-        case .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
+        case .byte, .short, .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
             return targetType
         }
     }
@@ -1376,13 +1376,24 @@ extension ExprTypeChecker {
                 } else {
                     resultType = inferredType
                 }
+
             } else {
                 resultType = inferredType
             }
-            if let expectedSamInterfaceType {
+            // BUG-164: A callable reference passed to a fun-interface parameter
+            // must be SAM-converted and bound to the interface type, not left as a
+            // bare function type.  `lowerCallableRefExpr` checks `isSamConversion`
+            // and emits the wrapper object that makes interface dispatch work.
+            // Only perform the conversion when the resolved result is the concrete
+            // interface type; if the expected type still contains type parameters,
+            // leave the reference as a function value so generic inference can
+            // substitute a concrete instantiation later.
+            if let expectedSamInterfaceType,
+               resultType == expectedSamInterfaceType
+            {
                 sema.bindings.markSamConversion(id)
                 sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
-                sema.bindings.bindSamUnderlyingFunctionType(id, type: inferredType)
+                sema.bindings.bindSamUnderlyingFunctionType(id, type: expectedFunctionType ?? inferredType)
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

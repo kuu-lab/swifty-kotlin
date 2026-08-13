@@ -869,7 +869,7 @@ extension DataFlowSemaPhase {
         )))
         registerSequenceMemberStub(
             named: "sumOf",
-            externalLinkName: "kk_sequence_sumOf",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("selector", sequenceElementToIntType)],
             returnType: types.intType,
@@ -882,7 +882,7 @@ extension DataFlowSemaPhase {
         )
         registerSequenceMemberStub(
             named: "sumBy",
-            externalLinkName: "kk_sequence_sumBy",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("selector", sequenceElementToIntType)],
             returnType: types.intType,
@@ -910,7 +910,7 @@ extension DataFlowSemaPhase {
         )))
         registerSequenceMemberStub(
             named: "sumByDouble",
-            externalLinkName: "kk_sequence_sumByDouble",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("selector", sequenceElementToDoubleType)],
             returnType: types.doubleType,
@@ -1489,7 +1489,7 @@ extension DataFlowSemaPhase {
         // partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> (STDLIB-SEQ-012)
         registerSequenceMemberStub(
             named: "partition",
-            externalLinkName: "kk_sequence_partition",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("predicate", predicateType)],
             returnType: types.anyType,
@@ -1976,7 +1976,7 @@ extension DataFlowSemaPhase {
             )))
             registerSequenceMemberStub(
                 named: "partition",
-                externalLinkName: "kk_sequence_partition",
+                externalLinkName: "",
                 receiverType: receiverType,
                 parameters: [("predicate", predicateType)],
                 returnType: partitionReturnType,
@@ -2035,7 +2035,7 @@ extension DataFlowSemaPhase {
                 )))
                 registerSequenceMemberStub(
                     named: "associate",
-                    externalLinkName: "kk_sequence_associate",
+                    externalLinkName: "",
                     receiverType: receiverType,
                     parameters: [("transform", transformType)],
                     returnType: returnType,
@@ -2082,7 +2082,7 @@ extension DataFlowSemaPhase {
                 )))
                 registerSequenceMemberStub(
                     named: "associateBy",
-                    externalLinkName: "kk_sequence_associateBy",
+                    externalLinkName: "",
                     receiverType: receiverType,
                     parameters: [("keySelector", keySelectorType)],
                     returnType: returnType,
@@ -2093,60 +2093,6 @@ extension DataFlowSemaPhase {
                     interner: interner,
                     canThrow: true,
                     additionalTypeParameterSymbols: [keyTypeParamSymbol]
-                )
-            }
-        }
-
-        // associateWith(valueSelector): Map<T, R>
-        if let mapSymbol = symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Map"),
-        ]) {
-            let associateWithFQName = sequenceFQName + [interner.intern("associateWith")]
-            if symbols.lookup(fqName: associateWithFQName) == nil {
-                let rName = interner.intern("R")
-                let rFQName = associateWithFQName + [rName]
-                let rSymbol = symbols.define(
-                    kind: .typeParameter,
-                    name: rName,
-                    fqName: rFQName,
-                    declSite: nil,
-                    visibility: .private,
-                    flags: []
-                )
-                let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-                let valueSelectorType = types.make(.functionType(FunctionType(
-                    params: [typeParamType],
-                    returnType: rType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                let returnType = types.make(.classType(ClassType(
-                    classSymbol: mapSymbol,
-                    args: [.out(typeParamType), .out(rType)],
-                    nullability: .nonNull
-                )))
-                let associateWithSymbol = symbols.define(
-                    kind: .function,
-                    name: interner.intern("associateWith"),
-                    fqName: associateWithFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .operatorFunction]
-                )
-                symbols.setParentSymbol(sequenceSymbol, for: associateWithSymbol)
-                symbols.setExternalLinkName("kk_sequence_associateWith", for: associateWithSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [valueSelectorType],
-                        returnType: returnType,
-                        canThrow: true,
-                        typeParameterSymbols: [typeParamSymbol, rSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: associateWithSymbol
                 )
             }
         }
@@ -2198,7 +2144,7 @@ extension DataFlowSemaPhase {
                 )))
                 registerSequenceMemberStub(
                     named: "associateTo",
-                    externalLinkName: "kk_sequence_associateTo",
+                    externalLinkName: "",
                     receiverType: receiverType,
                     parameters: [("destination", destinationType), ("transform", transformType)],
                     returnType: destinationType,
@@ -2238,7 +2184,7 @@ extension DataFlowSemaPhase {
                 )))
                 registerSequenceMemberStub(
                     named: "associateByTo",
-                    externalLinkName: "kk_sequence_associateByTo",
+                    externalLinkName: "",
                     receiverType: receiverType,
                     parameters: [("destination", destinationType), ("keySelector", keySelectorType)],
                     returnType: destinationType,
@@ -2278,7 +2224,7 @@ extension DataFlowSemaPhase {
                 )))
                 registerSequenceMemberStub(
                     named: "associateWithTo",
-                    externalLinkName: "kk_sequence_associateWithTo",
+                    externalLinkName: "",
                     receiverType: receiverType,
                     parameters: [("destination", destinationType), ("valueSelector", valueSelectorType)],
                     returnType: destinationType,
@@ -2324,7 +2270,7 @@ extension DataFlowSemaPhase {
                 )))
                 registerSequenceMemberStub(
                     named: "groupByTo",
-                    externalLinkName: "kk_sequence_groupByTo",
+                    externalLinkName: "",
                     receiverType: receiverType,
                     parameters: [("destination", destinationType), ("keySelector", keySelectorType)],
                     returnType: destinationType,
@@ -2389,42 +2335,42 @@ extension DataFlowSemaPhase {
 
             registerComparableSelectorMember(
                 name: "maxBy",
-                externalLinkName: "kk_sequence_maxBy",
+                externalLinkName: "",
                 returnTypeBuilder: { _ in typeParamType }
             )
             registerComparableSelectorMember(
                 name: "maxByOrNull",
-                externalLinkName: "kk_sequence_maxByOrNull",
+                externalLinkName: "",
                 returnTypeBuilder: { _ in types.makeNullable(typeParamType) }
             )
             registerComparableSelectorMember(
                 name: "minByOrNull",
-                externalLinkName: "kk_sequence_minByOrNull",
+                externalLinkName: "",
                 returnTypeBuilder: { _ in types.makeNullable(typeParamType) }
             )
             registerComparableSelectorMember(
                 name: "minBy",
-                externalLinkName: "kk_sequence_minBy",
+                externalLinkName: "",
                 returnTypeBuilder: { _ in typeParamType }
             )
             registerComparableSelectorMember(
                 name: "maxOfOrNull",
-                externalLinkName: "kk_sequence_maxOfOrNull",
+                externalLinkName: "",
                 returnTypeBuilder: { selectorResultType in types.makeNullable(selectorResultType) }
             )
             registerComparableSelectorMember(
                 name: "maxOf",
-                externalLinkName: "kk_sequence_maxOf",
+                externalLinkName: "",
                 returnTypeBuilder: { selectorResultType in selectorResultType }
             )
             registerComparableSelectorMember(
                 name: "minOf",
-                externalLinkName: "kk_sequence_minOf",
+                externalLinkName: "",
                 returnTypeBuilder: { selectorResultType in selectorResultType }
             )
             registerComparableSelectorMember(
                 name: "minOfOrNull",
-                externalLinkName: "kk_sequence_minOfOrNull",
+                externalLinkName: "",
                 returnTypeBuilder: { selectorResultType in types.makeNullable(selectorResultType) }
             )
         }
@@ -2447,7 +2393,7 @@ extension DataFlowSemaPhase {
             }
             registerSequenceMemberStub(
                 named: "maxWithOrNull",
-                externalLinkName: "kk_sequence_maxWithOrNull",
+                externalLinkName: "",
                 receiverType: receiverType,
                 parameters: [("comparator", comparatorTypeForSequence)],
                 returnType: types.makeNullable(typeParamType),
@@ -2464,7 +2410,7 @@ extension DataFlowSemaPhase {
         // maxWith(comparator): T
         registerSequenceMemberStub(
             named: "maxWith",
-            externalLinkName: "kk_sequence_maxWith",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("comparator", comparatorTypeForSequence)],
             returnType: typeParamType,
@@ -2480,7 +2426,7 @@ extension DataFlowSemaPhase {
         // minWithOrNull(comparator: Comparator<in T>): T?
         registerSequenceMemberStub(
             named: "minWithOrNull",
-            externalLinkName: "kk_sequence_minWithOrNull",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("comparator", comparatorTypeForSequence)],
             returnType: types.makeNullable(typeParamType),
@@ -2496,7 +2442,7 @@ extension DataFlowSemaPhase {
         // minWith(comparator: Comparator<in T>): T
         registerSequenceMemberStub(
             named: "minWith",
-            externalLinkName: "kk_sequence_minWith",
+            externalLinkName: "",
             receiverType: receiverType,
             parameters: [("comparator", comparatorTypeForSequence)],
             returnType: typeParamType,

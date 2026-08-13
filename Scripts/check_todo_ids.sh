@@ -35,7 +35,7 @@ if ! command -v rg >/dev/null 2>&1; then
 fi
 
 set +e
-matches="$(rg '^- \[[ x]\] ([A-Z]+-[A-Z-]+-[0-9]+):' "$TODO_FILE" -or '$1')"
+matches="$(rg '^- \[[ x]\] ([A-Z]+(?:-[A-Z]+)*-[0-9]+):' "$TODO_FILE" -or '$1')"
 rg_status=$?
 set -e
 

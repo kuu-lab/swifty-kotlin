@@ -24,6 +24,17 @@ public func kk_box_int(_ value: Int) -> Int {
 @_cdecl("kk_box_bool")
 public func kk_box_bool(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
+    // If the value is already a registered runtime object (e.g. a Boolean
+    // returned by a runtime helper that already boxed it), pass it through
+    // without double-boxing so source-level println() preserves the value.
+    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: objPointer))
+        }
+        if isObjectPointer {
+            return value
+        }
+    }
     let box = RuntimeBoolBox(value != 0)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -103,7 +114,7 @@ public func kk_box_long(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo for LongRange), pass it through without
-    // double-boxing so that kk_println_any / runtimeElementToString can
+    // double-boxing so that __kk_print_raw / runtimeElementToString can
     // recognise the original object type.
     if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in
@@ -242,6 +253,16 @@ public func kk_unbox_ulong(_ obj: Int) -> Int {
 @_cdecl("kk_box_float")
 public func kk_box_float(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
+    // If the value is already a registered runtime object, pass it through
+    // without double-boxing so source-level println() preserves the value.
+    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: objPointer))
+        }
+        if isObjectPointer {
+            return value
+        }
+    }
     let floatBits = Float(bitPattern: UInt32(truncatingIfNeeded: value))
     let box = RuntimeFloatBox(floatBits)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())

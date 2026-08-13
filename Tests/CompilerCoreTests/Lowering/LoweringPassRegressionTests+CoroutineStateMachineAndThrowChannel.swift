@@ -31,8 +31,8 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
-            #expect(allCallees.contains("kk_iterator_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("__kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("__kk_iterator_builder_build_coro"), "Callees: \(allCallees)")
 
             let builderBuildCalls = functions.flatMap { function -> [(String, Int)] in
                 function.body.compactMap { instruction in
@@ -40,7 +40,7 @@ extension LoweringPassRegressionTests {
                         return nil
                     }
                     let name = ctx.interner.resolve(callee)
-                    guard name == "kk_sequence_builder_build_coro" || name == "kk_iterator_builder_build_coro" else {
+                    guard name == "__kk_sequence_builder_build_coro" || name == "__kk_iterator_builder_build_coro" else {
                         return nil
                     }
                     return (name, arguments.count)
@@ -49,9 +49,9 @@ extension LoweringPassRegressionTests {
             #expect(builderBuildCalls.allSatisfy { _, argumentCount in argumentCount == 3 }, "Builder calls: \(builderBuildCalls)")
 
             let yieldFunctions = functions.filter { function in
-                extractCallees(from: function.body, interner: ctx.interner).contains("kk_sequence_builder_yield")
+                extractCallees(from: function.body, interner: ctx.interner).contains("__kk_sequence_builder_yield")
             }
-            #expect(!yieldFunctions.isEmpty, "Expected lowered builder functions to call kk_sequence_builder_yield")
+            #expect(!yieldFunctions.isEmpty, "Expected lowered builder functions to call __kk_sequence_builder_yield")
             #expect(yieldFunctions.allSatisfy { function in
                 function.body.contains { instruction in
                     if case .returnIfEqual = instruction {
@@ -85,8 +85,8 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("kk_sequence_builder_build"), "Callees: \(allCallees)")
-            #expect(!allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("__kk_sequence_builder_build"), "Callees: \(allCallees)")
+            #expect(!allCallees.contains("__kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
         }
     }
 
@@ -114,11 +114,11 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("__kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
 
             let rangeYieldFunctions = functions.filter { function in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                return callees.contains("kk_sequence_builder_yield")
+                return callees.contains("__kk_sequence_builder_yield")
                     && callees.contains("kk_iterator_hasNext")
                     && callees.contains("kk_iterator_next")
             }

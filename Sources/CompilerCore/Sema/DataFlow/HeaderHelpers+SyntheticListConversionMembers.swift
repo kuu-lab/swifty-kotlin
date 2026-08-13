@@ -69,12 +69,13 @@ extension DataFlowSemaPhase {
             bundledIndex: bundledIndex
         )
         let kotlinPkg = [interner.intern("kotlin")]
-        // KSP-628: List.toTypedArray / to{Char,Boolean,Short,Double,Float,Int,Long,Byte}Array
+        // KSP-628 + KSP-629: List.toTypedArray / to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array
         // are bundled Kotlin source (Stdlib/kotlin/collections/ArrayConversions.kt).
         // Only the receiving array types' own `size` / `toList` members stay synthetic.
         for arrayTypeName in [
             "CharArray", "BooleanArray", "ShortArray", "DoubleArray",
             "FloatArray", "IntArray", "LongArray", "ByteArray",
+            "UByteArray", "UShortArray", "UIntArray", "ULongArray",
         ] {
             registerPrimitiveArrayCoreMembers(
                 symbols: symbols, types: types, interner: interner,
@@ -82,42 +83,6 @@ extension DataFlowSemaPhase {
                 arrayPackage: kotlinPkg
             )
         }
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toUByteArray",
-            arrayTypeName: "UByteArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toUByteArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toUShortArray",
-            arrayTypeName: "UShortArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toUShortArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toUIntArray",
-            arrayTypeName: "UIntArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toUIntArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toULongArray",
-            arrayTypeName: "ULongArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toULongArray"
-        )
     }
 
     /// Register the `size` / `toList` members that belong to a primitive array type.
@@ -208,8 +173,8 @@ extension DataFlowSemaPhase {
                 let elementType: TypeID = switch arrayTypeName {
                 case "IntArray": types.intType
                 case "LongArray": types.longType
-                case "ByteArray": types.intType
-                case "ShortArray": types.intType
+                case "ByteArray": types.byteType
+                case "ShortArray": types.shortType
                 case "UIntArray": types.uintType
                 case "ULongArray": types.ulongType
                 case "DoubleArray": types.doubleType
@@ -244,74 +209,6 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-    }
-
-    /// Register a `List<E>.toXxxArray(): XxxArray` conversion member stub.
-    ///
-    /// Used for the unsigned conversions (`toUByteArray` … `toULongArray`);
-    /// the signed/object ones are source-backed (KSP-628).
-    private func registerListToPrimitiveArrayMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        memberName: String,
-        arrayTypeName: String,
-        arrayPackage: [InternedString],
-        externalLinkName: String
-    ) {
-        registerPrimitiveArrayCoreMembers(
-            symbols: symbols, types: types, interner: interner,
-            arrayTypeName: arrayTypeName,
-            arrayPackage: arrayPackage
-        )
-
-        guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
-        let internedMemberName = interner.intern(memberName)
-        let memberFQName = listFQName + [internedMemberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbol, nullability: .nonNull
-        )))
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let arraySymbol = ensureClassSymbol(
-            named: arrayTypeName,
-            in: arrayPackage,
-            symbols: symbols,
-            interner: interner
-        )
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: internedMemberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
     }
 
     /// Register `kotlin.collections.MutableList<E>` interface stub with `operator fun set(index: Int, element: E): E`.

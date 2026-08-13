@@ -27,8 +27,6 @@ symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthet
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean
 symbol fq=kotlin.collections.MutableList.removeAt kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int] ret=kotlin.collections.MutableList.E
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedLists kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processList kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableList<String>] ret=Unit

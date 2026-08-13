@@ -10,11 +10,6 @@ private let lambdaThatThrows: @convention(c) (Int, Int, UnsafeMutablePointer<Int
     return 0
 }
 
-private let lambdaThatThrows2: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
-    outThrown?.pointee = exceptionID
-    return 0
-}
-
 private let throwingGroupByParity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 2
 }
@@ -87,16 +82,6 @@ struct RuntimeCollectionHOFThrowTests {
     }
 
     @Test
-    func testListReduceEmptyThrows() {
-        let list = kk_list_of(kk_array_new(0), 0)
-        var outThrown = 0
-        let result = kk_list_reduce(list, 0, 0, &outThrown)
-
-        #expect(outThrown != 0)
-        #expect(result == runtimeExceptionCaughtSentinel)
-    }
-
-    @Test
     func testListFirstEmptyThrows() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
@@ -136,48 +121,5 @@ struct RuntimeCollectionHOFThrowTests {
         #expect(result == 0)
     }
 
-    @Test
-    func testListReduceOrNullEmptyDoesNotThrow() {
-        let list = kk_list_of(kk_array_new(0), 0)
-        var outThrown = 0
-        let result = kk_list_reduceOrNull(list, 0, 0, &outThrown)
-
-        #expect(outThrown == 0)
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testListScanReduceEmptyDoesNotThrow() {
-        let list = kk_list_of(kk_array_new(0), 0)
-        var outThrown = 0
-        let result = kk_list_scanReduce(list, 0, 0, &outThrown)
-
-        #expect(outThrown == 0)
-        #expect(runtimeListBox(from: result)?.elements ?? [] == [])
-    }
-
-    @Test
-    func testListRunningReduceEmptyDoesNotThrow() {
-        let list = kk_list_of(kk_array_new(0), 0)
-        var outThrown = 0
-        let result = kk_list_runningReduce(list, 0, 0, &outThrown)
-
-        #expect(outThrown == 0)
-        #expect(runtimeListBox(from: result)?.elements ?? [] == [])
-    }
-
-    @Test
-    func testListFoldThrows() {
-        let array = kk_array_new(1)
-        var thrown = 0
-        _ = kk_array_set(array, 0, 1, &thrown)
-        let list = kk_list_of(array, 1)
-
-        var outThrown = 0
-        let result = kk_list_fold(list, 0, unsafeBitCast(lambdaThatThrows2, to: Int.self), 0, &outThrown)
-
-        #expect(outThrown == exceptionID)
-        #expect(result == runtimeExceptionCaughtSentinel)
-    }
 }
 #endif

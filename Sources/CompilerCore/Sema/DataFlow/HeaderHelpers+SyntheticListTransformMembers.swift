@@ -1,10 +1,12 @@
 import RuntimeABI
 
-/// List transform members that are not yet source-backed (e.g. `take`, `drop`,
-/// `sum`, `distinctBy`) extracted from `HeaderHelpers+SyntheticListStubs.swift`.
+/// List transform members that are not yet source-backed (e.g. `sum`, `distinctBy`)
+/// extracted from `HeaderHelpers+SyntheticListStubs.swift`.
 /// KSP-421 source-backed transforms (`map`, `mapIndexed`, `mapNotNull`,
 /// `flatMap`, `flatMapIndexed`, `flatten`, and `*To` variants) are no longer
 /// registered here.
+/// KSP-427 source-backed transforms (`take`, `takeLast`, `drop`, `dropLast`,
+/// `slice`, `subList`) are no longer registered here.
 extension DataFlowSemaPhase {
     func registerListTransformMembers(
         symbols: SymbolTable,
@@ -169,6 +171,7 @@ extension DataFlowSemaPhase {
         registerMember(name: "drop", parameterTypes: [types.intType], externalLinkName: "kk_list_drop", canThrow: true)
         registerMember(name: "takeLast", parameterTypes: [types.intType], externalLinkName: "kk_list_takeLast", canThrow: true)
         registerMember(name: "dropLast", parameterTypes: [types.intType], externalLinkName: "kk_list_dropLast")
+
         registerMember(
             name: "sorted",
             parameterTypes: [],

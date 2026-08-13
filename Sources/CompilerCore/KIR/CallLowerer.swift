@@ -31,35 +31,6 @@ final class CallLowerer {
         return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
     }
 
-    /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
-    /// symbol prefix (e.g. "kk_int", "kk_long", "kk_uint", "kk_ulong"),
-    /// or nil if the receiver is not one of the coercion-eligible numeric
-    /// types. Nullable receivers are normalized to non-nullable for dispatch.
-    /// Shared by both normal and safe-call member lowering paths.
-    func numericCoercionRuntimePrefix(
-        receiverType: TypeID,
-        sema: SemaModule
-    ) -> String? {
-        let nonNull = sema.types.makeNonNullable(receiverType)
-        let intType = sema.types.make(.primitive(.int, .nonNull))
-        let longType = sema.types.make(.primitive(.long, .nonNull))
-        let doubleType = sema.types.make(.primitive(.double, .nonNull))
-        let floatType = sema.types.make(.primitive(.float, .nonNull))
-        let ubyteType = sema.types.ubyteType
-        let ushortType = sema.types.ushortType
-        let uintType = sema.types.uintType
-        let ulongType = sema.types.ulongType
-        if nonNull == intType { return "kk_int" }
-        if nonNull == longType { return "kk_long" }
-        if nonNull == doubleType { return "kk_double" }
-        if nonNull == floatType { return "kk_float" }
-        if nonNull == ubyteType { return "kk_ubyte" }
-        if nonNull == ushortType { return "kk_ushort" }
-        if nonNull == uintType { return "kk_uint" }
-        if nonNull == ulongType { return "kk_ulong" }
-        return nil
-    }
-
     /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
     /// constructors, so callers can both gate on "is this a StringBuilder
     /// construction" and reuse the owner symbol for itable registration
@@ -279,47 +250,6 @@ final class CallLowerer {
         return result
     }
 
-    /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
-    /// Decomposes a range argument into first/last bounds and emits a call to
-    /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
-    /// paths to avoid duplication for the numeric types that expose range coercion.
-    func emitCoerceInRange(
-        prefix: String,
-        receiverType: TypeID,
-        loweredReceiverID: KIRExprID,
-        loweredRangeArgID: KIRExprID,
-        result: KIRExprID,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) {
-        // Use non-nullable receiver type for temporaries so Long receivers get
-        // Long-typed bounds instead of always Int.
-        let boundType = sema.types.makeNonNullable(receiverType)
-        let firstExpr = arena.appendTemporary(type: boundType)
-        let lastExpr = arena.appendTemporary(type: boundType)
-        emitNonThrowingCall(
-            callee: interner.intern("__kk_range_first"),
-            arg: loweredRangeArgID,
-            result: firstExpr,
-            into: &instructions
-        )
-        emitNonThrowingCall(
-            callee: interner.intern("__kk_range_last"),
-            arg: loweredRangeArgID,
-            result: lastExpr,
-            into: &instructions
-        )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern(prefix + "_coerceIn"),
-            arguments: [loweredReceiverID, firstExpr, lastExpr],
-            result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
-    }
 
     // swiftlint:disable:next cyclomatic_complexity
     func lowerCallExpr(
@@ -335,8 +265,11 @@ final class CallLowerer {
     ) -> KIRExprID {
         // SAM constructor calls: `Transformer { ... }` — the single lambda
         // argument is already marked as a SAM conversion and no call binding
-        // exists for the constructor.  Lower the lambda directly; the SAM
-        // wrapper is produced by LambdaLowerer.
+        // exists for the constructor (the callee name is the fun interface itself).
+        // Lower the lambda directly; the SAM wrapper is produced by LambdaLowerer.
+        // A regular function call with a single SAM-converted argument (e.g.
+        // `useOp(::myCompare)`) must still call the function, so require the
+        // absence of a call binding here.
         if args.count == 1,
            sema.bindings.isSamConversion(args[0].expr),
            sema.bindings.callBinding(for: exprID) == nil
@@ -830,49 +763,8 @@ final class CallLowerer {
             ))
             return result
         }
-        if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
-            let sourceName = interner.resolve(sourceCalleeName)
-            let builderRuntimeCallee: String? = switch builderKind {
-            case .buildList:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("add", 1):
-                    "kk_builder_list_add"
-                case ("addAll", 1):
-                    "kk_builder_list_addAll"
-                default:
-                    nil
-                }
-            case .buildSet:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("add", 1):
-                    "kk_builder_set_add"
-                case ("addAll", 1):
-                    "kk_builder_set_addAll"
-                default:
-                    nil
-                }
-            case .buildMap:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("put", 2):
-                    "kk_builder_map_put"
-                default:
-                    nil
-                }
-            }
-            if let builderRuntimeCallee {
-                let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(builderRuntimeCallee),
-                    arguments: loweredArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
+        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
+        // and no longer use builder-DSL runtime lowering.
         if let loweredToList = tryLowerCollectionToListCall(
             sourceCalleeName: sourceCalleeName,
             args: args,
@@ -1791,6 +1683,8 @@ final class CallLowerer {
         case ("toInt", sema.types.doubleType, sema.types.intType): interner.intern("kk_double_to_int")
         case ("toInt", sema.types.floatType, sema.types.intType): interner.intern("kk_float_to_int")
         case ("toInt", sema.types.charType, sema.types.intType): interner.intern("kk_char_to_int")
+        case ("toInt", sema.types.byteType, sema.types.intType): nil
+        case ("toInt", sema.types.shortType, sema.types.intType): nil
         case ("toInt", sema.types.intType, sema.types.intType), ("toInt", sema.types.longType, sema.types.intType): nil
         case ("toLong", sema.types.intType, sema.types.longType): interner.intern("kk_int_to_long")
         case ("toLong", sema.types.uintType, sema.types.longType): interner.intern("kk_uint_to_long")
@@ -1799,18 +1693,24 @@ final class CallLowerer {
         case ("toLong", sema.types.doubleType, sema.types.longType): interner.intern("kk_double_to_long")
         case ("toLong", sema.types.floatType, sema.types.longType): interner.intern("kk_float_to_long")
         case ("toLong", sema.types.charType, sema.types.longType): interner.intern("kk_char_to_long")
+        case ("toLong", sema.types.byteType, sema.types.longType): nil
+        case ("toLong", sema.types.shortType, sema.types.longType): nil
         case ("toLong", sema.types.longType, sema.types.longType), ("toLong", sema.types.ulongType, sema.types.longType): nil
         case ("toUInt", sema.types.intType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.longType, sema.types.uintType): interner.intern("kk_long_to_uint")
         case ("toUInt", sema.types.ubyteType, sema.types.uintType): interner.intern("kk_ubyte_to_uint")
         case ("toUInt", sema.types.ushortType, sema.types.uintType): interner.intern("kk_ushort_to_uint")
         case ("toUInt", sema.types.charType, sema.types.uintType): interner.intern("kk_char_to_uint")
+        case ("toUInt", sema.types.byteType, sema.types.uintType): interner.intern("kk_int_to_uint")
+        case ("toUInt", sema.types.shortType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.uintType, sema.types.uintType), ("toUInt", sema.types.ulongType, sema.types.uintType): nil
         case ("toULong", sema.types.intType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.longType, sema.types.ulongType): interner.intern("kk_long_to_ulong")
         case ("toULong", sema.types.ubyteType, sema.types.ulongType): interner.intern("kk_ubyte_to_ulong")
         case ("toULong", sema.types.ushortType, sema.types.ulongType): interner.intern("kk_ushort_to_ulong")
         case ("toULong", sema.types.charType, sema.types.ulongType): interner.intern("kk_char_to_ulong")
+        case ("toULong", sema.types.byteType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
+        case ("toULong", sema.types.shortType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.uintType, sema.types.ulongType): interner.intern("kk_uint_to_ulong")
         case ("toULong", sema.types.ulongType, sema.types.ulongType): nil
         case ("toFloat", sema.types.intType, sema.types.floatType): interner.intern("kk_int_to_float")
@@ -1821,18 +1721,22 @@ final class CallLowerer {
         case ("toDouble", sema.types.longType, sema.types.doubleType): interner.intern("kk_long_to_double")
         case ("toDouble", sema.types.floatType, sema.types.doubleType): interner.intern("kk_float_to_double_bits")
         case ("toDouble", sema.types.doubleType, sema.types.doubleType): nil
-        case ("toByte", sema.types.intType, sema.types.intType): interner.intern("kk_int_to_byte")
-        case ("toByte", sema.types.longType, sema.types.intType): interner.intern("kk_long_to_byte")
-        case ("toByte", sema.types.uintType, sema.types.intType): interner.intern("kk_uint_to_byte")
-        case ("toByte", sema.types.ulongType, sema.types.intType): interner.intern("kk_ulong_to_byte")
-        case ("toByte", sema.types.ubyteType, sema.types.intType): interner.intern("kk_ubyte_to_byte")
-        case ("toByte", sema.types.ushortType, sema.types.intType): interner.intern("kk_ushort_to_byte")
-        case ("toShort", sema.types.intType, sema.types.intType): interner.intern("kk_int_to_short")
-        case ("toShort", sema.types.longType, sema.types.intType): interner.intern("kk_long_to_short")
-        case ("toShort", sema.types.uintType, sema.types.intType): interner.intern("kk_uint_to_short")
-        case ("toShort", sema.types.ulongType, sema.types.intType): interner.intern("kk_ulong_to_short")
-        case ("toShort", sema.types.ubyteType, sema.types.intType): interner.intern("kk_ubyte_to_short")
-        case ("toShort", sema.types.ushortType, sema.types.intType): interner.intern("kk_ushort_to_short")
+        case ("toByte", sema.types.intType, sema.types.byteType): interner.intern("kk_int_to_byte")
+        case ("toByte", sema.types.longType, sema.types.byteType): interner.intern("kk_long_to_byte")
+        case ("toByte", sema.types.uintType, sema.types.byteType): interner.intern("kk_uint_to_byte")
+        case ("toByte", sema.types.ulongType, sema.types.byteType): interner.intern("kk_ulong_to_byte")
+        case ("toByte", sema.types.ubyteType, sema.types.byteType): interner.intern("kk_ubyte_to_byte")
+        case ("toByte", sema.types.ushortType, sema.types.byteType): interner.intern("kk_ushort_to_byte")
+        case ("toByte", sema.types.byteType, sema.types.byteType): nil
+        case ("toByte", sema.types.shortType, sema.types.byteType): interner.intern("kk_int_to_byte")
+        case ("toShort", sema.types.intType, sema.types.shortType): interner.intern("kk_int_to_short")
+        case ("toShort", sema.types.longType, sema.types.shortType): interner.intern("kk_long_to_short")
+        case ("toShort", sema.types.uintType, sema.types.shortType): interner.intern("kk_uint_to_short")
+        case ("toShort", sema.types.ulongType, sema.types.shortType): interner.intern("kk_ulong_to_short")
+        case ("toShort", sema.types.ubyteType, sema.types.shortType): interner.intern("kk_ubyte_to_short")
+        case ("toShort", sema.types.ushortType, sema.types.shortType): interner.intern("kk_ushort_to_short")
+        case ("toShort", sema.types.byteType, sema.types.shortType): nil
+        case ("toShort", sema.types.shortType, sema.types.shortType): nil
         case ("toUByte", sema.types.intType, sema.types.ubyteType): interner.intern("kk_int_to_ubyte")
         case ("toUByte", sema.types.longType, sema.types.ubyteType): interner.intern("kk_long_to_ubyte")
         case ("toUByte", sema.types.uintType, sema.types.ubyteType): interner.intern("kk_uint_to_ubyte")

@@ -73,6 +73,8 @@ public final class TypeSystem {
     public let ulongType: TypeID
     public let ubyteType: TypeID
     public let ushortType: TypeID
+    public let byteType: TypeID
+    public let shortType: TypeID
 
     public init() {
         errorType = TypeID(rawValue: 0)
@@ -92,6 +94,8 @@ public final class TypeSystem {
         ulongType = TypeID(rawValue: 14)
         ubyteType = TypeID(rawValue: 15)
         ushortType = TypeID(rawValue: 16)
+        byteType = TypeID(rawValue: 17)
+        shortType = TypeID(rawValue: 18)
 
         idToKind = [
             .error,
@@ -111,6 +115,8 @@ public final class TypeSystem {
             .primitive(.ulong, .nonNull),
             .primitive(.ubyte, .nonNull),
             .primitive(.ushort, .nonNull),
+            .primitive(.byte, .nonNull),
+            .primitive(.short, .nonNull),
         ]
         kindToID = [
             .error: errorType,
@@ -130,6 +136,8 @@ public final class TypeSystem {
             .primitive(.ulong, .nonNull): ulongType,
             .primitive(.ubyte, .nonNull): ubyteType,
             .primitive(.ushort, .nonNull): ushortType,
+            .primitive(.byte, .nonNull): byteType,
+            .primitive(.short, .nonNull): shortType,
         ]
     }
 
@@ -188,7 +196,7 @@ public final class TypeSystem {
 
     public func isSigned(_ type: TypeID) -> Bool {
         switch kind(of: type) {
-        case .primitive(.int, _), .primitive(.long, _):
+        case .primitive(.int, _), .primitive(.long, _), .primitive(.byte, _), .primitive(.short, _):
             true
         default:
             false

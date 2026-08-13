@@ -417,8 +417,8 @@ struct IncrementalCompilationCacheTests {
 
     @Test
     func testStdlibManifestHashIsStable() {
-        let hash1 = BundledKotlinStdlib.manifestHash()
-        let hash2 = BundledKotlinStdlib.manifestHash()
+        let hash1 = BundledStdlib.manifestHash()
+        let hash2 = BundledStdlib.manifestHash()
         #expect(hash1 == hash2)
         #expect(!hash1.isEmpty)
     }

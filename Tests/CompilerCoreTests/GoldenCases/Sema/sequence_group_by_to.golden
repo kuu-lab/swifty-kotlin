@@ -7,8 +7,6 @@ symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Map<kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[kotlin.collections.Map.K] ret=kotlin.collections.Map.V?
 symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableMap kind=interface vis=public flags=synthetic
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_group_by_to package=_
@@ -27,7 +25,7 @@ expr e@5:32 name(dest) type=kotlin.collections.MutableMap<Int, kotlin.collection
 expr e@5:40 name(it) type=String ref=s-0
 expr e@5:40#1 memberCall recv=e@5:40 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@5:38 lambda params=[] body=e@5:40#1 label=groupByTo type=(String) -> Int
-expr e@5:18#1 memberCall recv=e@5:18 callee=groupByTo args=[_:e@5:32,_:e@5:38] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
+expr e@5:18#1 memberCall recv=e@5:18 callee=groupByTo args=[_:e@5:32,_:e@5:38] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> call=kotlin.collections.groupByTo#0 targs=[String,String]
 expr e@5:5 localDecl result mutable=0 type=_ init=e@5:18#1 type=Unit ref=__local_2.result
 expr e@6:13 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
 expr e@6:20 int(1) type=Int

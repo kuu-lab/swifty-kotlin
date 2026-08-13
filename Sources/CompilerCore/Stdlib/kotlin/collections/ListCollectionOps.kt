@@ -95,12 +95,6 @@ public fun List<Int>.sum(): Int {
     return sum
 }
 
-public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
-    var sum = 0
-    for (element in this) sum += selector(element)
-    return sum
-}
-
 public fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
     var sum = 0
     for (element in this) sum += selector(element)

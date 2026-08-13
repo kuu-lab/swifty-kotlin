@@ -109,6 +109,7 @@ extension DataFlowSemaPhase {
                 companionInitializerLinkName: metadataRecord.companionInitializerLinkName,
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
+                isOpenClass: metadataRecord.isOpenClass,
                 isSealedClass: metadataRecord.isSealedClass,
                 isFunInterface: metadataRecord.isFunInterface,
                 isValueClass: metadataRecord.isValueClass,
@@ -122,6 +123,8 @@ extension DataFlowSemaPhase {
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
                 isMutable: metadataRecord.isMutable,
+                nominalTypeParametersSignature: metadataRecord.nominalTypeParametersSignature,
+                nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
                 constValueLiteral: metadataRecord.constValueLiteral,
                 nominalTypeParameters: metadataRecord.nominalTypeParameters
             ))
@@ -549,6 +552,12 @@ extension DataFlowSemaPhase {
             }
             if consume(prefix: "UJ") {
                 return types.ulongType
+            }
+            if consume(character: "B") {
+                return types.make(.primitive(.byte, .nonNull))
+            }
+            if consume(character: "S") {
+                return types.make(.primitive(.short, .nonNull))
             }
             if consume(character: "U") {
                 return types.unitType
