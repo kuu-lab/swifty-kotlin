@@ -306,8 +306,8 @@ extension OverloadResolverTests {
         #expect(resolved.substitutedTypeArguments.count == 0)
     }
 
-    /// Most specific selection with incompatible parameter counts yields no winner.
-    @Test func testResolveCallMostSpecificDifferentArityCandidates() {
+    /// A candidate with fewer parameters wins when the larger candidate only adds omitted defaults.
+    @Test func testResolveCallPrefersFewerParametersWhenExtraAreDefaulted() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -338,16 +338,15 @@ extension OverloadResolverTests {
             for: fn2
         )
 
-        // Call with 1 arg → both match, but different arity → ambiguous
+        // Call with 1 arg → both match, and the candidate without the omitted default is more specific.
         let call = CallExpr(
             range: makeRange(start: 836, end: 850),
             calleeName: interner.intern("aritySpec"),
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2], call: call, expectedType: nil, ctx: ctx)
-        // Both match, isMoreSpecific requires same count → ambiguous
-        #expect(resolved.chosenCallee == nil)
-        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0003")
+        #expect(resolved.chosenCallee == fn2)
+        #expect(resolved.diagnostic == nil)
     }
 
     // MARK: - P5-39: positional args after named args for vararg

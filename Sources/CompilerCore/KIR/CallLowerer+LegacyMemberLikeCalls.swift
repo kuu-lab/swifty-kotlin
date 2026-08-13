@@ -41,11 +41,13 @@ extension CallLowerer {
     }
 
     /// Member names whose generic Iterable/Collection implementations moved to
-    /// bundled Kotlin source in KSP-435. A call bound to one of those source
-    /// declarations bypasses this file's runtime-bridge special cases.
+    /// bundled Kotlin source in KSP-435 and KSP-632. A call bound to one of those
+    /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
-        "last", "requireNoNulls", "toCollection", "toHashSet", "toList", "toMutableList",
+        "last", "minusElement", "plusElement", "requireNoNulls",
+        "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull",
+        "sumBy", "sumByDouble", "toCollection", "toHashSet", "toList", "toMutableList",
         "toMutableSet", "toTypedArray",
     ]
 

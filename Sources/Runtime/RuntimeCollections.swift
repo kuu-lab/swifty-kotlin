@@ -983,22 +983,6 @@ public func kk_mutable_list_retainAll(_ listRaw: Int, _ collectionRaw: Int) -> I
 
 
 
-// MARK: - List binarySearch (STDLIB-214)
-
-@_cdecl("kk_list_binarySearch")
-public func kk_list_binarySearch(_ listRaw: Int, _ element: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return -1
-    }
-    return runtimeBinarySearch(
-        elements: list.elements,
-        element: element,
-        fromIndex: 0,
-        toIndex: list.elements.count,
-        compare: runtimeCompareValues
-    )
-}
-
 // MARK: - List plus/minus operators (STDLIB-345)
 
 @_cdecl("kk_list_plus_element")

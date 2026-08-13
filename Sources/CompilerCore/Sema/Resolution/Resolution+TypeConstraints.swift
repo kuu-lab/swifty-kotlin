@@ -162,7 +162,16 @@ extension OverloadResolver {
                 return nil
             }
 
-            let paramIndex = positionalCursor
+            // Trailing lambda: a callable last argument can be bound to a later
+            // function-typed parameter when the intervening parameters have
+            // default values.
+            let paramIndex: Int
+            if argIndex == callArgs.count - 1,
+               let trailingIndex = trailingLambdaParameterIndex(for: argIndex) {
+                paramIndex = trailingIndex
+            } else {
+                paramIndex = positionalCursor
+            }
             if arg.isSpread, !isVararg[paramIndex] {
                 return nil
             }
@@ -172,7 +181,11 @@ extension OverloadResolver {
             }
             boundNonVarargParams.insert(paramIndex)
             mapping[argIndex] = paramIndex
-            positionalCursor += 1
+            if paramIndex == positionalCursor {
+                positionalCursor += 1
+            } else {
+                positionalCursor = max(positionalCursor, paramIndex + 1)
+            }
         }
 
         for paramIndex in paramNames.indices {
