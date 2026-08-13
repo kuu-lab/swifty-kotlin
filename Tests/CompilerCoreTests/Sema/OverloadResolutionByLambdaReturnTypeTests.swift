@@ -5,102 +5,292 @@ import Testing
 
 @Suite
 struct OverloadResolutionByLambdaReturnTypeTests {
-    @Test func testUnannotatedLambdaReturnTypeOverloadsRemainAmbiguous() {
-        let source = """
-        fun foo(block: () -> Int): Int = 1
-        fun foo(block: () -> String): String = "s"
 
-        fun test(): Int = foo { 42 }
-        """
+    @Test func testOverloadResolutionByLambdaReturnTypeSema() throws {
+        let sources: [String] = [
+            // testUnannotatedLambdaReturnTypeOverloadsRemainAmbiguous
+            """
+            package sample0
+                    fun foo(block: () -> Int): Int = 1
+                    fun foo(block: () -> String): String = "s"
 
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
-            "Expected ambiguous overload resolution without annotation, got: \(ctx.diagnostics.diagnostics)"
-        )
+                    fun test(): Int = foo { 42 }
+
+            """,
+
+            // testAnnotatedLambdaReturnTypeOverloadSelectsMatchingTopLevelOverload
+            """
+            package sample1
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(block: () -> Int): Int = 1
+                    fun foo(block: () -> String): String = "s"
+
+                    fun test(): Int = foo { 42 }
+
+            """,
+
+            // testAnnotatedLambdaReturnTypeOverloadCanSelectNonAnnotatedCandidate
+            """
+            package sample2
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(block: () -> Int): Int = 1
+                    fun foo(block: () -> String): String = "s"
+
+                    fun test(): String = foo { "x" }
+
+            """,
+
+            // testDifferentLambdaInputShapesRemainAmbiguous
+            """
+            package sample3
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(block: (Int) -> Int): Int = 1
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(block: (String) -> Int): String = "s"
+
+                    fun test() = foo { 42 }
+
+            """,
+
+            // testMultipleLambdaArgumentsRemainAmbiguous
+            """
+            package sample4
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(a: () -> Int, b: () -> String): Int = 1
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(a: () -> Int, b: () -> Int): String = "s"
+
+                    fun test() = foo({ 42 }, { "x" })
+
+            """,
+
+            // testImplicitItParameterOverloadAmbiguityIsDetected
+            """
+            package sample5
+                    fun process(block: (Int) -> String) = block(1)
+                    fun process(block: (String) -> Int) = block("a")
+
+                    val result = process { it }
+
+            """,
+
+            // testExplicitlyTypedLambdaParameterResolvesDespiteDifferingCandidateShapes
+            """
+            package sample6
+                    fun process(block: (Int) -> String) = block(1)
+                    fun process(block: (String) -> Int) = block("a")
+
+                    val result: String = process { x: Int -> x.toString() }
+
+            """,
+
+            // testCallableReferenceStillResolvesNormally
+            """
+            package sample7
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    fun provideInt(): Int = 1
+
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun foo(block: () -> Int): Int = 1
+                    fun foo(block: () -> String): String = "s"
+
+                    fun test(): Int = foo(::provideInt)
+
+            """,
+
+            // testMemberCallRefinesByLambdaReturnType
+            """
+            package sample8
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    class Host {
+                        @OptIn(ExperimentalTypeInference::class)
+                        @OverloadResolutionByLambdaReturnType
+                        fun foo(block: () -> Int): Int = 1
+
+                        fun foo(block: () -> String): String = "s"
+                    }
+
+                    fun test(host: Host): Int = host.foo { 42 }
+
+            """,
+
+            // testSafeMemberCallRefinesByLambdaReturnType
+            """
+            package sample9
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    class Host {
+                        @OptIn(ExperimentalTypeInference::class)
+                        @OverloadResolutionByLambdaReturnType
+                        fun foo(block: () -> Int): Int = 1
+
+                        fun foo(block: () -> String): String = "s"
+                    }
+
+                    fun test(host: Host?): Int? = host?.foo { 42 }
+
+            """,
+
+            // testExtensionCallRefinesByLambdaReturnType
+            """
+            package sample10
+                    import kotlin.OptIn
+                    import kotlin.OverloadResolutionByLambdaReturnType
+                    import kotlin.experimental.ExperimentalTypeInference
+
+                    class Host
+
+                    @OptIn(ExperimentalTypeInference::class)
+                    @OverloadResolutionByLambdaReturnType
+                    fun Host.foo(block: () -> Int): Int = 1
+
+                    fun Host.foo(block: () -> String): String = "s"
+
+                    fun test(host: Host): Int = host.foo { 42 }
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testUnannotatedLambdaReturnTypeOverloadsRemainAmbiguous
+            do {
+                let samplePath = paths[0]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0003" }.count == 1,
+                    "Expected ambiguous overload resolution without annotation, got: \(sampleDiags)"
+                )
+            }
+            // testAnnotatedLambdaReturnTypeOverloadSelectsMatchingTopLevelOverload
+            do {
+                let samplePath = paths[1]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected annotated overload to resolve cleanly, got: \(sampleDiags)")
+            }
+            // testAnnotatedLambdaReturnTypeOverloadCanSelectNonAnnotatedCandidate
+            do {
+                let samplePath = paths[2]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected refinement to keep the matching non-annotated overload, got: \(sampleDiags)")
+            }
+            // testDifferentLambdaInputShapesRemainAmbiguous
+            do {
+                let samplePath = paths[3]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0003" }.count == 1,
+                    "Expected ambiguity when lambda parameter shapes differ, got: \(sampleDiags)"
+                )
+            }
+            // testMultipleLambdaArgumentsRemainAmbiguous
+            do {
+                let samplePath = paths[4]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0003" }.count == 1,
+                    "Expected ambiguity when multiple lambda return types participate, got: \(sampleDiags)"
+                )
+            }
+            // testImplicitItParameterOverloadAmbiguityIsDetected
+            do {
+                let samplePath = paths[5]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0003" }.count == 1,
+                    "Expected a clean ambiguity diagnostic (DEBT-SEMA-004), got: \(sampleDiags)"
+                )
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0022" }.count == 1,
+                    "Expected the unresolved 'it' reference cascade, got: \(sampleDiags)"
+                )
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0002" }.isEmpty,
+                    "Expected no additional no-viable-overload cascade once ambiguity is detected directly, got: \(sampleDiags)"
+                )
+            }
+            // testExplicitlyTypedLambdaParameterResolvesDespiteDifferingCandidateShapes
+            do {
+                let samplePath = paths[6]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    sampleDiags.isEmpty,
+                    "Expected an explicitly-typed lambda parameter to disambiguate normally, got: \(sampleDiags)"
+                )
+            }
+            // testCallableReferenceStillResolvesNormally
+            do {
+                let samplePath = paths[7]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected callable reference overload resolution to keep working, got: \(sampleDiags)")
+            }
+            // testMemberCallRefinesByLambdaReturnType
+            do {
+                let samplePath = paths[8]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected member-call refinement to resolve cleanly, got: \(sampleDiags)")
+            }
+            // testSafeMemberCallRefinesByLambdaReturnType
+            do {
+                let samplePath = paths[9]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected safe member-call refinement to resolve cleanly, got: \(sampleDiags)")
+            }
+            // testExtensionCallRefinesByLambdaReturnType
+            do {
+                let samplePath = paths[10]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(sampleDiags.isEmpty, "Expected extension-call refinement to resolve cleanly, got: \(sampleDiags)")
+            }
+
+        }
     }
 
-    @Test func testAnnotatedLambdaReturnTypeOverloadSelectsMatchingTopLevelOverload() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
 
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(block: () -> Int): Int = 1
-        fun foo(block: () -> String): String = "s"
-
-        fun test(): Int = foo { 42 }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected annotated overload to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testAnnotatedLambdaReturnTypeOverloadCanSelectNonAnnotatedCandidate() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
-
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(block: () -> Int): Int = 1
-        fun foo(block: () -> String): String = "s"
-
-        fun test(): String = foo { "x" }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected refinement to keep the matching non-annotated overload, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testDifferentLambdaInputShapesRemainAmbiguous() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
-
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(block: (Int) -> Int): Int = 1
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(block: (String) -> Int): String = "s"
-
-        fun test() = foo { 42 }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
-            "Expected ambiguity when lambda parameter shapes differ, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    @Test func testMultipleLambdaArgumentsRemainAmbiguous() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
-
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(a: () -> Int, b: () -> String): Int = 1
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(a: () -> Int, b: () -> Int): String = "s"
-
-        fun test() = foo({ 42 }, { "x" })
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
-            "Expected ambiguity when multiple lambda return types participate, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
 
     // Fixed (DEBT-SEMA-004, migrated from Scripts/diff_cases/error_type_inference.kt / DEBT-DIFF-006):
     // Neither candidate is annotated with @OverloadResolutionByLambdaReturnType, and the lambda body
@@ -116,143 +306,17 @@ struct OverloadResolutionByLambdaReturnTypeTests {
     // kotlinc's own second error line above -- but resolution stops there rather than additionally
     // reporting "no viable overload" once every candidate's arity mismatches the resulting `() -> _`
     // fallback type.
-    @Test func testImplicitItParameterOverloadAmbiguityIsDetected() {
-        let source = """
-        fun process(block: (Int) -> String) = block(1)
-        fun process(block: (String) -> Int) = block("a")
 
-        val result = process { it }
-        """
 
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
-            "Expected a clean ambiguity diagnostic (DEBT-SEMA-004), got: \(ctx.diagnostics.diagnostics)"
-        )
-        #expect(
-            diagnostics(withCode: "KSWIFTK-SEMA-0022", in: ctx).count == 1,
-            "Expected the unresolved 'it' reference cascade, got: \(ctx.diagnostics.diagnostics)"
-        )
-        #expect(
-            diagnostics(withCode: "KSWIFTK-SEMA-0002", in: ctx).isEmpty,
-            "Expected no additional no-viable-overload cascade once ambiguity is detected directly, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
+
 
     // Companion case for DEBT-SEMA-004: an explicitly-typed lambda parameter carries its own
     // type regardless of what the surviving candidates expect, so there is no implicit-`it`
     // ambiguity to detect -- normal argument-type matching picks the one candidate whose
     // parameter type accepts it, exactly like kotlinc.
-    @Test func testExplicitlyTypedLambdaParameterResolvesDespiteDifferingCandidateShapes() {
-        let source = """
-        fun process(block: (Int) -> String) = block(1)
-        fun process(block: (String) -> Int) = block("a")
 
-        val result: String = process { x: Int -> x.toString() }
-        """
 
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(
-            ctx.diagnostics.diagnostics.isEmpty,
-            "Expected an explicitly-typed lambda parameter to disambiguate normally, got: \(ctx.diagnostics.diagnostics)"
-        )
-    }
 
-    @Test func testCallableReferenceStillResolvesNormally() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
 
-        fun provideInt(): Int = 1
-
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun foo(block: () -> Int): Int = 1
-        fun foo(block: () -> String): String = "s"
-
-        fun test(): Int = foo(::provideInt)
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected callable reference overload resolution to keep working, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testMemberCallRefinesByLambdaReturnType() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
-
-        class Host {
-            @OptIn(ExperimentalTypeInference::class)
-            @OverloadResolutionByLambdaReturnType
-            fun foo(block: () -> Int): Int = 1
-
-            fun foo(block: () -> String): String = "s"
-        }
-
-        fun test(host: Host): Int = host.foo { 42 }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected member-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testSafeMemberCallRefinesByLambdaReturnType() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
-
-        class Host {
-            @OptIn(ExperimentalTypeInference::class)
-            @OverloadResolutionByLambdaReturnType
-            fun foo(block: () -> Int): Int = 1
-
-            fun foo(block: () -> String): String = "s"
-        }
-
-        fun test(host: Host?): Int? = host?.foo { 42 }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected safe member-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testExtensionCallRefinesByLambdaReturnType() {
-        let source = """
-        import kotlin.OptIn
-        import kotlin.OverloadResolutionByLambdaReturnType
-        import kotlin.experimental.ExperimentalTypeInference
-
-        class Host
-
-        @OptIn(ExperimentalTypeInference::class)
-        @OverloadResolutionByLambdaReturnType
-        fun Host.foo(block: () -> Int): Int = 1
-
-        fun Host.foo(block: () -> String): String = "s"
-
-        fun test(host: Host): Int = host.foo { 42 }
-        """
-
-        let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected extension-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let ctx = makeContextFromSource(source)
-        do {
-            try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted per test.
-        }
-        return ctx
-    }
-
-    private func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {
-        ctx.diagnostics.diagnostics.filter { $0.code == code }
-    }
 }
 #endif

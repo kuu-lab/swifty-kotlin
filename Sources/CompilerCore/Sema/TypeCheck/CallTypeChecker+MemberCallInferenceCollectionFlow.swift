@@ -1516,6 +1516,11 @@ extension CallTypeChecker {
                         } else {
                             resultType = receiverType
                         }
+                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
+                        }
                     case "takeWhile", "dropWhile", "dropLastWhile":
                         if isSequenceReceiver {
                             resultType = makeSyntheticSequenceType(
@@ -1526,6 +1531,11 @@ extension CallTypeChecker {
                             )
                         } else {
                             resultType = receiverType
+                        }
+                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
                         }
                     case "forEach": resultType = sema.types.unitType
                     case "onEach":

@@ -23,8 +23,8 @@ import Testing
 //
 // Gap convention:
 //   APIs not yet registered by the sema layer are marked with `_Gap` suffix and
-//   assert the *current absence* with a short follow-up note. Flip `XCTAssertNil` /
-//   `#expect(links.isEmpty)` to the positive assertion once implemented.
+//   assert the *current absence* with a short follow-up note. Flip `#expect(links.isEmpty)`
+//   to the positive assertion once implemented.
 
 @Suite
 struct ComparisonsAPISurfaceInventoryTests {

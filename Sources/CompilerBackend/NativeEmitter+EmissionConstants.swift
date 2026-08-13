@@ -18,8 +18,6 @@ extension NativeEmitter {
         /// of loop bodies (see `LLVMCAPIBindings.buildEntryAlloca`).
         let entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef?
         let allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?
-        let localNameIDs: NameIDGenerator
-        let stringLiteralNameIDs: NameIDGenerator
 
         init(
             builder: LLVMCAPIBindings.LLVMBuilderRef,
@@ -29,9 +27,7 @@ extension NativeEmitter {
             module: LLVMCAPIBindings.LLVMModuleRef? = nil,
             typeLowering: LLVMTypeLowering? = nil,
             entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef? = nil,
-            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil,
-            localNameIDs: NameIDGenerator,
-            stringLiteralNameIDs: NameIDGenerator
+            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil
         ) {
             self.builder = builder
             self.int64Type = int64Type
@@ -41,8 +37,6 @@ extension NativeEmitter {
             self.typeLowering = typeLowering
             self.entryBlock = entryBlock
             self.allocaBuilder = allocaBuilder
-            self.localNameIDs = localNameIDs
-            self.stringLiteralNameIDs = stringLiteralNameIDs
         }
 
         /// Allocates an i64 stack slot in the entry block of the current function.
@@ -682,12 +676,12 @@ extension NativeEmitter {
 
     func emitConstantValue(
         _ expression: KIRExprKind,
-        expressionRawID: Int32?,
         expectedType: TypeID? = nil,
         state: EmissionBuilderState,
         parameterValues: [SymbolID: LLVMCAPIBindings.LLVMValueRef],
         internalFunctions: [SymbolID: LLVMFunction],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
+        nameCounter: GeneratedNameCounter,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
@@ -699,11 +693,10 @@ extension NativeEmitter {
             else {
                 return nil
             }
-            let id = expressionRawID.map { state.localNameIDs.id(for: $0) } ?? state.localNameIDs.next()
             return buildNullStringAggregate(
                 builder: state.builder,
                 lowering: typeLowering,
-                name: "null_string_\(id)"
+                name: nameCounter.nextName("null_string_")
             )
         }
 
@@ -789,18 +782,13 @@ extension NativeEmitter {
             return bindings.constInt(state.int64Type, value: value ? 1 : 0) ?? state.zeroValue
         case let .stringLiteral(interned):
             let text = interner.resolve(interned)
-            let literalID: Int32
-            if let expressionRawID {
-                literalID = state.stringLiteralNameIDs.id(for: expressionRawID)
-            } else {
-                literalID = state.stringLiteralNameIDs.next()
-            }
+            let globalStringPointerName = nameCounter.nextName("str_lit_")
             guard let globalStringPointer = bindings.buildGlobalStringPtrNullSafe(
                 state.builder,
                 context: state.context,
                 module: state.module,
                 value: text,
-                name: "str_lit_\(literalID)"
+                name: globalStringPointerName
             ) else {
                 return state.zeroValue
             }
@@ -822,14 +810,14 @@ extension NativeEmitter {
                     length: lengthValue,
                     byteCount: byteCountValue,
                     hash: hashValue,
-                    name: "str_agg_\(literalID)"
+                    name: nameCounter.nextName("str_agg_")
                 ) ?? state.zeroValue
             }
             guard let pointerAsInt = bindings.buildPtrToInt(
                 state.builder,
                 value: globalStringPointer,
                 type: state.int64Type,
-                name: "str_ptr_\(literalID)"
+                name: nameCounter.nextName("str_ptr_")
             ) else {
                 return state.zeroValue
             }
@@ -846,7 +834,7 @@ extension NativeEmitter {
                 functionType: stringFromUTF8.type,
                 callee: stringFromUTF8.value,
                 arguments: [pointerAsInt, lengthValue],
-                name: "str_from_utf8_\(literalID)"
+                name: nameCounter.nextName("str_from_utf8_")
             ) ?? state.zeroValue
         case let .externSymbolAddress(symbolName):
             let symbolStr = interner.resolve(symbolName)
@@ -868,7 +856,7 @@ extension NativeEmitter {
                    state.builder,
                    value: internalFunction.value,
                    type: state.int64Type,
-                   name: "fn_ptr_\(state.localNameIDs.id(for: symbol.rawValue))"
+                   name: nameCounter.nextName("fn_ptr_")
                )
             {
                 return functionPointer
@@ -882,13 +870,13 @@ extension NativeEmitter {
                     state.builder,
                     type: state.int64Type,
                     pointer: globalPtr,
-                    name: "global_load_\(state.localNameIDs.id(for: symbol.rawValue))"
+                    name: nameCounter.nextName("global_load_")
                 ) else {
                     return state.zeroValue
                 }
                 return bridgeRuntimeRawToStringAggregateIfNeeded(
                     loaded,
-                    suffix: "global_\(state.localNameIDs.id(for: symbol.rawValue))"
+                    suffix: nameCounter.nextName("global_")
                 ) ?? loaded
             }
             // Imported library artifact functions are not internal to the current module,
@@ -907,7 +895,7 @@ extension NativeEmitter {
                    state.builder,
                    value: externFn.value,
                    type: state.int64Type,
-                   name: "extern_fn_ptr_\(state.localNameIDs.id(for: symbol.rawValue))"
+                   name: nameCounter.nextName("extern_fn_ptr_")
                )
             {
                 return functionPointer

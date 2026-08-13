@@ -1,101 +1,12 @@
-/// Lowerings for the `takeIf` / `takeUnless` (STDLIB-160) and the
-/// `let` / `also` / `apply` / `run` / `with` scope-function family.
+/// Lowerings for the `apply` / `run` / `use` / `usePinned` / `useContents`
+/// scope-function family.
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
 
-    // MARK: - takeIf / takeUnless Lowering (STDLIB-160)
-
-    /// Attempts to lower a takeIf / takeUnless extension call.
-    /// Returns nil if the expression is not a takeIf/takeUnless call.
-    func tryTakeIfTakeUnlessLowering(
-        _ exprID: ExprID,
-        receiverExpr: ExprID,
-        args: [CallArgument],
-        ast: ASTModule,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction],
-        precomputedReceiver: KIRExprID? = nil
-    ) -> KIRExprID? {
-        guard let takeKind = sema.bindings.takeIfTakeUnlessKind(for: exprID),
-              args.count == 1
-        else { return nil }
-
-        let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-
-        let loweredReceiverID = precomputedReceiver ?? driver.lowerExpr(
-            receiverExpr,
-            ast: ast, sema: sema, arena: arena, interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-
-        // Lower lambda: predicate(receiver) -> Boolean (like scopeLet: lambda takes `it`)
-        let loweredLambdaID = driver.lowerExpr(
-            args[0].expr,
-            ast: ast, sema: sema, arena: arena, interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-
-        guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
-            return nil
-        }
-
-        let predicateResult = arena.appendTemporary(type: boolType
-        )
-        let callArgs: [KIRExprID]
-        if info.hasClosureParam {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
-        } else {
-            callArgs = info.captureArguments + [loweredReceiverID]
-        }
-        instructions.append(.call(
-            symbol: info.symbol,
-            callee: info.callee,
-            arguments: callArgs,
-            result: predicateResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
-
-        let result = arena.appendTemporary(type: boundType
-        )
-        let useReceiverLabel = driver.ctx.makeLoopLabel()
-        let endLabel = driver.ctx.makeLoopLabel()
-
-        let testValue: Bool = takeKind == .takeIf
-        let testExpr = arena.appendExpr(.boolLiteral(testValue), type: boolType)
-        instructions.append(.constValue(result: testExpr, value: .boolLiteral(testValue)))
-
-        // takeIf: jump to useReceiver when predicate == true
-        // takeUnless: jump to useReceiver when predicate == false
-        instructions.append(.jumpIfEqual(lhs: predicateResult, rhs: testExpr, target: useReceiverLabel))
-
-        // Predicate failed: write null to result
-        let nullVal = arena.appendExpr(.unit, type: boundType)
-        instructions.append(.constValue(result: nullVal, value: .null))
-        instructions.append(.copy(from: nullVal, to: result))
-        instructions.append(.jump(endLabel))
-
-        // Predicate passed: forward the lowered receiver as-is.
-        // The surrounding lowering/codegen path will box later if needed.
-        instructions.append(.label(useReceiverLabel))
-        instructions.append(.copy(from: loweredReceiverID, to: result))
-        instructions.append(.label(endLabel))
-
-        return result
-    }
-
     // MARK: - Scope Function Lowering (STDLIB-004)
 
-    /// Attempts to lower a scope function call (let/run/apply/also).
+    /// Attempts to lower a scope function call (run/apply/use/usePinned/useContents).
     /// Returns nil if the expression is not a scope function call.
     func tryScopeFunctionLowering(
         _ exprID: ExprID,
@@ -124,53 +35,6 @@ extension CallLowerer {
         )
 
         switch scopeKind {
-        case .scopeLet, .scopeAlso:
-            // let/also: lambda takes `it` as explicit parameter.
-            // Lower lambda normally, then call it with receiver as argument.
-            let loweredLambdaID = driver.lowerExpr(
-                args[0].expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-            let result = arena.appendTemporary(type: boundType
-            )
-            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-                let lambdaResult = if scopeKind == .scopeAlso {
-                    arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.unitType
-                    )
-                } else {
-                    result
-                }
-                let callArgs: [KIRExprID]
-                if info.hasClosureParam {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
-                } else {
-                    callArgs = info.captureArguments + [loweredReceiverID]
-                }
-                instructions.append(.call(
-                    symbol: info.symbol,
-                    callee: info.callee,
-                    arguments: callArgs,
-                    result: lambdaResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Non-lambda-literal argument (e.g. function reference);
-                // fall back to normal member call lowering.
-                return nil
-            }
-            if scopeKind == .scopeAlso {
-                // also: result is the receiver, not the lambda return value.
-                instructions.append(.copy(from: loweredReceiverID, to: result))
-            }
-            return result
-
         case .scopeRun, .scopeApply:
             // run/apply: lambda has `this` as implicit receiver.
             // Set the implicit receiver to the lowered receiver before lowering

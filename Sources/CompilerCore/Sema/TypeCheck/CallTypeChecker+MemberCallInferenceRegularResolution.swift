@@ -1011,17 +1011,6 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
-        if let fallbackType = tryBindReadWriteLockReadFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
         if let fallbackType = tryBindComparatorMemberFallback(
             id,
             calleeName: calleeName,
@@ -1583,7 +1572,9 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         switch interner.resolve(calleeName) {
-        case "contains", "isEmpty", "iterator":
+        case "contains", "isEmpty", "iterator",
+             "toList", "forEach", "map", "filter",
+             "take", "drop", "sorted", "average":
             return true
         default:
             return false

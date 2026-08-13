@@ -59,13 +59,24 @@ struct RangeSyntheticMemberLinkTests {
             nullability: .nonNull
         )))
         let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: charProgressionSymbol))
-        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        _ = try #require(sema.symbols.symbol(companionSymbol))
+        let companionType = sema.types.make(.classType(ClassType(
+            classSymbol: companionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let fromClosedRangeFQ = ["kotlin", "ranges", "fromClosedRange"].map { interner.intern($0) }
         let fromClosedRangeSymbol = try #require(
-            sema.symbols.lookup(fqName: companionInfo.fqName + [interner.intern("fromClosedRange")])
+            sema.symbols.lookupAll(fqName: fromClosedRangeFQ).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return signature.receiverType == companionType
+                    && signature.parameterTypes == [sema.types.charType, sema.types.charType, sema.types.intType]
+            }
         )
         let fromClosedRangeSignature = try #require(sema.symbols.functionSignature(for: fromClosedRangeSymbol))
 
-        #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == "kk_char_progression_fromClosedRange")
+        #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == nil)
+        #expect(sema.symbols.symbol(fromClosedRangeSymbol)?.flags.contains(.synthetic) == false)
         #expect(fromClosedRangeSignature.parameterTypes == [sema.types.charType, sema.types.charType, sema.types.intType])
         #expect(fromClosedRangeSignature.returnType == charProgressionType)
         let bundledToListName = ["kotlin", "ranges", "toList"].map { interner.intern($0) }
@@ -104,15 +115,17 @@ struct RangeSyntheticMemberLinkTests {
                 interner: interner
             ) == nil
         )
-        #expect(
-            functionExternalLink(
-                for: "CharProgression",
-                member: "step",
-                parameterCount: 1,
-                sema: sema,
-                interner: interner
-            ) == "kk_char_range_step"
-        )
+        let stepFQ = ["kotlin", "ranges", "step"].map { interner.intern($0) }
+        let stepSymbol = sema.symbols.lookupAll(fqName: stepFQ).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == charProgressionType
+                && signature.parameterTypes.count == 1
+        }
+        #expect(stepSymbol != nil)
+        if let stepSymbol {
+            #expect(sema.symbols.externalLinkName(for: stepSymbol) == nil)
+            #expect(sema.symbols.symbol(stepSymbol)?.flags.contains(.synthetic) == false)
+        }
     }
 
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {

@@ -56,10 +56,6 @@ struct StdlibSurfaceSpecTests {
             list("maxOfOrNull", 1),
             list("onEach", 1),
             list("onEachIndexed", 1),
-            list("takeWhile", 1),
-            list("dropWhile", 1),
-            list("takeLastWhile", 1),
-            list("dropLastWhile", 1),
             list("associateTo", 2),
             list("associateByTo", 2),
             list("associateWithTo", 2),
@@ -142,8 +138,6 @@ struct StdlibSurfaceSpecTests {
                 // source, so it no longer registers a synthetic bridge member.
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
@@ -153,7 +147,6 @@ struct StdlibSurfaceSpecTests {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
             ]
 
             for testCase in cases {

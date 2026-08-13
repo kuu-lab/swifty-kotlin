@@ -35,31 +35,11 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(kotlinTextPkgSymbol, for: appendableSymbol)
         }
         let boolType = types.make(.primitive(.boolean, .nonNull))
-        let nullableBoolType = types.make(.primitive(.boolean, .nullable))
         let intType = types.intType
         let longType = types.make(.primitive(.long, .nonNull))
         let charType = types.make(.primitive(.char, .nonNull))
-        let nullableIntType = types.make(.primitive(.int, .nullable))
-        let nullableLongType = types.make(.primitive(.long, .nullable))
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
-        let collectionStringType = makeCollectionType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: stringType
-        )
-        let pairIntStringType: TypeID
-        if let pairSymbol = symbols.lookup(fqName: kotlinRootPkg + [interner.intern("Pair")]) {
-            pairIntStringType = types.make(.classType(ClassType(
-                classSymbol: pairSymbol,
-                args: [.out(intType), .out(stringType)],
-                nullability: .nonNull
-            )))
-        } else {
-            pairIntStringType = types.anyType
-        }
-        let nullablePairIntStringType = types.makeNullable(pairIntStringType)
         let listCharType = makeListType(
             symbols: symbols,
             types: types,
@@ -367,179 +347,13 @@ extension DataFlowSemaPhase {
         // KSP-408: contains(String)/contains(String, ignoreCase) are bundled Kotlin
         // source (StringIndexOf.kt). The Regex overload below is unaffected.
 
-        registerSyntheticStringExtensionFunction(
-            named: "toInt",
-            externalLinkName: "kk_string_toInt",
-            receiverType: stringType,
-            parameters: [],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // String.toInt(radix: Int) (STDLIB-152)
-        registerSyntheticStringExtensionFunction(
-            named: "toInt",
-            externalLinkName: "kk_string_toInt_radix",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toIntOrNull",
-            externalLinkName: "kk_string_toIntOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableIntType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toIntOrNull",
-            externalLinkName: "kk_string_toIntOrNull_radix_flat",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: nullableIntType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // SPEC-NUM-0007: String.toUByteOrNull() / toUShortOrNull() / toUIntOrNull() / toULongOrNull() — no-arg versions
-        registerSyntheticStringExtensionFunction(
-            named: "toUByteOrNull",
-            externalLinkName: "kk_string_toUByteOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(types.ubyteType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toUByteOrNull",
-            externalLinkName: "kk_string_toUByteOrNull_radix",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: types.makeNullable(types.ubyteType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toUShortOrNull",
-            externalLinkName: "kk_string_toUShortOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(types.ushortType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toUShortOrNull",
-            externalLinkName: "kk_string_toUShortOrNull_radix",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: types.makeNullable(types.ushortType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toUIntOrNull",
-            externalLinkName: "kk_string_toUIntOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(types.uintType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toUIntOrNull",
-            externalLinkName: "kk_string_toUIntOrNull_radix",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: types.makeNullable(types.uintType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toULongOrNull",
-            externalLinkName: "kk_string_toULongOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(types.ulongType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toULongOrNull",
-            externalLinkName: "kk_string_toULongOrNull_radix",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: types.makeNullable(types.ulongType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
 
         // KSP-406: subSequence/substring are bundled Kotlin source
         // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
-        registerSyntheticStringExtensionFunction(
-            named: "toLong",
-            externalLinkName: "kk_string_toLong",
-            receiverType: stringType,
-            parameters: [],
-            returnType: longType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toLongOrNull",
-            externalLinkName: "kk_string_toLongOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableLongType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
 
         // Int.toString(radix: Int) / Long.toString(radix: Int) (STDLIB-152)
         registerSyntheticStringExtensionFunction(
@@ -902,12 +716,6 @@ extension DataFlowSemaPhase {
         // KSP-406: replaceRange/removeRange/slice are bundled Kotlin source
         // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
-        let charToBoolType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: boolType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let listAnyType = makeListType(
             symbols: symbols,
             types: types,
@@ -1069,103 +877,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-315: String.replaceFirstChar — migrated to BundledStdlib (MIGRATION-TEXT-005) ---
 
         // --- STDLIB-142 / STDLIB-TEXT-FN-087 ---
-        // Receiver is nullable so both `null.toBoolean()` and `str.toBoolean()`
-        // resolve without a safe-call.
-        registerSyntheticStringExtensionFunction(
-            named: "toBoolean",
-            externalLinkName: "kk_string_toBoolean",
-            receiverType: nullableStringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBooleanStrict",
-            externalLinkName: "kk_string_toBooleanStrict",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBooleanStrictOrNull",
-            externalLinkName: "kk_string_toBooleanStrictOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableBoolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        let byteType = types.byteType
-        let shortType = types.shortType
-        let nullableByteType = types.makeNullable(byteType)
-        let nullableShortType = types.makeNullable(shortType)
-
-        registerSyntheticStringExtensionFunction(
-            named: "toShort",
-            externalLinkName: "kk_string_toShort",
-            receiverType: stringType,
-            parameters: [],
-            returnType: shortType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toShortOrNull",
-            externalLinkName: "kk_string_toShortOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableShortType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toByte",
-            externalLinkName: "kk_string_toByte",
-            receiverType: stringType,
-            parameters: [],
-            returnType: byteType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // String.toByte(radix: Int) (STDLIB-TEXT-FN-090)
-        registerSyntheticStringExtensionFunction(
-            named: "toByte",
-            externalLinkName: "kk_string_toByte_radix",
-            receiverType: stringType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: byteType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toByteOrNull",
-            externalLinkName: "kk_string_toByteOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableByteType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // `toBoolean` is bundled Kotlin source after KSP-414.
 
         // KSP-401: lines/lineSequence are bundled Kotlin source.
 

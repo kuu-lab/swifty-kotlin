@@ -929,6 +929,23 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
+    // MARK: - buildSet rewriting (STDLIB-072)
+
+    @Test
+    func testBuildSetRewrittenToKkBuildSet() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let callee = interner.intern("buildSet")
+        let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("buildSet"), "buildSet should be rewritten")
+        #expect(callees.contains("__kk_build_set"), "buildSet should become __kk_build_set")
+    }
+
     // MARK: - buildMap rewriting (STDLIB-071)
 
     @Test
@@ -943,7 +960,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
-        #expect(callees.contains("kk_build_map"), "buildMap should become kk_build_map")
+        #expect(callees.contains("__kk_build_map"), "buildMap should become __kk_build_map")
     }
 
     @Test
@@ -1526,39 +1543,6 @@ struct CollectionLiteralLoweringTests {
         #expect(
             !callees.contains("kk_list_indexOf"),
             "virtualCall(indexOf) on List-typed parameter should not be rewritten to deleted kk_list_indexOf, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListTake() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "take", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_take"),
-            "virtualCall(take) on List-typed parameter should be rewritten to kk_list_take, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDrop() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "drop", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_drop"),
-            "virtualCall(drop) on List-typed parameter should be rewritten to kk_list_drop, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDropLastWhile() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "dropLastWhile", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_dropLastWhile"),
-            "virtualCall(dropLastWhile) on List-typed parameter should be rewritten to kk_list_dropLastWhile, got: \(callees)"
         )
     }
 

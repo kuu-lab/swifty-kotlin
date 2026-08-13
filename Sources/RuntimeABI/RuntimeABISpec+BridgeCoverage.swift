@@ -49,12 +49,6 @@ private let listClosureBridgeNames = [
     "kk_list_minWithOrNull",
     "kk_list_onEach",
     "kk_list_onEachIndexed",
-    "kk_list_reduceIndexed",
-    "kk_list_reduceIndexedOrNull",
-    "kk_list_reduceRightIndexed",
-    "kk_list_reduceRightIndexedOrNull",
-    "kk_list_reduceRightOrNull",
-    "kk_list_runningReduceIndexed",
 ]
 
 private let listClosureBridgeFunctions = listClosureBridgeNames.map {
@@ -90,50 +84,12 @@ private let listComparatorBridgeFunctions = [
     )
 }
 
-private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec(
-        "kk_list_foldIndexed",
-        section: "Collection",
-        typedParams: [
-            ("listRaw", .intptr),
-            ("initial", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    ),
-    bridgeSpec(
-        "kk_list_runningFoldIndexed",
-        section: "Collection",
-        typedParams: [
-            ("listRaw", .intptr),
-            ("initial", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    ),
-    bridgeSpec(
-        "kk_list_scanIndexed",
-        section: "Collection",
-        typedParams: [
-            ("listRaw", .intptr),
-            ("initial", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    ),
-]
+private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
 private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_list_intersect", section: "Collection", params: ["listRaw", "otherRaw"],
             isThrowing: false),
     bridgeSpec("kk_list_of_not_null", section: "Collection", params: ["arrayRaw", "count"]),
-    bridgeSpec("kk_list_slice", section: "Collection", params: ["listRaw", "rangeRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_list_slice_iterable", section: "Collection", params: ["listRaw", "indicesRaw"],
-            isThrowing: false),
     bridgeSpec("kk_list_subtract", section: "Collection", params: ["listRaw", "otherRaw"],
             isThrowing: false),
     bridgeSpec("kk_list_toHashSet", section: "Collection", params: ["listRaw"]),

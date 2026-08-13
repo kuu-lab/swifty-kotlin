@@ -519,6 +519,49 @@ struct LoweringPassRegressionTests {
         }
     }
 
+    @Test
+    func testSafeCallInlineResultIsMaterializedBeforeMerge() throws {
+        let source = """
+        fun main() {
+            val nullableInput: String? = null
+            println(nullableInput?.let { it.uppercase() })
+        }
+        """
 
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .object)
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+            let printlnCallIndex = mainBody.firstIndex { instruction in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
+                    return false
+                }
+                let calleeName = ctx.interner.resolve(callee)
+                return (calleeName == "println" || calleeName == "kk_println_any") && !arguments.isEmpty
+            }
+            let printlnCallInstruction = try #require(printlnCallIndex.map { mainBody[$0] }, "expected println call in main")
+            guard case let .call(_, _, printlnArgs, _, _, _, _, _) = printlnCallInstruction else {
+                return
+            }
+            let printlnArg = printlnArgs[0]
+
+            let hasCopyFromUppercase = mainBody[..<printlnCallIndex!].contains { instruction in
+                guard case let .copy(from, to) = instruction, to == printlnArg else {
+                    return false
+                }
+                return mainBody[..<printlnCallIndex!].contains { earlier in
+                    guard case let .call(_, callee, _, result, _, _, _, _) = earlier, result == from else {
+                        return false
+                    }
+                    return ctx.interner.resolve(callee) == "kk_string_uppercase_flat"
+                }
+            }
+            #expect(hasCopyFromUppercase, "safe-call inline result must be copied to the merge register before println")
+        }
+    }
 }
+
+
 #endif

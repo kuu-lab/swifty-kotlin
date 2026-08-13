@@ -21,7 +21,7 @@ package kotlin.ranges
 //
 // A zero step means "empty": the runtime range representation marks an empty
 // `a until b` (b <= a) with step 0 rather than with first/last bounds that
-// exclude each other (kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+// exclude each other (__kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
 
 internal class IntProgressionIterator(first: Int, last: Int, private val step: Int) : Iterator<Int> {
     private val finalElement: Int = last
