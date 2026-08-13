@@ -69,10 +69,9 @@ struct StringToBooleanFunctionTests {
         )
     }
 
-    /// `toBoolean()` should lower to `kk_string_toBoolean_flat` and be classified as
-    /// non-throwing — `null.toBoolean()` is defined to return `false`, so there
-    /// is no NumberFormatException equivalent that propagates out.
-    @Test func testToBooleanLowersToRuntimeHelperNonThrowing() throws {
+    /// `toBoolean()` should lower through the source-backed `kotlin.text.toBoolean`
+    /// extension, not through a public `kk_string_toBoolean` runtime helper.
+    @Test func testToBooleanLowersThroughSourceBackedStdlib() throws {
         let source = """
         fun main() {
             val missing: String? = null
@@ -90,24 +89,22 @@ struct StringToBooleanFunctionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let toBooleanFlags = try #require(
-                throwFlags["kk_string_toBoolean"],
-                "Expected kk_string_toBoolean calls to appear in main()"
-            )
-            #expect(toBooleanFlags.count == 3)
+            let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                toBooleanFlags.allSatisfy { $0 == false },
-                "kk_string_toBoolean must be lowered as non-throwing"
+                callees.contains("toBoolean"),
+                "main() should call the source-backed toBoolean() extension"
+            )
+            #expect(
+                !callees.contains("kk_string_toBoolean") && !callees.contains("kk_string_toBoolean_flat") && !callees.contains("__kk_string_toBoolean"),
+                "main() must not directly call a public kk_string_toBoolean runtime helper"
             )
         }
     }
 
-    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull_flat`
-    /// and be classified as non-throwing: unlike `toBooleanStrict`, the OrNull
-    /// variant signals failure with a `null` sentinel rather than an exception, so
-    /// no thrown-pointer plumbing is emitted at the call site.
-    @Test func testToBooleanStrictOrNullLowersToRuntimeHelperNonThrowing() throws {
+    /// `toBooleanStrictOrNull()` should lower through the source-backed
+    /// `kotlin.text.toBooleanStrictOrNull` extension, not through a public
+    /// `kk_string_toBooleanStrictOrNull` runtime helper.
+    @Test func testToBooleanStrictOrNullLowersThroughSourceBackedStdlib() throws {
         let source = """
         fun main() {
             val yes: String = "true"
@@ -125,15 +122,14 @@ struct StringToBooleanFunctionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let orNullFlags = try #require(
-                throwFlags["kk_string_toBooleanStrictOrNull_flat"],
-                "Expected kk_string_toBooleanStrictOrNull_flat calls to appear in main()"
-            )
-            #expect(orNullFlags.count == 3)
+            let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                orNullFlags.allSatisfy { $0 == false },
-                "kk_string_toBooleanStrictOrNull_flat must be lowered as non-throwing"
+                callees.contains("toBooleanStrictOrNull"),
+                "main() should call the source-backed toBooleanStrictOrNull() extension"
+            )
+            #expect(
+                !callees.contains("kk_string_toBooleanStrictOrNull") && !callees.contains("kk_string_toBooleanStrictOrNull_flat") && !callees.contains("__kk_string_toBooleanStrictOrNull"),
+                "main() must not directly call a public kk_string_toBooleanStrictOrNull runtime helper"
             )
         }
     }

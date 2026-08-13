@@ -135,7 +135,7 @@ final class TestStdlibCache: @unchecked Sendable {
     /// binary itself, which statically links every module including
     /// CompilerCore/CompilerBackend (there are no `.dylib`s under `.build` —
     /// `find .build/debug -iname '*.dylib'` returns nothing). The bundled
-    /// `.kt` stdlib sources hashed by `BundledKotlinStdlib.manifestHash()`
+    /// `.kt` stdlib sources hashed by `BundledStdlib.manifestHash()`
     /// don't change when only Swift-side lowering/codegen/runtime ABI
     /// changes (e.g. a `kk_*` callee gaining a parameter), so that hash
     /// alone can't detect staleness for such changes and a cached artifact
@@ -194,7 +194,7 @@ final class TestStdlibCache: @unchecked Sendable {
         guard let hash = manifest["stdlibManifestHash"] as? String, !hash.isEmpty else {
             return true
         }
-        guard hash == BundledKotlinStdlib.manifestHash() else { return true }
+        guard hash == BundledStdlib.manifestHash() else { return true }
 
         // Belt-and-suspenders: the stdlib source hash above only catches
         // `.kt` changes. Also require the compiler binary itself to match

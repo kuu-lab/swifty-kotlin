@@ -1,4 +1,6 @@
 
+import Foundation
+
 extension CallTypeChecker {
     // MARK: - IntRange member fallback (STDLIB-090/091/092/093)
 
@@ -22,6 +24,23 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
+
+        // KSP-453: IntRange/IntProgression HOFs now have bundled Kotlin source
+        // implementations; prefer source-backed resolution instead of the legacy
+        // hardcoded range-member fallback.
+        if let sourceType = bindSourceRangeHOFCall(
+            id,
+            memberName: memberName,
+            calleeName: calleeName,
+            receiverID: receiverID,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+        ) {
+            return sourceType
+        }
+
         if sema.bindings.isFloatingPointRangeExpr(receiverID),
            let floatingPointResult = tryRangeMembershipFallback(
             memberName: memberName,
@@ -190,6 +209,225 @@ extension CallTypeChecker {
         }
         let resultType = ctx.sema.types.booleanType
         return safeCall ? ctx.sema.types.makeNullable(resultType) : resultType
+    }
+
+    private func isIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "first" || memberName == "last" {
+            return argCount > 0
+        }
+        let sourceBacked: Set<String> = [
+            "toList", "toIntArray", "average", "sorted",
+            "forEach", "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+            "chunked", "windowed",
+            "take", "drop",
+        ]
+        return sourceBacked.contains(memberName)
+    }
+
+    private func bindSourceRangeHOFCall(
+        _ id: ExprID,
+        memberName: String,
+        calleeName: InternedString,
+        receiverID: ExprID,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard isIntRangeSourceBackedHOF(memberName, argCount: args.count),
+              let receiverType = sema.bindings.exprType(for: receiverID),
+              let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+                  receiverExpr: receiverID,
+                  receiverType: receiverType,
+                  sema: sema,
+                  interner: interner
+              ),
+              rangeKind == .intRange || rangeKind == .intProgression,
+              let sourceSymbol = sourceRangeHOFSymbol(
+                  memberName: memberName,
+                  rangeKind: rangeKind,
+                  argCount: args.count,
+                  sema: sema,
+                  interner: interner
+              ),
+              let signature = sema.symbols.functionSignature(for: sourceSymbol)
+        else {
+            return nil
+        }
+
+        let lambdaExpectation = rangeMemberLambdaExpectation(
+            memberName: memberName,
+            argCount: args.count,
+            sema: sema,
+            isCharRange: rangeKind.isCharRangeLike,
+            isLongRange: rangeKind.isLongRangeLike,
+            isUIntRange: rangeKind.isUIntRangeLike,
+            isULongRange: rangeKind.isULongRangeLike
+        )
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var rConcrete: TypeID?
+
+        for (index, arg) in args.enumerated() {
+            let isLambda = ctx.ast.arena.expr(arg.expr)?.isLambdaOrCallableRef == true
+            if isLambda {
+                let expectedType: TypeID
+                if (memberName == "fold" || memberName == "foldIndexed"), index == 1, let rConcrete,
+                   let baseExpected = lambdaExpectation?.expectedType,
+                   case let .functionType(fnType) = sema.types.kind(of: baseExpected) {
+                    let params: [TypeID]
+                    if memberName == "fold" {
+                        params = [rConcrete] + Array(fnType.params.dropFirst())
+                    } else {
+                        var mutableParams = fnType.params
+                        if mutableParams.count >= 2 {
+                            mutableParams[1] = rConcrete
+                        }
+                        params = mutableParams
+                    }
+                    expectedType = sema.types.make(.functionType(FunctionType(
+                        params: params,
+                        returnType: rConcrete
+                    )))
+                } else if let baseExpected = lambdaExpectation?.expectedType {
+                    expectedType = baseExpected
+                } else {
+                    expectedType = sema.types.anyType
+                }
+
+                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                if ctx.ast.arena.expr(arg.expr)?.isLambdaOrCallableRef == true {
+                    sema.bindings.markCollectionHOFLambdaExpr(arg.expr)
+                }
+
+                if rConcrete == nil,
+                   let lambdaExpr = ctx.ast.arena.expr(arg.expr),
+                   case let .lambdaLiteral(_, bodyExpr, _, _) = lambdaExpr {
+                    let bodyType = sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType
+                    switch memberName {
+                    case "map", "mapIndexed":
+                        rConcrete = bodyType
+                    case "mapNotNull":
+                        rConcrete = sema.types.makeNonNullable(bodyType)
+                    default:
+                        break
+                    }
+                }
+            } else {
+                let expectedType: TypeID?
+                if memberName == "fold" || memberName == "foldIndexed" {
+                    expectedType = nil
+                } else if memberName == "windowed" {
+                    expectedType = (index == 1 ? sema.types.intType : (index == 2 ? sema.types.booleanType : nil))
+                } else if memberName == "chunked" || memberName == "take" || memberName == "drop" {
+                    expectedType = sema.types.intType
+                } else {
+                    expectedType = nil
+                }
+
+                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                if (memberName == "fold" || memberName == "foldIndexed"), index == 0, rConcrete == nil {
+                    rConcrete = sema.bindings.exprType(for: arg.expr) ?? sema.types.anyType
+                }
+            }
+        }
+
+        let concreteR = rConcrete ?? sema.types.anyType
+        var substitutions: [TypeVarID: TypeID] = [:]
+        for (_, typeVar) in typeVarBySymbol {
+            substitutions[typeVar] = concreteR
+        }
+
+        var parameterMapping: [Int: Int] = [:]
+        for index in args.indices {
+            parameterMapping[index] = index
+        }
+
+        let resolved = ResolvedCall(
+            chosenCallee: sourceSymbol,
+            substitutedTypeArguments: substitutions,
+            parameterMapping: parameterMapping,
+            diagnostic: nil
+        )
+
+        let returnType = bindCallAndResolveReturnType(id, chosen: sourceSymbol, resolved: resolved, sema: sema)
+        if isRangeMemberReturningCollection(memberName) {
+            sema.bindings.markCollectionExpr(id)
+        }
+        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        sema.bindings.bindExprType(id, type: finalType)
+        return finalType
+    }
+
+    private func sourceRangeHOFSymbol(
+        memberName: String,
+        rangeKind: MemberDispatchReceiverKind,
+        argCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let expectedReceiverFQ = expectedRangeClassFQ(rangeKind: rangeKind, interner: interner) else {
+            return nil
+        }
+
+        let candidates = sema.symbols.lookupByShortName(interner.intern(memberName)).filter { candidate in
+            guard let symbolInfo = sema.symbols.symbol(candidate),
+                  symbolInfo.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+
+            guard argCount <= signature.parameterTypes.count else { return false }
+            for missingIndex in argCount..<signature.parameterTypes.count {
+                guard missingIndex < signature.valueParameterHasDefaultValues.count,
+                      signature.valueParameterHasDefaultValues[missingIndex]
+                else {
+                    return false
+                }
+            }
+
+            let declaredNonNull = sema.types.makeNonNullable(declaredReceiver)
+            guard case let .classType(classType) = sema.types.kind(of: declaredNonNull),
+                  let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+
+            return receiverSymbol.fqName == expectedReceiverFQ
+        }
+
+        func hasLink(_ candidate: SymbolID) -> Bool {
+            guard let linkName = sema.symbols.externalLinkName(for: candidate) else { return false }
+            return !linkName.isEmpty
+        }
+
+        return candidates.first { hasLink($0) } ?? candidates.first
+    }
+
+    private func expectedRangeClassFQ(
+        rangeKind: MemberDispatchReceiverKind,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        let kotlin = interner.intern("kotlin")
+        let ranges = interner.intern("ranges")
+        switch rangeKind {
+        case .intRange:
+            return [kotlin, ranges, interner.intern("IntRange")]
+        case .intProgression:
+            return [kotlin, ranges, interner.intern("IntProgression")]
+        default:
+            return nil
+        }
     }
 
     private func isSupportedRangeMember(_ memberName: String) -> Bool {

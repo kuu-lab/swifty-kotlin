@@ -763,43 +763,8 @@ final class CallLowerer {
             ))
             return result
         }
-        if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
-            let sourceName = interner.resolve(sourceCalleeName)
-            let builderRuntimeCallee: String? = switch builderKind {
-            // buildList is Kotlinized and no longer uses builder-DSL lowering (KSP-622).
-            case .buildList:
-                nil
-            case .buildSet:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("add", 1):
-                    "kk_builder_set_add"
-                case ("addAll", 1):
-                    "kk_builder_set_addAll"
-                default:
-                    nil
-                }
-            case .buildMap:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("put", 2):
-                    "kk_builder_map_put"
-                default:
-                    nil
-                }
-            }
-            if let builderRuntimeCallee {
-                let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(builderRuntimeCallee),
-                    arguments: loweredArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
+        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
+        // and no longer use builder-DSL runtime lowering.
         if let loweredToList = tryLowerCollectionToListCall(
             sourceCalleeName: sourceCalleeName,
             args: args,

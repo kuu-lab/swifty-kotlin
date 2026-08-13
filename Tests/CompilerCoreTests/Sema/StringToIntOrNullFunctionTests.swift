@@ -67,7 +67,24 @@ struct StringToIntOrNullFunctionTests {
 
         let fqName = ["kotlin", "text", "toIntOrNull"].map { interner.intern($0) }
         let links = Set(sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(links.contains("kk_string_toIntOrNull_flat"))
-        #expect(links.contains("kk_string_toIntOrNull_radix_flat"))
+        #expect(
+            !links.contains("kk_string_toIntOrNull_flat") && !links.contains("__kk_string_toIntOrNull_flat"),
+            "String.toIntOrNull should not expose a kk_ or __kk_ external link; got: \(links)"
+        )
+        #expect(
+            !links.contains("kk_string_toIntOrNull_radix_flat") && !links.contains("__kk_string_toIntOrNull_radix_flat"),
+            "String.toIntOrNull(radix) should not expose a kk_ or __kk_ external link; got: \(links)"
+        )
+
+        let bridgeLinks = Set(
+            sema.symbols.lookupAll(fqName: ["kotlin", "text", "__kk_string_toIntOrNull"].map { interner.intern($0) })
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+            + sema.symbols.lookupAll(fqName: ["kotlin", "text", "__kk_string_toIntOrNull_radix"].map { interner.intern($0) })
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
+        #expect(
+            bridgeLinks.contains("__kk_string_toIntOrNull") && bridgeLinks.contains("__kk_string_toIntOrNull_radix"),
+            "Private __kk_string_toIntOrNull bridges should be registered; got: \(bridgeLinks)"
+        )
     }
 }

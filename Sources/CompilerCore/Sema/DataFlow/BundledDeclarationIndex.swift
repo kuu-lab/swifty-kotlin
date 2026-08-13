@@ -537,7 +537,7 @@ struct BundledDeclarationIndex: Sendable {
         // these to Iterable suppressed the dedicated Iterable synthetic stub
         // that some of these members have (e.g. reduce, via
         // registerIterableReduceMember, which links to the generic
-        // runtimeCollectionElements(from:)-based kk_list_reduce bridge),
+        // runtimeCollectionElements(from:)-based kk_sequence_reduce bridge),
         // leaving a plain Iterable receiver (e.g. Set<T>, or a value
         // statically typed Iterable<T>) with no matching candidate at all.
         // Sema's overload fallback then picked an unrelated same-named source
@@ -843,6 +843,12 @@ struct BundledDeclarationIndex: Sendable {
                 return [interner.intern("kotlin"), first]
             }
             if path.count == 1, let defaultPackage = defaultImportedNameToPackage[first] {
+                return defaultPackage + path
+            }
+            // Nested types of default-imported top-level nominals (e.g.
+            // CharProgression.Companion) must keep their default package prefix
+            // so bundled companion-object extensions are keyed under the real owner.
+            if path.count > 1, let defaultPackage = defaultImportedNameToPackage[first] {
                 return defaultPackage + path
             }
             if path.count == 1 || topLevelNominalNames.contains(first) {

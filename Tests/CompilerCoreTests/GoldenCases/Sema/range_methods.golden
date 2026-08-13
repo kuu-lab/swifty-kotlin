@@ -38,7 +38,7 @@ expr e@4:39#2 memberCall recv=e@4:39#1 callee=contains args=[_:e@4:55] type=Bool
 expr e@5:27 int(1) type=Int
 expr e@5:30 int(5) type=Int
 expr e@5:27#1 binary(rangeTo) lhs=e@5:27 rhs=e@5:30 type=Int
-expr e@5:27#2 memberCall recv=e@5:27#1 callee=toList args=[] type=kotlin.collections.List<out Int>
+expr e@5:27#2 memberCall recv=e@5:27#1 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.ranges.toList#3
 expr e@6:29 int(1) type=Int
 expr e@6:32 int(5) type=Int
 expr e@6:29#1 binary(rangeTo) lhs=e@6:29 rhs=e@6:32 type=Int

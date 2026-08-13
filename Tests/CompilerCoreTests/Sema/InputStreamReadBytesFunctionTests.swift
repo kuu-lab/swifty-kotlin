@@ -125,7 +125,6 @@ struct InputStreamReadBytesFunctionTests {
     /// Pinning these here guards against accidental renames or signature
     /// drift that would silently break the lowering pipeline.
     @Test func testInputStreamReadBytesSignatureAndRuntimeLink() throws {
-
         let ctx = try sharedCtx()
         let interner = ctx.interner
         let sema = try #require(ctx.sema)

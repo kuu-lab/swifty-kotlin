@@ -1,8 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-005): end-to-end sequence {} builder requires KSP-447
-// residual runtime/source object pipeline wiring (Iterator itable dispatch for
-// coroutine-produced Sequence objects). Type inference is now unblocked, but the
-// generated Sequence/Iterator object expressions still fail virtual dispatch.
-//
 // STDLIB-563: Verify that sequence {} builder is lazy.
 // Side effects in the builder should only execute when elements are consumed.
 fun main() {
