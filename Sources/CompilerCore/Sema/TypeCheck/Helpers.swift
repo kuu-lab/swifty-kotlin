@@ -24,31 +24,6 @@ func nominalRangeElementType(
     }
 }
 
-/// Returns the element type for a range-like argument expression.
-/// Supports `..` range literals and nominal UIntRange / ULongRange classes
-/// so unsigned `coerceIn(range)` calls can be type-checked before KSP-640
-/// adds Kotlin source overloads for UByte/UShort/UInt/ULong.
-func unsignedCoerceInRangeElementType(
-    for expr: ExprID,
-    sema: SemaModule,
-    interner: StringInterner
-) -> TypeID? {
-    let exprType = sema.bindings.exprTypes[expr] ?? sema.types.anyType
-    let nonNullExprType = sema.types.makeNonNullable(exprType)
-    if sema.bindings.isRangeExpr(expr) {
-        if nonNullExprType == sema.types.uintType || nonNullExprType == sema.types.ulongType {
-            return nonNullExprType
-        }
-    }
-    if sema.bindings.isUIntRangeExpr(expr) {
-        return sema.types.uintType
-    }
-    if sema.bindings.isULongRangeExpr(expr) {
-        return sema.types.ulongType
-    }
-    return nominalRangeElementType(for: exprType, sema: sema, interner: interner)
-}
-
 struct TypeCheckHelpers {
     private func syntheticCoroutineNominalType(
         packageName: [InternedString],
