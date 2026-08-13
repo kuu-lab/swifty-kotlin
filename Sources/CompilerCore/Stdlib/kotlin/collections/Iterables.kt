@@ -139,6 +139,58 @@ public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = joinToString(separator, "", "", transform)
 
+// KSP-632: remaining Iterable HOFs migrated from the Swift runtime `kk_list_*`
+// bridges. These implementations rely only on `iterator()` / `toMutableList()`,
+// so they work for List, Set and any other Iterable.
+
+public fun <T> Iterable<T>.reduceRight(operation: (T, T) -> T): T {
+    val list = this.toMutableList()
+    if (list.size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = list[list.size - 1]
+    var i = list.size - 2
+    while (i >= 0) {
+        accumulator = operation(list[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> Iterable<T>.reduceRightIndexed(operation: (Int, T, T) -> T): T {
+    val list = this.toMutableList()
+    if (list.size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = list[list.size - 1]
+    var i = list.size - 2
+    while (i >= 0) {
+        accumulator = operation(i, list[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> Iterable<T>.reduceRightOrNull(operation: (T, T) -> T): T? {
+    val list = this.toMutableList()
+    if (list.size == 0) return null
+    var accumulator = list[list.size - 1]
+    var i = list.size - 2
+    while (i >= 0) {
+        accumulator = operation(list[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T): T? {
+    val list = this.toMutableList()
+    if (list.size == 0) return null
+    var accumulator = list[list.size - 1]
+    var i = list.size - 2
+    while (i >= 0) {
+        accumulator = operation(i, list[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = joinToString(", ", "", "", transform)

@@ -92,8 +92,6 @@ struct StdlibSurfaceSpecTests {
             sequence("indexOfLast", 1),
             sequence("intersect", 1),
             sequence("maxOrNull", 0),
-            sequence("fold", 2),
-            sequence("foldIndexed", 2),
             sequence("indexOfFirst", 1),
             sequence("min", 0),
             sequence("forEachIndexed", 1),
@@ -102,11 +100,6 @@ struct StdlibSurfaceSpecTests {
             sequence("mapIndexed", 1),
             sequence("reversed", 0),
             sequence("filterIndexed", 1),
-            sequence("runningReduceIndexed", 1),
-            sequence("scanIndexed", 2),
-            sequence("runningFoldIndexed", 2),
-            sequence("runningFold", 2),
-            sequence("scan", 2),
             sequence("filterNotNull", 0),
             sequence("filterTo", 2),
             sequence("filterNotTo", 2),
@@ -118,15 +111,8 @@ struct StdlibSurfaceSpecTests {
             sequence("filterNotNullTo", 1),
             sequence("filterIsInstance", 0),
             sequence("filterIsInstanceTo", 1),
-            sequence("reduceRightIndexed", 1),
-            sequence("reduceRightOrNull", 1),
             sequence("requireNoNulls", 0),
             sequence("minus", 1),
-            sequence("reduceRightIndexedOrNull", 1),
-            sequence("reduceOrNull", 1),
-            sequence("reduceRight", 1),
-            sequence("reduceIndexed", 1),
-            sequence("reduce", 1),
         ]
 
         let actual = Set(StdlibSurfaceSpec.collectionHOFMembers.map(SpecKey.init(spec:)))
@@ -150,28 +136,17 @@ struct StdlibSurfaceSpecTests {
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
                 // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
                 // source, so it no longer registers a synthetic bridge member.
-                (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
+                // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "scanIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightOrNull", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFoldIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFold", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceOrNull", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexedOrNull", 1),
             ]
 
             for testCase in cases {

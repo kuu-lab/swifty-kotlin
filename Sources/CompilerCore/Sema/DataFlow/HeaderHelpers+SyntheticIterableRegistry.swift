@@ -1054,7 +1054,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         iterableInterfaceSymbol: SymbolID,
-        listInterfaceSymbol: SymbolID
+        listInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("plusElement")
@@ -1073,6 +1075,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let returnType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
             args: [.out(typeParamType)],
@@ -1374,7 +1388,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         iterableInterfaceSymbol: SymbolID,
-        listInterfaceSymbol: SymbolID
+        listInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("minusElement")
@@ -1393,6 +1409,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let returnType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
             args: [.out(typeParamType)],
@@ -1439,7 +1467,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         iterableInterfaceSymbol: SymbolID,
-        listInterfaceSymbol: SymbolID
+        listInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("minus")
@@ -1458,6 +1488,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let returnType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
             args: [.out(typeParamType)],
@@ -1748,7 +1790,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("sumBy")
@@ -1767,6 +1811,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let selectorType = types.make(.functionType(FunctionType(
             params: [typeParamType],
             returnType: types.intType,
@@ -1831,7 +1887,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("sumByDouble")
@@ -1850,6 +1908,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let selectorType = types.make(.functionType(FunctionType(
             params: [typeParamType],
             returnType: types.doubleType,

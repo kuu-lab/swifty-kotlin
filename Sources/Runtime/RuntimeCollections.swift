@@ -930,20 +930,63 @@ public func kk_mutable_list_retainAll(_ listRaw: Int, _ collectionRaw: Int) -> I
 
 
 
-// MARK: - List binarySearch (STDLIB-214)
+// MARK: - List plus/minus operators (STDLIB-345)
 
-@_cdecl("kk_list_binarySearch")
-public func kk_list_binarySearch(_ listRaw: Int, _ element: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return -1
+@_cdecl("kk_list_plus_element")
+public func kk_list_plus_element(_ listRaw: Int, _ element: Int) -> Int {
+    let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements ?? []
+    return registerRuntimeObject(RuntimeListBox(elements: elements + [element]))
+}
+
+@_cdecl("kk_list_plus_collection")
+public func kk_list_plus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
+    let lhsElements: [Int] = if let list = runtimeListBox(from: listRaw) {
+        list.elements
+    } else {
+        []
     }
-    return runtimeBinarySearch(
-        elements: list.elements,
-        element: element,
-        fromIndex: 0,
-        toIndex: list.elements.count,
-        compare: runtimeCompareValues
-    )
+    let rhsElements: [Int]
+    if let other = runtimeListBox(from: otherRaw) {
+        rhsElements = other.elements
+    } else if let other = runtimeSetBox(from: otherRaw) {
+        rhsElements = other.elements
+    } else {
+        rhsElements = []
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: lhsElements + rhsElements))
+}
+
+@_cdecl("kk_list_minus_element")
+public func kk_list_minus_element(_ listRaw: Int, _ element: Int) -> Int {
+    let elements = runtimeIterableElements(from: listRaw)
+        ?? runtimeArrayBox(from: listRaw)?.elements
+        ?? []
+    var result = elements
+    if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {
+        result.remove(at: index)
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
+@_cdecl("kk_list_minus_collection")
+public func kk_list_minus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
+    let elements: [Int] = if let list = runtimeListBox(from: listRaw) {
+        list.elements
+    } else {
+        []
+    }
+    let otherElements: [Int]
+    if let other = runtimeListBox(from: otherRaw) {
+        otherElements = other.elements
+    } else if let other = runtimeSetBox(from: otherRaw) {
+        otherElements = other.elements
+    } else {
+        otherElements = []
+    }
+    let result = elements.filter { element in
+        !otherElements.contains(where: { runtimeValuesEqual($0, element) })
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
 // MARK: - asSequence (STDLIB-471)

@@ -211,6 +211,27 @@ extension DataFlowSemaPhase {
             skipStats: skipStats
         )
 
+        registerIterablePlusElementMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
+        registerIterableMinusElementMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
+        registerIterableMinusMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         registerIterableReduceRightIndexedOrNullMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
@@ -218,6 +239,18 @@ extension DataFlowSemaPhase {
             skipStats: skipStats
         )
         registerIterableReduceRightOrNullMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
+        registerIterableSumByMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
+        registerIterableSumByDoubleMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
             bundledIndex: bundledIndex,

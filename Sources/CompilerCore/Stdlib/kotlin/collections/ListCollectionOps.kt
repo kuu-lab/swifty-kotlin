@@ -95,12 +95,14 @@ public fun List<Int>.sum(): Int {
     return sum
 }
 
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
 public fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
     var sum = 0
     for (element in this) sum += selector(element)
     return sum
 }
 
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
 public fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double {
     var sum = 0.0
     for (element in this) sum += selector(element)

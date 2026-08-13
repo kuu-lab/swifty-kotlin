@@ -166,6 +166,48 @@ extension CallTypeChecker {
             return true
         }
 
+        /// Bind a source-backed `List.binarySearch` / `binarySearchBy` overload using
+        /// the regular overload resolver so default arguments and named labels are
+        /// handled correctly.
+        @discardableResult
+        func bindBundledListBinarySearchSource(elementType: TypeID) -> Bool {
+            let calleeStr = interner.resolve(calleeName)
+            guard calleeStr == "binarySearch" || calleeStr == "binarySearchBy" else { return false }
+            guard (!isSequenceReceiver || isListFactoryReceiver),
+                  receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
+            else {
+                return false
+            }
+            let sourceFQName = [interner.intern("kotlin"), interner.intern("collections"), calleeName]
+            let candidates = sema.symbols.lookupAll(fqName: sourceFQName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return receiverClassifier.isConcreteListLikeType(signatureReceiver)
+            }
+            guard !candidates.isEmpty else { return false }
+
+            let callArgs: [CallArg] = args.map { arg in
+                CallArg(label: arg.label, isSpread: arg.isSpread, type: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType)
+            }
+            let callExpr = CallExpr(range: range, calleeName: calleeName, args: callArgs)
+            let resolved = OverloadResolver().resolveCall(
+                candidates: candidates,
+                call: callExpr,
+                expectedType: sema.types.intType,
+                implicitReceiverType: receiverType,
+                ctx: sema
+            )
+            guard let chosenCallee = resolved.chosenCallee else { return false }
+            _ = bindCallAndResolveReturnType(id, chosen: chosenCallee, resolved: resolved, sema: sema)
+            return true
+        }
+
         @discardableResult
         func bindBundledIterableSourceFunction(typeArguments: [TypeID]) -> Bool {
             guard !isSequenceReceiver, isCollectionReceiver else {
@@ -828,6 +870,7 @@ extension CallTypeChecker {
             )))
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+            _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
             let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
@@ -864,23 +907,29 @@ extension CallTypeChecker {
                 guard isSequenceReceiver else {
                     return
                 }
-                let sourceFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    calleeName,
+                let sourcePackages: [[InternedString]] = [
+                    [interner.intern("kotlin"), interner.intern("sequences")],
+                    [interner.intern("kotlin"), interner.intern("collections")],
                 ]
-                guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          sema.symbols.isSourceBackedSymbol(candidate),
-                          let signature = sema.symbols.functionSignature(for: candidate),
-                          signature.parameterTypes.count == args.count,
-                          let signatureReceiver = signature.receiverType
-                    else {
-                        return false
+                var chosenCallee: SymbolID?
+                for packageFQName in sourcePackages {
+                    if let candidate = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).first(where: { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              sema.symbols.isSourceBackedSymbol(candidate),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              signature.parameterTypes.count == args.count,
+                              let signatureReceiver = signature.receiverType
+                        else {
+                            return false
+                        }
+                        return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                    }) {
+                        chosenCallee = candidate
+                        break
                     }
-                    return receiverClassifier.isSequenceLikeType(signatureReceiver)
-                }) else {
+                }
+                guard let chosenCallee else {
                     return
                 }
                 sema.bindings.bindCall(id, binding: CallBinding(
@@ -889,6 +938,11 @@ extension CallTypeChecker {
                     parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
                 ))
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+                for arg in args {
+                    if let expr = ast.arena.expr(arg.expr), expr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
+                    }
+                }
             }
 
             // KSP-441: Source-backed Sequence transforms (map/filter/etc.) live in
@@ -1847,6 +1901,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = initialType
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
+                }
 
             case "foldIndexed":
                 guard args.count == 2 else {
@@ -1867,6 +1924,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = initialType
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
+                }
 
             case "foldRight":
                 guard args.count == 2 else {
@@ -1931,6 +1991,9 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "reduceRightIndexed":
                 guard args.count == 1 else {
@@ -1954,6 +2017,9 @@ extension CallTypeChecker {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
+                }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
                 }
 
             case "reduceRightIndexedOrNull":
@@ -1979,6 +2045,9 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "reduceRightOrNull":
                 guard args.count == 1 else {
@@ -2003,6 +2072,9 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "reduce":
                 guard args.count == 1 else {
@@ -2022,6 +2094,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = collectionElementType
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "reduceOrNull":
                 guard args.count == 1 else {
@@ -2041,6 +2116,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: reduceOrNullLambdaType)
                 resultType = sema.types.makeNullable(collectionElementType)
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "reduceIndexed":
                 guard args.count == 1 else {
@@ -2060,6 +2138,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: reduceIndexedLambdaType)
                 resultType = collectionElementType
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "reduceIndexedOrNull":
                 guard args.count == 1 else {
@@ -2079,6 +2160,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: reduceIndexedOrNullLambdaType)
                 resultType = sema.types.makeNullable(collectionElementType)
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "scan", "runningFold":
                 guard args.count == 2 else {
@@ -2114,6 +2198,9 @@ extension CallTypeChecker {
                 } else {
                     resultType = sema.types.anyType
                 }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
+                }
 
             case "runningFoldIndexed", "scanIndexed":
                 guard args.count == 2 else {
@@ -2148,6 +2235,9 @@ extension CallTypeChecker {
                     )))
                 } else {
                     resultType = sema.types.anyType
+                }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
                 }
 
             case "runningReduce":
@@ -2188,6 +2278,9 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "runningReduceIndexed":
                 guard args.count == 1 else {
@@ -2226,6 +2319,9 @@ extension CallTypeChecker {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
+                }
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
                 }
 
             case "groupBy":
@@ -2321,6 +2417,10 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = receiverType
+                let keyType = inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                if isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, keyType]
+                }
 
             case "sort":
                 resultType = sema.types.unitType
@@ -2371,6 +2471,9 @@ extension CallTypeChecker {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
                 }
                 resultType = isInPlaceMutation ? sema.types.unitType : receiverType
+                if !isInPlaceMutation, isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
 
             case "maxWith", "minWith", "maxWithOrNull", "minWithOrNull":
                 guard args.count == 1 else {
@@ -3040,6 +3143,7 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.intType)
                     return sema.types.intType
                 }
+                _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
 
             case "binarySearchBy":
                 guard (2 ... 4).contains(args.count) else {
@@ -3074,32 +3178,7 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[args.count - 1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
-
-                let knownNames = KnownCompilerNames(interner: interner)
-                let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
-                if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
-                    guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-                    return signature.parameterTypes.count == args.count
-                }) {
-                    let keySubstitution: TypeID = if keyType == sema.types.errorType {
-                        sema.types.nullableAnyType
-                    } else {
-                        switch sema.types.kind(of: keyType) {
-                        case .nothing:
-                            sema.types.nullableAnyType
-                        default:
-                            keyType
-                        }
-                    }
-                    let substitutedTypeArguments = [collectionElementType, keySubstitution]
-                    let parameterMapping = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                    sema.bindings.bindCall(id, binding: CallBinding(
-                        chosenCallee: chosenCallee,
-                        substitutedTypeArguments: substitutedTypeArguments,
-                        parameterMapping: parameterMapping
-                    ))
-                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                }
+                _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
 
             case "distinctBy":
                 guard args.count == 1 else {

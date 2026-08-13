@@ -115,7 +115,7 @@
   - 削除 kk_*: `kk_list_map`, `kk_list_mapIndexed`, `kk_list_mapIndexedTo`, `kk_list_mapNotNull`, `kk_list_mapNotNullTo`, `kk_list_mapTo`, `kk_list_flatten`, `kk_list_flatMap`, `kk_list_flatMapIndexed`, `kk_list_flatMapIndexedTo`, `kk_list_flatMapTo`（`RuntimeCollectionHOF.swift`）
 - [x] KSP-422: List fold/reduce/scan を Kotlin 化（`fold(Right)(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `runningFold/Reduce(Indexed)`, `scan(Indexed)`）
   - 削除 kk_*: 該当 19 関数（`rg -o '@_cdecl\("kk_list_(fold|reduce|running|scan)[a-zA-Z]*"\)' Sources/Runtime` で列挙）/ 既存 `ListAggregateHOF.kt` に追記
-- [ ] KSP-423: List 検索・述語を完遂（`find(Last)`, `indexOf(First/Last)`, `lastIndexOf`, `contains(All)`, `any`, `all`, `none`, `count`, `binarySearch(By)`）
+- [x] KSP-423: List 検索・述語を完遂（`find(Last)`, `indexOf(First/Last)`, `lastIndexOf`, `contains(All)`, `any`, `all`, `none`, `count`, `binarySearch(By)`）
   - 削除 kk_*: `kk_list_find`, `kk_list_findLast`, `kk_list_indexOf`, `kk_list_indexOfFirst`, `kk_list_indexOfLast`, `kk_list_lastIndexOf`, `kk_list_contains`, `kk_list_containsAll`, `kk_list_any`, `kk_list_all`, `kk_list_none`, `kk_list_count`, `kk_list_binarySearch(_comparator/_compare)`, `kk_list_binarySearchBy(_fromIndex/_range)` / 既存 `ListSearchHOF.kt` に追記。等値判定コアは `__kk_values_equal`（新設）へ降格
 - [x] KSP-424: List アクセスを Kotlin 化（`getOrNull`, `getOrElse`, `elementAt(OrNull/OrElse)`, `first(OrNull)`, `last(OrNull)`, `single(OrNull)`）
   - ブリッジ残留: `kk_list_get`, `kk_list_size` は `__kk_` 降格（ストレージ直アクセス）。他は Kotlin 化して削除
@@ -171,7 +171,7 @@
   - 注意: インライン `kotlinSequencesSource`（toList/toMutableList/toSet）と統合（KSP-503 と調整）
 - [x] KSP-444: Sequence association・minBy/maxBy を Kotlin 化（`associate*(To)`, `groupBy(To)`, `partition`, `joinTo(String)`, `sumOf/By(Double)`, `min/max(By/Of/With)(OrNull)`）
   - 削除 kk_*: `RuntimeSequenceAssociation.swift` の全関数（rg で列挙）
-- [ ] KSP-445: Sequence fold/scan を Kotlin 化（`fold(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `scan(Indexed)`, `runningFold/Reduce(Indexed)`, `sorted*`）
+- [x] KSP-445: Sequence fold/scan を Kotlin 化（`fold(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `scan(Indexed)`, `runningFold/Reduce(Indexed)`, `sorted*`）
   - 削除 kk_*: `RuntimeSequenceFoldScan.swift` の全関数
 - [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
 - [x] KSP-447: sequence{}/iterator{} ビルダーを (c) 残留分類として確定する
@@ -385,7 +385,7 @@
 - [x] KSP-629: List→配列変換（unsigned 4）を Kotlin 化する（前提: KSP-628。`kk_list_toUByteArray/toUShortArray/toUIntArray/toULongArray` 削除）
 - [x] KSP-630: Iterator.forEach/withIndex を**新規実装**する（実装も計画も無かった真空地帯。参照実装: `kk_list_forEach`（RuntimeCollectionHOF）/ IndexedValue。実装先 `collections/Iterators.kt`。diff 新規）
 - [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
-- [ ] KSP-632: IterableRegistry 残余の HOF を Kotlin 化する（KSP-435 対象外の登録分: `reduceRight(Indexed)`/`sumBy(Double)`/`plusElement`/`minusElement`/`minus`。着手時 `rg 'registerIterable' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で固定）
+- [x] KSP-632: IterableRegistry 残余の HOF を Kotlin 化する（KSP-435 対象外の登録分: `reduceRight(Indexed)`/`sumBy(Double)`/`plusElement`/`minusElement`/`minus`。着手時 `rg 'registerIterable' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で固定）
 - [x] KSP-633: IterableRegistry の殻を .kt 化する（`MutableIterable`/`AbstractCollection`/`AbstractMutableCollection` interface/abstract class 宣言）
 - [x] KSP-634: maxWith/minWith を KSP-461 の明示対象に追記する（現状 rg パターン包含の推定のみ — KSP-461 のタスク文へ明示列挙を追加する編集タスク）
   - KSP-461 に「Comparator 消費側」の項を追加し、`maxWith(OrNull)`/`minWith(OrNull)` の実体が `RuntimeCollectionHOFMaxMin.swift` / `RuntimeSequenceAssociation.swift` の 8 関数であること、KSP-461 の rg パターンには含まれず削除担当は KSP-426 / KSP-444 であることを明示した（コード変更なし）
@@ -571,7 +571,7 @@
   - 残留: 非 generic の `readAttributes(String, vararg LinkOption)`（`kk_path_readAttributes_string`）は別登録のため残す。`File`/`BufferedReader` の `useLines`/`forEachLine` 特例も対象外
   - テスト影響: `PathUseLinesFunctionTests.swift` / `CodegenBackendIntegrationTests+PathUseLines.swift` / golden `path_use_lines`・`io_path_use_lines` を削除、`SemanticsAndUtilitiesRegressionTests.swift` から該当 4 テストを削除。回帰テストとして `PathGenericFunctionStubRemovalTests.swift` を追加
   - 検証: `swift build` / `--filter Golden` / `--filter 'Path|LoweringPassRegression|SemanticsAndUtilitiesRegression|KotlinIOCommonEdgeCase'` / `bash Scripts/validate_runtime_abi_links.sh` pass
-- [ ] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
+- [x] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`（315行）
   - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 599行付近の呼び出しを削除
