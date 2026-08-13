@@ -136,21 +136,6 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
 
-        if shouldSkipSyntheticStub(
-            bundledIndex: bundledIndex,
-            ownerFQName: packageFQName,
-            name: functionName,
-            arity: parameters.count
-        ) {
-            skipStats?.recordSkip(
-                ownerFQName: packageFQName,
-                name: functionName,
-                arity: parameters.count,
-                interner: interner
-            )
-            return
-        }
-
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
@@ -170,6 +155,22 @@ extension DataFlowSemaPhase {
             )
             return
         }
+
+        if shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: packageFQName,
+            name: functionName,
+            arity: parameters.count
+        ) {
+            skipStats?.recordSkip(
+                ownerFQName: packageFQName,
+                name: functionName,
+                arity: parameters.count,
+                interner: interner
+            )
+            return
+        }
+
         if hasSourceOrImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
