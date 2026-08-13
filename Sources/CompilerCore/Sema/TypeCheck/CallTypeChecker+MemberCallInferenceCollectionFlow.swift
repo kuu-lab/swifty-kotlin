@@ -129,6 +129,47 @@ extension CallTypeChecker {
                 && isArrayReceiver)
 
         @discardableResult
+        func bindBundledSequenceDestinationSourceFunction(
+            typeArguments: [TypeID],
+            parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+        ) -> Bool {
+            guard isSequenceReceiver else {
+                return false
+            }
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                calleeName,
+            ]
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == args.count,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return receiverClassifier.isSequenceLikeType(signatureReceiver)
+            }) else {
+                return false
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: typeArguments,
+                parameterMapping: parameterMapping
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            for arg in args {
+                if let expr = ast.arena.expr(arg.expr), expr.isLambdaOrCallableRef {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
+                }
+            }
+            return true
+        }
+
+        @discardableResult
         func bindBundledListSourceFunction(
             typeArguments: [TypeID],
             parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
@@ -676,31 +717,11 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
-            let receiverElementType = resolvedCollectionElementType(
-                receiverID: receiverID,
-                receiverType: receiverType,
-                sema: sema,
-                interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
             if isSequenceReceiver {
-                let memberFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("sequences"),
-                    interner.intern("Sequence"),
-                    calleeName,
-                ]
-                if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == "kk_sequence_filterIsInstanceTo"
-                }) {
-                    sema.bindings.bindCall(id, binding: CallBinding(
-                        chosenCallee: chosenCallee,
-                        substitutedTypeArguments: [receiverElementType, destinationElementType],
-                        parameterMapping: [0: 0]
-                    ))
-                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                }
+                _ = bindBundledSequenceDestinationSourceFunction(
+                    typeArguments: [destinationElementType, nonNullableDestinationType],
+                    parameterMapping: [0: 0]
+                )
             } else {
                 bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
@@ -713,7 +734,7 @@ extension CallTypeChecker {
             return finalType
         }
 
-        // filterNotNull() — source-backed List implementation, sequence runtime fallback.
+        // filterNotNull() — bundled Kotlin source implementation with sequence runtime fallback.
         if interner.resolve(calleeName) == "filterNotNull",
            args.isEmpty,
            isCollectionReceiver || isSequenceReceiver
@@ -796,6 +817,11 @@ extension CallTypeChecker {
             }
             if !isSequenceReceiver {
                 bindBundledListSourceFunction(
+                    typeArguments: [destinationElementType, nonNullableDestinationType],
+                    parameterMapping: [0: 0]
+                )
+            } else {
+                _ = bindBundledSequenceDestinationSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
                 )
@@ -1177,6 +1203,24 @@ extension CallTypeChecker {
                             sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                         }
                     }
+                }
+                if isSequenceReceiver {
+                    let typeArguments: [TypeID]
+                    if ["filterTo", "filterNotTo", "filterIndexedTo"].contains(calleeStr) {
+                        typeArguments = [collectionElementType, nonNullableDestinationType]
+                    } else {
+                        let rawLambdaReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
+                        let resultElementType: TypeID
+                        if calleeStr == "mapTo" || calleeStr == "mapIndexedTo" {
+                            resultElementType = rawLambdaReturnType
+                        } else if calleeStr == "mapNotNullTo" || calleeStr == "mapIndexedNotNullTo" {
+                            resultElementType = sema.types.makeNonNullable(rawLambdaReturnType)
+                        } else {
+                            resultElementType = extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
+                        }
+                        typeArguments = [collectionElementType, resultElementType, nonNullableDestinationType]
+                    }
+                    _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments)
                 }
                 if calleeStr == "mapKeysTo" || calleeStr == "mapValuesTo" {
                     _ = bindBundledMapSourceFunction()

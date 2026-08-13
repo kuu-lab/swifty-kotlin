@@ -1135,43 +1135,6 @@ extension CallLowerer {
             return result
         }
 
-        // filterIsInstanceTo<R>(destination) — encode type token from result type (STDLIB-021)
-        if args.count == 1,
-           interner.resolve(calleeName) == "filterIsInstanceTo",
-           !isSourceBackedListFilterCall,
-           isSequenceLikeType(
-            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
-            sema: sema,
-            interner: interner
-           )
-        {
-            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-            let nonNullResultType = sema.types.makeNonNullable(resultType)
-            // Extract element type from MutableCollection<R>
-            let elementType: TypeID = if case let .classType(classType) = sema.types.kind(of: nonNullResultType),
-                                         let firstArg = classType.args.first
-            {
-                switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let encodedToken = RuntimeTypeCheckToken.encode(type: elementType, sema: sema, interner: interner)
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
-            instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_sequence_filterIsInstanceTo"),
-                arguments: [loweredReceiverID, loweredArgIDs[0], tokenExpr],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
 
         if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
             receiverExpr: receiverExpr,
@@ -2167,7 +2130,6 @@ extension CallLowerer {
                 let filterName = interner.intern("filter")
                 let forEachName = interner.intern("forEach")
                 let flatMapName = interner.intern("flatMap")
-                let flatMapToName = interner.intern("flatMapTo")
                 let flatMapIndexedName = interner.intern("flatMapIndexed")
                 let takeLastWhileName = interner.intern("takeLastWhile")
                 let sortedByName = interner.intern("sortedBy")
@@ -2175,7 +2137,6 @@ extension CallLowerer {
                 let sortedByDescendingName = interner.intern("sortedByDescending")
                 let firstNotNullOfName = interner.intern("firstNotNullOf")
                 let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
-                let flatMapIndexedToName = interner.intern("flatMapIndexedTo")
                 let containsName = interner.intern("contains")
                 let indexOfName = interner.intern("indexOf")
                 let indexOfFirstName = interner.intern("indexOfFirst")
@@ -2198,8 +2159,6 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_forEach"
                 } else if calleeName == flatMapName {
                     runtimeCallee = "kk_sequence_flatMap"
-                } else if calleeName == flatMapToName {
-                    runtimeCallee = "kk_sequence_flatMapTo"
                 } else if calleeName == flatMapIndexedName {
                     runtimeCallee = "kk_sequence_flatMapIndexed"
                 } else if calleeName == takeLastWhileName {
@@ -2214,8 +2173,6 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_firstNotNullOf"
                 } else if calleeName == firstNotNullOfOrNullName {
                     runtimeCallee = "kk_sequence_firstNotNullOfOrNull"
-                } else if calleeName == flatMapIndexedToName {
-                    runtimeCallee = "kk_sequence_flatMapIndexedTo"
                 } else if calleeName == containsName {
                     runtimeCallee = "kk_sequence_contains"
                 } else if calleeName == indexOfName {
@@ -2336,8 +2293,6 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                        || runtimeCallee == "kk_sequence_flatMapIndexedTo"
-                        || runtimeCallee == "kk_sequence_flatMapTo"
                         || runtimeCallee == "kk_sequence_find"
                         || runtimeCallee == "kk_sequence_findLast"
                         || runtimeCallee == "kk_sequence_takeLast"
@@ -2470,39 +2425,6 @@ extension CallLowerer {
                             instructions: &instructions
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                    }
-                    if runtimeCallee == "kk_sequence_flatMapIndexedTo",
-                       normalizedArgIDs.count == 2
-                    {
-                        let firstArg = normalizedArgIDs[0]
-                        let secondArg = normalizedArgIDs[1]
-                        let lambdaArg: KIRExprID
-                        let destinationArg: KIRExprID
-                        if args.count >= 2,
-                           sema.bindings.isCollectionHOFLambdaExpr(args[0].expr)
-                        {
-                            lambdaArg = firstArg
-                            destinationArg = secondArg
-                        } else if args.count >= 2,
-                                  sema.bindings.isCollectionHOFLambdaExpr(args[1].expr)
-                        {
-                            destinationArg = firstArg
-                            lambdaArg = secondArg
-                        } else if driver.ctx.callableValueInfo(for: firstArg) != nil {
-                            lambdaArg = firstArg
-                            destinationArg = secondArg
-                        } else {
-                            destinationArg = firstArg
-                            lambdaArg = secondArg
-                        }
-                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                            lambdaArg,
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        runtimeArguments = [loweredReceiverID, destinationArg, fnPtrExpr, envPtrExpr]
                     }
                     if runtimeCallee == "kk_sequence_elementAtOrElse",
                        normalizedArgIDs.count == 2
