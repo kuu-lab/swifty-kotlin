@@ -815,15 +815,6 @@ public extension RuntimeABISpec {
                     isThrowing: false
                 ),
                 // STDLIB-533: List?.orEmpty()
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_orEmpty",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
             ])
         return functions
     }()

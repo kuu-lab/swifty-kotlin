@@ -1634,15 +1634,11 @@ struct RuntimeStringArrayTests {
     func testStringCharCollectionCopiesPreserveTaggedChars() {
         let listRaw = kk_collection_toMutableList(flatStringAsIterable("aba"))
 
-        let set = runtimeSetBox(from: kk_list_to_set(listRaw))
-        let mutableSet = runtimeSetBox(from: kk_list_to_mutable_set(listRaw))
-        let hashSet = runtimeSetBox(from: kk_list_toHashSet(listRaw))
+        let mutableSet = runtimeSetBox(from: kk_iterable_toMutableSet(listRaw))
         let mutableList = runtimeListBox(from: kk_collection_toMutableList(listRaw))
         let typedArray = runtimeArrayBox(from: kk_collection_toTypedArray(listRaw))
 
-        #expect(set?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
         #expect(mutableSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
-        #expect(hashSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
         #expect(mutableList?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
@@ -1653,7 +1649,6 @@ struct RuntimeStringArrayTests {
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        #expect(set?.elements == [97, 98])
         #expect(mutableList?.elements == [97, 98, 97])
         #expect(typedArray?.elements == [97, 98, 97])
     }
@@ -1669,24 +1664,6 @@ struct RuntimeStringArrayTests {
         )
 
         #expect(runtimeStringValue(Int(bitPattern: result)) == "<a|é|?|?>")
-    }
-
-    @Test
-    func testStringJoinToStringUsesAggregateListStorageWithoutLegacyStringBoxes() {
-        let listRaw = makeRuntimeValueList([
-            runtimeStringAggregateValue("red"),
-            runtimeStringAggregateValue("green"),
-            runtimeStringAggregateValue("blue"),
-        ])
-        let separatorRaw = rawFromRuntimeString("|")
-        let prefixRaw = rawFromRuntimeString("<")
-        let postfixRaw = rawFromRuntimeString(">")
-        let baselineObjectCount = kk_debugging_global_object_count()
-
-        let resultRaw = kk_string_joinToString(listRaw, separatorRaw, prefixRaw, postfixRaw)
-
-        #expect(runtimeStringValue(resultRaw) == "<red|green|blue>")
-        #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage")
     }
 
     @Test

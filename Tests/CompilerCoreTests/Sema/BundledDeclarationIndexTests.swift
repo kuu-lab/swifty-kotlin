@@ -230,8 +230,8 @@ struct BundledDeclarationIndexTests {
                 sema.symbols.externalLinkName(for: $0) == "kk_list_joinToString_transform"
         }
         #expect(
-            !listJoinTransforms.isEmpty,
-            "Expected synthetic List.joinToString transform overloads to remain available"
+            listJoinTransforms.isEmpty,
+            "Expected bundled Iterable.joinToString transform overloads to replace List synthetic stubs"
         )
     }
 

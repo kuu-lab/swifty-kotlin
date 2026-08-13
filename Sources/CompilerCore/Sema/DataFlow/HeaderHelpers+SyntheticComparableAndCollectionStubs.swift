@@ -247,36 +247,6 @@ extension DataFlowSemaPhase {
             iterableInterfaceSymbol: iterableInterfaceSymbol
         )
 
-        // --- STDLIB-533: List?.orEmpty() ---
-        let listTypeParamSymbols = types.nominalTypeParameterSymbols(for: listInterfaceSymbol)
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbols.first!,
-            nullability: .nonNull
-        )))
-        let nullableListType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nullable
-        )))
-        let nonNullListType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerSyntheticListExtensionFunction(
-            named: "orEmpty",
-            externalLinkName: "kk_list_orEmpty",
-            receiverType: nullableListType,
-            parameters: [],
-            returnType: nonNullListType,
-            typeParameterSymbols: listTypeParamSymbols,
-            packageFQName: kotlinCollectionsPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         registerSyntheticMutableListStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
@@ -444,13 +414,6 @@ extension DataFlowSemaPhase {
             listTypeParamType: listTypeParamType,
             bundledIndex: bundledIndex,
             skipStats: skipStats
-        )
-        registerListComponentNMembers(
-            symbols: symbols, types: types, interner: interner,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
         )
     }
 

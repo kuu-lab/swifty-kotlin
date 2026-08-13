@@ -28,6 +28,8 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
+public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
+
 @Suppress("UNCHECKED_CAST")
 public fun <T> Iterable<T>.last(): T {
     var found = false
@@ -142,3 +144,22 @@ public fun <T> Iterable<T>.joinToString(
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = joinToString(", ", "", "", transform)
+
+// Char.toString() is represented by its numeric code in the generic path;
+// keep the List<Char> overload aligned with Kotlin's character rendering.
+public fun List<Char>.joinToString(
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = ""
+): String {
+    val buffer = StringBuilder()
+    buffer.append(prefix)
+    var first = true
+    for (element in this) {
+        if (!first) buffer.append(separator)
+        buffer.append(element)
+        first = false
+    }
+    buffer.append(postfix)
+    return buffer.toString()
+}

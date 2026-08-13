@@ -92,7 +92,6 @@ private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_list_of_not_null", section: "Collection", params: ["arrayRaw", "count"]),
     bridgeSpec("kk_list_subtract", section: "Collection", params: ["listRaw", "otherRaw"],
             isThrowing: false),
-    bridgeSpec("kk_list_toHashSet", section: "Collection", params: ["listRaw"]),
     bridgeSpec("kk_list_union", section: "Collection", params: ["listRaw", "otherRaw"],
             isThrowing: false),
 ]

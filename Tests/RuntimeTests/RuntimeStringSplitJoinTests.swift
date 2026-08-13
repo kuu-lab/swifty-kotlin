@@ -167,34 +167,6 @@ struct RuntimeStringSplitJoinTests {
     // MARK: - joinToString tests
 
     @Test
-    func testJoinToStringBasic() {
-        let elements = [runtimeMakeStringRaw("a"), runtimeMakeStringRaw("b"), runtimeMakeStringRaw("c")]
-        let listRaw = runtimeMakeListRaw(elements)
-        let separator = runtimeMakeStringRaw(", ")
-        let prefix = runtimeMakeStringRaw("")
-        let postfix = runtimeMakeStringRaw("")
-        
-        let result = kk_string_joinToString(listRaw, separator, prefix, postfix)
-        let resultStr = runtimeStringFromRaw(result)
-        #expect(resultStr == "a, b, c")
-    }
-
-    @Test
-    func testJoinToStringWithPrefixPostfix() {
-        let elements = [runtimeMakeStringRaw("a"), runtimeMakeStringRaw("b")]
-        let listRaw = runtimeMakeListRaw(elements)
-        let separator = runtimeMakeStringRaw(", ")
-        let prefix = runtimeMakeStringRaw("[")
-        let postfix = runtimeMakeStringRaw("]")
-        
-        let result = kk_string_joinToString(listRaw, separator, prefix, postfix)
-        let resultStr = runtimeStringFromRaw(result)
-        #expect(resultStr == "[a, b]")
-    }
-
-    // MARK: - splitToSequence tests
-
-    @Test
     func testSplitToSequenceBasic() {
         let result = splitToSequence("a,b,c", delimiter: ",")
         #expect((result as Int?) != nil)

@@ -474,34 +474,3 @@ public func kk_string_splitToSequence_flat(
         kk_string_from_flat(delimData, delimLength, delimByteCount, delimHash)
     )
 }
-
-@_cdecl("kk_string_joinToString")
-public func kk_string_joinToString(
-    _ strListRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int
-) -> Int {
-    guard let list = runtimeListBox(from: strListRaw) else {
-        return runtimeMakeStringRaw("")
-    }
-
-    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
-    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
-    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
-
-    let strings = list.values.compactMap { value -> String? in
-        switch value.tag {
-        case RuntimeValue.stringTag, RuntimeValue.charTag:
-            return runtimeElementToString(value)
-        default:
-            return extractString(from: UnsafeMutableRawPointer(bitPattern: value.legacyRawValue))
-        }
-    }
-    let result = prefix + strings.joined(separator: separator) + postfix
-    return runtimeMakeStringRaw(result)
-}
-
-@_cdecl("__kk_string_joinToString")
-public func __kk_string_joinToString(
-    _ strListRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int
-) -> Int {
-    kk_string_joinToString(strListRaw, separatorRaw, prefixRaw, postfixRaw)
-}

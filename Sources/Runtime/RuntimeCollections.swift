@@ -125,14 +125,6 @@ public func kk_list_size(_ listRaw: Int) -> Int {
     return list.elements.count
 }
 
-@_cdecl("kk_list_indices")
-public func kk_list_indices(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_op_rangeTo(0, -1)
-    }
-    return kk_op_rangeTo(0, list.elements.count - 1)
-}
-
 @_cdecl("__kk_list_get")
 public func kk_list_get(_ listRaw: Int, _ index: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -144,60 +136,12 @@ public func kk_list_get(_ listRaw: Int, _ index: Int) -> Int {
     return list.elements[index]
 }
 
-@_cdecl("kk_list_lastIndex")
-public func kk_list_lastIndex(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return -1
-    }
-    return list.elements.count - 1
-}
-
-@inline(__always)
-private func runtimeListComponent(_ listRaw: Int, component: Int) -> Int {
-    kk_list_get(listRaw, component - 1)
-}
-
-// STDLIB-183: List destructuring component1() ~ component5()
-@_cdecl("kk_list_component1")
-public func kk_list_component1(_ listRaw: Int) -> Int {
-    runtimeListComponent(listRaw, component: 1)
-}
-
-@_cdecl("kk_list_component2")
-public func kk_list_component2(_ listRaw: Int) -> Int {
-    runtimeListComponent(listRaw, component: 2)
-}
-
-@_cdecl("kk_list_component3")
-public func kk_list_component3(_ listRaw: Int) -> Int {
-    runtimeListComponent(listRaw, component: 3)
-}
-
-@_cdecl("kk_list_component4")
-public func kk_list_component4(_ listRaw: Int) -> Int {
-    runtimeListComponent(listRaw, component: 4)
-}
-
-@_cdecl("kk_list_component5")
-public func kk_list_component5(_ listRaw: Int) -> Int {
-    runtimeListComponent(listRaw, component: 5)
-}
-
-
 @_cdecl("kk_list_is_empty")
 public func kk_list_is_empty(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(1)
     }
     return kk_box_bool(list.elements.isEmpty ? 1 : 0)
-}
-
-@_cdecl("kk_list_is_not_empty")
-public func kk_list_is_not_empty(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(list.elements.isEmpty ? 0 : 1)
 }
 
 @_cdecl("kk_list_iterator")
@@ -285,67 +229,6 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
     }
 }
 
-@_cdecl("kk_list_to_mutable_list")
-public func kk_list_to_mutable_list(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_to_mutable_list")
-    }
-    return registerRuntimeObject(RuntimeListBox(values: list.values))
-}
-
-@_cdecl("kk_list_joinToString")
-public func kk_list_joinToString(
-    _ listRaw: Int,
-    _ separatorRaw: Int,
-    _ prefixRaw: Int,
-    _ postfixRaw: Int
-) -> UnsafeMutableRawPointer {
-    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
-    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
-    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
-    let elements = runtimeListBox(from: listRaw)?.values ?? []
-    let rendered = elements.map(runtimeElementToString).joined(separator: separator)
-    let stringValue = prefix + rendered + postfix
-    let utf8 = Array(stringValue.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
-}
-
-@_cdecl("kk_list_joinToString_transform")
-public func kk_list_joinToString_transform(
-    _ listRaw: Int,
-    _ separatorRaw: Int,
-    _ prefixRaw: Int,
-    _ postfixRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
-    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
-    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
-    let elements = runtimeListBox(from: listRaw)?.elements ?? []
-    var renderedParts: [String] = []
-    renderedParts.reserveCapacity(elements.count)
-    for element in elements {
-        var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: element,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        renderedParts.append(runtimeElementToString(transformed))
-    }
-    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
-}
-
 @_cdecl("__kk_iterable_joinTo")
 public func kk_iterable_joinTo(
     _ iterableRaw: Int,
@@ -421,53 +304,6 @@ public func kk_iterable_joinToString_transform(
 }
 
 // MARK: - List toMap (STDLIB-200)
-
-@_cdecl("kk_list_toMap")
-public func kk_list_toMap(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-    }
-    var keys: [Int] = []
-    var values: [Int] = []
-    for element in list.elements {
-        guard let pointer = UnsafeMutableRawPointer(bitPattern: element) else {
-            continue
-        }
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: pointer))
-        }
-        guard isObjectPointer, let pair = tryCast(pointer, to: RuntimePairBox.self) else {
-            continue
-        }
-        var found = false
-        for (idx, existingKey) in keys.enumerated() where runtimeValuesEqual(existingKey, pair.first) {
-            values[idx] = pair.second
-            found = true
-            break
-        }
-        if !found {
-            keys.append(pair.first)
-            values.append(pair.second)
-        }
-    }
-    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
-}
-
-@_cdecl("kk_list_to_set")
-public func kk_list_to_set(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(list.values)))
-}
-
-@_cdecl("kk_list_to_mutable_set")
-public func kk_list_to_mutable_set(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(list.values)))
-}
 
 @inline(__always)
 func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
@@ -644,19 +480,6 @@ public func kk_list_subtract(_ listRaw: Int, _ otherRaw: Int) -> Int {
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
-
-// NOTE: This duplicates the logic in kk_list_to_set.  Kept as a separate
-// entry point because Kotlin distinguishes toSet() and toHashSet() at the API
-// level.  If deduplication/boxing logic changes, consider delegating to a
-// shared helper to avoid drift.
-@_cdecl("kk_list_toHashSet")
-public func kk_list_toHashSet(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(list.values)))
-}
-
 
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
     if !currentValues.isEmpty,
@@ -1071,19 +894,6 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
     // Same COW-snapshot semantics (known Kotlin deviation) as kk_list_asSequence above.
     let seq = RuntimeSequenceBox(steps: [.valueSource(values: array.values)])
     return registerRuntimeObject(seq)
-}
-
-// MARK: - STDLIB-533: List?.orEmpty()
-
-/// Cached singleton handle for the empty list, allocated once on first use.
-private let cachedEmptyListHandle: Int = registerRuntimeObject(RuntimeListBox(elements: []))
-
-@_cdecl("kk_list_orEmpty")
-public func kk_list_orEmpty(_ listRaw: Int) -> Int {
-    if listRaw == runtimeNullSentinelInt || listRaw == 0 {
-        return cachedEmptyListHandle
-    }
-    return listRaw
 }
 
 // MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)

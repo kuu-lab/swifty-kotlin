@@ -127,8 +127,9 @@
   - 削除 kk_*: `kk_list_take`, `kk_list_takeLast`, `kk_list_takeWhile`, `kk_list_takeLastWhile`, `kk_list_drop`, `kk_list_dropLast`, `kk_list_dropWhile`, `kk_list_dropLastWhile`, `kk_list_slice`, `kk_list_slice_iterable`, `kk_list_subList`
 - [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
-- [ ] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
-  - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
+- [x] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
+  - 完了: `Iterables.kt` / `ListConversions.kt` に汎用変換・join・nullable・destructuring・index 実装を移し、List 固有の synthetic 登録・call lowering・公開ランタイム ABI を削除。`isEmpty` は抽象 Collection の型タグ dispatch コアとして保持し、`isNotEmpty` は Kotlin source から `isEmpty` を利用する。
+  - 回帰: `Scripts/diff_cases/list_ksp429_surface.kt` と `CodegenBackendIntegrationTests` の実 kotlinc 比較・実行ケースで固定。
 - [x] KSP-430: Map HOF を Kotlin 化（`filter(Keys/Values/Not)`, `map(NotNull)`, `mapKeys(To)`, `mapValues(To)`, `flatMap`, `forEach`, `any`, `all`, `none`, `count`, `maxByOrNull`, `minByOrNull`, `plus`, `minus`） (PR #5023)
   - 削除 kk_*: `RuntimeCollectionHOF.swift` の `kk_map_*` HOF 18 関数 + `RuntimeSetAndMap.swift` の `kk_map_plus`, `kk_map_minus`
 - [x] KSP-431: Map lookup・変換を Kotlin 化（`getValue`, `getOrDefault`, `getOrElse`, `getOrPut`, `containsKey/Value`, `keys`, `values`, `entries`, `toList`, `toMutableMap`, `orEmpty`, `withDefault`）
