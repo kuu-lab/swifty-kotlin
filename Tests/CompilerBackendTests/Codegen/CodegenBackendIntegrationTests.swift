@@ -1294,8 +1294,37 @@ import Testing
                 first = stripPathDependentBytes(first, outputPath: artifactBase1)
                 second = stripPathDependentBytes(second, outputPath: artifactBase2)
             }
-            #expect(first == second)
+            #expect(
+                first == second,
+                "LLVM/KIR artifact mismatch: \(determinismMismatchDescription(first: first, second: second))"
+            )
         }
+    }
+
+    private func determinismMismatchDescription(first: Data, second: Data) -> String {
+        let sharedCount = min(first.count, second.count)
+        let firstDifference = (0 ..< sharedCount).first { first[$0] != second[$0] }
+        guard let firstDifference else {
+            return "equal shared prefix of \(sharedCount) bytes; sizes \(first.count) and \(second.count)"
+        }
+
+        guard let firstText = String(data: first, encoding: .utf8),
+              let secondText = String(data: second, encoding: .utf8)
+        else {
+            return "first differing byte \(firstDifference): \(first[firstDifference]) != \(second[firstDifference]); sizes \(first.count) and \(second.count)"
+        }
+
+        let firstLines = firstText.split(separator: "\n", omittingEmptySubsequences: false)
+        let secondLines = secondText.split(separator: "\n", omittingEmptySubsequences: false)
+        let sharedLineCount = min(firstLines.count, secondLines.count)
+        let firstDifferingLine = (0 ..< sharedLineCount).first { firstLines[$0] != secondLines[$0] }
+        guard let firstDifferingLine else {
+            return "first differing byte \(firstDifference); equal shared line prefix of \(sharedLineCount) lines; line counts \(firstLines.count) and \(secondLines.count)"
+        }
+
+        let firstSnippet = String(firstLines[firstDifferingLine].prefix(500))
+        let secondSnippet = String(secondLines[firstDifferingLine].prefix(500))
+        return "first differing byte \(firstDifference), line \(firstDifferingLine + 1): first=\(firstSnippet.debugDescription), second=\(secondSnippet.debugDescription); sizes \(first.count) and \(second.count)"
     }
 
     private func stripPathDependentBytes(_ data: Data, outputPath: String) -> Data {
