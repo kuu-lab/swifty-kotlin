@@ -235,9 +235,11 @@ class RuntimeArrayBox {
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
+    var backingSetBox: RuntimeSetBox?
 
     init(length: Int, classID: Int64) {
         self.classID = classID
+        self.backingSetBox = nil
         super.init(length: length)
     }
 }
@@ -1173,7 +1175,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 }
 
 /// Proxy object passed to the builder lambda as the "builder" handle.
-/// When `kk_sequence_builder_yield` receives this handle, it delegates to the
+/// When `__kk_sequence_builder_yield` receives this handle, it delegates to the
 /// coroutine's `yieldValue()`, returning COROUTINE_SUSPENDED for CPS producers
 /// or blocking only for legacy non-CPS producers.
 final class RuntimeSequenceCoroutineBuilderProxy {
@@ -1192,7 +1194,7 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 // direct ABI callers keep the thread-backed path for non-CPS callbacks.
 //
 // Protocol:
-//   1. `kk_iterator_builder_build_coro(entryPointRaw, functionID, closureRaw)`
+//   1. `__kk_iterator_builder_build_coro(entryPointRaw, functionID, closureRaw)`
 //      creates the CPS box for compiler-generated builders.
 //   2. First `hasNext` / `next` call starts the suspend-entry loop.
 //   3. Producer yield(value) transitions to .hasValue, signals consumer, and
@@ -1200,15 +1202,15 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 //   4. On completion: transitions to .done, signals consumer.
 //
 // DEBT-CORO-002: compiler-generated producers no longer occupy a dedicated
-// thread. Legacy `kk_iterator_builder_build(fnPtr)` callbacks keep the old
+// thread. Legacy `__kk_iterator_builder_build(fnPtr)` callbacks keep the old
 // dedicated-thread fallback.
 //
 // CORO-004 Phase 2 (consumer suspension, IN PROGRESS):
 //   probeHasNextAsync(callerState:) wires consumerGate to a resume continuation
 //   so the calling GCD thread is released immediately.  C entry points
-//   kk_iterator_builder_hasNext_coro / kk_iterator_builder_next_coro expose
+//   __kk_iterator_builder_hasNext_coro / __kk_iterator_builder_next_coro expose
 //   this for future coroutine-aware compiler output.  Existing entry points
-//   (kk_iterator_builder_hasNext / _next) remain unchanged.
+//   (__kk_iterator_builder_hasNext / _next) remain unchanged.
 //
 // CORO-004 Phase 3: CPS-transformed iterator builder lambdas call yield() as a
 // real suspend point, so compiler-generated producers no longer need a
@@ -1321,7 +1323,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     ///
     /// Returns 1 (hasNext), 0 (done), or `Int(bitPattern: kk_coroutine_suspended())`
     /// when the caller must propagate COROUTINE_SUSPENDED up the call stack.
-    /// The `kk_iterator_builder_hasNext_coro` C entry point wraps this method.
+    /// The `__kk_iterator_builder_hasNext_coro` C entry point wraps this method.
     func probeHasNextAsync(callerState: RuntimeContinuationState) -> Int {
         stateLock.lock()
         let current = state

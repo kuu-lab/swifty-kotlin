@@ -14,43 +14,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-        if callee == lookup.kkAnyToStringName, arguments.count >= 1 {
-            let argID = arguments[0]
-            if state.listExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkListToStringName,
-                    arguments: [argID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            if state.setExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSetToStringName,
-                    arguments: [argID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            if state.mapExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkMapToStringName,
-                    arguments: [argID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-        }
-
         // --- sortedWith with Comparator argument (STDLIB-649) ---
         // When kk_list_sortedWith is emitted as a .call (from synthetic stub),
         // the comparator argument needs trampoline/closure expansion.

@@ -32,7 +32,7 @@ struct SequenceAssociateByToSyntheticTests {
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            #expect(links.contains("kk_sequence_associateByTo"))
+            #expect(links.isEmpty, "Expected Sequence.associateByTo to have no bundled external link, got \(links.sorted())")
         }
     }
 }

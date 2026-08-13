@@ -571,6 +571,46 @@ public fun LongRange.toList(): List<Long> {
     return result
 }
 
+public fun LongRange.take(n: Int): List<Long> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Long>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun LongRange.drop(n: Int): List<Long> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Long>()
+    var skipped = 0
+    for (element in this) {
+        if (skipped < n) {
+            skipped++
+            continue
+        }
+        result.add(element)
+    }
+    return result
+}
+
+public fun LongRange.sorted(): List<Long> {
+    return toList().sorted()
+}
+
+public fun LongRange.average(): Double {
+    var sum = 0.0
+    var count = 0
+    for (element in this) {
+        sum += element
+        count++
+    }
+    return if (count > 0) sum / count else 0.0 / 0.0
+}
+
 @KsSymbolName("__kk_range_count")
 public fun LongRange.count(): Int {
     val first = first.toLong()
@@ -634,6 +674,46 @@ public fun LongProgression.toList(): List<Long> {
         }
     }
     return result
+}
+
+public fun LongProgression.take(n: Int): List<Long> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Long>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun LongProgression.drop(n: Int): List<Long> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Long>()
+    var skipped = 0
+    for (element in this) {
+        if (skipped < n) {
+            skipped++
+            continue
+        }
+        result.add(element)
+    }
+    return result
+}
+
+public fun LongProgression.sorted(): List<Long> {
+    return toList().sorted()
+}
+
+public fun LongProgression.average(): Double {
+    var sum = 0.0
+    var count = 0
+    for (element in this) {
+        sum += element
+        count++
+    }
+    return if (count > 0) sum / count else 0.0 / 0.0
 }
 
 @KsSymbolName("__kk_range_count")
@@ -701,6 +781,36 @@ public fun CharRange.toList(): List<Char> {
     return result
 }
 
+public fun CharRange.take(n: Int): List<Char> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Char>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun CharRange.drop(n: Int): List<Char> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Char>()
+    var skipped = 0
+    for (element in this) {
+        if (skipped < n) {
+            skipped++
+            continue
+        }
+        result.add(element)
+    }
+    return result
+}
+
+public fun CharRange.sorted(): List<Char> {
+    return toList().sorted()
+}
+
 @KsSymbolName("__kk_range_count")
 public fun CharRange.count(): Int {
     return if (step > 0) {
@@ -760,6 +870,36 @@ public fun CharProgression.toList(): List<Char> {
         }
     }
     return result
+}
+
+public fun CharProgression.take(n: Int): List<Char> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Char>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun CharProgression.drop(n: Int): List<Char> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    val result = mutableListOf<Char>()
+    var skipped = 0
+    for (element in this) {
+        if (skipped < n) {
+            skipped++
+            continue
+        }
+        result.add(element)
+    }
+    return result
+}
+
+public fun CharProgression.sorted(): List<Char> {
+    return toList().sorted()
 }
 
 @KsSymbolName("__kk_range_count")

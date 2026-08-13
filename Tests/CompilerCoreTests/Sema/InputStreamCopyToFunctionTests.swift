@@ -15,10 +15,11 @@ import Testing
 @Suite
 struct InputStreamCopyToFunctionTests {
 
-    // MARK: - Default bufferSize overload
+    // MARK: - Shared Sema context
 
-    @Test func testInputStreamCopyToWithDefaultBufferSizeResolves() throws {
-        let ctx = makeContextFromSource("""
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.File
         import java.io.InputStream
         import java.io.OutputStream
@@ -28,19 +29,9 @@ struct InputStreamCopyToFunctionTests {
             val output: OutputStream = dst.outputStream()
             return input.copyTo(output)
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected InputStream.copyTo(out) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    // MARK: - Explicit bufferSize overload
-
-    @Test func testInputStreamCopyToWithExplicitBufferSizeResolves() throws {
-        let ctx = makeContextFromSource("""
+        """,
+        """
+        package sample1
         import java.io.File
         import java.io.InputStream
         import java.io.OutputStream
@@ -50,19 +41,9 @@ struct InputStreamCopyToFunctionTests {
             val output: OutputStream = dst.outputStream()
             return input.copyTo(output, 4096)
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected InputStream.copyTo(out, bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    // MARK: - Return type is Long
-
-    @Test func testInputStreamCopyToReturnTypeIsLong() throws {
-        let ctx = makeContextFromSource("""
+        """,
+        """
+        package sample2
         import java.io.File
         import java.io.InputStream
         import java.io.OutputStream
@@ -73,8 +54,53 @@ struct InputStreamCopyToFunctionTests {
             val bytesCopied: Long = input.copyTo(output)
             return bytesCopied
         }
-        """)
-        try runSema(ctx)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    // MARK: - Default bufferSize overload
+
+    @Test func testInputStreamCopyToWithDefaultBufferSizeResolves() throws {
+
+        let ctx = try sharedCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected InputStream.copyTo(out) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    // MARK: - Explicit bufferSize overload
+
+    @Test func testInputStreamCopyToWithExplicitBufferSizeResolves() throws {
+
+        let ctx = try sharedCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected InputStream.copyTo(out, bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    // MARK: - Return type is Long
+
+    @Test func testInputStreamCopyToReturnTypeIsLong() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,

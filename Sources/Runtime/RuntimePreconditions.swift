@@ -23,27 +23,6 @@ public func __kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
     return result
 }
 
-@_cdecl("kk_reentrant_read_write_lock_read")
-public func kk_reentrant_read_write_lock_read(
-    _ lock: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let nsLock = runtimeGetOrCreateLock(for: lock)
-    nsLock.lock()
-    defer { nsLock.unlock() }
-
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
-    }
-    return result
-}
-
 private let runtimeLockStorage = NSLock()
 private nonisolated(unsafe) var runtimeLocks: [Int: NSRecursiveLock] = [:]
 

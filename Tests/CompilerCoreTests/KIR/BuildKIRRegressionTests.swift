@@ -51,6 +51,7 @@ struct BuildKIRRegressionTests {
                 "JvmOverloadsLowering",
                 "DataEnumSealedSynthesis",
                 "EnumEntriesLowering",
+                "ConsolePrintLowering",
                 "EnumNameAccessLowering",
                 "LambdaClosureConversion",
                 "InlineLowering",
@@ -128,7 +129,9 @@ struct BuildKIRRegressionTests {
                 interner: ctx.interner
             ))
 
-            #expect(parseCallees.contains("kk_string_toInt_flat"))
+            // String.toInt is source-backed after the KSP-414 migration.
+            #expect(parseCallees.contains("toInt"))
+            #expect(!parseCallees.contains("kk_string_toInt_flat"))
             // String.trim is source-backed after the KSP-403 migration.
             #expect(trimCallees.contains("trim"))
             #expect(!trimCallees.contains("kk_string_trim_flat"))

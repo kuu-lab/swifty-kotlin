@@ -32,16 +32,27 @@ struct SequenceFindLastFunctionTests {
                 sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
             )
 
-            let fqName = [
+            let packageFQName = [
                 ctx.interner.intern("kotlin"),
-                ctx.interner.intern("sequences"),
-                ctx.interner.intern("Sequence"),
+                ctx.interner.intern("collections"),
                 ctx.interner.intern("findLast"),
             ]
-            let v = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+            let symbols = sema.symbols.lookupAll(fqName: packageFQName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiverType = signature.receiverType,
+                      case let .classType(classType) = sema.types.kind(of: receiverType),
+                      let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+                else { return false }
+                return receiverSymbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "sequences", "Sequence"]
+            }
+            #expect(!symbols.isEmpty, "Expected Sequence.findLast source extension to be registered")
+            let hasSyntheticLink = symbols.contains { candidate in
                 sema.symbols.externalLinkName(for: candidate) == "kk_sequence_findLast"
             }
-            #expect(v)
+            #expect(!hasSyntheticLink, "Expected Sequence.findLast to be backed by source")
         }
     }
 }

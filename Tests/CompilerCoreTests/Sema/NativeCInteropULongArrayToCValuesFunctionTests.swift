@@ -4,16 +4,8 @@ import Testing
 
 @Suite
 struct NativeCInteropULongArrayToCValuesFunctionTests {
-
-    // MARK: - Shared Sema context
-
-    private static let sharedSources: [String] = [
-        """
-        package sample0
-        fun noop() {}
-        """,
-        """
-        package sample1
+    @Test func testULongArrayToCValuesFunction() throws {
+        let source = """
         import kotlinx.cinterop.CValues
         import kotlinx.cinterop.ULongVar
         import kotlinx.cinterop.toCValues
@@ -22,31 +14,16 @@ struct NativeCInteropULongArrayToCValuesFunctionTests {
             return ulongs.toCValues()
         }
         """
-    ]
 
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
-    private func sharedCtx() throws -> CompilationContext {
-        if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.sharedSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedCtx = ctx
-        return ctx
-    }
-    @Test func testULongArrayToCValuesFunctionSurfaceMatchesNativeShape() throws {
+        #expect(!(ctx.diagnostics.hasError), "Expected ULongArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
 
-        let ctx = try sharedCtx()
-        #expect(!(ctx.diagnostics.hasError), "Expected ULongArray.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         let kotlinPkg = [interner.intern("kotlin")]
-
         let uLongArraySymbol = try #require(
             sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("ULongArray")]),
             "kotlin.ULongArray must be registered"
@@ -74,7 +51,6 @@ struct NativeCInteropULongArrayToCValuesFunctionTests {
             args: [.invariant(uLongVarType)],
             nullability: .nonNull
         )))
-
         let toCValuesFQName = cinteropPkg + [interner.intern("toCValues")]
         let toCValuesCandidates = sema.symbols.lookupAll(fqName: toCValuesFQName)
         let toCValues = try #require(toCValuesCandidates.first { symbolID in
@@ -86,15 +62,9 @@ struct NativeCInteropULongArrayToCValuesFunctionTests {
                 && signature.returnType == expectedReturnType
         })
         let flags = try #require(sema.symbols.symbol(toCValues)?.flags)
-
         #expect(flags.contains(.synthetic))
         #expect(sema.symbols.parentSymbol(for: toCValues) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
-    @Test func testULongArrayToCValuesFunctionResolvesInSource() throws {
-
-        let ctx = try sharedCtx()
-        #expect(!(ctx.diagnostics.hasError), "Expected ULongArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
 }
 #endif
