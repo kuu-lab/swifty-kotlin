@@ -2,8 +2,7 @@
 import Testing
 
 /// STDLIB-SEQ-FN-043: Validates that `Sequence<T>.foldIndexed(initial: R, operation: (Int, R, T) -> R): R`
-/// resolves via the synthetic Sema member stub and links to the
-/// `kk_sequence_foldIndexed` runtime entry point.
+/// resolves via the bundled Kotlin source and has no runtime-bridge link.
 @Suite
 struct SequenceFoldIndexedFunctionTests {
 
@@ -216,13 +215,13 @@ struct SequenceFoldIndexedFunctionTests {
                     return interner.resolve(callee) == "foldIndexed"
                 }, "Expected foldIndexed member call")
 
-                let memberFQName = [
-                    "kotlin", "sequences", "Sequence", "foldIndexed",
-                ].map(interner.intern)
-                let foldIndexedMembers = sema.symbols.lookupAll(fqName: memberFQName)
+                let chosenCallee = try #require(
+                    sema.bindings.callBinding(for: callExprID)?.chosenCallee,
+                    "Expected foldIndexed call to be bound"
+                )
                 #expect(
-                    foldIndexedMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_foldIndexed" },
-                    "Expected Sequence.foldIndexed synthetic member to link to kk_sequence_foldIndexed"
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "Expected Sequence.foldIndexed to resolve to bundled source"
                 )
 
                 #expect(sema.bindings.exprType(for: callExprID) == sema.types.intType)

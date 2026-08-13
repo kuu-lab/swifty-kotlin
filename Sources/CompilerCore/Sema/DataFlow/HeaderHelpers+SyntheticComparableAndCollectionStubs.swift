@@ -207,17 +207,23 @@ extension DataFlowSemaPhase {
         registerIterablePlusElementMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableMinusElementMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableMinusMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableReduceRightIndexedOrNullMember(
             symbols: symbols, types: types, interner: interner,
@@ -233,11 +239,15 @@ extension DataFlowSemaPhase {
         )
         registerIterableSumByMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableSumByDoubleMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         // --- STDLIB-533: List?.orEmpty() ---
