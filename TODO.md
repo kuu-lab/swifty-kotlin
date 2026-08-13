@@ -519,7 +519,7 @@
   - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 599行付近の呼び出しを削除
   - テスト影響: Path 系テストと連動
-- [ ] CLEANUP-STUB-118: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` を削除する
+- [x] CLEANUP-STUB-118: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` を削除する。**完了**: 分割ファイルの型登録ヘルパーを `HeaderHelpers+SyntheticPathStubs.swift` へ `private` として移設し、`registerPathCopyActionContextSurface` / `registerPathFileVisitorBuilderSurface` 呼び出しを削除、`registerPathExperimentalPathApiAnnotation` をインライン化。`PathWalkOption` / `CopyActionResult` / `OnErrorResult` / `FileVisitor` / `FileAttribute` の合成シンボル登録内容は不変。
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`（337行）
   - 削除内容: `registerPathCopyActionContextSurface(...)` 等 `CopyActionContext` / `WalkOptions` 等の型登録ヘルパーを削除
   - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 190行付近の呼び出しを削除
