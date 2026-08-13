@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.internal.__valuesEqual
+
 // MIGRATION-SEQ-004
 // Sequence aggregate HOFs migrated to Kotlin source.
 // Placed in kotlin.collections package for Map/MutableMap/List/MutableList resolution.
