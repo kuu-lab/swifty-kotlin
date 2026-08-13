@@ -51,6 +51,7 @@ struct BuildKIRRegressionTests {
                 "JvmOverloadsLowering",
                 "DataEnumSealedSynthesis",
                 "EnumEntriesLowering",
+                "ConsolePrintLowering",
                 "EnumNameAccessLowering",
                 "LambdaClosureConversion",
                 "InlineLowering",
