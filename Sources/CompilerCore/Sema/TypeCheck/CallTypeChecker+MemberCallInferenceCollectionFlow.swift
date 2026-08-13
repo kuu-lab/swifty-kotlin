@@ -166,6 +166,48 @@ extension CallTypeChecker {
             return true
         }
 
+        /// Bind a source-backed `List.binarySearch` / `binarySearchBy` overload using
+        /// the regular overload resolver so default arguments and named labels are
+        /// handled correctly.
+        @discardableResult
+        func bindBundledListBinarySearchSource(elementType: TypeID) -> Bool {
+            let calleeStr = interner.resolve(calleeName)
+            guard calleeStr == "binarySearch" || calleeStr == "binarySearchBy" else { return false }
+            guard (!isSequenceReceiver || isListFactoryReceiver),
+                  receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
+            else {
+                return false
+            }
+            let sourceFQName = [interner.intern("kotlin"), interner.intern("collections"), calleeName]
+            let candidates = sema.symbols.lookupAll(fqName: sourceFQName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return receiverClassifier.isConcreteListLikeType(signatureReceiver)
+            }
+            guard !candidates.isEmpty else { return false }
+
+            let callArgs: [CallArg] = args.map { arg in
+                CallArg(label: arg.label, isSpread: arg.isSpread, type: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType)
+            }
+            let callExpr = CallExpr(range: range, calleeName: calleeName, args: callArgs)
+            let resolved = OverloadResolver().resolveCall(
+                candidates: candidates,
+                call: callExpr,
+                expectedType: sema.types.intType,
+                implicitReceiverType: receiverType,
+                ctx: sema
+            )
+            guard let chosenCallee = resolved.chosenCallee else { return false }
+            _ = bindCallAndResolveReturnType(id, chosen: chosenCallee, resolved: resolved, sema: sema)
+            return true
+        }
+
         @discardableResult
         func bindBundledIterableSourceFunction(typeArguments: [TypeID]) -> Bool {
             guard !isSequenceReceiver, isCollectionReceiver else {
@@ -828,6 +870,7 @@ extension CallTypeChecker {
             )))
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+            _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
             let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
@@ -3062,6 +3105,7 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.intType)
                     return sema.types.intType
                 }
+                _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
 
             case "binarySearchBy":
                 guard (2 ... 4).contains(args.count) else {
@@ -3096,32 +3140,7 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[args.count - 1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
-
-                let knownNames = KnownCompilerNames(interner: interner)
-                let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
-                if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
-                    guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-                    return signature.parameterTypes.count == args.count
-                }) {
-                    let keySubstitution: TypeID = if keyType == sema.types.errorType {
-                        sema.types.nullableAnyType
-                    } else {
-                        switch sema.types.kind(of: keyType) {
-                        case .nothing:
-                            sema.types.nullableAnyType
-                        default:
-                            keyType
-                        }
-                    }
-                    let substitutedTypeArguments = [collectionElementType, keySubstitution]
-                    let parameterMapping = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                    sema.bindings.bindCall(id, binding: CallBinding(
-                        chosenCallee: chosenCallee,
-                        substitutedTypeArguments: substitutedTypeArguments,
-                        parameterMapping: parameterMapping
-                    ))
-                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                }
+                _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
 
             case "distinctBy":
                 guard args.count == 1 else {
