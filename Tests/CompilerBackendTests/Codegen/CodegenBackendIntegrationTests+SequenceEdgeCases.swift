@@ -489,8 +489,10 @@ struct CodegenBackendSequenceEdgeCasesTests {
         fun main() {
             val reduced = sequenceOf(1, 2, 3, 4)
                 .runningReduceIndexed { index, acc, value -> acc + index * value }
+                .toList()
             val empty = emptySequence<Int>()
                 .runningReduceIndexed { index, acc, value -> acc + index * value }
+                .toList()
 
             println(reduced)
             println(empty)

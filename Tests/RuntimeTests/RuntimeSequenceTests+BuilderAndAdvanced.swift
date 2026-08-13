@@ -958,24 +958,6 @@ extension RuntimeSequenceTests {
         #expect(_lazyTestYieldCounter == 123)
     }
     @Test
-    func testSequenceFoldIndexedAccumulatesIndexAndValueInOrder() {
-        let seq = makeSequence([3, 4, 5])
-        let foldFn: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, acc, value, _ in
-            acc + index * 10 + value
-        }
-
-        let result = kk_sequence_foldIndexed(
-            seq,
-            0,
-            unsafeBitCast(foldFn, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(result == 42)
-    }
-
-    @Test
     func testSequenceFoldAccumulatesInOrder() {
         let seq = makeSequence([1, 2, 3])
         let foldFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in

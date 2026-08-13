@@ -580,6 +580,9 @@ extension OverloadResolver {
     /// Returns true if `lhs` is at least as specific as `rhs`.
     /// First compares parameter types; if they are equivalent, falls back to
     /// receiver type: the more-derived receiver (override) wins over the base.
+    /// When counts differ because one candidate has additional unbound default
+    /// parameters, the candidate binding the same arguments to fewer parameters
+    /// is preferred (e.g. trailing-lambda overloads without optional prefix args).
     private func isMoreSpecificCandidate(
         _ lhs: ViableCandidate,
         than rhs: ViableCandidate,
@@ -588,6 +591,48 @@ extension OverloadResolver {
         if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, typeSystem: typeSystem) {
             return true
         }
+
+        // If parameter counts differ because one candidate supplied additional
+        // default arguments, the candidate with fewer parameters is more specific
+        // when every bound argument type is at least as specific.
+        let rhsBound = Set(rhs.parameterMapping.values)
+        var lhsBoundIsNoLessSpecific = true
+        for argIndex in lhs.instantiatedParameterTypes.indices {
+            guard argIndex < rhs.instantiatedParameterTypes.count else {
+                lhsBoundIsNoLessSpecific = false
+                break
+            }
+            if !typeSystem.isSubtype(lhs.instantiatedParameterTypes[argIndex], rhs.instantiatedParameterTypes[argIndex]) {
+                lhsBoundIsNoLessSpecific = false
+                break
+            }
+        }
+        if lhsBoundIsNoLessSpecific {
+            let lhsCount = lhs.signature.parameterTypes.count
+            let rhsCount = rhs.signature.parameterTypes.count
+            if lhsCount < rhsCount {
+                // The larger candidate is more specific only if its extra formal
+                // parameters are not supplied by the call and are optional (default
+                // or vararg). If every extra parameter is bound, the smaller
+                // candidate (e.g. a vararg overload) is not preferred.
+                let rhsDefaults = normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
+                let rhsVarargs = normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
+                var unboundFound = false
+                var extraAreOptional = true
+                for p in 0..<rhsCount {
+                    if rhsBound.contains(p) { continue }
+                    unboundFound = true
+                    if rhsVarargs[p] { continue }
+                    if rhsDefaults[p] { continue }
+                    extraAreOptional = false
+                    break
+                }
+                if unboundFound && extraAreOptional {
+                    return true
+                }
+            }
+        }
+
         // If parameter types are not strictly more specific, check whether they
         // are pairwise equivalent and the receiver type is a subtype (override
         // wins over the base class/interface default method).

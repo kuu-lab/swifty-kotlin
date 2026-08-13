@@ -130,7 +130,11 @@ import Testing
     func testCodegenProducesDeterministicLlvmIROutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
-        fun main() = helper(40, 2)
+        fun main() {
+            println(helper(40, 2))
+            val values: Iterable<Int> = listOf(1, 2, 3)
+            println(values.sumBy { value -> value })
+        }
         """
         try assertDeterministicCodegenOutput(source: source, emit: .llvmIR)
     }
