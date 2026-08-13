@@ -736,24 +736,24 @@ public extension RuntimeABISpec {
             p("outByteCount", .nullableIntptrPointer),
             p("outHash", .nullableIntptrPointer),
         ], returnType: .nullableUInt8Pointer),
-        abiParitySpec("kk_string_toBooleanStrictOrNull_flat", parameters: [
+        abiParitySpec("__kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_string_toByte_flat", parameters: [
+        abiParitySpec("__kk_string_toByte_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte", parameters: [
+        abiParitySpec("__kk_string_toByte", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte_radix_flat", parameters: [
+        abiParitySpec("__kk_string_toByte_radix_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
@@ -761,31 +761,31 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte_radix", parameters: [
+        abiParitySpec("__kk_string_toByte_radix", parameters: [
             p("strRaw", .intptr),
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByteOrNull_flat", parameters: [
+        abiParitySpec("__kk_string_toByteOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_string_toShortOrNull_flat", parameters: [
+        abiParitySpec("__kk_string_toShortOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_string_toShort_flat", parameters: [
+        abiParitySpec("__kk_string_toShort_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toShort", parameters: [
+        abiParitySpec("__kk_string_toShort", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
