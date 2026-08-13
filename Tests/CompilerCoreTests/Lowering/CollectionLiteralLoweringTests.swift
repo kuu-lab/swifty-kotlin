@@ -1547,39 +1547,6 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListTake() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "take", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_take"),
-            "virtualCall(take) on List-typed parameter should be rewritten to kk_list_take, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDrop() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "drop", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_drop"),
-            "virtualCall(drop) on List-typed parameter should be rewritten to kk_list_drop, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDropLastWhile() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "dropLastWhile", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_dropLastWhile"),
-            "virtualCall(dropLastWhile) on List-typed parameter should be rewritten to kk_list_dropLastWhile, got: \(callees)"
-        )
-    }
-
-    @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToList() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "toList")
         #expect(

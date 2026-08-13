@@ -153,8 +153,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_onEachIndexed")
             case "partition":
                 return interner.intern("kk_list_partition")
-            case "subList":
-                return interner.intern("kk_list_subList")
             case "binarySearch":
                 if hasHOFLambdaArg && argumentCount == 2 {
                     return interner.intern("kk_list_binarySearch_compare")

@@ -1151,46 +1151,6 @@ struct ABIMismatchTests {
 
     // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.
 
-    @Test
-    func kkListTakeSignature() throws {
-        let spec = try requireSpec("kk_list_take")
-        #expect(spec.parameters.count == 3)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "count")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "outThrown")
-        #expect(spec.parameters[2].type == .nullableIntptrPointer)
-        #expect(spec.returnType == .intptr)
-    }
-
-    @Test
-    func kkListTakeLastSignature() throws {
-        let spec = try requireSpec("kk_list_takeLast")
-        #expect(spec.parameters.count == 3)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "count")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "outThrown")
-        #expect(spec.parameters[2].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListTakeWhileSignature() throws {
-        let spec = try requireSpec("kk_list_takeWhile")
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-        #expect(spec.returnType == .intptr)
-    }
-
     // MARK: - Header Generation
 
     @Test

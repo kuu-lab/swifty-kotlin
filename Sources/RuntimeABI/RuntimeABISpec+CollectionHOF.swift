@@ -336,36 +336,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let takeSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_take",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let dropSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_drop",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let takeLastSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_takeLast",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
         let sumSpec = RuntimeABIFunctionSpec(
             name: "kk_list_sum",
             parameters: [
@@ -556,7 +526,7 @@ public extension RuntimeABISpec {
                 unzipSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
-                takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
+                sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
 
@@ -652,10 +622,6 @@ public extension RuntimeABISpec {
                 ),
                 hofSpec("kk_list_sortedWith"),
                 hofSpec("kk_list_partition"),
-                stdlibListHOFSpec("takeWhile", arity: 1, fallback: "kk_list_takeWhile"),
-                stdlibListHOFSpec("dropWhile", arity: 1, fallback: "kk_list_dropWhile"),
-                stdlibListHOFSpec("takeLastWhile", arity: 1, fallback: "kk_list_takeLastWhile"),
-                stdlibListHOFSpec("dropLastWhile", arity: 1, fallback: "kk_list_dropLastWhile"),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_maxBy",
                     parameters: [

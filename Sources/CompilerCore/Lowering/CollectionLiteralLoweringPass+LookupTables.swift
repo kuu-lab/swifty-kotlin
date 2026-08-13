@@ -117,8 +117,6 @@ struct CollectionLiteralLookupTables {
     var kkListMaxOfWithOrNullName: InternedString { listLookup.kkListMaxOfWithOrNullName }
     var kkListMinOfWithName: InternedString { listLookup.kkListMinOfWithName }
     var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
-    var kkListTakeName: InternedString { listLookup.kkListTakeName }
-    var kkListDropName: InternedString { listLookup.kkListDropName }
     var kkListSumName: InternedString { listLookup.kkListSumName }
     var kkListReversedName: InternedString { listLookup.kkListReversedName }
     var kkListAsReversedName: InternedString { listLookup.kkListAsReversedName }
@@ -139,7 +137,6 @@ struct CollectionLiteralLookupTables {
     var kkListSortedByDescendingName: InternedString { listLookup.kkListSortedByDescendingName }
     var kkListSortedWithName: InternedString { listLookup.kkListSortedWithName }
     var kkListPartitionName: InternedString { listLookup.kkListPartitionName }
-    var kkListTakeWhileName: InternedString { listLookup.kkListTakeWhileName }
     var listIteratorMemberName: InternedString { listLookup.listIteratorMemberName }
     var hasPreviousName: InternedString { listLookup.hasPreviousName }
     var previousName: InternedString { listLookup.previousName }

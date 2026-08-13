@@ -8,7 +8,6 @@ extension CallTypeChecker {
                 if let externalLinkName = sema.symbols.externalLinkName(for: candidate) {
                     switch externalLinkName {
             case "kk_list_binarySearch",
-                 "kk_list_takeWhile", "kk_list_dropLastWhile",
                  "kk_list_sumBy", "kk_list_sumByDouble",
                  "kk_list_onEach", "kk_list_onEachIndexed",
                  "kk_list_maxBy", "kk_list_minBy", "kk_list_maxByOrNull", "kk_list_minByOrNull",

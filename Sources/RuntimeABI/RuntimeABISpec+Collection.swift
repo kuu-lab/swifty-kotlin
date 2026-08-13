@@ -247,17 +247,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_list_subList",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fromIndex", type: .intptr),
-                RuntimeABIParameter(name: "toIndex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_list_toMap",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),

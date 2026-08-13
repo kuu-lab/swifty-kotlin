@@ -1,10 +1,12 @@
 import RuntimeABI
 
-/// List transform members that are not yet source-backed (e.g. `take`, `drop`,
-/// `sum`, `distinctBy`) extracted from `HeaderHelpers+SyntheticListStubs.swift`.
+/// List transform members that are not yet source-backed (e.g. `sum`, `distinctBy`)
+/// extracted from `HeaderHelpers+SyntheticListStubs.swift`.
 /// KSP-421 source-backed transforms (`map`, `mapIndexed`, `mapNotNull`,
 /// `flatMap`, `flatMapIndexed`, `flatten`, and `*To` variants) are no longer
 /// registered here.
+/// KSP-427 source-backed transforms (`take`, `takeLast`, `drop`, `dropLast`,
+/// `slice`, `subList`) are no longer registered here.
 extension DataFlowSemaPhase {
     func registerListTransformMembers(
         symbols: SymbolTable,
@@ -165,10 +167,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerMember(name: "take", parameterTypes: [types.intType], externalLinkName: "kk_list_take", canThrow: true)
-        registerMember(name: "drop", parameterTypes: [types.intType], externalLinkName: "kk_list_drop", canThrow: true)
-        registerMember(name: "takeLast", parameterTypes: [types.intType], externalLinkName: "kk_list_takeLast", canThrow: true)
-        registerMember(name: "dropLast", parameterTypes: [types.intType], externalLinkName: "kk_list_dropLast")
         registerMember(name: "sum", parameterTypes: [], externalLinkName: "kk_list_sum", returnTypeOverride: types.intType)
         registerMember(name: "average", parameterTypes: [], externalLinkName: "kk_list_average", returnTypeOverride: types.doubleType)
         // but is not yet wired into the compiler pipeline (RF-STDLIB-004+). Keep these stubs until then.
@@ -215,66 +213,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_sortedDescending",
             typeParameterUpperBoundsList: [comparableElementBounds]
         )
-        registerMember(name: "subList", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_subList")
-
-        // STDLIB-214: List.slice(indices: IntRange) and List.slice(indices: Iterable<Int>)
-        // IntRange expressions are typed as intType at the ABI level, so the IntRange overload
-        // is registered with parameterType=intType.  The Iterable<Int> overload uses List<out Int>.
-        // resolveCollectionFallbackCallee distinguishes the two via isRangeExpr on the argument.
-        do {
-            let sliceName = interner.intern("slice")
-            let sliceFQName = listFQName + [sliceName]
-            let listOfIntType = types.make(.classType(ClassType(
-                classSymbol: listInterfaceSymbol,
-                args: [.out(types.intType)],
-                nullability: .nonNull
-            )))
-            // IntRange overload: parameterType = intType
-            let existingSlice = symbols.lookupAll(fqName: sliceFQName)
-            let hasIntRangeSlice = existingSlice.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes == [types.intType] &&
-                    symbols.externalLinkName(for: symID) == "kk_list_slice"
-            }
-            if !hasIntRangeSlice {
-                let sym = symbols.define(
-                    kind: .function, name: sliceName, fqName: sliceFQName,
-                    declSite: nil, visibility: .public, flags: [.synthetic]
-                )
-                symbols.setParentSymbol(listInterfaceSymbol, for: sym)
-                symbols.setExternalLinkName("kk_list_slice", for: sym)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType, parameterTypes: [types.intType],
-                        returnType: listReturnType, typeParameterSymbols: [listTypeParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: sym
-                )
-            }
-            // Iterable<Int> overload: parameterType = List<out Int>
-            let hasIterableSlice = existingSlice.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes == [listOfIntType]
-            }
-            if !hasIterableSlice {
-                let sym = symbols.define(
-                    kind: .function, name: sliceName, fqName: sliceFQName,
-                    declSite: nil, visibility: .public, flags: [.synthetic]
-                )
-                symbols.setParentSymbol(listInterfaceSymbol, for: sym)
-                symbols.setExternalLinkName("kk_list_slice_iterable", for: sym)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType, parameterTypes: [listOfIntType],
-                        returnType: listReturnType, typeParameterSymbols: [listTypeParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: sym
-                )
-            }
-        }
-
         // distinctBy (HOF, selector lambda)
         // Kotlin's `distinctBy` is declared as an extension on Iterable<T>:
         //   fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T>
