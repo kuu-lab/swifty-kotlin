@@ -48,8 +48,8 @@ struct UnsignedPrimitiveMemberCallTests {
     func testUnsignedCoercionMemberCallsInferExpectedTypes() throws {
         let source = """
         fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
-            ub.coerceAtLeast(1u)
-            us.coerceAtMost(2u)
+            ub.coerceAtLeast(1.toUByte())
+            us.coerceAtMost(2.toUShort())
             ui.coerceIn(1u, 3u)
             ui.coerceIn(1u..3u)
             ul.coerceIn(1uL, 3uL)
