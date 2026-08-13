@@ -98,7 +98,8 @@
 
 - [ ] KSP-443: Sequence 変換・集合演算を Kotlin 化（`toList`, `toMutableList`, `toSet`, `toMutableSet`, `toHashSet`, `toSortedSet`, `toCollection`, `toMap`, `flatten`, `unzip`, `union`, `intersect`, `subtract`, `plus*`, `minus`, `ifEmpty`, `constrainOnce`, `orEmpty`）
   - 注意: インライン `kotlinSequencesSource`（toList/toMutableList/toSet）と統合（KSP-503 と調整）
-- [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
+- [x] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
+  - 完了 (2026-08-14): `Stdlib/kotlin/sequences/SequenceDestinationHOF.kt` に11関数を追加し、Sequence の Sema source binding、synthetic member、lowering 特例、Runtime/RuntimeABI の STDLIB-SEQ-021 ブリッジを整理。`sequence_destination_to.kt` で全11関数の Kotlin/JVM と kswiftc の実行結果を照合
 #### kotlin.ranges [M6 実行体]（前提: KSP-312）
 
 - [ ] KSP-451: Range プロパティ・membership を完遂（`first`, `last`, `start`, `endInclusive/Exclusive`, `count`, `isEmpty`, `contains`, `sum`, `reversed` の Int/Long/Char 版）
