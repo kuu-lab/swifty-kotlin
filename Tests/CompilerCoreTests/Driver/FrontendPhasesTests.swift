@@ -142,6 +142,28 @@ struct FrontendPhasesTests {
     }
 
     @Test
+    func testLexPhaseAssignsInternedStringIDsInFileOrder() throws {
+        let delayedFirstFile = String(repeating: " ", count: 500_000)
+            + "fun firstFileIdentifier() = \"first-segment\""
+        let immediateSecondFile = "fun secondFileIdentifier() = \"second-segment\""
+
+        try withTemporaryFiles(contents: [delayedFirstFile, immediateSecondFile]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try LoadSourcesPhase().run(ctx)
+            try LexPhase().run(ctx)
+
+            let values = ctx.interner.snapshotValues()
+            let firstIdentifierIndex = try #require(values.firstIndex(of: "firstFileIdentifier"))
+            let secondIdentifierIndex = try #require(values.firstIndex(of: "secondFileIdentifier"))
+            let firstSegmentIndex = try #require(values.firstIndex(of: "first-segment"))
+            let secondSegmentIndex = try #require(values.firstIndex(of: "second-segment"))
+
+            #expect(firstIdentifierIndex < secondIdentifierIndex)
+            #expect(firstSegmentIndex < secondSegmentIndex)
+        }
+    }
+
+    @Test
     func testIncrementalFrontendLexesParsesAndBuildsOnlyRecompiledFiles() throws {
         try withTemporaryFiles(contents: [
             "fun kept(): String = \"kept\"",

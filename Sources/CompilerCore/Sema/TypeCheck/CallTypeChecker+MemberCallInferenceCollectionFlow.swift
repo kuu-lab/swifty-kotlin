@@ -1153,6 +1153,13 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = destinationType
+                // Sequence and List now share top-level source-backed overload names.
+                // Bind the Sequence overload explicitly to avoid selecting List.associateTo.
+                if calleeStr == "associateTo", isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [
+                        collectionElementType, destinationMapKeyType, destinationMapValueType
+                    ]
+                }
                 if calleeStr == "associateTo" {
                     if bindBundledListSourceFunction(
                         typeArguments: [collectionElementType, destinationMapKeyType, destinationMapValueType, nonNullableDestinationType]
