@@ -566,8 +566,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameFirst).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksFirst.contains("kk_sequence_first"),
-                "Expected Sequence.first to link to kk_sequence_first, got \(linksFirst.sorted())"
+                linksFirst.isEmpty,
+                "Expected Sequence.first to be backed by source, got \(linksFirst.sorted())"
             )
         }
 
@@ -578,8 +578,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameFirstOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksFirstOrNull.contains("kk_sequence_firstOrNull"),
-                "Expected Sequence.firstOrNull to link to kk_sequence_firstOrNull, got \(linksFirstOrNull.sorted())"
+                linksFirstOrNull.isEmpty,
+                "Expected Sequence.firstOrNull to be backed by source, got \(linksFirstOrNull.sorted())"
             )
         }
 
@@ -718,8 +718,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameSingleOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksSingleOrNull.contains("kk_sequence_singleOrNull"),
-                "Expected Sequence.singleOrNull to link to kk_sequence_singleOrNull, got \(linksSingleOrNull.sorted())"
+                linksSingleOrNull.isEmpty,
+                "Expected Sequence.singleOrNull to be backed by source, got \(linksSingleOrNull.sorted())"
             )
         }
 
@@ -806,8 +806,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameNone).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksNone.contains("kk_sequence_none"),
-                "Expected Sequence.none to link to kk_sequence_none, got \(linksNone.sorted())"
+                linksNone.isEmpty,
+                "Expected Sequence.none to be backed by source, got \(linksNone.sorted())"
             )
         }
 
@@ -840,8 +840,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameContains).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksContains.contains("kk_sequence_contains"),
-                "Expected Sequence.contains to link to kk_sequence_contains, got \(linksContains.sorted())"
+                linksContains.isEmpty,
+                "Expected Sequence.contains to be backed by source, got \(linksContains.sorted())"
             )
         }
 
@@ -854,8 +854,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameSingle).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksSingle.contains("kk_sequence_single"),
-                "Expected Sequence.single to link to kk_sequence_single, got \(linksSingle.sorted())"
+                linksSingle.isEmpty,
+                "Expected Sequence.single to be backed by source, got \(linksSingle.sorted())"
             )
         }
 
@@ -880,8 +880,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameElementAtOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksElementAtOrNull.contains("kk_sequence_elementAtOrNull"),
-                "Expected Sequence.elementAtOrNull to link to kk_sequence_elementAtOrNull, got \(linksElementAtOrNull.sorted())"
+                linksElementAtOrNull.isEmpty,
+                "Expected Sequence.elementAtOrNull to be backed by source, got \(linksElementAtOrNull.sorted())"
             )
         }
 
@@ -956,8 +956,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameElementAt).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksElementAt.contains("kk_sequence_elementAt"),
-                "Expected Sequence.elementAt to link to kk_sequence_elementAt, got \(linksElementAt.sorted())"
+                linksElementAt.isEmpty,
+                "Expected Sequence.elementAt to be backed by source, got \(linksElementAt.sorted())"
             )
         }
 
@@ -968,8 +968,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameCount).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksCount.contains("kk_sequence_count"),
-                "Expected Sequence.count to link to kk_sequence_count, got \(linksCount.sorted())"
+                linksCount.isEmpty,
+                "Expected Sequence.count to be backed by source, got \(linksCount.sorted())"
             )
         }
 
@@ -992,8 +992,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameElementAtOrElse).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksElementAtOrElse.contains("kk_sequence_elementAtOrElse"),
-                "Expected Sequence.elementAtOrElse to link to kk_sequence_elementAtOrElse, got \(linksElementAtOrElse.sorted())"
+                linksElementAtOrElse.isEmpty,
+                "Expected Sequence.elementAtOrElse to be backed by source, got \(linksElementAtOrElse.sorted())"
             )
         }
 
@@ -1008,8 +1008,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameSum).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksSum.contains("kk_sequence_sum"),
-                "Expected Sequence.sum to link to kk_sequence_sum, got \(linksSum.sorted())"
+                linksSum.isEmpty,
+                "Expected Sequence.sum to be backed by source, got \(linksSum.sorted())"
             )
         }
 
@@ -1046,8 +1046,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMaxOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMaxOrNull.contains("kk_sequence_maxOrNull"),
-                "Expected Sequence.maxOrNull to link to kk_sequence_maxOrNull, got \(linksMaxOrNull.sorted())"
+                linksMaxOrNull.isEmpty,
+                "Expected Sequence.maxOrNull to be backed by source, got \(linksMaxOrNull.sorted())"
             )
         }
 
@@ -1058,8 +1058,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameFind).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksFind.contains("kk_sequence_find"),
-                "Expected Sequence.find to link to kk_sequence_find, got \(linksFind.sorted())"
+                linksFind.isEmpty,
+                "Expected Sequence.find to be backed by source, got \(linksFind.sorted())"
             )
         }
 
@@ -1144,8 +1144,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMin).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMin.contains("kk_sequence_min"),
-                "Expected Sequence.min to link to kk_sequence_min, got \(linksMin.sorted())"
+                linksMin.isEmpty,
+                "Expected Sequence.min to be backed by source, got \(linksMin.sorted())"
             )
         }
 
@@ -1156,8 +1156,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMax).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMax.contains("kk_sequence_max"),
-                "Expected Sequence.max to link to kk_sequence_max, got \(linksMax.sorted())"
+                linksMax.isEmpty,
+                "Expected Sequence.max to be backed by source, got \(linksMax.sorted())"
             )
         }
 
@@ -1394,14 +1394,27 @@ struct SequenceSyntheticMemberLinkTests {
             }
             // === testSequenceMinOrNullResolvesInCallExpressions ===
             do {
-                let memberFQName = ["kotlin", "sequences", "Sequence", "minOrNull"]
-                    .map { interner.intern($0) }
-                let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(links.contains("kk_sequence_minOrNull"))
-
-                let symbol = try #require(symbols.first)
-                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                let packageFQName = [interner.intern("kotlin"), interner.intern("collections")]
+                let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("minOrNull")])
+                let sequenceSymbol = try #require(
+                    candidates.first { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.kind == .function,
+                              sema.symbols.isSourceBackedSymbol(candidate),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let receiverType = signature.receiverType,
+                              case let .classType(classType) = sema.types.kind(of: receiverType),
+                              let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+                        else { return false }
+                        return receiverSymbol.fqName.map { interner.resolve($0) } == ["kotlin", "sequences", "Sequence"]
+                    },
+                    "Expected Sequence.minOrNull source extension to be registered"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: sequenceSymbol) == nil,
+                    "Expected Sequence.minOrNull source extension to have no synthetic external link"
+                )
+                let signature = try #require(sema.symbols.functionSignature(for: sequenceSymbol))
                 #expect(signature.typeParameterUpperBoundsList.count == 1)
                 #expect(!signature.typeParameterUpperBoundsList[0].isEmpty)
             }

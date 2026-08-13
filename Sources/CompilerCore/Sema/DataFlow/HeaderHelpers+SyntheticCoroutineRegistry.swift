@@ -306,24 +306,13 @@ extension DataFlowSemaPhase {
         // KSP-675: SharedFlow / MutableSharedFlow are declared by bundled Kotlin
         // source (Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/SharedFlow.kt),
         // so no synthetic symbols are registered for them here.
-        let stateFlowSymbol = ensureInterfaceSymbol(
-            named: "StateFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let mutableStateFlowSymbol = ensureClassSymbol(
-            named: "MutableStateFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // KSP-499 Stage 2: give the Flow family real generic type parameters
+        // KSP-676: StateFlow / MutableStateFlow are also bundled Kotlin source
+        // (StateFlow.kt), so no synthetic symbols are registered for them either.
+        // KSP-499 Stage 2: give the Flow interface a real generic type parameter
         // (previously `args: []` on every ClassType use, with the element type
         // tracked only in the Sema side-tables `flowElementTypesByExpr`/`BySymbol`
-        // — see SemanticsModels.swift). Flow/StateFlow are read-only and
-        // covariant (`Flow<out T>` in kotlinx.coroutines); MutableStateFlow
-        // exposes mutation (`emit`, `value =`) and is invariant.
+        // — see SemanticsModels.swift). Flow is read-only and covariant
+        // (`Flow<out T>` in kotlinx.coroutines).
         // Pattern mirrors `registerSyntheticIterableStub` in
         // HeaderHelpers+SyntheticIterableRegistry.swift.
         func declareFlowFamilyTypeParameter(
@@ -353,16 +342,6 @@ extension DataFlowSemaPhase {
             owner: flowInterfaceSymbol,
             ownerFQName: flowPkg + [interner.intern("Flow")],
             variance: .out
-        )
-        let stateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: stateFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("StateFlow")],
-            variance: .out
-        )
-        let mutableStateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: mutableStateFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("MutableStateFlow")],
-            variance: .invariant
         )
         let dispatcherSymbol = ensureClassSymbol(
             named: "CoroutineDispatcher",
@@ -430,16 +409,6 @@ extension DataFlowSemaPhase {
         let flowRawType = types.make(.classType(ClassType(
             classSymbol: flowInterfaceSymbol,
             args: [.out(types.make(.typeParam(TypeParamType(symbol: flowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
-        let stateFlowRawType = types.make(.classType(ClassType(
-            classSymbol: stateFlowSymbol,
-            args: [.out(types.make(.typeParam(TypeParamType(symbol: stateFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
-        let mutableStateFlowType = types.make(.classType(ClassType(
-            classSymbol: mutableStateFlowSymbol,
-            args: [.invariant(types.make(.typeParam(TypeParamType(symbol: mutableStateFlowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let dispatcherType = types.make(.classType(ClassType(
@@ -618,8 +587,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(deferredType, for: deferredSymbol)
         symbols.setPropertyType(dispatchersType, for: dispatchersSymbol)
         symbols.setPropertyType(flowRawType, for: flowInterfaceSymbol)
-        symbols.setPropertyType(stateFlowRawType, for: stateFlowSymbol)
-        symbols.setPropertyType(mutableStateFlowType, for: mutableStateFlowSymbol)
         symbols.setPropertyType(dispatcherType, for: dispatcherSymbol)
         symbols.setPropertyType(channelType, for: channelSymbol)
         symbols.setPropertyType(channelIteratorType, for: channelIteratorSymbol)
@@ -632,11 +599,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
-        // KSP-675: StateFlow no longer inherits from the (now Kotlin-declared)
-        // SharedFlow; it keeps its own runtime-handle surface until KSP-676
-        // migrates the StateFlow family as well.
-        symbols.setDirectSupertypes([flowInterfaceSymbol], for: stateFlowSymbol)
-        symbols.setDirectSupertypes([stateFlowSymbol], for: mutableStateFlowSymbol)
 
         registerSyntheticCoroutineMember(
             ownerSymbol: flowInterfaceSymbol,
@@ -2261,97 +2223,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let listAnyType: TypeID = if let listSymbol = symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]) {
-            types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.out(types.anyType)],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: mutableStateFlowSymbol,
-            ownerType: mutableStateFlowType,
-            externalLinkName: "kk_mutable_state_flow_create",
-            parameters: [(name: "initialValue", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        // KSP-675: `Flow.shareIn` is bundled Kotlin source (SharedFlow.kt); it
-        // composes `collect` with the Kotlin MutableSharedFlow replay buffer, so
-        // the kk_flow_share_in runtime bridge is gone.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "stateIn",
-            externalLinkName: "kk_flow_state_in",
-            returnType: stateFlowRawType,
-            parameters: [(name: "initialValue", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        // KSP-675: collect / replayCache used to live on the synthetic SharedFlow
-        // interface that StateFlow inherited from. SharedFlow is Kotlin source
-        // now, so the runtime-handle surface is registered on StateFlow directly
-        // until KSP-676 migrates the StateFlow family.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: stateFlowSymbol,
-            ownerType: stateFlowRawType,
-            name: "collect",
-            externalLinkName: "kk_shared_flow_collect",
-            returnType: types.unitType,
-            parameters: [(name: "collector", type: types.make(.functionType(FunctionType(
-                params: [types.anyType],
-                returnType: types.unitType,
-                isSuspend: false,
-                nullability: .nonNull
-            ))))],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: stateFlowSymbol,
-            ownerType: stateFlowRawType,
-            name: "replayCache",
-            propertyType: listAnyType,
-            externalLinkName: "kk_shared_flow_replay_cache",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: stateFlowSymbol,
-            ownerType: stateFlowRawType,
-            name: "value",
-            propertyType: types.anyType,
-            externalLinkName: "kk_state_flow_value",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableStateFlowSymbol,
-            ownerType: mutableStateFlowType,
-            name: "emit",
-            externalLinkName: "kk_mutable_state_flow_emit",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableStateFlowSymbol,
-            ownerType: mutableStateFlowType,
-            name: "tryEmit",
-            externalLinkName: "kk_mutable_state_flow_try_emit",
-            returnType: types.booleanType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are bundled
+        // Kotlin source (StateFlow.kt), so no synthetic constructor or member
+        // stubs are registered here.
         registerSyntheticCoroutineMember(
             ownerSymbol: channelSymbol,
             ownerType: channelType,

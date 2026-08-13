@@ -93,6 +93,9 @@ extension DataFlowSemaPhase {
                 if record.isDataClass {
                     flags.insert(.dataType)
                 }
+                if record.isOpenClass {
+                    flags.insert(.openType)
+                }
                 if record.isSealedClass {
                     flags.insert(.sealedType)
                 }
@@ -489,6 +492,7 @@ extension DataFlowSemaPhase {
         let companionInitializerLinkName: String?
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
+        let isOpenClass: Bool
         let isSealedClass: Bool
         let isFunInterface: Bool
         let isValueClass: Bool
@@ -540,6 +544,7 @@ extension DataFlowSemaPhase {
         companionInitializerLinkName: String? = nil,
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
+        isOpenClass: Bool = false,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
             isValueClass: Bool = false,
@@ -588,6 +593,7 @@ extension DataFlowSemaPhase {
         self.companionInitializerLinkName = companionInitializerLinkName
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
+        self.isOpenClass = isOpenClass
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
             self.isValueClass = isValueClass

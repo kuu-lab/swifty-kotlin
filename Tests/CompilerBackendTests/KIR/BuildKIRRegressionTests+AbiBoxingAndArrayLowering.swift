@@ -603,7 +603,9 @@ struct BuildKIRCodegenRegressionTests {
             #expect(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat") == nil)
             #expect(throwFlags["kk_string_repeat_flat"] == nil)
             #expect(throwFlags["kk_string_repeat"] == nil)
-            #expect(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true } == true)
+            // KSP-414: toInt is source-backed and lowers through the source
+            // function `toInt` rather than a public kk_string_toInt_flat helper.
+            #expect(throwFlags["toInt"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true } == true)
         }
     }

@@ -4,8 +4,8 @@
 
 import Foundation
 
-@_cdecl("kk_string_toInt")
-public func kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toInt")
+public func __kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int32(source) else {
@@ -17,8 +17,8 @@ public func kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int
     return Int(value)
 }
 
-@_cdecl("kk_string_toInt_radix")
-public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toInt_radix")
+public func __kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard (2 ... 36).contains(radix) else {
@@ -37,8 +37,8 @@ public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Unsa
     return Int(value)
 }
 
-@_cdecl("kk_string_toIntOrNull")
-public func kk_string_toIntOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toIntOrNull")
+public func __kk_string_toIntOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int32(source) else {
         return runtimeNullSentinelInt
@@ -46,8 +46,8 @@ public func kk_string_toIntOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
-@_cdecl("kk_string_toIntOrNull_radix")
-public func kk_string_toIntOrNull_radix(
+@_cdecl("__kk_string_toIntOrNull_radix")
+public func __kk_string_toIntOrNull_radix(
     _ strRaw: Int,
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -69,8 +69,8 @@ public func kk_string_toIntOrNull_radix(
 
 // SPEC-NUM-0007: String.toUByteOrNull() / toUShortOrNull() / toUIntOrNull() / toULongOrNull() — no-arg (radix 10)
 
-@_cdecl("kk_string_toUByteOrNull")
-public func kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toUByteOrNull")
+public func __kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = UInt8(source) else {
         return runtimeNullSentinelInt
@@ -78,8 +78,8 @@ public func kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
-@_cdecl("kk_string_toUShortOrNull")
-public func kk_string_toUShortOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toUShortOrNull")
+public func __kk_string_toUShortOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = UInt16(source) else {
         return runtimeNullSentinelInt
@@ -87,8 +87,8 @@ public func kk_string_toUShortOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
-@_cdecl("kk_string_toUIntOrNull")
-public func kk_string_toUIntOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toUIntOrNull")
+public func __kk_string_toUIntOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = UInt32(source) else {
         return runtimeNullSentinelInt
@@ -96,8 +96,8 @@ public func kk_string_toUIntOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
-@_cdecl("kk_string_toULongOrNull")
-public func kk_string_toULongOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toULongOrNull")
+public func __kk_string_toULongOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = UInt64(source) else {
         return runtimeNullSentinelInt
@@ -105,8 +105,8 @@ public func kk_string_toULongOrNull(_ strRaw: Int) -> Int {
     return Int(bitPattern: UInt(value))
 }
 
-@_cdecl("kk_string_toUByteOrNull_radix")
-public func kk_string_toUByteOrNull_radix(
+@_cdecl("__kk_string_toUByteOrNull_radix")
+public func __kk_string_toUByteOrNull_radix(
     _ strRaw: Int,
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -126,8 +126,8 @@ public func kk_string_toUByteOrNull_radix(
     return Int(value)
 }
 
-@_cdecl("kk_string_toUShortOrNull_radix")
-public func kk_string_toUShortOrNull_radix(
+@_cdecl("__kk_string_toUShortOrNull_radix")
+public func __kk_string_toUShortOrNull_radix(
     _ strRaw: Int,
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -147,8 +147,8 @@ public func kk_string_toUShortOrNull_radix(
     return Int(value)
 }
 
-@_cdecl("kk_string_toUIntOrNull_radix")
-public func kk_string_toUIntOrNull_radix(
+@_cdecl("__kk_string_toUIntOrNull_radix")
+public func __kk_string_toUIntOrNull_radix(
     _ strRaw: Int,
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -168,8 +168,8 @@ public func kk_string_toUIntOrNull_radix(
     return Int(value)
 }
 
-@_cdecl("kk_string_toULongOrNull_radix")
-public func kk_string_toULongOrNull_radix(
+@_cdecl("__kk_string_toULongOrNull_radix")
+public func __kk_string_toULongOrNull_radix(
     _ strRaw: Int,
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -189,8 +189,8 @@ public func kk_string_toULongOrNull_radix(
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_string_toULongOrNull_radix_flat")
-public func kk_string_toULongOrNull_radix_flat(
+@_cdecl("__kk_string_toULongOrNull_radix_flat")
+public func __kk_string_toULongOrNull_radix_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -198,7 +198,7 @@ public func kk_string_toULongOrNull_radix_flat(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toULongOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+    __kk_string_toULongOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
 private let runtimeDecimalFloatingLiteralPattern =
@@ -320,8 +320,8 @@ private func runtimeFloatBitsToInt(_ f: Float) -> Int {
     Int(bitPattern: UInt(f.bitPattern))
 }
 
-@_cdecl("kk_string_toLong")
-public func kk_string_toLong(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toLong")
+public func __kk_string_toLong(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int64(source) else {
@@ -333,8 +333,8 @@ public func kk_string_toLong(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     return Int(truncatingIfNeeded: value)
 }
 
-@_cdecl("kk_string_toLongOrNull")
-public func kk_string_toLongOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toLongOrNull")
+public func __kk_string_toLongOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int64(source) else {
         return runtimeNullSentinelInt
@@ -375,8 +375,8 @@ public func __kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
     return runtimeFloatBitsToInt(parsed)
 }
 
-@_cdecl("kk_string_toBoolean")
-public func kk_string_toBoolean(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toBoolean")
+public func __kk_string_toBoolean(_ strRaw: Int) -> Int {
     // Kotlin spec: `public actual fun String?.toBoolean(): Boolean` returns false
     // when the receiver is null, otherwise true iff content equals "true" ignoring case.
     if strRaw == runtimeNullSentinelInt {
@@ -390,8 +390,8 @@ public func kk_string_toBoolean(_ strRaw: Int) -> Int {
     return kk_box_bool(source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0)
 }
 
-@_cdecl("kk_string_toBooleanStrict")
-public func kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toBooleanStrict")
+public func __kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     switch source {
@@ -408,8 +408,8 @@ public func kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutableP
     }
 }
 
-@_cdecl("kk_string_toBooleanStrictOrNull")
-public func kk_string_toBooleanStrictOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toBooleanStrictOrNull")
+public func __kk_string_toBooleanStrictOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     switch source {
     case "true":
@@ -421,8 +421,8 @@ public func kk_string_toBooleanStrictOrNull(_ strRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_string_toShort")
-public func kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toShort")
+public func __kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int16(source) else {
@@ -434,8 +434,8 @@ public func kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<I
     return Int(value)
 }
 
-@_cdecl("kk_string_toShortOrNull")
-public func kk_string_toShortOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toShortOrNull")
+public func __kk_string_toShortOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int16(source) else {
         return runtimeNullSentinelInt
@@ -443,8 +443,8 @@ public func kk_string_toShortOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
-@_cdecl("kk_string_toByte")
-public func kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toByte")
+public func __kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int8(source) else {
@@ -456,8 +456,8 @@ public func kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     return Int(value)
 }
 
-@_cdecl("kk_string_toByte_radix")
-public func kk_string_toByte_radix(
+@_cdecl("__kk_string_toByte_radix")
+public func __kk_string_toByte_radix(
     _ strRaw: Int,
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -480,8 +480,8 @@ public func kk_string_toByte_radix(
     return Int(value)
 }
 
-@_cdecl("kk_string_toByteOrNull")
-public func kk_string_toByteOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toByteOrNull")
+public func __kk_string_toByteOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int8(source) else {
         return runtimeNullSentinelInt

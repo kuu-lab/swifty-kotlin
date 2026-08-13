@@ -116,8 +116,14 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Contract") { phase, symbols, types, interner, _ in
             phase.registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Precondition") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Precondition") { phase, symbols, types, interner, context in
+            phase.registerSyntheticPreconditionStubs(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                bundledIndex: context.bundledIndex,
+                skipStats: context.skipStats
+            )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Regex") { phase, symbols, types, interner, _ in
             phase.registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)

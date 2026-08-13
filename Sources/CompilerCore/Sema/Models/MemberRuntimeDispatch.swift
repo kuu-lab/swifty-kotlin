@@ -337,10 +337,10 @@ enum MemberRuntimeDispatch {
                     charProgressionUsesChar: true
                 )
             }
-            if kind.isULongRangeLike { return "kk_ulong_step" }
-            if kind.isUIntRangeLike { return "kk_uint_step" }
-            if kind.isCharRangeLike { return "kk_char_range_step" }
-            return "kk_op_step"
+            if kind.isULongRangeLike { return "__kk_ulong_step" }
+            if kind.isUIntRangeLike { return "__kk_uint_step" }
+            if kind.isCharRangeLike { return "__kk_char_range_step" }
+            return "__kk_op_step"
         default:
             return nil
         }
@@ -367,10 +367,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lowercase_flat")
         case ("uppercase", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_uppercase_flat")
-        case ("toInt", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_flat", canThrow: true)
-        case ("toIntOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toIntOrNull_flat")
         case ("toDouble", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toDouble_flat", canThrow: true)
         case ("toDoubleOrNull", 0):
@@ -399,8 +395,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
         case ("withIndex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
-        case ("toInt", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("windowed", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
         case ("get", 1):

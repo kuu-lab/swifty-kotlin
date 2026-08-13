@@ -80,10 +80,8 @@ extension CollectionLiteralLoweringSupport {
         }
 
         if fqName[1] == collectionsName {
-            // buildList is fully Kotlinized (KSP-622); buildSet/buildMap still use
-            // builder DSL special handling until their own migration (KSP-623).
-            return callee == lookup.buildSetName
-                || callee == lookup.buildMapName
+            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
+            return false
         }
         return false
     }
@@ -414,8 +412,7 @@ extension CollectionLiteralLoweringSupport {
             || callee == lookup.kkListTakeName || callee == lookup.kkListDropName
             || callee == lookup.kkListReversedName || callee == lookup.kkListSortedName
             || callee == lookup.kkListDistinctName || callee == lookup.kkListShuffledName
-            || callee == lookup.kkListShuffledRandomName
-            || callee == lookup.kkListScanName || callee == lookup.kkListRunningFoldName,
+            || callee == lookup.kkListShuffledRandomName,
             listExprIDs.contains(src)
         {
             listExprIDs.insert(result.rawValue)
@@ -507,7 +504,6 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.kkListReversedName || callee == lookup.kkListSortedName
                 || callee == lookup.kkListDistinctName || callee == lookup.kkListShuffledName
                 || callee == lookup.kkListShuffledRandomName
-                || callee == lookup.kkListScanName || callee == lookup.kkListRunningFoldName
             {
                 if let result { listExprIDs.insert(result.rawValue) }
             }

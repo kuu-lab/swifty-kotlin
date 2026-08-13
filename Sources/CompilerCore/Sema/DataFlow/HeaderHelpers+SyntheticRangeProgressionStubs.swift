@@ -69,7 +69,7 @@ extension DataFlowSemaPhase {
             receiverType: types.intType,
             parameterType: types.intType,
             returnType: types.intType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             symbols: symbols,
             interner: interner
         )
@@ -78,7 +78,7 @@ extension DataFlowSemaPhase {
             receiverType: types.intType,
             parameterType: types.longType,
             returnType: types.longType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             symbols: symbols,
             interner: interner
         )
@@ -87,7 +87,7 @@ extension DataFlowSemaPhase {
             receiverType: types.longType,
             parameterType: types.intType,
             returnType: types.longType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             symbols: symbols,
             interner: interner
         )
@@ -96,7 +96,7 @@ extension DataFlowSemaPhase {
             receiverType: types.longType,
             parameterType: types.longType,
             returnType: types.longType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             symbols: symbols,
             interner: interner
         )
@@ -105,7 +105,7 @@ extension DataFlowSemaPhase {
             receiverType: types.byteType,
             parameterType: types.byteType,
             returnType: types.intType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             symbols: symbols,
             interner: interner
         )
@@ -114,7 +114,7 @@ extension DataFlowSemaPhase {
             receiverType: types.shortType,
             parameterType: types.shortType,
             returnType: types.intType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             symbols: symbols,
             interner: interner
         )
@@ -154,7 +154,7 @@ extension DataFlowSemaPhase {
                     receiverType: receiverType,
                     parameterType: parameterType,
                     returnType: returnType,
-                    externalLinkName: "kk_op_rangeUntil",
+                    externalLinkName: "__kk_op_rangeUntil",
                     symbols: symbols,
                     interner: interner
                 )
@@ -165,7 +165,7 @@ extension DataFlowSemaPhase {
             named: "IntProgression",
             elementType: types.intType,
             stepType: types.intType,
-            externalLinkName: "kk_int_progression_fromClosedRange",
+            externalLinkName: "__kk_int_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -176,7 +176,7 @@ extension DataFlowSemaPhase {
             named: "LongProgression",
             elementType: types.longType,
             stepType: types.intType,
-            externalLinkName: "kk_long_progression_fromClosedRange",
+            externalLinkName: "__kk_long_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -187,7 +187,7 @@ extension DataFlowSemaPhase {
             named: "CharProgression",
             elementType: types.charType,
             stepType: types.intType,
-            externalLinkName: "kk_char_progression_fromClosedRange",
+            externalLinkName: "__kk_char_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -198,7 +198,7 @@ extension DataFlowSemaPhase {
             named: "UIntProgression",
             elementType: types.uintType,
             stepType: types.intType,
-            externalLinkName: "kk_uint_progression_fromClosedRange",
+            externalLinkName: "__kk_uint_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -217,7 +217,7 @@ extension DataFlowSemaPhase {
             named: "ULongProgression",
             elementType: types.ulongType,
             stepType: types.intType,
-            externalLinkName: "kk_ulong_progression_fromClosedRange",
+            externalLinkName: "__kk_ulong_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -446,7 +446,7 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(rangesPackageSymbol, for: functionSymbol)
         symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
         symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-        symbols.setExternalLinkName("kk_op_rangeUntil", for: functionSymbol)
+        symbols.setExternalLinkName("__kk_op_rangeUntil", for: functionSymbol)
         symbols.setTypeParameterUpperBounds([comparableType], for: typeParamSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
@@ -478,17 +478,25 @@ extension DataFlowSemaPhase {
 
         let functionName = interner.intern("until")
         let functionFQName = ownerInfo.fqName + [functionName]
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes == [parameterType]
-                && signature.returnType == returnType
-        }) {
+
+        // KSP-456: bundled Kotlin sources provide class-returning `until` extensions.
+        // Skip the synthetic primitive-return stub for any receiver type already
+        // covered by bundled source.
+        guard let types = BundledSyntheticStubRegistration.types else {
+            return
+        }
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if let owner = BundledDeclarationIndex.receiverOwnerFQName(
+            for: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ), shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: owner,
+            name: functionName,
+            arity: 1
+        ) {
             return
         }
 
@@ -596,7 +604,12 @@ extension DataFlowSemaPhase {
         )))
         let functionName = interner.intern("fromClosedRange")
         let functionFQName = companionInfo.fqName + [functionName]
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        let fromClosedRangeExists = bundledIndex.contains(
+            ownerFQName: companionInfo.fqName,
+            name: functionName,
+            arity: 3
+        ) || symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.kind == .function,
                   let signature = symbols.functionSignature(for: symbolID)
@@ -605,46 +618,46 @@ extension DataFlowSemaPhase {
             }
             return signature.receiverType == companionType
                 && signature.parameterTypes == [elementType, elementType, stepType]
-        }) {
-            return
-        }
+        })
 
-        let parameterNames = ["rangeStart", "rangeEnd", "step"].map(interner.intern)
-        let parameterSymbols = parameterNames.map { parameterName in
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
+        if !fromClosedRangeExists {
+            let parameterNames = ["rangeStart", "rangeEnd", "step"].map(interner.intern)
+            let parameterSymbols = parameterNames.map { parameterName in
+                let parameterSymbol = symbols.define(
+                    kind: .valueParameter,
+                    name: parameterName,
+                    fqName: functionFQName + [parameterName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(companionSymbol, for: parameterSymbol)
+                return parameterSymbol
+            }
+
+            let functionSymbol = symbols.define(
+                kind: .function,
+                name: functionName,
+                fqName: functionFQName,
                 declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
+                visibility: .public,
+                flags: [.synthetic, .static]
             )
-            symbols.setParentSymbol(companionSymbol, for: parameterSymbol)
-            return parameterSymbol
+            symbols.setParentSymbol(companionSymbol, for: functionSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: companionType,
+                    parameterTypes: [elementType, elementType, stepType],
+                    returnType: progressionType,
+                    isSuspend: false,
+                    valueParameterSymbols: parameterSymbols,
+                    valueParameterHasDefaultValues: [false, false, false],
+                    valueParameterIsVararg: [false, false, false]
+                ),
+                for: functionSymbol
+            )
         }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static]
-        )
-        symbols.setParentSymbol(companionSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: companionType,
-                parameterTypes: [elementType, elementType, stepType],
-                returnType: progressionType,
-                isSuspend: false,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: [false, false, false],
-                valueParameterIsVararg: [false, false, false]
-            ),
-            for: functionSymbol
-        )
 
         let listType = syntheticListType(elementType: elementType, symbols: symbols, types: types, interner: interner)
         let firstLastRuntime: (String, String)
@@ -751,7 +764,7 @@ extension DataFlowSemaPhase {
             receiverType: progressionType,
             parameterTypes: [stepType],
             returnType: progressionType,
-            externalLinkName: name == "ULongProgression" ? "kk_ulong_step" : (name == "UIntProgression" ? "kk_uint_step" : (name == "CharProgression" ? "kk_char_range_step" : "kk_op_step")),
+            externalLinkName: name == "ULongProgression" ? "__kk_ulong_step" : (name == "UIntProgression" ? "__kk_uint_step" : (name == "CharProgression" ? "__kk_char_range_step" : "__kk_op_step")),
             symbols: symbols,
             interner: interner
         )

@@ -4,9 +4,44 @@ import Testing
 
 @Suite
 struct ReflectFindAssociatedObjectSyntheticTests {
-    @Test func testFindAssociatedObjectSurfaceIsRegistered() throws {
-        let ctx = makeContextFromSource("annotation class Smoke")
-        try runSema(ctx)
+    @Test func testFindAssociatedObject() throws {
+        let sources = [
+            """
+            package sample0
+
+            annotation class Smoke
+            """,
+            """
+            package sample1
+
+            import kotlin.reflect.KClass
+            import kotlin.reflect.findAssociatedObject
+
+            annotation class Binding
+
+            fun find(kclass: KClass<*>): Any? = kclass.findAssociatedObject<Binding>()
+            """,
+            """
+            package sample2
+
+            import kotlin.reflect.ExperimentalAssociatedObjects
+            import kotlin.reflect.KClass
+            import kotlin.reflect.findAssociatedObject
+
+            annotation class Binding
+
+            @OptIn(ExperimentalAssociatedObjects::class)
+            fun find(kclass: KClass<*>): Any? = kclass.findAssociatedObject<Binding>()
+            """,
+        ]
+
+        let ctx = makeContextFromSources(sources)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Error diagnostics are asserted by each test.
+        }
+
         let sema = try #require(ctx.sema)
         let fqName = ["kotlin", "reflect", "findAssociatedObject"].map { ctx.interner.intern($0) }
         let symbolID = try #require(sema.symbols.lookupAll(fqName: fqName).first)
@@ -38,52 +73,18 @@ struct ReflectFindAssociatedObjectSyntheticTests {
             annotations.contains { $0.annotationFQName == "kotlin.reflect.ExperimentalAssociatedObjects" },
             Comment(rawValue: "Expected findAssociatedObject to require ExperimentalAssociatedObjects opt-in, got: \(annotations)")
         )
-    }
 
-    @Test func testFindAssociatedObjectRequiresOptIn() {
-        let source = """
-        import kotlin.reflect.KClass
-        import kotlin.reflect.findAssociatedObject
+        let paths = ctx.sourceManager.fileIDs().filter { ctx.sourceManager.origin(of: $0) == .user }
+        #expect(paths.count == 3)
 
-        annotation class Binding
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+        let sample1Path = paths[1]
+        let sample1OptInDiagnostics = optInDiagnostics.filter { $0.primaryRange?.start.file == sample1Path }
+        let sample2Path = paths[2]
+        let sample2OptInDiagnostics = optInDiagnostics.filter { $0.primaryRange?.start.file == sample2Path }
 
-        fun find(kclass: KClass<*>): Any? = kclass.findAssociatedObject<Binding>()
-        """
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
-
-        #expect(diagnostics.count == 1, Comment(rawValue: "Expected findAssociatedObject usage to require opt-in, got: \(ctx.diagnostics.diagnostics)"))
-    }
-
-    @Test func testFindAssociatedObjectAllowsExplicitOptIn() {
-        let source = """
-        import kotlin.reflect.ExperimentalAssociatedObjects
-        import kotlin.reflect.KClass
-        import kotlin.reflect.findAssociatedObject
-
-        annotation class Binding
-
-        @OptIn(ExperimentalAssociatedObjects::class)
-        fun find(kclass: KClass<*>): Any? = kclass.findAssociatedObject<Binding>()
-        """
-        let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
-
-        #expect(diagnostics.isEmpty, Comment(rawValue: "Expected @OptIn to satisfy findAssociatedObject usage, got: \(ctx.diagnostics.diagnostics)"))
-    }
-
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let ctx = makeContextFromSource(source)
-        do {
-            try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted by each test.
-        }
-        return ctx
-    }
-
-    private func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {
-        ctx.diagnostics.diagnostics.filter { $0.code == code }
+        #expect(sample1OptInDiagnostics.count == 1, Comment(rawValue: "Expected findAssociatedObject usage to require opt-in, got: \(ctx.diagnostics.diagnostics)"))
+        #expect(sample2OptInDiagnostics.isEmpty, Comment(rawValue: "Expected @OptIn to satisfy findAssociatedObject usage, got: \(ctx.diagnostics.diagnostics)"))
     }
 }
 #endif

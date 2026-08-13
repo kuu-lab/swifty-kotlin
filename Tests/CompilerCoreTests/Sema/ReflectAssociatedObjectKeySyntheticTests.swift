@@ -4,9 +4,38 @@ import Testing
 
 @Suite
 struct ReflectAssociatedObjectKeySyntheticTests {
-    @Test func testAssociatedObjectKeyAnnotationSurfaceIsRegistered() throws {
-        let ctx = makeContextFromSource("annotation class Smoke")
-        try runSema(ctx)
+    @Test func testAssociatedObjectKey() throws {
+        let sources = [
+            """
+            package sample0
+
+            annotation class Smoke
+            """,
+            """
+            package sample1
+
+            import kotlin.reflect.AssociatedObjectKey
+
+            @AssociatedObjectKey
+            annotation class Binding
+            """,
+            """
+            package sample2
+
+            import kotlin.reflect.AssociatedObjectKey
+
+            @AssociatedObjectKey
+            fun notAnAnnotationClass() {}
+            """,
+        ]
+
+        let ctx = makeContextFromSources(sources)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Error diagnostics are asserted by each test.
+        }
+
         let sema = try #require(ctx.sema)
         let fqName = ["kotlin", "reflect", "AssociatedObjectKey"].map { ctx.interner.intern($0) }
         let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
@@ -37,46 +66,18 @@ struct ReflectAssociatedObjectKeySyntheticTests {
             },
             Comment(rawValue: "Expected AssociatedObjectKey to carry @Retention(BINARY), got: \(annotations)")
         )
-    }
 
-    @Test func testAssociatedObjectKeyCanAnnotateAnnotationClass() {
-        let source = """
-        import kotlin.reflect.AssociatedObjectKey
+        let paths = ctx.sourceManager.fileIDs().filter { ctx.sourceManager.origin(of: $0) == .user }
+        #expect(paths.count == 3)
 
-        @AssociatedObjectKey
-        annotation class Binding
-        """
-        let ctx = runSemaCollectingDiagnostics(source)
-        let targetDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
+        let targetDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+        let sample1Path = paths[1]
+        let sample1TargetDiagnostics = targetDiagnostics.filter { $0.primaryRange?.start.file == sample1Path }
+        let sample2Path = paths[2]
+        let sample2TargetDiagnostics = targetDiagnostics.filter { $0.primaryRange?.start.file == sample2Path }
 
-        #expect(targetDiagnostics.isEmpty, Comment(rawValue: "Expected annotation-class target to be accepted, got: \(ctx.diagnostics.diagnostics)"))
-    }
-
-    @Test func testAssociatedObjectKeyRejectsFunctionTarget() {
-        let source = """
-        import kotlin.reflect.AssociatedObjectKey
-
-        @AssociatedObjectKey
-        fun notAnAnnotationClass() {}
-        """
-        let ctx = runSemaCollectingDiagnostics(source)
-        let targetDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-
-        #expect(targetDiagnostics.count == 1, Comment(rawValue: "Expected function target to be rejected, got: \(ctx.diagnostics.diagnostics)"))
-    }
-
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let ctx = makeContextFromSource(source)
-        do {
-            try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted by each test.
-        }
-        return ctx
-    }
-
-    private func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {
-        ctx.diagnostics.diagnostics.filter { $0.code == code }
+        #expect(sample1TargetDiagnostics.isEmpty, Comment(rawValue: "Expected annotation-class target to be accepted, got: \(ctx.diagnostics.diagnostics)"))
+        #expect(sample2TargetDiagnostics.count == 1, Comment(rawValue: "Expected function target to be rejected, got: \(ctx.diagnostics.diagnostics)"))
     }
 }
 #endif
