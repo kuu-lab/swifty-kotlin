@@ -14,20 +14,26 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let baseFQName: [InternedString] = [
+            let packageFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
             ]
-            let memberCases: [(String, String)] = [
-                ("sorted", "kk_list_sorted"),
-                ("sortedDescending", "kk_list_sortedDescending"),
-            ]
+            let memberCases = ["sorted", "sortedDescending"]
 
-            for (memberName, externalLinkName) in memberCases {
-                let symbolID = try #require(sema.symbols.lookupAll(
-                        fqName: baseFQName + [ctx.interner.intern(memberName)]
-                    ).first(where: { sema.symbols.externalLinkName(for: $0) == externalLinkName }))
+            for memberName in memberCases {
+                let allSymbols = sema.symbols.lookupAll(fqName: packageFQName + [ctx.interner.intern(memberName)])
+                let symbolID = try #require(allSymbols.first { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType,
+                          let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                    else { return false }
+                    return ctx.interner.resolve(receiverSymbol.name) == "List"
+                        && ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+                })
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.typeParameterUpperBoundsList.count == 1)
                 let upperBounds = signature.typeParameterUpperBoundsList[0]
@@ -717,11 +723,12 @@ extension ListSyntheticMemberLinkTests {
 
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
-            let expectedExternalLinks = [
-                "sort": "__kk_mutable_list_sort",
-                "sortWith": "__kk_mutable_list_sortWith",
-                "sortBy": "__kk_mutable_list_sortBy",
-                "sortByDescending": "__kk_mutable_list_sortByDescending",
+            let expectedExternalLinks: [String: String?] = [
+                // KSP-426: MutableList sort methods are source-backed.
+                "sort": nil,
+                "sortWith": nil,
+                "sortBy": nil,
+                "sortByDescending": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
@@ -730,7 +737,7 @@ extension ListSyntheticMemberLinkTests {
                     return ctx.interner.resolve(callee) == memberName
                 })
                 if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee {
-                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) externalLinkName to be \(String(describing: externalLinkName))")
                 }
             }
         }

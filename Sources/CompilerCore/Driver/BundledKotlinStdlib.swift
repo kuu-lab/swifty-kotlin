@@ -17,10 +17,10 @@ package enum BundledKotlinStdlib {
     ]
 
     // count / any / all / none / contains / containsAll / lastIndexOf have been
-    // migrated to ListSearchHOF.kt. sumOf / maxByOrNull / minByOrNull have been
-    // migrated to ListAggregateHOF.kt (KSP-501). The remaining collection HOFs
-    // (filter, sorting, set) are in ListFilterHOF.kt, ListSortingHOF.kt, and
-    // SetHOF.kt respectively.
+    // migrated to ListSearchHOF.kt. sumOf has been migrated to ListAggregateHOF.kt
+    // (KSP-501), and list sorting/extrema HOFs are in ListSortingHOF.kt and
+    // ListExtremaHOF.kt. The remaining collection HOFs (filter, set) are in
+    // ListFilterHOF.kt and SetHOF.kt respectively.
     static let kotlinCollectionsSource = ""
 
     // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.

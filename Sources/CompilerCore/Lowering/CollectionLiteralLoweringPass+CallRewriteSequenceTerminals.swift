@@ -227,28 +227,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    if callee == lookup.sortedName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListSortedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
     if callee == lookup.distinctName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {

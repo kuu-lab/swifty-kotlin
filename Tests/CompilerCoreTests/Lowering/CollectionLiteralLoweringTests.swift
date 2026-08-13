@@ -1501,11 +1501,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListSorted() throws {
+    func testVirtualCallOnListTypedParameterKeepsSourceBackedSortedCall() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
         #expect(
-            callees.contains("kk_list_sorted"),
-            "virtualCall(sorted) on List-typed parameter should be rewritten to kk_list_sorted, got: \(callees)"
+            !callees.contains("kk_list_sorted"),
+            "source-backed sorted on List-typed parameter must not emit kk_list_sorted, got: \(callees)"
         )
     }
 

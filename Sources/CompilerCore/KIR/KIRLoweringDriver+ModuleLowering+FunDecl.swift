@@ -285,10 +285,9 @@ extension KIRLoweringDriver {
                  "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
                  "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 return true
-            case "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
-                // KSP-432: only the List overloads are lowered straight to the
-                // runtime; the Set overloads in SetHOF.kt are ordinary source
-                // declarations and must be emitted.
+            case "reversed", "shuffled":
+                // These List overloads still have dedicated runtime lowering;
+                // Set overloads in SetHOF.kt remain ordinary source declarations.
                 return !isSetReceiverFunction(symbol: symbol, sema: sema, interner: interner)
             default:
                 return false

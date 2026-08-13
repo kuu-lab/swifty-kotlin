@@ -243,19 +243,16 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // These List HOF/search/sort sources are bundled as migration targets, but
-        // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
-        // removes the compatibility bridge.
+        // These List HOF/search/sort sources are bundled migration targets. Keep
+        // only the List members whose runtime bridges are still required.
         switch interner.resolve(key.name) {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
         // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
         // contains, any, all, none, count, first, last, single) are source-bound.
-        case "reversed", "sorted":
+        case "reversed":
             return key.arity == 0
         case "shuffled":
             return key.arity == 0 || key.arity == 1
-        case "sortedBy", "sortedByDescending", "sortedWith":
-            return key.arity == 1
         default:
             return false
         }

@@ -1,13 +1,12 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-501: sumOf / maxByOrNull / minByOrNull moved from the residual
-/// `BundledKotlinStdlib.kotlinCollectionsSource` string into
-/// `Stdlib/kotlin/collections/ListAggregateHOF.kt`.
+/// KSP-501/KSP-426: List aggregate and extrema functions are bundled Kotlin
+/// source definitions rather than residual synthetic runtime declarations.
 @Suite
 struct ListAggregateHOFSourceMigrationTests {
     private let sourcePath = "__bundled_kotlin/collections/ListAggregateHOF.kt"
-    private let migratedNames: Set<String> = ["sumOf", "maxByOrNull", "minByOrNull"]
+    private let migratedNames: Set<String> = ["sumOf"]
 
     @Test
     func residualCollectionsSourceIsEmpty() {

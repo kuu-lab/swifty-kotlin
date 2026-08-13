@@ -94,59 +94,9 @@ extension CallLowerer {
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
-            // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
-            case "sorted":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sorted_primitive")
-                }
-                return interner.intern("kk_list_sorted")
-            case "sortedDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sortedDescending_primitive")
-                }
-                return interner.intern("kk_list_sortedDescending")
-            case "sortedBy":
-                return interner.intern("kk_list_sortedBy")
+            // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
             case "distinctBy":
                 return interner.intern("kk_list_distinctBy")
-            case "sortedByDescending":
-                return interner.intern("kk_list_sortedByDescending")
-            case "sortedWith":
-                return interner.intern("kk_list_sortedWith")
-
-            case "maxBy":
-                return interner.intern("kk_list_maxBy")
-            case "maxByOrNull":
-                return interner.intern("kk_list_maxByOrNull")
-            case "minByOrNull":
-                return interner.intern("kk_list_minByOrNull")
-            case "minBy":
-                return interner.intern("kk_list_minBy")
-            case "maxOf":
-                return interner.intern("kk_list_maxOf")
-            case "minOf":
-                return interner.intern("kk_list_minOf")
-            case "max":
-                return interner.intern("kk_list_max")
-            case "min":
-                return interner.intern("kk_list_min")
-            case "maxWith":
-                return interner.intern("kk_list_maxWith")
-            case "maxWithOrNull":
-                return interner.intern("kk_list_maxWithOrNull")
-            case "minWith":
-                return interner.intern("kk_list_minWith")
-            case "minWithOrNull":
-                return interner.intern("kk_list_minWithOrNull")
-            case "maxOfWith":
-                return interner.intern("kk_list_maxOfWith")
-            case "maxOfWithOrNull":
-                return interner.intern("kk_list_maxOfWithOrNull")
-            case "minOfWith":
-                return interner.intern("kk_list_minOfWith")
-            case "minOfWithOrNull":
-                return interner.intern("kk_list_minOfWithOrNull")
             case "onEach":
                 return interner.intern("kk_list_onEach")
             case "onEachIndexed":
@@ -224,22 +174,7 @@ extension CallLowerer {
 
         if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "sort":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("__kk_mutable_list_sort_primitive")
-                }
-                return interner.intern("__kk_mutable_list_sort")
-            case "sortWith":
-                return interner.intern("__kk_mutable_list_sortWith")
-            case "sortBy":
-                return interner.intern("__kk_mutable_list_sortBy")
-            case "sortByDescending":
-                return interner.intern("__kk_mutable_list_sortByDescending")
-            case "sortDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("__kk_mutable_list_sortDescending_primitive")
-                }
-                return interner.intern("__kk_mutable_list_sortDescending")
+            // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
             case "addAll":
@@ -375,56 +310,15 @@ extension CallLowerer {
         }
 
         switch memberName {
-        case "sorted":
-            return interner.intern("kk_list_sorted")
-        case "sortedDescending":
-            return interner.intern("kk_list_sortedDescending")
-        case "sortedBy":
-            return interner.intern("kk_list_sortedBy")
+        // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
         case "distinctBy":
             return interner.intern("kk_list_distinctBy")
-        case "sortedByDescending":
-            return interner.intern("kk_list_sortedByDescending")
         case "partition":
             return interner.intern("kk_list_partition")
-        case "maxBy":
-            return interner.intern("kk_list_maxBy")
-        case "maxByOrNull":
-            return interner.intern("kk_list_maxByOrNull")
-        case "minByOrNull":
-            return interner.intern("kk_list_minByOrNull")
-        case "minBy":
-            return interner.intern("kk_list_minBy")
-        case "maxOf":
-            return interner.intern("kk_list_maxOf")
-        case "minOf":
-            return interner.intern("kk_list_minOf")
-        case "max":
-            return interner.intern("kk_list_max")
-        case "min":
-            return interner.intern("kk_list_min")
-        case "maxWith":
-            return interner.intern("kk_list_maxWith")
-        case "maxWithOrNull":
-            return interner.intern("kk_list_maxWithOrNull")
-        case "minWith":
-            return interner.intern("kk_list_minWith")
-        case "minWithOrNull":
-            return interner.intern("kk_list_minWithOrNull")
-        case "maxOfWith":
-            return interner.intern("kk_list_maxOfWith")
-        case "maxOfWithOrNull":
-            return interner.intern("kk_list_maxOfWithOrNull")
-        case "minOfWith":
-            return interner.intern("kk_list_minOfWith")
-        case "minOfWithOrNull":
-            return interner.intern("kk_list_minOfWithOrNull")
         case "onEach":
             return interner.intern("kk_list_onEach")
         case "onEachIndexed":
             return interner.intern("kk_list_onEachIndexed")
-        case "sortedWith":
-            return interner.intern("kk_list_sortedWith")
         case "binarySearch":
             if hasHOFLambdaArg && argumentCount == 2 {
                 return interner.intern("kk_list_binarySearch_compare")
