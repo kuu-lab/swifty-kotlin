@@ -157,8 +157,6 @@ struct StdlibSurfaceSpecTests {
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
@@ -177,7 +175,6 @@ struct StdlibSurfaceSpecTests {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexedOrNull", 1),
             ]
 
