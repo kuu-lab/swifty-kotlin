@@ -219,8 +219,8 @@ extension DataFlowSemaPhase {
                 let elementType: TypeID = switch arrayTypeName {
                 case "IntArray": types.intType
                 case "LongArray": types.longType
-                case "ByteArray": types.intType
-                case "ShortArray": types.intType
+                case "ByteArray": types.byteType
+                case "ShortArray": types.shortType
                 case "UIntArray": types.uintType
                 case "ULongArray": types.ulongType
                 case "DoubleArray": types.doubleType

@@ -1,9 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
+@Suite struct CodegenBackendIntegrationTests {
+    private let pipelineHelper = CodegenBackendTestSupport()
+    @Test
     func testCodegenEmitsKirDumpArtifact() throws {
         let source = """
         inline fun helper(x: Int) = x + 1
@@ -14,11 +17,12 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
             let tempDir = FileManager.default.temporaryDirectory
 
             let kirBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try runCodegenPipeline(inputPath: path, moduleName: "KirMod", emit: .kirDump, outputPath: kirBase)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: kirBase + ".kir"))
+            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "KirMod", emit: .kirDump, outputPath: kirBase)
+            #expect(FileManager.default.fileExists(atPath: kirBase + ".kir"))
         }
     }
 
+    @Test
     func testCodegenEmitsLlvmIRArtifact() throws {
         let source = """
         inline fun helper(x: Int) = x + 1
@@ -28,13 +32,14 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let llvmBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            let llvmCtx = try runCodegenPipeline(inputPath: path, moduleName: "LLMod", emit: .llvmIR, outputPath: llvmBase)
-            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
-            XCTAssertTrue(llvmPath.hasSuffix(".ll"))
-            XCTAssertTrue(FileManager.default.fileExists(atPath: llvmPath))
+            let llvmCtx = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "LLMod", emit: .llvmIR, outputPath: llvmBase)
+            let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
+            #expect(llvmPath.hasSuffix(".ll"))
+            #expect(FileManager.default.fileExists(atPath: llvmPath))
         }
     }
 
+    @Test
     func testCodegenEmitsLibraryArtifacts() throws {
         let source = """
         inline fun helper(x: Int) = x + 1
@@ -44,29 +49,30 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let libBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try runCodegenPipeline(inputPath: path, moduleName: "LibMod", emit: .library, outputPath: libBase)
+            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "LibMod", emit: .library, outputPath: libBase)
 
             let libDir = libBase + ".kklib"
             let manifestPath = libDir + "/manifest.json"
             let metadataPath = libDir + "/metadata.bin"
             let objectPath = libDir + "/objects/LibMod_0.o"
-            XCTAssertTrue(FileManager.default.fileExists(atPath: manifestPath))
-            XCTAssertTrue(FileManager.default.fileExists(atPath: metadataPath))
-            XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
+            #expect(FileManager.default.fileExists(atPath: manifestPath))
+            #expect(FileManager.default.fileExists(atPath: metadataPath))
+            #expect(FileManager.default.fileExists(atPath: objectPath))
 
             let manifest = try String(contentsOfFile: manifestPath, encoding: .utf8)
-            XCTAssertTrue(manifest.contains("\"moduleName\"") && manifest.contains("\"LibMod\""))
+            #expect(manifest.contains("\"moduleName\"") && manifest.contains("\"LibMod\""))
 
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            XCTAssertTrue(metadata.contains("symbols="))
+            #expect(metadata.contains("symbols="))
 
             let inlineDir = libDir + "/inline-kir"
             let inlineFiles = try FileManager.default.contentsOfDirectory(atPath: inlineDir)
-            XCTAssertFalse(inlineFiles.isEmpty)
-            XCTAssertTrue(inlineFiles.allSatisfy { $0.hasSuffix(".kirbin") })
+            #expect(!(inlineFiles.isEmpty))
+            #expect(inlineFiles.allSatisfy { $0.hasSuffix(".kirbin") })
         }
     }
 
+    @Test
     func testCodegenLibraryMetadataIncludesCompilerMetadataAnnotation() throws {
         let source = """
         class Plain
@@ -79,19 +85,20 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let libBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase)
+            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase)
 
             let metadataPath = libBase + ".kklib/metadata.bin"
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            XCTAssertTrue(metadata.contains("kotlin.Metadata"))
-            XCTAssertTrue(metadata.contains("fq=Plain"))
-            XCTAssertTrue(metadata.contains("fq=Face"))
-            XCTAssertTrue(metadata.contains("fq=Singleton"))
-            XCTAssertTrue(metadata.contains("fq=Color"))
-            XCTAssertTrue(metadata.contains("fq=Marker"))
+            #expect(metadata.contains("kotlin.Metadata"))
+            #expect(metadata.contains("fq=Plain"))
+            #expect(metadata.contains("fq=Face"))
+            #expect(metadata.contains("fq=Singleton"))
+            #expect(metadata.contains("fq=Color"))
+            #expect(metadata.contains("fq=Marker"))
         }
     }
 
+    @Test
     func testCodegenAnnotationReflectionHidesCompilerMetadata() throws {
         let source = """
         annotation class Label(val value: String = "ok")
@@ -110,6 +117,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "MetadataReflection", expected: "1\n0\n")
     }
 
+    @Test
     func testCodegenProducesDeterministicKirOutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
@@ -118,6 +126,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertDeterministicCodegenOutput(source: source, emit: .kirDump)
     }
 
+    @Test
     func testCodegenProducesDeterministicLlvmIROutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
@@ -126,6 +135,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertDeterministicCodegenOutput(source: source, emit: .llvmIR)
     }
 
+    @Test
     func testCodegenProducesDeterministicObjectOutput() throws {
         let source = """
         fun helper(x: Int, y: Int) = x + y
@@ -134,6 +144,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertDeterministicCodegenOutput(source: source, emit: .object)
     }
 
+    @Test
     func testCodegenDataClassSynthesizesCorrectToStringAndEqualityWithoutExplicitSuperclass() throws {
         let source = """
         data class Person(val name: String, val age: Int)
@@ -171,6 +182,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testCodegenCompilesStringStdlibMixedThrowCalls() throws {
         let source = """
         fun main() {
@@ -187,17 +199,18 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "StringStdlibMixedThrowCalls",
                 emit: .object,
                 outputPath: outputBase
             )
-            let objectPath = try XCTUnwrap(ctx.generatedObjectPath)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
+            let objectPath = try #require(ctx.generatedObjectPath)
+            #expect(FileManager.default.fileExists(atPath: objectPath))
         }
     }
 
+    @Test
     func testCodegenCompilesMathTopLevelCalls() throws {
         let source = """
         import kotlin.math.*
@@ -215,17 +228,18 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "MathTopLevelCalls",
                 emit: .object,
                 outputPath: outputBase
             )
-            let objectPath = try XCTUnwrap(ctx.generatedObjectPath)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: objectPath))
+            let objectPath = try #require(ctx.generatedObjectPath)
+            #expect(FileManager.default.fileExists(atPath: objectPath))
         }
     }
 
+    @Test
     func testCodegenCompilesIntPrimitiveConversions() throws {
         let source = """
         fun main() {
@@ -238,6 +252,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "IntPrimitiveConversions", expected: "42.0\n44\n-32768\n")
     }
 
+    @Test
     func testCodegenCompilesComparisonTopLevelCalls() throws {
         let source = """
         fun main() {
@@ -249,6 +264,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ComparisonTopLevelCalls", expected: "7\n3\n")
     }
 
+    @Test
     func testCodegenCompilesUnsignedMaxOfTopLevelCalls() throws {
         let source = """
         fun main() {
@@ -260,6 +276,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMaxOf", expected: "true\ntrue\n")
     }
 
+    @Test
     func testCodegenCompilesComparatorMaxOfTopLevelCalls() throws {
         let source = """
         fun main() {
@@ -271,6 +288,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ComparatorComparisonMaxOf", expected: "true\ntrue\n")
     }
 
+    @Test
     func testCodegenCompilesComparatorSortedWithTopLevelCalls() throws {
         let source = """
         fun main() {
@@ -295,6 +313,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testCodegenCompilesGenericMaxOfTopLevelCalls() throws {
         let source = """
         fun main() {
@@ -306,6 +325,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "GenericComparisonMaxOf", expected: "true\ntrue\n")
     }
 
+    @Test
     func testCodegenGenericComparableTreatsNaNAsGreaterThanFiniteValues() throws {
         let source = """
         fun <T> pickGreater(a: T, b: T): T where T : Comparable<T> = if (a > b) a else b
@@ -320,8 +340,8 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "NaNComparable", expected: "NaN\nNaN\n")
     }
 
+    @Test(.disabled("List indexing test temporarily disabled on Linux"))
     func testCodegenListOfIndexingUsesListRuntimeGet() throws {
-        try XCTSkipIf(true, "List indexing test temporarily disabled on Linux")
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -338,6 +358,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListGetRuntime", expected: "3\n1\n2\n3\ntrue\nfalse\nfalse\n")
     }
 
+    @Test
     func testCodegenEnumNameAndOrdinal() throws {
         let source = """
         enum class Color { RED, GREEN, BLUE }
@@ -353,6 +374,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "EnumNameOrdinal", expected: "RED\n0\nGREEN\n1\n")
     }
 
+    @Test
     func testCodegenEnumValuesAndValueOf() throws {
         // Test enumValueOf (no map dependency)
         let sourceValueOf = """
@@ -364,7 +386,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         """
         try withTemporaryFile(contents: sourceValueOf) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "EnumValueOf",
                 emit: .executable,
@@ -374,7 +396,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "GREEN\n")
+            #expect(normalizedStdout == "GREEN\n")
         }
 
         // Test enumValues
@@ -390,7 +412,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         """
         try withTemporaryFile(contents: sourceValues) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "EnumValues",
                 emit: .executable,
@@ -400,10 +422,11 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\nRED\nGREEN\n")
+            #expect(normalizedStdout == "3\nRED\nGREEN\n")
         }
     }
 
+    @Test
     func testCodegenMutableListBasicMutationsUseRuntimeListBox() throws {
         let source = """
         fun main() {
@@ -421,6 +444,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "MutableListBasicRuntime", expected: "[1, 2, 3]\n2\n[1, 3]\n[]\n")
     }
 
+    @Test
     func testCodegenListComponentNUsesRuntimeAccessors() throws {
         let source = """
         fun main() {
@@ -436,6 +460,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListComponentNRuntime", expected: "a\nb\nc\nd\ne\n")
     }
 
+    @Test
     func testCodegenListFilterIsInstanceToUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -450,6 +475,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListFilterIsInstanceToRuntime", expected: "[99, 1, 3]\n[99, 1, 3]\n")
     }
 
+    @Test
     func testCodegenCollectionContainsAndContainsAllUseRuntimeHelpers() throws {
         let source = """
         fun main() {
@@ -469,6 +495,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "CollectionContainsRuntime", expected: "true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\n")
     }
 
+    @Test
     func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -496,6 +523,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testCodegenMutableListRemoveLastOrNullUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -523,6 +551,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testCodegenMutableListSortWithUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -547,6 +576,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         )
     }
 
+    @Test
     func testCodegenSetFactoriesAndMutableSetMutationsUseRuntimeSetBox() throws {
         let source = """
         fun main() {
@@ -568,6 +598,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "SetRuntime", expected: "[1, 2, 3]\n3\ntrue\nfalse\nfalse\ntrue\ntrue\n[2, 3]\ntrue\n")
     }
 
+    @Test
     func testCodegenSetOfNotNullFiltersNullsAndDeduplicates() throws {
         let source = """
         fun main() {
@@ -584,6 +615,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "SetOfNotNullRuntime", expected: "[a, b]\n2\n[]\ntrue\n")
     }
 
+    @Test
     func testCodegenLinkedSetOfFactoryUsesMutableRuntimeSet() throws {
         let source = """
         fun main() {
@@ -601,6 +633,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "LinkedSetOfFactoryRuntime", expected: "[1, 2]\ntrue\n[1, 2, 3]\n[x]\n")
     }
 
+    @Test
     func testCodegenHashSetOfFactoryUsesMutableRuntimeSet() throws {
         let source = """
         fun main() {
@@ -618,6 +651,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "HashSetOfFactoryRuntime", expected: "[1, 2]\ntrue\n[1, 2, 3]\n[x]\n")
     }
 
+    @Test
     func testCodegenMutableSetAddAllAcceptsSetAndListCollections() throws {
         let source = """
         fun main() {
@@ -634,6 +668,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "MutableSetAddAllRuntime", expected: "true\n[1, 2, 3, 4]\ntrue\n[1, 2, 3, 4, 5]\n[]\n")
     }
 
+    @Test
     func testCodegenIterableFirstNotNullOfReturnsFirstValueAndThrowsWhenMissing() throws {
         let source = """
         fun main() {
@@ -651,6 +686,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "IterableFirstNotNullOfRuntime", expected: "hit\nempty\n")
     }
 
+    @Test
     func testCodegenListPlusSetAppendsSetElements() throws {
         let source = """
         fun main() {
@@ -663,6 +699,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListPlusSetRuntime", expected: "[1, 2, 4, 5]\n")
     }
 
+    @Test
     func testCodegenMutableMapBasicMutationsUseRuntimeMapBox() throws {
         let source = """
         fun main() {
@@ -684,6 +721,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "MutableMapBasicRuntime", expected: "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\n3\n7\n{a=3, c=7}\ntrue\n")
     }
 
+    @Test
     func testCodegenLinkedMapOfFactoryUsesMutableRuntimeMap() throws {
         let source = """
         fun main() {
@@ -702,6 +740,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "LinkedMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
     }
 
+    @Test
     func testCodegenHashMapOfFactoryUsesMutableRuntimeMap() throws {
         let source = """
         fun main() {
@@ -720,6 +759,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "HashMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
     }
 
+    @Test
     func testCodegenBuildMapUseRuntimeBuilder() throws {
         let source = """
         fun main() {
@@ -734,6 +774,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "BuildMapRuntime", expected: "{a=1, b=2}\n")
     }
 
+    @Test
     func testCodegenBuildSetUseRuntimeBuilder() throws {
         let source = """
         fun main() {
@@ -752,6 +793,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "BuildSetRuntime", expected: "[a, b, c]\n3\ntrue\n")
     }
 
+    @Test
     func testCodegenMapWithDefaultUsesRuntimeDefaultForGetValue() throws {
         let source = """
         fun main() {
@@ -766,6 +808,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "MapWithDefaultRuntime", expected: "10\n200\nnull\n")
     }
 
+    @Test
     func testCodegenListMaxOfOrNullReturnsLargestTransformedValueOrNull() throws {
         let source = """
         fun main() {
@@ -778,6 +821,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListMaxOfOrNullRuntime", expected: "9\nnull\n")
     }
 
+    @Test
     func testCodegenListMaxOrNullReturnsLargestElementOrNull() throws {
         let source = """
         fun main() {
@@ -790,6 +834,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListMaxOrNullRuntime", expected: "4\ntrue\n")
     }
 
+    @Test
     func testCodegenListFlattenUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -802,18 +847,16 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlattenRuntime", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             // flatten is now a bundled Kotlin source function (ListHOF.kt);
             // it may appear as a direct "flatten" call or be inlined.
-            XCTAssertTrue(
-                callees.contains("kk_list_flatten") || callees.contains("flatten"),
-                "Expected flatten callee (runtime helper or bundled source), got: \(callees.sorted())"
-            )
+            #expect(callees.contains("kk_list_flatten") || callees.contains("flatten"), "Expected flatten callee (runtime helper or bundled source), got: \(callees.sorted())")
         }
     }
 
+    @Test
     func testCodegenListMaxOfWithOrNullReturnsLargestTransformedValueOrNull() throws {
         let source = """
         fun main() {
@@ -827,6 +870,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListMaxOfWithOrNullRuntime", expected: "9\ntrue\n")
     }
 
+    @Test
     func testCodegenListMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -843,6 +887,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListMinOfRuntime", expected: "20\nempty\n")
     }
 
+    @Test
     func testCodegenListMaxOfWithReturnsLargestTransformedValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
@@ -860,6 +905,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "ListMaxOfWithRuntime", expected: "9\nempty\n")
     }
 
+    @Test
     func testCodegenListFlatMapIndexedUsesRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -872,20 +918,15 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlatMapIndexedRuntime", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
-                callees.contains("flatMapIndexed"),
-                "Expected source flatMapIndexed in callees, got: \(callees.sorted())"
-            )
-            XCTAssertFalse(
-                callees.contains("kk_list_flatMapIndexed"),
-                "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())"
-            )
+            #expect(callees.contains("flatMapIndexed"), "Expected source flatMapIndexed in callees, got: \(callees.sorted())")
+            #expect(!(callees.contains("kk_list_flatMapIndexed")), "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())")
         }
     }
 
+    @Test
     func testCodegenListToHashSetDeduplicatesAndReturnsMutableSet() throws {
         let source = """
         fun main() {
@@ -903,6 +944,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-009: maxOf(Byte, Byte, Byte)
+    @Test
     func testCodegenCompilesMaxOfByteThreeArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -917,6 +959,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-017: maxOf(Int, Int)
+    @Test
     func testCodegenCompilesMaxOfIntTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -930,6 +973,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-041: minOf(Int, Int)
+    @Test
     func testCodegenCompilesMinOfIntTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -943,6 +987,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-043: minOf(a: Int, vararg other: Int)
+    @Test
     func testCodegenCompilesMinOfIntVarargTopLevelCall() throws {
         let source = """
         fun main() {
@@ -958,6 +1003,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
         try assertKotlinOutput(source, moduleName: "MinOfIntVararg", expected: "1\n-9\n")
     }
 
+    @Test
     func testCodegenCompilesMaxOfLongTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -972,6 +1018,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
+    @Test
     func testCodegenCompilesMaxOfLongVarargTopLevelCall() throws {
         let source = """
         fun main() {
@@ -988,6 +1035,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long)
+    @Test
     func testCodegenCompilesMinOfLongVarargTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1002,7 +1050,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "MinOfLongVararg",
                 emit: .executable,
@@ -1012,11 +1060,12 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n50\n")
+            #expect(normalizedStdout == "1\n50\n")
         }
     }
 
     // STDLIB-COMP-FN-032: minOf(Byte, Byte)
+    @Test
     func testCodegenCompilesMinOfByteTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1030,6 +1079,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-034: minOf(a: Byte, vararg other: Byte)
+    @Test
     func testCodegenCompilesMinOfByteVarargTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1045,6 +1095,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-012: maxOf(Double, Double, Double)
+    @Test
     func testCodegenCompilesMaxOfDoubleThreeArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1059,6 +1110,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-024: maxOf(Short, Short, Short)
+    @Test
     func testCodegenCompilesMaxOfShortThreeArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1073,6 +1125,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-036: minOf(Double, Double, Double)
+    @Test
     func testCodegenCompilesMinOfDoubleThreeArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1087,6 +1140,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-039: minOf(Float, Float, Float)
+    @Test
     func testCodegenCompilesMinOfFloatThreeArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1101,6 +1155,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-029: minOf(T, T) where T : Comparable<T>
+    @Test
     func testCodegenCompilesMinOfComparableTwoArgCall() throws {
         let source = """
         fun main() {
@@ -1112,7 +1167,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "MinOfComparableTwoArg",
                 emit: .executable,
@@ -1122,11 +1177,12 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "apple\n")
+            #expect(normalizedStdout == "apple\n")
         }
     }
 
     // STDLIB-COMP-FN-030: minOf(T, T, T) where T : Comparable<T>
+    @Test
     func testCodegenCompilesMinOfComparableThreeArgCall() throws {
         let source = """
         fun main() {
@@ -1141,6 +1197,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-011: maxOf(Double, Double)
+    @Test
     func testCodegenCompilesMaxOfDoubleTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1154,6 +1211,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-035: minOf(Double, Double)
+    @Test
     func testCodegenCompilesMinOfDoubleTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1167,6 +1225,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     }
 
     // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte — end-to-end codegen
+    @Test
     func testCodegenCompilesUnsignedMinOfTopLevelCalls() throws {
         let source = """
         fun main() {
@@ -1177,7 +1236,7 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: path,
                 moduleName: "UnsignedComparisonMinOf",
                 emit: .executable,
@@ -1187,9 +1246,105 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
+            #expect(normalizedStdout == "true\ntrue\n")
+        }
+    }
+    // MARK: - Private Helpers
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try pipelineHelper.runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
         }
     }
 
-    // MARK: - Private Helpers
+    private func assertDeterministicCodegenOutput(source: String, emit: EmitMode) throws {
+        try withTemporaryFile(contents: source) { path in
+            let fm = FileManager.default
+            let workDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
+            defer { try? fm.removeItem(at: workDir) }
+
+            let artifactBase1 = workDir.appendingPathComponent("deterministic_1").path
+            let artifactBase2 = emit == .object
+                ? artifactBase1
+                : workDir.appendingPathComponent("deterministic_2").path
+            var first = try readCodegenArtifact(inputPath: path, emit: emit, outputPath: artifactBase1)
+            var second = try readCodegenArtifact(inputPath: path, emit: emit, outputPath: artifactBase2)
+            if emit == .llvmIR {
+                first = stripPathDependentLines(first)
+                second = stripPathDependentLines(second)
+            }
+            if emit == .object {
+                first = stripPathDependentBytes(first, outputPath: artifactBase1)
+                second = stripPathDependentBytes(second, outputPath: artifactBase2)
+            }
+            #expect(first == second)
+        }
+    }
+
+    private func stripPathDependentBytes(_ data: Data, outputPath: String) -> Data {
+        var result = data
+        let outputBasename = (outputPath as NSString).lastPathComponent
+        let placeholder = "deterministic_X"
+        if outputBasename != placeholder,
+           let pathData = outputBasename.data(using: .utf8),
+           let fixedData = placeholder.data(using: .utf8)
+        {
+            var searchStart = result.startIndex
+            while let range = result.range(of: pathData, in: searchStart ..< result.endIndex) {
+                result.replaceSubrange(range, with: fixedData)
+                searchStart = result.index(range.lowerBound, offsetBy: fixedData.count)
+            }
+        }
+        return result
+    }
+
+    private func stripPathDependentLines(_ data: Data) -> Data {
+        guard let text = String(data: data, encoding: .utf8) else { return data }
+        let filtered = text.components(separatedBy: "\n").filter { line in
+            !line.hasPrefix("source_filename = ") && !line.hasPrefix("; ModuleID = ")
+        }
+        return Data(filtered.joined(separator: "\n").utf8)
+    }
+
+    private func readCodegenArtifact(inputPath: String, emit: EmitMode, outputPath: String) throws -> Data {
+        let ctx = try pipelineHelper.runCodegenPipeline(
+            inputPath: inputPath,
+            moduleName: "Determinism",
+            emit: emit,
+            outputPath: outputPath
+        )
+
+        let artifactPath: String
+        switch emit {
+        case .kirDump:
+            artifactPath = outputPath + ".kir"
+        case .llvmIR:
+            artifactPath = try #require(ctx.generatedLLVMIRPath)
+        case .object:
+            artifactPath = try #require(ctx.generatedObjectPath)
+        default:
+            Issue.record("unsupported emit for determinism test: \(emit)")
+            throw CompilerPipelineError.invalidInput("unsupported emit for determinism test: \(emit)")
+        }
+        return try Data(contentsOf: URL(fileURLWithPath: artifactPath))
+    }
 }
+
+#endif

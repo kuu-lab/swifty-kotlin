@@ -3,10 +3,9 @@
 import Testing
 
 /// STDLIB-TEXT-PROP-015: Validates that `Char.isSurrogate()` resolves through
-/// Sema for plain Char receivers as well as literal / branch contexts. The
-/// runtime link involved is `kk_char_isSurrogate` (see
-/// `Sources/Runtime/RuntimeChar.swift`), which returns true for the entire
-/// surrogate range `[0xD800, 0xDFFF]`.
+/// Sema for plain Char receivers as well as literal / branch contexts.
+/// KSP-663: this is backed by bundled Kotlin source and has no synthetic runtime link.
+/// It returns true for the entire surrogate range `[0xD800, 0xDFFF]`.
 @Suite
 struct CharIsSurrogateFunctionTests {
 
@@ -224,7 +223,7 @@ struct CharIsSurrogateFunctionTests {
 
             }
 
-            // === testCharIsSurrogateResolvesToRuntimeLink ===
+            // === testCharIsSurrogateResolvesToSourceFunction ===
 
             do {
 
@@ -247,7 +246,8 @@ struct CharIsSurrogateFunctionTests {
                     resolvedLink = sema.symbols.externalLinkName(for: symbol)
                     #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isSurrogate() should return Boolean")
 
-                #expect(resolvedLink == "kk_char_isSurrogate")
+                #expect(sema.symbols.symbol(symbol)?.declSite != nil, "Char.isSurrogate() should be backed by Kotlin source")
+                #expect(resolvedLink == nil, "Char.isSurrogate() should have no C external link")
 
             }
 

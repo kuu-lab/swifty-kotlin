@@ -1243,7 +1243,7 @@ struct AnnotationSemanticTests {
         }
         #expect(actionFunctionType.contextReceivers == [sema.types.stringType, sema.types.intType])
         #expect(actionFunctionType.receiver == sema.types.doubleType)
-        #expect(actionFunctionType.params == [sema.types.intType])
+        #expect(actionFunctionType.params == [sema.types.byteType])
         #expect(actionFunctionType.returnType == sema.types.unitType)
 
         let blockPropertyType = try propertyType(named: "block", in: interfaceDecl, ast: ast, sema: sema, interner: ctx.interner)
@@ -1253,7 +1253,7 @@ struct AnnotationSemanticTests {
         }
         #expect(blockFunctionType.contextReceivers == [sema.types.stringType])
         #expect(blockFunctionType.receiver == nil)
-        #expect(blockFunctionType.params == [sema.types.intType])
+        #expect(blockFunctionType.params == [sema.types.byteType])
         #expect(blockFunctionType.returnType == sema.types.unitType)
     }
 

@@ -42,9 +42,9 @@ extension BuildKIRRegressionTests {
             }
 
             #expect(!sourceFunctions.isEmpty, "Expected to find functions from \(path)")
-            #expect(callees.contains("kk_sequence_builder_build"), "Expected sequence builder runtime construction, got: \(callees)")
-            #expect(callees.contains("kk_iterator_builder_build"), "Expected iterator builder runtime construction, got: \(callees)")
-            #expect(callees.contains("kk_sequence_builder_yield"), "Expected source builder lambda to yield through runtime, got: \(callees)")
+            #expect(callees.contains("__kk_sequence_builder_build"), "Expected sequence builder runtime construction, got: \(callees)")
+            #expect(callees.contains("__kk_iterator_builder_build"), "Expected iterator builder runtime construction, got: \(callees)")
+            #expect(callees.contains("__kk_sequence_builder_yield"), "Expected source builder lambda to yield through runtime, got: \(callees)")
             #expect(!callees.contains("kk_duration_times_int"), "Builder loop Int arithmetic must not use Duration.times(Int), got: \(callees)")
         }
     }

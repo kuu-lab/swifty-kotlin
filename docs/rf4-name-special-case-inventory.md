@@ -14,7 +14,7 @@ run the baseline command above to get the current value for the HEAD you are on.
 
 | 機能 | 対応スタブ / 移行先 | スタブ/ソース移行後に削除可能か |
 |---|---|---|
-| `repeat(times) {}` top-level loop special path (`CallTypeChecker.swift`) | `HeaderHelpers+SyntheticStdlibLoopStubs`; now carries `.repeatLoop` via `SymbolTable.setStdlibSpecialCallKind` | Yes for name guard: migrated in RF-SEMA-002 slice 1. Remaining TypeCheck block is for lambda expected type and KIR special lowering until ordinary resolution can bind both. |
+| `repeat(times) {}` top-level loop special path | バンドル Kotlin ソース `Stdlib/kotlin/Standard.kt`（KSP-604） | 削除済み: 合成スタブ・`.repeatLoop` kind・TypeCheck 特例はすべて撤去し、通常のオーバーロード解決で bind される。`CallLowerer+StdlibLoops.swift` のインライン展開のみ残存（BUG-207 の非ローカル return が直るまで）で、その判定は名前ではなく解決済み callee が `kotlin.repeat` シンボルかどうかで行う。 |
 | `measureTimeMillis {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureTimeMillis` via symbol metadata | Yes for name guard: migrated in RF-SEMA-002 slice 1. Remaining block exists because KIR lowering consumes `stdlibSpecialCallKind` and discards lambda result. |
 | `measureTimeMicros {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureTimeMicros` via symbol metadata | Yes for name guard: migrated in RF-SEMA-002 slice 1. Same remaining lowering constraint as `measureTimeMillis`. |
 | `measureNanoTime {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureNanoTime` via symbol metadata | Yes for name guard: migrated with the system timing common path. Same remaining lowering constraint as millis/micros. |

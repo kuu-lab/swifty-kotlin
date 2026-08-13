@@ -799,13 +799,7 @@ final class DataFlowAnalyzer {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID? {
-        if let builtin = BuiltinTypeNames(interner: interner).resolveBuiltinType(name, types: types) {
-            return builtin
-        }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.intType
-        }
-        return nil
+        return BuiltinTypeNames(interner: interner).resolveBuiltinType(name, types: types)
     }
 
     private func enumEntryNames(for enumSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {

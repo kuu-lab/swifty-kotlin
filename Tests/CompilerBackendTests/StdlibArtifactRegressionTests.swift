@@ -1,14 +1,15 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-ARTIFACT-001: shared stdlib artifact (.kklib) is correctly consumed
 /// by a user module. This is a regression test for the `uuid_basic` shared-path
 /// failure where imported globals such as `Uuid.Companion.NIL` were not declared
 /// in the consumer module, causing `kk_array_get_inbounds` to receive a null
 /// array pointer.
-final class StdlibArtifactRegressionTests: XCTestCase {
+@Suite
+struct StdlibArtifactRegressionTests {
 
     private static let sharedArtifactLock = NSLock()
     nonisolated(unsafe) private static var sharedArtifactPath: String?
@@ -37,31 +38,17 @@ final class StdlibArtifactRegressionTests: XCTestCase {
         try CodegenPhase().run(ctx)
 
         let artifactPath = artifactBase + ".kklib"
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: artifactPath),
-            "stdlib artifact directory should be emitted"
-        )
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: artifactPath + "/manifest.json"),
-            "stdlib artifact should contain manifest.json"
-        )
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: artifactPath + "/metadata.bin"),
-            "stdlib artifact should contain metadata.bin"
-        )
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: artifactPath + "/objects"),
-            "stdlib artifact should contain objects directory"
-        )
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: artifactPath + "/inline-kir"),
-            "stdlib artifact should contain inline-kir directory"
-        )
+        #expect(FileManager.default.fileExists(atPath: artifactPath), "stdlib artifact directory should be emitted")
+        #expect(FileManager.default.fileExists(atPath: artifactPath + "/manifest.json"), "stdlib artifact should contain manifest.json")
+        #expect(FileManager.default.fileExists(atPath: artifactPath + "/metadata.bin"), "stdlib artifact should contain metadata.bin")
+        #expect(FileManager.default.fileExists(atPath: artifactPath + "/objects"), "stdlib artifact should contain objects directory")
+        #expect(FileManager.default.fileExists(atPath: artifactPath + "/inline-kir"), "stdlib artifact should contain inline-kir directory")
 
         sharedArtifactPath = artifactPath
         return artifactPath
     }
 
+    @Test
     func testUuidBasicSharedPathPrintsOk() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -102,7 +89,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "parse roundtrip: true\nnil string: true\n")
+            #expect(normalizedStdout == "parse roundtrip: true\nnil string: true\n")
         }
     }
 
@@ -110,6 +97,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// (`kk_*_exception_new_message`) and must not receive an implicit `this`
     /// allocated by `kk_object_new`; otherwise the message handle is misread and
     /// `Throwable.message` is empty in the consumer.
+    @Test
     func testExceptionMessageThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -143,7 +131,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "caught: shared boom\n")
+            #expect(normalizedStdout == "caught: shared boom\n")
         }
     }
 
@@ -151,6 +139,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// work through the shared stdlib artifact even though their `Comparable<T>`
     /// upper bound is not preserved in metadata; the CallLowerer recognizes the
     /// uniform type-parameter signature and lowers the comparison inline.
+    @Test
     func testMaxOfComparableThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -182,7 +171,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "banana\ncherry\ndate\n")
+            #expect(normalizedStdout == "banana\ncherry\ndate\n")
         }
     }
 
@@ -191,6 +180,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// consumer. The CallLowerer emits their `symbolRef`, but the backend must
     /// not declare an external global for an object that has no initializer,
     /// no external factory, and no fields.
+    @Test
     func testSyntheticSingletonObjectSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -228,7 +218,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\n")
+            #expect(normalizedStdout == "true\ntrue\ntrue\n")
         }
     }
 
@@ -237,6 +227,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// artifact contains the `__enum_static_init_*` function; the consumer's
     /// top-level initializer must call it before `main` so that enum entry
     /// objects such as `Base64.PaddingOption.ABSENT` behave correctly.
+    @Test
     func testEnumEntryStaticInitializerSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -271,7 +262,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "Zm9vYg\n")
+            #expect(normalizedStdout == "Zm9vYg\n")
         }
     }
 
@@ -280,6 +271,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// scope so member-style calls resolve to the concrete extension instead of
     /// falling back to a broad short-name lookup that also sees `Comparable<T>.compareTo`
     /// and reports an ambiguous overload.
+    @Test
     func testDurationCompareToSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -311,7 +303,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n")
+            #expect(normalizedStdout == "1\n")
         }
     }
 
@@ -319,6 +311,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// anchor from a prebuilt stdlib artifact must retain its `kotlin.io.Closeable`
     /// supertype so that user implementations are recognised as `Closeable` and
     /// `.use {}` resolves and runs correctly.
+    @Test
     func testCloseableUseSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -360,7 +353,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "using r1\nr1 closed\nresult=42\n")
+            #expect(normalizedStdout == "using r1\nr1 closed\nresult=42\n")
         }
     }
 
@@ -369,6 +362,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// (e.g. `StringBuilder.get`) in the default-import scope. Inside
     /// `buildString { append(get(1)) }`, `get(1)` must resolve to the real
     /// `StringBuilder.get` member and print the correct character.
+    @Test
     func testBuildStringReceiverGetSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -398,7 +392,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "abcb\n")
+            #expect(normalizedStdout == "abcb\n")
         }
     }
 
@@ -406,6 +400,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// stdlib factory (not a runtime `RuntimeSequenceBox`) so that `withIndex()`
     /// and other source-implemented `Sequence` extensions can call `source.iterator()`
     /// through normal virtual dispatch.
+    @Test
     func testEmptySequenceWithIndexSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -442,10 +437,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                "[IndexedValue(index=0, value=10), IndexedValue(index=1, value=20), IndexedValue(index=2, value=30)]\n[IndexedValue(index=0, value=10)]\n[]\n"
-            )
+            #expect(normalizedStdout == "[IndexedValue(index=0, value=10), IndexedValue(index=1, value=20), IndexedValue(index=2, value=30)]\n[IndexedValue(index=0, value=10)]\n[]\n")
         }
     }
 
@@ -455,6 +447,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// `kk_op_contains` dispatch. This regresses when pure synthetic operator
     /// extensions are excluded from the default-import scope and the string
     /// fallback returns a type without a `CallBinding`.
+    @Test
     func testStringContainsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -485,7 +478,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
+            #expect(normalizedStdout == "true\nfalse\n")
         }
     }
 
@@ -493,6 +486,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// `kk_array_asSequence` bridge through the shared stdlib artifact so that
     /// downstream `Sequence.filterIsInstance`/`toList` operate on the array
     /// elements instead of silently producing an empty list.
+    @Test
     func testArrayAsSequenceFilterIsInstanceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -524,7 +518,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 3]\n[two]\n")
+            #expect(normalizedStdout == "[1, 3]\n[two]\n")
         }
     }
 
@@ -533,6 +527,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// accumulator; if `LibraryInlineImport` drops `double:` tokens the accumulator
     /// is left uninitialized, so the second `sumByDouble` call reuses the first
     /// call's result.
+    @Test
     func testSumByDoubleLiteralInImportedInlineKIR() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -563,7 +558,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "147.0\n0.0\n")
+            #expect(normalizedStdout == "147.0\n0.0\n")
         }
     }
 
@@ -571,6 +566,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// `Result.isSuccess`/`isFailure`) must round-trip through the shared stdlib
     /// artifact with `propertyGetterExternalLinkName`. Otherwise the consumer
     /// falls back to a field-offset read and crashes or misreads the value.
+    @Test
     func testResultMemberPropertyGetterSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -603,7 +599,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "s.isSuccess=true s.isFailure=false\nf.isSuccess=false f.isFailure=true\n")
+            #expect(normalizedStdout == "s.isSuccess=true s.isFailure=false\nf.isSuccess=false f.isFailure=true\n")
         }
     }
 
@@ -612,6 +608,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// the shared stdlib path emits `intLiteral` values instead of unresolved
     /// `symbolRef` constants. Otherwise `Regex(..., RegexOption.XXX)` is passed
     /// an object pointer or ignored by the runtime.
+    @Test
     func testRegexOptionConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -649,7 +646,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\n")
+            #expect(normalizedStdout == "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\n")
         }
     }
 
@@ -657,6 +654,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// `CharDirectionality` must round-trip as compile-time ordinals so the
     /// shared stdlib `Char.directionality` extension can compare directionality
     /// values by ordinal.
+    @Test
     func testCharDirectionalityConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -691,7 +689,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\n")
+            #expect(normalizedStdout == "true\ntrue\ntrue\ntrue\n")
         }
     }
 
@@ -702,6 +700,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// interface dispatch resolves even when the type checker picks the
     /// `Sequence` overload for an `Iterable`/`List` result. `String.lineSequence()`
     /// also relies on `RuntimeSequenceBox`/`RuntimeSequenceIteratorBox` itables.
+    @Test
     func testSequenceFlatMapAndLineSequenceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -733,7 +732,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[line1, line2]\n")
+            #expect(normalizedStdout == "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[line1, line2]\n")
         }
     }
 
@@ -742,6 +741,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// layout must round-trip with enough type information to disambiguate
     /// overloads that have the same arity, so that `nextBytes(size)` dispatches to
     /// the correct `nextBytes(array)` implementation instead of an unmapped slot.
+    @Test
     func testRandomNextBytesSizeSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -774,7 +774,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "8\n8\n")
+            #expect(normalizedStdout == "8\n8\n")
         }
     }
 
@@ -782,6 +782,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// The shared stdlib artifact's function metadata must round-trip the set of
     /// reified type parameter indices, so the consumer's call lowerer appends the
     /// runtime type-token argument required by the imported inline KIR body.
+    @Test
     func testFilterIsInstanceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -815,7 +816,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[hello, world]\n[1, 2, 3]\n")
+            #expect(normalizedStdout == "[hello, world]\n[1, 2, 3]\n")
         }
     }
 
@@ -825,6 +826,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// `String` aggregate values to/from the erased raw-pointer ABI used by the
     /// itable function pointer. A user-defined method named `produce` must not
     /// be mistaken for the coroutine builder `produce` during lowering.
+    @Test
     func testVarianceGenericsStringItableBridgeSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -900,7 +902,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "variance test\nconsumed: hello from feeder\nstored: new value\ninvariant value\n")
+            #expect(normalizedStdout == "variance test\nconsumed: hello from feeder\nstored: new value\ninvariant value\n")
         }
     }
 
@@ -912,6 +914,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// analogue of `Scripts/diff_cases/char_sequence_member_access.kt`: the flake it
     /// guards only surfaced through `--no-stdlib --stdlib-library` linking, where an
     /// undefined reference to `kk_string_subSequence_flat` failed the link.
+    @Test
     func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -954,7 +957,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "5\n6\no\nr\nor\n3\nb\nc\n")
+            #expect(normalizedStdout == "5\n6\no\nr\nor\n3\nb\nc\n")
         }
     }
 
@@ -968,6 +971,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// cases, whose failure mode was an undefined reference to
     /// `kk_string_trimIndent_flat` (and friends) at link time under
     /// `--no-stdlib --stdlib-library`.
+    @Test
     func testStringIndentFormattingThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1013,9 +1017,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                """
+            #expect(normalizedStdout == """
                 line1/line2
                 alpha/beta
                 alpha/beta
@@ -1026,8 +1028,68 @@ final class StdlibArtifactRegressionTests: XCTestCase {
                 alpha/beta
                 > alpha/> beta
 
-                """
+                """)
+        }
+    }
+
+    /// KSP-625: `ArrayDeque<E>` is bundled Kotlin source, so the shared artifact
+    /// path exercises two imported-library gaps it surfaced: a constructor call
+    /// with explicit type arguments (`ArrayDeque<Int>()`) was rejected because
+    /// imported constructor signatures reported zero class type parameters, and
+    /// `println(deque)` printed `<object 0x...>` because the imported
+    /// `toString()` override was skipped for being flagged synthetic.
+    @Test
+    func testArrayDequeThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val deque = ArrayDeque<Int>()
+            deque.addLast(2)
+            deque.addFirst(1)
+            deque.addLast(3)
+            println(deque.size)
+            println(deque.first())
+            println(deque.last())
+            println(deque[1])
+            println(deque)
+            println(deque.removeFirst())
+            println(deque.removeLast())
+            println(deque.isEmpty())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
             )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == """
+                3
+                1
+                3
+                2
+                [1, 2, 3]
+                1
+                3
+                false
+
+                """)
         }
     }
 
@@ -1040,6 +1102,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// argument shape, whose failure modes were an undefined reference to
     /// `replayCache`, a silently skipped `collect`, and a segfault in the HOF
     /// adapter.
+    @Test
     func testSharedFlowThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1086,9 +1149,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                """
+            #expect(normalizedStdout == """
                 true
                 [2, 3]
                 class=2
@@ -1098,8 +1159,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
                 iface=3
                 [5, 6]
 
-                """
-            )
+                """)
         }
     }
 
@@ -1116,6 +1176,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// time. This only became reachable once `Pair`/`Triple` moved from
     /// synthetic runtime stubs (whose accessors were external `kk_pair_*`
     /// bridges, named identically in both modules) to bundled Kotlin source.
+    @Test
     func testInlineStdlibFunctionReadingBundledClassPropertySharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1147,7 +1208,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n{c=3}\n")
+            #expect(normalizedStdout == "{a=1, b=2}\n{c=3}\n")
         }
     }
 
@@ -1159,6 +1220,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// non-empty sequence. `fold`/`scan` were unaffected because their bodies
     /// materialize the receiver via `toList()` first. Rewrote `reduce` to do
     /// the same.
+    @Test
     func testSequenceReduceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1190,7 +1252,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "15\n6\n")
+            #expect(normalizedStdout == "15\n6\n")
         }
     }
 
@@ -1201,6 +1263,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// the spliced instructions must be re-scanned for inline expansion;
     /// otherwise the consumer keeps an undefined reference to `kk_fn_joinToString_*`
     /// at link time (the `compiler_plugin_api` diff case failure mode).
+    @Test
     func testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1234,7 +1297,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "a=b,k=v\n")
+            #expect(normalizedStdout == "a=b,k=v\n")
         }
     }
 
@@ -1245,6 +1308,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
     /// symbol, which used to make `println(version)` fall back to
     /// `kk_any_to_string` and print `<object 0x...>` instead of dispatching the
     /// imported `toString()` override.
+    @Test
     func testKotlinVersionThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1286,9 +1350,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                """
+            #expect(normalizedStdout == """
                 2.1.0
                 2.1.20
                 2/1/20
@@ -1301,8 +1363,7 @@ final class StdlibArtifactRegressionTests: XCTestCase {
                 true
                 2.3.10
 
-                """
-            )
+                """)
         }
     }
 }

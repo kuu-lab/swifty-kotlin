@@ -173,8 +173,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // lowercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
-        // uppercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+        // lowercase() — migrated to BundledStdlib (MIGRATION-TEXT-005)
+        // uppercase() — migrated to BundledStdlib (MIGRATION-TEXT-005)
 
         // --- STDLIB-TEXT-FN-010: CharSequence.codePointCount ---
         //
@@ -219,7 +219,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // capitalize() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+        // capitalize() — migrated to BundledStdlib (MIGRATION-TEXT-005)
 
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
@@ -1066,7 +1066,7 @@ extension DataFlowSemaPhase {
         // KSP-410: onEach/onEachIndexed/find/findLast are bundled Kotlin source
         // (StringHOF.kt).
 
-        // --- STDLIB-315: String.replaceFirstChar — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005) ---
+        // --- STDLIB-315: String.replaceFirstChar — migrated to BundledStdlib (MIGRATION-TEXT-005) ---
 
         // --- STDLIB-142 / STDLIB-TEXT-FN-087 ---
         // Receiver is nullable so both `null.toBoolean()` and `str.toBoolean()`
@@ -1104,12 +1104,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        let byteType = types.byteType
+        let shortType = types.shortType
+        let nullableByteType = types.makeNullable(byteType)
+        let nullableShortType = types.makeNullable(shortType)
+
         registerSyntheticStringExtensionFunction(
             named: "toShort",
             externalLinkName: "kk_string_toShort",
             receiverType: stringType,
             parameters: [],
-            returnType: intType,
+            returnType: shortType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1120,7 +1125,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_toShortOrNull",
             receiverType: stringType,
             parameters: [],
-            returnType: nullableIntType,
+            returnType: nullableShortType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1131,7 +1136,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_toByte",
             receiverType: stringType,
             parameters: [],
-            returnType: intType,
+            returnType: byteType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1145,7 +1150,7 @@ extension DataFlowSemaPhase {
             parameters: [
                 ("radix", intType, false, false),
             ],
-            returnType: intType,
+            returnType: byteType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1156,7 +1161,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_toByteOrNull",
             receiverType: stringType,
             parameters: [],
-            returnType: nullableIntType,
+            returnType: nullableByteType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

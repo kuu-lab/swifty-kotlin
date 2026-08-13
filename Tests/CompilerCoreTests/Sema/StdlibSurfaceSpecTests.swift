@@ -74,11 +74,6 @@ struct StdlibSurfaceSpecTests {
             sequence("flatMap", 1),
             sequence("flatMapIndexed", 1),
             sequence("forEach", 1),
-            sequence("groupBy", 1),
-            sequence("associate", 1),
-            sequence("associateBy", 1),
-            sequence("associateWith", 1),
-            sequence("partition", 1),
             sequence("plus", 1),
             sequence("randomOrNull", 0),
             sequence("plusElement", 1),
@@ -91,20 +86,11 @@ struct StdlibSurfaceSpecTests {
             sequence("elementAtOrNull", 1),
             sequence("elementAt", 1),
             sequence("elementAtOrElse", 2),
-            sequence("sumOf", 1),
-            sequence("sumBy", 1),
-            sequence("sumByDouble", 1),
-            sequence("minOf", 1),
-            sequence("maxWith", 1),
-            sequence("minWithOrNull", 1),
-            sequence("minOfOrNull", 1),
             sequence("none", 0),
             sequence("none", 1),
             sequence("first", 0),
             sequence("firstOrNull", 0),
-            sequence("maxWithOrNull", 1),
             sequence("minOrNull", 0),
-            sequence("minWith", 1),
             sequence("firstNotNullOf", 1),
             sequence("firstNotNullOfOrNull", 1),
             sequence("indexOfLast", 1),
@@ -113,8 +99,6 @@ struct StdlibSurfaceSpecTests {
             sequence("fold", 2),
             sequence("foldIndexed", 2),
             sequence("indexOfFirst", 1),
-            sequence("minByOrNull", 1),
-            sequence("minBy", 1),
             sequence("min", 0),
             sequence("forEachIndexed", 1),
             sequence("onEach", 1),
@@ -143,10 +127,6 @@ struct StdlibSurfaceSpecTests {
             sequence("requireNoNulls", 0),
             sequence("minus", 1),
             sequence("reduceRightIndexedOrNull", 1),
-            sequence("associateTo", 2),
-            sequence("associateByTo", 2),
-            sequence("associateWithTo", 2),
-            sequence("groupByTo", 2),
             sequence("reduceOrNull", 1),
             sequence("reduceRight", 1),
             sequence("reduceIndexed", 1),
@@ -160,7 +140,70 @@ struct StdlibSurfaceSpecTests {
         )
     }
 
-    @Test func testCollectionHOFSpecRuntimeLinksAndFallbackTypes() throws {
+    @Test func testCollectionHOFSpecRuntimeLinksMatchRegisteredSyntheticMembers() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+
+            let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
+                // Source-backed members (ListHOF.kt / Sequence*.kt) have no
+                // synthetic runtime-bridge stub; remaining entries are still
+                // synthetically registered with their runtime links.
+                (.list, ["kotlin", "collections", "List"], "associateTo", 2),
+                (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
+                // KSP-435 migrated Iterable.firstNotNullOf to bundled Kotlin
+                // source, so it no longer registers a synthetic bridge member.
+                (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "scanIndexed", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexed", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightOrNull", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFoldIndexed", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFold", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceIndexed", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceOrNull", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexedOrNull", 1),
+            ]
+
+            for testCase in cases {
+                let spec = try #require(
+                    StdlibSurfaceSpec.collectionHOFMember(
+                        ownerKind: testCase.ownerKind,
+                        memberName: testCase.memberName,
+                        arity: testCase.arity
+                    ),
+                    "Expected spec for \(testCase.ownerKind.rawValue).\(testCase.memberName)/\(testCase.arity)"
+                )
+                let fqName = (testCase.ownerFQName + [testCase.memberName]).map { ctx.interner.intern($0) }
+                let links = Set(
+                    sema.symbols.lookupAll(fqName: fqName)
+                        .compactMap { sema.symbols.externalLinkName(for: $0) }
+                )
+                #expect(
+                    links.contains(spec.runtimeLinkName),
+                    "Expected \(testCase.memberName) to register \(spec.runtimeLinkName), got \(links)"
+                )
+            }
+        }
+    }
+
+    @Test func testSpecDrivenCollectionFallbackMembersKeepLambdaAndReturnTypes() throws {
         let source = """
         fun mapIndexedToSpec(values: List<Int>, destination: MutableList<Int>): MutableList<Int> {
             return values.mapIndexedTo(destination) { index, value -> index + value }
@@ -198,61 +241,6 @@ struct StdlibSurfaceSpecTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-
-            let linkCases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
-                // Source-backed members (ListHOF.kt / Sequence*.kt) have no
-                // synthetic runtime-bridge stub; remaining entries are still
-                // synthetically registered with their runtime links.
-                (.list, ["kotlin", "collections", "List"], "associateTo", 2),
-                (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
-                (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "minBy", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "partition", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "scanIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightOrNull", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFoldIndexed", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "runningFold", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceIndexed", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceOrNull", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexedOrNull", 1),
-            ]
-
-            for testCase in linkCases {
-                let spec = try #require(
-                    StdlibSurfaceSpec.collectionHOFMember(
-                        ownerKind: testCase.ownerKind,
-                        memberName: testCase.memberName,
-                        arity: testCase.arity
-                    ),
-                    "Expected spec for \(testCase.ownerKind.rawValue).\(testCase.memberName)/\(testCase.arity)"
-                )
-                let fqName = (testCase.ownerFQName + [testCase.memberName]).map { ctx.interner.intern($0) }
-                let links = Set(
-                    sema.symbols.lookupAll(fqName: fqName)
-                        .compactMap { sema.symbols.externalLinkName(for: $0) }
-                )
-                #expect(
-                    links.contains(spec.runtimeLinkName),
-                    "Expected \(testCase.memberName) to register \(spec.runtimeLinkName), got \(links)"
-                )
-            }
-
             let expectedTypes: [(memberName: String, className: String)] = [
                 ("mapIndexedTo", "MutableList"),
                 ("mapValuesTo", "MutableMap"),

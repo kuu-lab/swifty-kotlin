@@ -6,7 +6,7 @@ package kotlin.sequences
 //   Sources/Runtime/RuntimeSequence.swift
 //     (kk_empty_sequence, kk_sequence_of, kk_sequence_generate, kk_sequence_generate_noarg)
 //   Sources/Runtime/RuntimeSequenceBuilders.swift
-//     (kk_sequence_builder_yield, kk_sequence_builder_yieldAll, kk_sequence_builder_build)
+//     (__kk_sequence_builder_yield, __kk_sequence_builder_yieldAll, __kk_sequence_builder_build)
 //
 // NOTE: Not yet wired into the compiler pipeline (RF-STDLIB-004+).
 // CollectionLiteralLoweringPass intercepts all factory call sites and rewrites them to kk_* ABI
@@ -21,7 +21,7 @@ package kotlin.sequences
 //   - sequenceOf(vararg elements: T)      — ABI bridge to kk_sequence_of (passes vararg array)
 //   - generateSequence(seed, nextFn)      — ABI bridge to kk_sequence_generate
 //   - generateSequence(nextFn)            — ABI bridge to kk_sequence_generate_noarg
-//   - SequenceScope / sequence { }        — pure Kotlin (kk_sequence_builder_build takes a
+//   - SequenceScope / sequence { }        — pure Kotlin (__kk_sequence_builder_build takes a
 //                                           compiled function pointer, not a Kotlin-level lambda)
 
 // ─── ABI bridges ─────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ public fun <T : Any> generateSequence(nextFunction: () -> T?): Sequence<T> =
 // ─── SequenceScope ───────────────────────────────────────────────────────────
 //
 // Receiver type for the sequence { } builder DSL. yield() and yieldAll() are
-// lowered to kk_sequence_builder_yield / kk_sequence_builder_yieldAll by
+// lowered to __kk_sequence_builder_yield / __kk_sequence_builder_yieldAll by
 // CollectionLiteralLoweringPass while this file is not yet wired in.
 // Once wired (RF-STDLIB-004+) the abstract methods below run directly.
 
@@ -81,7 +81,7 @@ public abstract class SequenceScope<in T> {
 // ─── sequence { } builder ────────────────────────────────────────────────────
 //
 // Like buildList / buildSet / buildMap (MIGRATION-COL-011), the runtime entry
-// point kk_sequence_builder_build receives a compiled function pointer and
+// point __kk_sequence_builder_build receives a compiled function pointer and
 // cannot be called via a private external declaration. The pure Kotlin body
 // below is the correct migration target: it runs the block synchronously
 // against a collecting SequenceScope, then wraps the accumulated elements in

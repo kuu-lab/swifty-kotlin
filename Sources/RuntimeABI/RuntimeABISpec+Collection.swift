@@ -1635,7 +1635,7 @@ public extension RuntimeABISpec {
         ),
         // Builder DSL (STDLIB-002)
         RuntimeABIFunctionSpec(
-            name: "kk_build_list",
+            name: "__kk_build_list",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -1644,7 +1644,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_build_list_with_capacity",
+            name: "__kk_build_list_with_capacity",
             parameters: [
                 RuntimeABIParameter(name: "capacity", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -1670,23 +1670,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_builder_list_add",
-            parameters: [
-                RuntimeABIParameter(name: "elem", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_builder_list_addAll",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_builder_set_add",

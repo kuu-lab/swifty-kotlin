@@ -819,51 +819,6 @@ final class CallTypeChecker {
             return sequenceType
         }
 
-        // --- Stdlib repeat(times) { ... } (STDLIB-008) ---
-        // Infer the lambda argument with the expected `(Int) -> Unit` type so
-        // implicit `it` resolves to the loop index.
-        if let calleeName,
-           args.count == 2,
-           shouldUseRepeatSpecialHandling(calleeName: calleeName, locals: locals),
-           topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
-               locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: false
-           ) == .repeatLoop
-        {
-            let intType = sema.types.intType
-            let unitType = sema.types.unitType
-            let countType = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: intType
-            )
-            driver.emitSubtypeConstraint(
-                left: countType,
-                right: intType,
-                range: ast.arena.exprRange(args[0].expr) ?? range,
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
-            let actionExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [intType],
-                returnType: unitType
-            )))
-            _ = driver.inferExpr(
-                args[1].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: actionExpectedType
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .repeatLoop)
-            sema.bindings.bindExprType(id, type: unitType)
-            return unitType
-        }
-
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
@@ -971,8 +926,8 @@ final class CallTypeChecker {
                 elementReturnType = switch calleeNameStr {
                 case "IntArray": sema.types.intType
                 case "LongArray": sema.types.longType
-                case "ShortArray": sema.types.intType
-                case "ByteArray": sema.types.intType
+                case "ShortArray": sema.types.shortType
+                case "ByteArray": sema.types.byteType
                 case "UShortArray": sema.types.ushortType
                 case "UByteArray": sema.types.ubyteType
                 case "UIntArray": sema.types.uintType
@@ -2227,7 +2182,7 @@ final class CallTypeChecker {
                 if explicitTypeArgs.count == 2 {
                     keyType = explicitTypeArgs[0]
                     valueType = explicitTypeArgs[1]
-                } else if let inferred = inferSyntheticMapKeyValueTypes(from: args, ctx: ctx, locals: &locals) {
+                } else if let inferred = inferSyntheticMapKeyValueTypes(from: argTypes, ctx: ctx) {
                     keyType = inferred.keyType
                     valueType = inferred.valueType
                 } else {
@@ -2602,12 +2557,6 @@ final class CallTypeChecker {
                let expectedType, expectedType != sema.types.errorType
             {
                 adjustedReturnType = expectedType
-            }
-            if args.count == 2,
-               let externalLinkName = sema.symbols.externalLinkName(for: chosen),
-               ["kk_require_lazy", "kk_check_lazy", "kk_precondition_assert_lazy"].contains(externalLinkName)
-            {
-                sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
             applyContractEffects(
                 chosen: chosen,

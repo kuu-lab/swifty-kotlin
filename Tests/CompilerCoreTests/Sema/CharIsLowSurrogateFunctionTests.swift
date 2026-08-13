@@ -3,9 +3,8 @@
 import Testing
 
 /// STDLIB-TEXT-PROP-014: Validates that `Char.isLowSurrogate()` resolves through
-/// Sema for plain Char receivers as well as literal / branch contexts. The
-/// runtime link involved is `kk_char_isLowSurrogate` (see
-/// `Sources/Runtime/RuntimeChar.swift`).
+/// Sema for plain Char receivers as well as literal / branch contexts.
+/// KSP-663: this is backed by bundled Kotlin source and has no synthetic runtime link.
 @Suite
 struct CharIsLowSurrogateFunctionTests {
 
@@ -223,7 +222,7 @@ struct CharIsLowSurrogateFunctionTests {
 
             }
 
-            // === testCharIsLowSurrogateResolvesToRuntimeLink ===
+            // === testCharIsLowSurrogateResolvesToSourceFunction ===
 
             do {
 
@@ -246,7 +245,8 @@ struct CharIsLowSurrogateFunctionTests {
                     resolvedLink = sema.symbols.externalLinkName(for: symbol)
                     #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isLowSurrogate() should return Boolean")
 
-                #expect(resolvedLink == "kk_char_isLowSurrogate")
+                #expect(sema.symbols.symbol(symbol)?.declSite != nil, "Char.isLowSurrogate() should be backed by Kotlin source")
+                #expect(resolvedLink == nil, "Char.isLowSurrogate() should have no C external link")
 
             }
 

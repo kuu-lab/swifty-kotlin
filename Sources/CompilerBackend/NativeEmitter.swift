@@ -10,12 +10,6 @@ struct NativeEmitter {
     /// DW_ATE_signed – DWARF attribute encoding for signed integers.
     static let dwarfATESigned: UInt32 = 5
 
-    /// Known void, zero-argument runtime callees (hoisted to avoid repeated allocation).
-    static let knownVoidNoArgCallees: Set<String> = [
-        "kk_print_noarg",
-        "kk_println_newline",
-    ]
-
     /// Quick lookup for runtime ABI function specs by symbol name.
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
@@ -246,17 +240,20 @@ struct NativeEmitter {
         }
 
         let triple = targetTripleString()
-        CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+        // LLVM's target registry and module printing both touch process-global
+        // state on Linux, so keep the entire target-and-print sequence under the
+        // same process lock used for object emission.
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
             bindings.setTarget(built.module, triple: triple)
-        }
 
-        guard let llvmIR = bindings.printModule(built.module) else {
-            throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
-        }
-        do {
-            try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-        } catch {
-            throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            guard let llvmIR = bindings.printModule(built.module) else {
+                throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
+            }
+            do {
+                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+            } catch {
+                throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            }
         }
     }
 

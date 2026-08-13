@@ -98,6 +98,37 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testBuildKIRLambdaCapturesImplicitReceiverForUnqualifiedMemberCall() throws {
+        let source = """
+        class Counter(var value: Int) {
+            fun step(): Int {
+                value += 1
+                return value
+            }
+            fun run(): Int {
+                val bump: (Int) -> Unit = { step() }
+                bump(0)
+                return value
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let lambdaFunction = try #require(findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
+                    && extractCallees(from: function.body, interner: ctx.interner).contains("step")
+            })
+            #expect(
+                lambdaFunction.params.count == 2,
+                "Unqualified member call inside a lambda is `this.step()`, so the receiver must be captured."
+            )
+        }
+    }
+
     @Test func testBuildKIRCollectionSourceHOFLambdaHasElementParameter() throws {
         let source = """
         fun main(): Int {

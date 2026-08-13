@@ -94,8 +94,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeProduceCallee = ctx.interner.intern("kk_produce")
         let runtimeDelayCallee = ctx.interner.intern("kk_kxmini_delay")
         let runtimeYieldCallee = ctx.interner.intern("kk_coroutine_yield")
-        let runtimeSequenceBuilderYieldCallee = ctx.interner.intern("kk_sequence_builder_yield")
-        let runtimeIteratorBuilderYieldCallee = ctx.interner.intern("kk_iterator_builder_yield")
+        let runtimeSequenceBuilderYieldCallee = ctx.interner.intern("__kk_sequence_builder_yield")
+        let runtimeIteratorBuilderYieldCallee = ctx.interner.intern("__kk_iterator_builder_yield")
         let runtimeWithTimeoutCallee = ctx.interner.intern("kk_with_timeout")
         let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null")
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
@@ -329,13 +329,13 @@ final class CoroutineLoweringPass: LoweringPass {
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,
             kxMiniLauncherWithContCallees: kxMiniLauncherWithContCallees,
             coroutineScopeLaunchCallee: coroutineScopeLaunchCallee,
-            sequenceBuilderBuildCallee: ctx.interner.intern("kk_sequence_builder_build"),
-            sequenceBuilderBuildCoroCallee: ctx.interner.intern("kk_sequence_builder_build_coro"),
-            sequenceBuilderYieldAllCallee: ctx.interner.intern("kk_sequence_builder_yieldAll"),
-            sequenceBuilderYieldCallee: ctx.interner.intern("kk_sequence_builder_yield"),
+            sequenceBuilderBuildCallee: ctx.interner.intern("__kk_sequence_builder_build"),
+            sequenceBuilderBuildCoroCallee: ctx.interner.intern("__kk_sequence_builder_build_coro"),
+            sequenceBuilderYieldAllCallee: ctx.interner.intern("__kk_sequence_builder_yieldAll"),
+            sequenceBuilderYieldCallee: ctx.interner.intern("__kk_sequence_builder_yield"),
             sequenceClassSymbol: sequenceClassSymbol,
-            iteratorBuilderBuildCallee: ctx.interner.intern("kk_iterator_builder_build"),
-            iteratorBuilderBuildCoroCallee: ctx.interner.intern("kk_iterator_builder_build_coro"),
+            iteratorBuilderBuildCallee: ctx.interner.intern("__kk_iterator_builder_build"),
+            iteratorBuilderBuildCoroCallee: ctx.interner.intern("__kk_iterator_builder_build_coro"),
             sequenceBuilderThunkByOriginalSymbol: sequenceBuilderThunkByOriginalSymbol,
             loweredBySymbol: loweredBySymbol,
             originalByLoweredName: originalByLoweredName,

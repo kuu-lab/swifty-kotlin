@@ -259,7 +259,7 @@ extension DataFlowSemaPhase {
                 isValid = false
             }
             if let stdlibManifestHash = manifest.stdlibManifestHash, !stdlibManifestHash.isEmpty {
-                let expectedHash = BundledKotlinStdlib.manifestHash()
+                let expectedHash = BundledStdlib.manifestHash()
                 if stdlibManifestHash != expectedHash {
                     diagnostics.error(
                         "KSWIFTK-LIB-0022",

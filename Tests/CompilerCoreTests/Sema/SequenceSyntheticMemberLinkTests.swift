@@ -9,8 +9,7 @@ struct SequenceSyntheticMemberLinkTests {
     // 30-line boilerplate used by the remaining tests in this file (which are kept verbose
     // for now to minimize this PR's diff; gradual migration is planned).
     @Test func testSequenceSyntheticMemberLinksResolutions() throws {
-        let source0 = """
-
+        let source = """
         fun evenValuesFilterTypeChecksInCallExpressions(): Sequence<Int> {
         val values = sequenceOf(1, 2, 3, 4)
         return values.filter { value -> value % 2 == 0 }
@@ -469,52 +468,10 @@ struct SequenceSyntheticMemberLinkTests {
         val values = sequenceOf(5, 2, 3)
         return values.minByOrNull { value -> value % 3 }
         }
-
         """
-
-        let source1 = """
-
-        fun pickValue(): Int { return sequenceOf(7).random() }
-        fun indexedValuesSize(): Int {
-            val values = sequenceOf(10, 20, 30)
-            return values.withIndex().toList().size
-        }
-        fun weightedDouble(): Int {
-            val values = sequenceOf(1, 2, 3)
-            return values.sumBy { value ->
-                if (value == 2) 10 else value
-            }
-        }
-        fun weighted(): Double {
-            val values = sequenceOf(1, 2, 3)
-            return values.sumByDouble { value ->
-                if (value == 2) 1.5 else 0.25
-            }
-        }
-        fun smallestByReverseOrderOrNull(): Int? {
-            val values = sequenceOf(5, 2, 3)
-            return values.minWithOrNull(reverseOrder<Int>())
-        }
-        fun collectInts(): MutableList<Int> {
-            val values: Sequence<Any> = sequenceOf(1, "two", 3)
-            val dest = mutableListOf<Int>(0)
-            return values.filterIsInstanceTo(dest)
-        }
-        fun smallest(): Int? {
-            val values = sequenceOf(5, 2, 3)
-            return values.minOrNull()
-        }
-        fun smallestByReverseOrder(): Int {
-            val values = sequenceOf(5, 2, 3)
-            return values.minWith(reverseOrder<Int>())
-        }
-
-        """
-
-        try withTemporaryFiles(contents: [source0, source1]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
@@ -523,10 +480,7 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected combined Sequence member sources to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-
         // testSequenceFilterTypeChecksInCallExpressions -> no additional link assertion (source only)
 
         do {
@@ -828,8 +782,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNamePartition).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksPartition.contains("kk_sequence_partition"),
-                "Expected Sequence.partition to link to kk_sequence_partition, got \(linksPartition.sorted())"
+                linksPartition.isEmpty,
+                "Expected Sequence.partition to have no bundled external link, got \(linksPartition.sorted())"
             )
         }
 
@@ -1066,8 +1020,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMaxWith).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMaxWith.contains("kk_sequence_maxWith"),
-                "Expected Sequence.maxWith to link to kk_sequence_maxWith, got \(linksMaxWith.sorted())"
+                linksMaxWith.isEmpty,
+                "Expected Sequence.maxWith to have no bundled external link, got \(linksMaxWith.sorted())"
             )
         }
 
@@ -1080,8 +1034,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMaxOfOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMaxOfOrNull.contains("kk_sequence_maxOfOrNull"),
-                "Expected Sequence.maxOfOrNull to link to kk_sequence_maxOfOrNull, got \(linksMaxOfOrNull.sorted())"
+                linksMaxOfOrNull.isEmpty,
+                "Expected Sequence.maxOfOrNull to have no bundled external link, got \(linksMaxOfOrNull.sorted())"
             )
         }
 
@@ -1128,8 +1082,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMaxWithOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMaxWithOrNull.contains("kk_sequence_maxWithOrNull"),
-                "Expected Sequence.maxWithOrNull to link to kk_sequence_maxWithOrNull, got \(linksMaxWithOrNull.sorted())"
+                linksMaxWithOrNull.isEmpty,
+                "Expected Sequence.maxWithOrNull to have no bundled external link, got \(linksMaxWithOrNull.sorted())"
             )
         }
 
@@ -1154,8 +1108,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMinOf).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMinOf.contains("kk_sequence_minOf"),
-                "Expected Sequence.minOf to link to kk_sequence_minOf, got \(linksMinOf.sorted())"
+                linksMinOf.isEmpty,
+                "Expected Sequence.minOf to have no bundled external link, got \(linksMinOf.sorted())"
             )
         }
 
@@ -1178,8 +1132,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMaxOf).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMaxOf.contains("kk_sequence_maxOf"),
-                "Expected Sequence.maxOf to link to kk_sequence_maxOf, got \(linksMaxOf.sorted())"
+                linksMaxOf.isEmpty,
+                "Expected Sequence.maxOf to have no bundled external link, got \(linksMaxOf.sorted())"
             )
         }
 
@@ -1214,8 +1168,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMinOfOrNull).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMinOfOrNull.contains("kk_sequence_minOfOrNull"),
-                "Expected Sequence.minOfOrNull to link to kk_sequence_minOfOrNull, got \(linksMinOfOrNull.sorted())"
+                linksMinOfOrNull.isEmpty,
+                "Expected Sequence.minOfOrNull to have no bundled external link, got \(linksMinOfOrNull.sorted())"
             )
         }
 
@@ -1226,8 +1180,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMinBy).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMinBy.contains("kk_sequence_minBy"),
-                "Expected Sequence.minBy to link to kk_sequence_minBy, got \(linksMinBy.sorted())"
+                linksMinBy.isEmpty,
+                "Expected Sequence.minBy to have no bundled external link, got \(linksMinBy.sorted())"
             )
         }
 
@@ -1280,14 +1234,72 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameMaxBy).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksMaxBy.contains("kk_sequence_maxBy"),
-                "Expected Sequence.maxBy to link to kk_sequence_maxBy, got \(linksMaxBy.sorted())"
+                linksMaxBy.isEmpty,
+                "Expected Sequence.maxBy to have no bundled external link, got \(linksMaxBy.sorted())"
             )
         }
 
         // testSequenceMaxByOrNullResolvesInCallExpressions -> no additional link assertion (source only)
 
         // testSequenceMinByOrNullResolvesInCallExpressions -> no additional link assertion (source only)
+        }
+    }
+
+    @Test func testSequenceSyntheticMemberLinksAdditionalResolutions() throws {
+        let source = """
+        fun pickValue(): Int { return sequenceOf(7).random() }
+        fun indexedValuesSize(): Int {
+            val values = sequenceOf(10, 20, 30)
+            return values.withIndex().toList().size
+        }
+        fun weightedDouble(): Int {
+            val values = sequenceOf(1, 2, 3)
+            return values.sumBy { value ->
+                if (value == 2) 10 else value
+            }
+        }
+        fun weighted(): Double {
+            val values = sequenceOf(1, 2, 3)
+            return values.sumByDouble { value ->
+                if (value == 2) 1.5 else 0.25
+            }
+        }
+        fun smallestByReverseOrderOrNull(): Int? {
+            val values = sequenceOf(5, 2, 3)
+            return values.minWithOrNull(reverseOrder<Int>())
+        }
+        fun collectInts(): MutableList<Int> {
+            val values: Sequence<Any> = sequenceOf(1, "two", 3)
+            val dest = mutableListOf<Int>(0)
+            return values.filterIsInstanceTo(dest)
+        }
+        fun smallest(): Int? {
+            val values = sequenceOf(5, 2, 3)
+            return values.minOrNull()
+        }
+        fun smallestByReverseOrder(): Int {
+            val values = sequenceOf(5, 2, 3)
+            return values.minWith(reverseOrder<Int>())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected combined trailing Sequence member sources to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let sequenceSymbol = try #require(
+                sema.symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map { interner.intern($0) }),
+                "Expected kotlin.sequences.Sequence to be registered"
+            )
             // === testSequenceRandomResolvesInCallExpressions ===
             do {
                 let fq = ["kotlin", "sequences", "Sequence", "random"].map { interner.intern($0) }
@@ -1332,39 +1344,35 @@ struct SequenceSyntheticMemberLinkTests {
             }
             // === testSequenceSumByResolvesInCallExpressions ===
             do {
-                let memberFQName = ["kotlin", "sequences", "Sequence", "sumBy"]
-                    .map { interner.intern($0) }
-                let sumBySymbols = sema.symbols.lookupAll(fqName: memberFQName)
-                let links = Set(sumBySymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(links.contains("kk_sequence_sumBy"))
-                let sumBySymbol = try #require(sumBySymbols.first)
+                let sumBySymbol = try #require(
+                    sema.symbols.lookupByShortName(interner.intern("sumBy"))
+                        .first { sema.symbols.parentSymbol(for: $0) == sequenceSymbol },
+                    "Expected Sequence.sumBy source extension to be registered"
+                )
                 #expect(
-                    sema.symbols.annotations(for: sumBySymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                    sema.symbols.annotations(for: sumBySymbol).contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) },
                     "Sequence.sumBy should carry Deprecated metadata"
                 )
             }
             // === testSequenceSumByDoubleResolvesInCallExpressions ===
             do {
-                let memberFQName = ["kotlin", "sequences", "Sequence", "sumByDouble"]
-                    .map { interner.intern($0) }
-                let sumByDoubleSymbols = sema.symbols.lookupAll(fqName: memberFQName)
-                let links = Set(sumByDoubleSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(links.contains("kk_sequence_sumByDouble"))
-                let sumByDoubleSymbol = try #require(sumByDoubleSymbols.first)
+                let sumByDoubleSymbol = try #require(
+                    sema.symbols.lookupByShortName(interner.intern("sumByDouble"))
+                        .first { sema.symbols.parentSymbol(for: $0) == sequenceSymbol },
+                    "Expected Sequence.sumByDouble source extension to be registered"
+                )
                 #expect(
-                    sema.symbols.annotations(for: sumByDoubleSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                    sema.symbols.annotations(for: sumByDoubleSymbol).contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) },
                     "Sequence.sumByDouble should carry Deprecated metadata"
                 )
             }
             // === testSequenceMinWithOrNullResolvesInCallExpressions ===
             do {
-                let memberFQName = ["kotlin", "sequences", "Sequence", "minWithOrNull"]
-                    .map { interner.intern($0) }
-                let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(links.contains("kk_sequence_minWithOrNull"))
-
-                let symbol = try #require(symbols.first)
+                let symbol = try #require(
+                    sema.symbols.lookupByShortName(interner.intern("minWithOrNull"))
+                        .first { sema.symbols.parentSymbol(for: $0) == sequenceSymbol },
+                    "Expected Sequence.minWithOrNull source extension to be registered"
+                )
                 let signature = try #require(sema.symbols.functionSignature(for: symbol))
                 #expect(signature.parameterTypes.count == 1)
             }
@@ -1399,13 +1407,11 @@ struct SequenceSyntheticMemberLinkTests {
             }
             // === testSequenceMinWithResolvesInCallExpressions ===
             do {
-                let memberFQName = ["kotlin", "sequences", "Sequence", "minWith"]
-                    .map { interner.intern($0) }
-                let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                #expect(links.contains("kk_sequence_minWith"))
-
-                let symbol = try #require(symbols.first)
+                let symbol = try #require(
+                    sema.symbols.lookupByShortName(interner.intern("minWith"))
+                        .first { sema.symbols.parentSymbol(for: $0) == sequenceSymbol },
+                    "Expected Sequence.minWith source extension to be registered"
+                )
                 let signature = try #require(sema.symbols.functionSignature(for: symbol))
                 #expect(signature.parameterTypes.count == 1)
             }

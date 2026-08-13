@@ -19,6 +19,8 @@ public enum PrimitiveType: String, Hashable, Sendable {
     case ulong
     case ubyte
     case ushort
+    case byte
+    case short
 }
 
 public extension PrimitiveType {
@@ -35,6 +37,8 @@ public extension PrimitiveType {
         case .ulong: "ULong"
         case .ubyte: "UByte"
         case .ushort: "UShort"
+        case .byte: "Byte"
+        case .short: "Short"
         }
     }
 }

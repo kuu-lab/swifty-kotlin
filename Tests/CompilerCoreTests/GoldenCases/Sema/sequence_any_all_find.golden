@@ -6,8 +6,6 @@ symbol fq=__local_4.hasNone kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_5.noneNegative kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_6.firstEven kind=local vis=private flags=_ type=Int?
 symbol fq=__local_7.lastEven kind=local vis=private flags=_ type=Int?
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.findLast kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[(kotlin.sequences.Sequence.T) -> Boolean] ret=kotlin.sequences.Sequence.T?

@@ -1173,6 +1173,19 @@ struct DataFlowAndSemaRegressionTests {
         }
     }
 
+    // Regression for KSP-663: builtin companion types remain resolvable in extensions.
+    @Test
+    func testBuiltinCharCompanionTypeResolvesInExtensionSignature() throws {
+        let source = """
+        fun Char.Companion.foo(): Int = 0
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx.diagnostics.diagnostics)
+        }
+    }
+
 }
 
 #endif

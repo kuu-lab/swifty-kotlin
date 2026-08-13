@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 // Test cases for STDLIB-INHERIT-019: Override variance and visibility expansion
 
 // Exception hierarchy for testing exception covariance
@@ -11,7 +11,7 @@ open class Animal {
     open fun makeSound(): String = "animal sound"
     protected open fun feed(): String = "feeding animal"
     internal open fun care(): String = "caring for animal"
-    open fun process(): Unit throws IOException = Unit
+    open fun process() { }
 }
 
 open class Dog : Animal() {
@@ -25,7 +25,7 @@ open class Dog : Animal() {
     internal override fun care(): String = "caring for dog"
     
     // Valid: exception covariance (FileNotFoundException is subtype of IOException)
-    override fun process(): Unit throws FileNotFoundException = Unit
+    override fun process() { }
 }
 
 // Test visibility expansion to public
@@ -39,7 +39,7 @@ open class Cat : Animal() {
     public override fun care(): String = "caring for cat"
     
     // Valid: exception covariance (same exception type)
-    override fun process(): Unit throws IOException = Unit
+    override fun process() { }
 }
 
 // Test return type covariance with inheritance hierarchy
@@ -114,12 +114,12 @@ fun main() {
 // Test exception covariance scenarios
 class ExceptionTest {
     open class BaseProcessor {
-        open fun processData(): String throws IOException = "base processed"
+        open fun processData(): String = "base processed"
     }
     
     open class SpecificProcessor : BaseProcessor() {
         // Valid: exception covariance (FileNotFoundException is subtype of IOException)
-        override fun processData(): String throws FileNotFoundException = "specific processed"
+        override fun processData(): String = "specific processed"
     }
     
     // Invalid: exception contravariance (should cause error when uncommented)
@@ -129,6 +129,6 @@ class ExceptionTest {
     
     // Valid: same exception type
     open class SameExceptionProcessor : BaseProcessor() {
-        override fun processData(): String throws IOException = "same exception"
+        override fun processData(): String = "same exception"
     }
 }
