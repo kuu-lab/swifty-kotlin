@@ -1637,141 +1637,13 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     return result
 }
 
-@_cdecl("kk_println_any")
-public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
-    let intValue = if let ptr = obj {
-        Int(bitPattern: ptr)
-    } else {
-        0
-    }
-    if intValue == runtimeNullSentinelInt {
-        Swift.print("null")
-        return
-    }
-    guard let raw = obj else {
-        Swift.print(intValue)
-        return
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: raw))
-    }
-    if !isObjectPointer {
-        Swift.print(intValue)
-        return
-    }
-    if let boolBox = tryCast(raw, to: RuntimeBoolBox.self) {
-        Swift.print(boolBox.value ? "true" : "false")
-        return
-    }
-    if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        if let enumEntryName = intBox.enumEntryName {
-            Swift.print(enumEntryName)
-        } else {
-            Swift.print(intBox.value)
-        }
-        return
-    }
-    if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
-        Swift.print(stringBox.value)
-        return
-    }
-    if let doubleBox = tryCast(raw, to: RuntimeDoubleBox.self) {
-        Swift.print(runtimeFormatFloatingPoint(doubleBox.value))
-        return
-    }
-    if let floatBox = tryCast(raw, to: RuntimeFloatBox.self) {
-        Swift.print(runtimeFormatFloatingPoint(floatBox.value))
-        return
-    }
-    if let longBox = tryCast(raw, to: RuntimeLongBox.self) {
-        Swift.print(longBox.value)
-        return
-    }
-    if let ulongBox = tryCast(raw, to: RuntimeULongBox.self) {
-        Swift.print(UInt(bitPattern: ulongBox.value))
-        return
-    }
-    if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
-        Swift.print("Throwable(\(throwable.renderedMessage))")
-        return
-    }
-    if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
-        if let scalar = UnicodeScalar(charBox.value) {
-            Swift.print(Character(scalar))
-        } else {
-            Swift.print("?")
-        }
-        return
-    }
-    if let listBox = tryCast(raw, to: RuntimeListBox.self) {
-        let rendered = listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
-        Swift.print("[\(rendered)]")
-        return
-    }
-    if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
-        let rendered = setBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
-        Swift.print("[\(rendered)]")
-        return
-    }
-    if let mapBox = tryCast(raw, to: RuntimeMapBox.self) {
-        let rendered = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
-            "\(runtimeRenderAnyForPrint(key))=\(runtimeRenderAnyForPrint(value))"
-        }.joined(separator: ", ")
-        Swift.print("{\(rendered)}")
-        return
-    }
-    if tryCast(raw, to: RuntimeRangeBox.self) != nil {
-        Swift.print(runtimeElementToString(intValue))
-        return
-    }
-    if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
-        let first = runtimeRenderAnyForPrint(pairBox.firstValue)
-        let second = runtimeRenderAnyForPrint(pairBox.secondValue)
-        if runtimeIsMapEntry(rawValue: intValue) {
-            Swift.print("\(first)=\(second)")
-        } else if runtimeObjectTypeID(rawValue: intValue) == indexedValueRuntimeTypeID {
-            Swift.print("IndexedValue(index=\(first), value=\(second))")
-        } else {
-            Swift.print("(\(first), \(second))")
-        }
-        return
-    }
-    if let tripleBox = tryCast(raw, to: RuntimeTripleBox.self) {
-        let first = runtimeRenderAnyForPrint(tripleBox.first)
-        let second = runtimeRenderAnyForPrint(tripleBox.second)
-        let third = runtimeRenderAnyForPrint(tripleBox.third)
-        Swift.print("(\(first), \(second), \(third))")
-        return
-    }
-    if tryCast(raw, to: RuntimeIndexingIterableBox.self) != nil {
-        let hex = String(format: "%x", UInt(bitPattern: raw) % 0x1_0000_0000)
-        Swift.print("kotlin.collections.IndexingIterable@\(hex)")
-        return
-    }
-    if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        Swift.print(runtimeRenderStringIterableForPrint(iterableBox.source))
-        return
-    }
-    if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let rendered = arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
-        Swift.print("[\(rendered)]")
-        return
-    }
-    if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
-        Swift.print(sbBox.value)
-        return
-    }
-    // STDLIB-REFLECT-066: KType toString
-    if let ktypeBox = tryCast(raw, to: RuntimeKTypeBox.self) {
-        let str = runtimeKTypeToString(ktypeBox)
-        Swift.print(str)
-        return
-    }
-    if let rendered = runtimeRenderIndexedValueObject(intValue, render: runtimeRenderAnyForPrint) {
-        Swift.print(rendered)
-        return
-    }
-    Swift.print("<object \(raw)>")
+/// KSP-614: single low-level console bridge behind `kotlin.io.print`/`println`.
+/// Renders `value` with the runtime's boxed-value formatter and writes it to
+/// stdout without a trailing newline. Newline handling lives in Kotlin
+/// (`Stdlib/kotlin/io/Console.kt`).
+@_cdecl("__kk_print_raw")
+public func __kk_print_raw(_ obj: Int) {
+    Swift.print(runtimeRenderAnyForPrint(obj), terminator: "")
 }
 
 @_cdecl("kk_println_string_flat")
@@ -1809,77 +1681,18 @@ public func kk_print_string_flat(
     return 0
 }
 
-/// Runtime support for kotlin.io.print(message) (no newline).
-@_cdecl("kk_print_any")
-public func kk_print_any(_ obj: UnsafeMutableRawPointer?) {
-    let intValue = if let ptr = obj { Int(bitPattern: ptr) } else { 0 }
-    Swift.print(runtimeRenderAnyForPrint(intValue), terminator: "")
-}
-
-/// Runtime support for kotlin.io.print() with no arguments (STDLIB-572).
-/// Prints nothing (no output, no newline).
-@_cdecl("kk_print_noarg")
-public func kk_print_noarg() {
-    // Intentionally empty — Kotlin's print() with no args is a no-op.
-}
-
-/// Runtime support for kotlin.io.println() (STDLIB-063).
-/// Prints a newline with no arguments.
-@_cdecl("kk_println_newline")
-public func kk_println_newline() {
-    Swift.print()
-}
-
 /// Runtime support for kotlin.io.DEFAULT_BUFFER_SIZE.
 @_cdecl("kk_io_default_buffer_size")
 public func kk_io_default_buffer_size() -> Int {
     8192
 }
 
-/// Runtime support for kotlin.io.readLine() (STDLIB-063).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF.
-@_cdecl("kk_readline")
-public func kk_readline() -> Int {
-    guard let line = readLine() else {
-        return runtimeNullSentinelInt
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readln() (STDLIB-130).
-@_cdecl("kk_readln")
-public func kk_readln(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let line = readLine() else {
-        outThrown?.pointee = runtimeAllocateRuntimeException(message: "EOF has already been reached")
-        return 0
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readlnOrNull() (STDLIB-571).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF
-/// instead of throwing.
-@_cdecl("kk_readlnOrNull")
-public func kk_readlnOrNull() -> Int {
+/// KSP-615: single low-level console input bridge behind `kotlin.io.readLine` /
+/// `readln` / `readlnOrNull`. Reads a line from stdin. Returns a pointer to a
+/// runtime string on success, or `runtimeNullSentinelInt` on EOF; nullability
+/// and the `readln` EOF throw live in `Stdlib/kotlin/io/Console.kt`.
+@_cdecl("__kk_readline_raw")
+public func __kk_readline_raw() -> Int {
     guard let line = readLine() else {
         return runtimeNullSentinelInt
     }

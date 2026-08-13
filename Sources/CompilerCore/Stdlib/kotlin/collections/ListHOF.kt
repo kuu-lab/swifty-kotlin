@@ -3,7 +3,7 @@ package kotlin.collections
 // MIGRATION-COL-002
 // List transform HOFs migrated to Kotlin source.
 // Migration source:
-//   Sources/CompilerCore/Driver/BundledKotlinStdlib.swift (map, mapIndexed, mapNotNull, flatMap, flatten)
+//   Sources/CompilerCore/Driver/BundledStdlib.swift (map, mapIndexed, mapNotNull, flatMap, flatten)
 //
 // NOTE: Runtime ABI entry points are intentionally kept as bridge/compatibility
 // helpers while stdlib-source dispatch is rolled out incrementally.

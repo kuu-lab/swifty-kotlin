@@ -99,13 +99,6 @@ struct SyntheticCharMemberSpec {
     }
 }
 
-private struct SyntheticCharCompanionFunctionSpec {
-    let name: String
-    let externalLinkName: String
-    let parameters: [(name: String, type: TypeID)]
-    let returnType: TypeID
-}
-
 private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
     // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
     // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
@@ -132,22 +125,8 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_toDoubleOrNull",
         returnKind: .nullableDouble
     ),
-    // Surrogate and control character predicates
-    SyntheticCharMemberSpec(
-        name: "isSurrogate",
-        externalLinkName: "kk_char_isSurrogate",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isHighSurrogate",
-        externalLinkName: "kk_char_isHighSurrogate",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isLowSurrogate",
-        externalLinkName: "kk_char_isLowSurrogate",
-        returnKind: .boolean
-    ),
+    // KSP-663: isSurrogate/isHighSurrogate/isLowSurrogate are now bundled Kotlin.
+    // Control character predicates
     SyntheticCharMemberSpec(
         name: "isISOControl",
         externalLinkName: "kk_char_isISOControl",
@@ -561,6 +540,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        // KSP-663: Char.Companion surrogate helpers are now bundled Kotlin.
+        // Keep the Char class / companion object symbols so source extensions
+        // on Char.Companion resolve correctly.
         let kotlinPkg = [interner.intern("kotlin")]
         let charSymbol = ensureClassSymbol(
             named: "Char",
@@ -573,72 +555,11 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(kotlinSymbol, for: charSymbol)
         }
 
-        let companionFQName = ensureSyntheticCharCompanionSymbol(
+        _ = ensureSyntheticCharCompanionSymbol(
             ownerSymbol: charSymbol,
             symbols: symbols,
             interner: interner
         )
-        let charArraySymbol = ensureClassSymbol(
-            named: "CharArray",
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinSymbol = symbols.lookup(fqName: kotlinPkg) {
-            symbols.setParentSymbol(kotlinSymbol, for: charArraySymbol)
-        }
-        let charArrayType = types.make(.classType(ClassType(
-            classSymbol: charArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let nativeMarkerFQName = ensureSyntheticCharExperimentalNativeApiAnnotation(
-            symbols: symbols,
-            interner: interner
-        )
-
-        let specs = [
-            SyntheticCharCompanionFunctionSpec(
-                name: "isSupplementaryCodePoint",
-                externalLinkName: "kk_char_isSupplementaryCodePoint",
-                parameters: [(name: "codepoint", type: types.intType)],
-                returnType: types.booleanType
-            ),
-            SyntheticCharCompanionFunctionSpec(
-                name: "isSurrogatePair",
-                externalLinkName: "kk_char_isSurrogatePair",
-                parameters: [
-                    (name: "high", type: types.charType),
-                    (name: "low", type: types.charType),
-                ],
-                returnType: types.booleanType
-            ),
-            SyntheticCharCompanionFunctionSpec(
-                name: "toChars",
-                externalLinkName: "kk_char_toChars",
-                parameters: [(name: "codePoint", type: types.intType)],
-                returnType: charArrayType
-            ),
-            SyntheticCharCompanionFunctionSpec(
-                name: "toCodePoint",
-                externalLinkName: "kk_char_toCodePoint",
-                parameters: [
-                    (name: "high", type: types.charType),
-                    (name: "low", type: types.charType),
-                ],
-                returnType: types.intType
-            ),
-        ]
-
-        for spec in specs {
-            registerSyntheticCharCompanionFunction(
-                spec,
-                companionFQName: companionFQName,
-                experimentalNativeApiFQName: nativeMarkerFQName,
-                symbols: symbols,
-                interner: interner
-            )
-        }
     }
 
     private func ensureSyntheticCharCompanionSymbol(
@@ -670,98 +591,4 @@ extension DataFlowSemaPhase {
         return companionFQName
     }
 
-    private func ensureSyntheticCharExperimentalNativeApiAnnotation(
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> String {
-        // `kotlin.experimental.ExperimentalNativeApi` is declared by bundled
-        // Kotlin source; only reference it here by fully-qualified name.
-        return "kotlin.experimental.ExperimentalNativeApi"
-    }
-
-    private func registerSyntheticCharCompanionFunction(
-        _ spec: SyntheticCharCompanionFunctionSpec,
-        companionFQName: [InternedString],
-        experimentalNativeApiFQName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let companionSymbol = symbols.lookup(fqName: companionFQName) else {
-            return
-        }
-
-        let functionName = interner.intern(spec.name)
-        let functionFQName = companionFQName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes == spec.parameters.map(\.type)
-                && signature.returnType == spec.returnType
-        }) {
-            symbols.setExternalLinkName(spec.externalLinkName, for: existing)
-            attachSyntheticCharExperimentalNativeApi(
-                to: existing,
-                markerFQName: experimentalNativeApiFQName,
-                symbols: symbols
-            )
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(companionSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(spec.externalLinkName, for: functionSymbol)
-        attachSyntheticCharExperimentalNativeApi(
-            to: functionSymbol,
-            markerFQName: experimentalNativeApiFQName,
-            symbols: symbols
-        )
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in spec.parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: spec.parameters.map(\.type),
-                returnType: spec.returnType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func attachSyntheticCharExperimentalNativeApi(
-        to symbol: SymbolID,
-        markerFQName: String,
-        symbols: SymbolTable
-    ) {
-        let record = MetadataAnnotationRecord(annotationFQName: markerFQName)
-        var annotations = symbols.annotations(for: symbol)
-        guard !annotations.contains(record) else {
-            return
-        }
-        annotations.append(record)
-        symbols.setAnnotations(annotations, for: symbol)
-    }
 }

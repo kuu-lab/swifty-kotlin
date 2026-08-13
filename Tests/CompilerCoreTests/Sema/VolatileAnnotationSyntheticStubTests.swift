@@ -5,6 +5,35 @@ import Testing
 
 @Suite
 struct VolatileAnnotationSyntheticStubTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        import kotlin.concurrent.Volatile
+
+        class Holder {
+            @Volatile
+            var value: Int = 0
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
@@ -40,23 +69,11 @@ struct VolatileAnnotationSyntheticStubTests {
         )
     }
 
-    @Test
-    func testVolatileAnnotationResolvesInSource() throws {
-        let source = """
-        import kotlin.concurrent.Volatile
+    @Test func testVolatileAnnotationResolvesInSource() throws {
 
-        class Holder {
-            @Volatile
-            var value: Int = 0
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
+        let ctx = try sharedCtx()
             #expect(!(ctx.diagnostics.hasError), "Expected Volatile annotation to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
+
     }
 }
 #endif

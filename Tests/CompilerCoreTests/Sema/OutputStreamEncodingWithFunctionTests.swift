@@ -11,10 +11,12 @@ import Testing
 /// ): OutputStream`
 @Suite
 struct OutputStreamEncodingWithFunctionTests {
-    /// `OutputStream.encodingWith(base64)` should resolve to the synthetic
-    /// extension function in `kotlin.io.encoding` and return an `OutputStream`.
-    @Test func testOutputStreamEncodingWithResolves() throws {
-        let source = """
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.File
         import java.io.OutputStream
         import kotlin.io.encoding.Base64
@@ -24,11 +26,68 @@ struct OutputStreamEncodingWithFunctionTests {
             val stream: OutputStream = file.outputStream()
             return stream.encodingWith(Base64.Default)
         }
+        """,
         """
+        package sample1
+        import java.io.File
+        import java.io.OutputStream
+        import kotlin.io.encoding.Base64
+        import kotlin.io.encoding.encodingWith
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        fun openVariants(file: File): List<OutputStream> {
+            val stream: OutputStream = file.outputStream()
+            return listOf(
+                stream.encodingWith(Base64.Default),
+                stream.encodingWith(Base64.UrlSafe),
+                stream.encodingWith(Base64.Mime),
+                stream.encodingWith(Base64.Pem),
+            )
+        }
+        """,
+        """
+        package sample2
+        import java.io.File
+        import java.io.OutputStream
+        import kotlin.io.encoding.Base64
+        import kotlin.io.encoding.encodingWith
+
+        fun writeAndClose(file: File) {
+            val stream: OutputStream = file.outputStream()
+            val encoder = stream.encodingWith(Base64.Default)
+            encoder.write(0x4B)
+            encoder.flush()
+            encoder.close()
+        }
+        """,
+        """
+        package sample3
+        import java.io.OutputStream
+        import kotlin.io.encoding.Base64
+        import kotlin.io.encoding.encodingWith
+
+        fun stub(stream: OutputStream): OutputStream = stream.encodingWith(Base64.Default)
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+    /// `OutputStream.encodingWith(base64)` should resolve to the synthetic
+    /// extension function in `kotlin.io.encoding` and return an `OutputStream`.
+    @Test func testOutputStreamEncodingWithResolves() throws {
+
+        let ctx = try sharedCtx()
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             #expect(
                 !ctx.diagnostics.hasError,
@@ -69,68 +128,34 @@ struct OutputStreamEncodingWithFunctionTests {
             let signature = try #require(symbols.functionSignature(for: encodingWith))
             #expect(signature.valueParameterHasDefaultValues == [false])
             #expect(signature.valueParameterIsVararg == [false])
-        }
+
     }
 
     /// `encodingWith` should accept each predefined `Base64` variant
     /// (Default / UrlSafe / Mime / Pem) without diagnostics.
     @Test func testOutputStreamEncodingWithAcceptsAllBase64Variants() throws {
-        let source = """
-        import java.io.File
-        import java.io.OutputStream
-        import kotlin.io.encoding.Base64
-        import kotlin.io.encoding.encodingWith
 
-        fun openVariants(file: File): List<OutputStream> {
-            val stream: OutputStream = file.outputStream()
-            return listOf(
-                stream.encodingWith(Base64.Default),
-                stream.encodingWith(Base64.UrlSafe),
-                stream.encodingWith(Base64.Mime),
-                stream.encodingWith(Base64.Pem),
-            )
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             #expect(
                 !ctx.diagnostics.hasError,
                 "OutputStream.encodingWith should accept every Base64 variant: \(diagnostics)"
             )
-        }
+
     }
 
     /// The returned `OutputStream` should remain usable for the standard
     /// member calls (`write`, `flush`, `close`) — confirming the type chain
     /// after `encodingWith` is preserved as `OutputStream`.
     @Test func testOutputStreamEncodingWithChainedMemberCallsResolve() throws {
-        let source = """
-        import java.io.File
-        import java.io.OutputStream
-        import kotlin.io.encoding.Base64
-        import kotlin.io.encoding.encodingWith
 
-        fun writeAndClose(file: File) {
-            val stream: OutputStream = file.outputStream()
-            val encoder = stream.encodingWith(Base64.Default)
-            encoder.write(0x4B)
-            encoder.flush()
-            encoder.close()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedCtx()
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             #expect(
                 !ctx.diagnostics.hasError,
                 "Chained OutputStream member calls after encodingWith should resolve: \(diagnostics)"
             )
-        }
+
     }
 
     /// `encodingWith` itself is a regular Kotlin function (with a body that
@@ -138,18 +163,8 @@ struct OutputStreamEncodingWithFunctionTests {
     /// lives on that private wrapper, not on `encodingWith`'s own symbol.
     /// Sema should still record it so codegen can resolve the runtime bridge.
     @Test func testOutputStreamEncodingWithExternalLinkNameIsRegisteredOnWrapperSymbol() throws {
-        let source = """
-        import java.io.OutputStream
-        import kotlin.io.encoding.Base64
-        import kotlin.io.encoding.encodingWith
 
-        fun stub(stream: OutputStream): OutputStream = stream.encodingWith(Base64.Default)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
+        let ctx = try sharedCtx()
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
@@ -164,7 +179,7 @@ struct OutputStreamEncodingWithFunctionTests {
             #expect(
                 symbols.externalLinkName(for: wrapper) == "__kk_output_stream_encodingWith"
             )
-        }
+
     }
 }
 #endif

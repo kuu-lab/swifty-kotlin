@@ -842,7 +842,7 @@ extension CallLowerer {
         // sequence { ... } builder: expand the receiver lambda to (fnPtr, closureRaw).
         // Capturing builder lambdas need the same closure-aware adapter shape as
         // collection HOFs so the runtime can call (closureRaw, builderRaw, outThrown).
-        if externalLinkName == "kk_sequence_builder_build", loweredArguments.count == 1 {
+        if externalLinkName == "__kk_sequence_builder_build", loweredArguments.count == 1 {
             return makeCollectionHOFExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
@@ -853,7 +853,7 @@ extension CallLowerer {
             )
         }
 
-        let legacyNames: Set = ["kk_require_lazy", "kk_check_lazy", "kk_precondition_assert_lazy", "kk_sequence_generate"]
+        let legacyNames: Set = ["kk_sequence_generate"]
         if legacyNames.contains(externalLinkName), loweredArguments.count == 2 {
             var seedArgument = loweredArguments[0]
             if externalLinkName == "kk_sequence_generate",

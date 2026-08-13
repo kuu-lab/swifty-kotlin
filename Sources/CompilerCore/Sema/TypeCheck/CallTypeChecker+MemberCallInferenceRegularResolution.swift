@@ -847,6 +847,15 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if ["sumBy", "sumByDouble", "sumOf"].contains(interner.resolve(calleeName)) {
+            let desc = candidates.map { c in
+                let name = sema.symbols.symbol(c).map { interner.resolve($0.name) } ?? "?"
+                let parent = sema.symbols.symbol(c).flatMap { s in sema.symbols.parentSymbol(for: c).flatMap { sema.symbols.symbol($0) }.map { interner.resolve($0.name) } } ?? "nil"
+                let link = sema.symbols.externalLinkName(for: c) ?? "nil"
+                return "\(name) parent=\(parent) link=\(link)"
+            }.joined(separator: "; ")
+            print("REGULAR \(interner.resolve(calleeName)) candidates(\(candidates.count)): \(desc)")
+        }
         if isNullLiteralReceiver,
            args.isEmpty,
            interner.resolve(calleeName) == "isNullOrEmpty",
@@ -1060,6 +1069,15 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: ctx
         )
+        if ["sumBy", "sumByDouble", "sumOf"].contains(interner.resolve(calleeName)) {
+            let chosenDesc = resolved.chosenCallee.map { c in
+                let name = sema.symbols.symbol(c).map { interner.resolve($0.name) } ?? "?"
+                let parent = sema.symbols.symbol(c).flatMap { s in sema.symbols.parentSymbol(for: c).flatMap { sema.symbols.symbol($0) }.map { interner.resolve($0.name) } } ?? "nil"
+                let link = sema.symbols.externalLinkName(for: c) ?? "nil"
+                return "\(name) parent=\(parent) link=\(link)"
+            } ?? "nil"
+            print("REGULAR \(interner.resolve(calleeName)) chosen: \(chosenDesc)")
+        }
         if let diagnostic = resolved.diagnostic {
             if diagnostic.code == "KSWIFTK-SEMA-BOUND" {
                 let callee = interner.resolve(calleeName)
@@ -1565,7 +1583,9 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         switch interner.resolve(calleeName) {
-        case "contains", "isEmpty", "iterator":
+        case "contains", "isEmpty", "iterator",
+             "toList", "forEach", "map", "filter",
+             "take", "drop", "sorted", "average":
             return true
         default:
             return false
