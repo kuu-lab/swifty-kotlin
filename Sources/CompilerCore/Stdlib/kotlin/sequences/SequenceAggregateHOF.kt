@@ -14,12 +14,16 @@ import kotlin.internal.__valuesEqual
 //   Sources/Runtime/RuntimeSequenceAssociation.swift
 //   Sources/Runtime/RuntimeSequenceFoldScan.swift
 //
-// Migrated: fold, reduce, scan, sumOf, maxByOrNull, minByOrNull,
-//           associate, associateBy, groupBy
+// Migrated: fold, foldIndexed, reduce, reduceOrNull, reduceIndexed, reduceIndexedOrNull,
+//           reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
+//           scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
+//           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy, groupBy
+//
+// Sorting variants are in SequenceSortingHOF.kt (package kotlin.sequences) to avoid
+// FQ-name collisions with List sorting extensions.
+//
 // Implementations materialize through toList() before looping so they reuse the
 // stable list indexing path instead of the still-limited Sequence for-loop path.
-// scan/fold/reduce still resolve to runtime ABI stubs at call sites until
-// source-backed iteration parity is complete (see MIGRATION-SEQ-004b notes).
 
 public fun <T, R> Sequence<T>.fold(initial: R, operation: (R, T) -> R): R {
     val elements = this.toList()
@@ -27,6 +31,17 @@ public fun <T, R> Sequence<T>.fold(initial: R, operation: (R, T) -> R): R {
     var i = 0
     while (i < elements.size) {
         accumulator = operation(accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T, R> Sequence<T>.foldIndexed(initial: R, operation: (Int, R, T) -> R): R {
+    val elements = this.toList()
+    var accumulator = initial
+    var i = 0
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
         i += 1
     }
     return accumulator
@@ -44,7 +59,91 @@ public fun <T> Sequence<T>.reduce(operation: (T, T) -> T): T {
     return accumulator
 }
 
-public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
+public fun <T> Sequence<T>.reduceOrNull(operation: (T, T) -> T): T? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> Sequence<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> Sequence<T>.reduceIndexedOrNull(operation: (Int, T, T) -> T): T? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> Sequence<T>.reduceRight(operation: (T, T) -> T): T {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var accumulator = elements[elements.size - 1]
+    var i = elements.size - 2
+    while (i >= 0) {
+        accumulator = operation(elements[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> Sequence<T>.reduceRightOrNull(operation: (T, T) -> T): T? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var accumulator = elements[elements.size - 1]
+    var i = elements.size - 2
+    while (i >= 0) {
+        accumulator = operation(elements[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> Sequence<T>.reduceRightIndexed(operation: (Int, T, T) -> T): T {
+    val elements = this.toList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var accumulator = elements[elements.size - 1]
+    var i = elements.size - 2
+    while (i >= 0) {
+        accumulator = operation(i, elements[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> Sequence<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T): T? {
+    val elements = this.toList()
+    if (elements.isEmpty()) return null
+    var accumulator = elements[elements.size - 1]
+    var i = elements.size - 2
+    while (i >= 0) {
+        accumulator = operation(i, elements[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): Sequence<R> {
     val elements = this.toList()
     val result = mutableListOf<R>()
     var accumulator = initial
@@ -55,8 +154,57 @@ public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): List<R> 
         result.add(accumulator)
         i += 1
     }
-    // Public Sema still exposes Sequence<R>; sequence runtime consumers accept list handles.
-    return result
+    return result.asSequence()
+}
+
+public fun <T, R> Sequence<T>.scanIndexed(initial: R, operation: (Int, R, T) -> R): Sequence<R> {
+    val elements = this.toList()
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result.asSequence()
+}
+
+public fun <T, R> Sequence<T>.runningFold(initial: R, operation: (R, T) -> R): Sequence<R> =
+    scan(initial, operation)
+
+public fun <T, R> Sequence<T>.runningFoldIndexed(initial: R, operation: (Int, R, T) -> R): Sequence<R> =
+    scanIndexed(initial, operation)
+
+public fun <T> Sequence<T>.runningReduce(operation: (T, T) -> T): Sequence<T> {
+    val elements = this.toList()
+    val result = mutableListOf<T>()
+    if (elements.isEmpty()) return result.asSequence()
+    var accumulator = elements[0]
+    result.add(accumulator)
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(accumulator, elements[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result.asSequence()
+}
+
+public fun <T> Sequence<T>.runningReduceIndexed(operation: (Int, T, T) -> T): Sequence<T> {
+    val elements = this.toList()
+    val result = mutableListOf<T>()
+    if (elements.isEmpty()) return result.asSequence()
+    var accumulator = elements[0]
+    result.add(accumulator)
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result.asSequence()
 }
 
 // Sema exposes the public call result as Map<K, V>; the source body returns the

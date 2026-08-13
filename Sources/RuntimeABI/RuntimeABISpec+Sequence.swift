@@ -1123,18 +1123,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-091: reduce
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_reduce",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
         // STDLIB-556: reduceIndexed
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceIndexed",
@@ -1150,6 +1138,18 @@ public extension RuntimeABISpec {
         // STDLIB-SEQ-015: reduceIndexedOrNull
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceIndexedOrNull",
+            parameters: [
+                RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Sequence"
+        ),
+        // STDLIB-SEQ-FN-091: reduce
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_reduce",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

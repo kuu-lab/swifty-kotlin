@@ -171,7 +171,7 @@
   - 注意: インライン `kotlinSequencesSource`（toList/toMutableList/toSet）と統合（KSP-503 と調整）
 - [x] KSP-444: Sequence association・minBy/maxBy を Kotlin 化（`associate*(To)`, `groupBy(To)`, `partition`, `joinTo(String)`, `sumOf/By(Double)`, `min/max(By/Of/With)(OrNull)`）
   - 削除 kk_*: `RuntimeSequenceAssociation.swift` の全関数（rg で列挙）
-- [ ] KSP-445: Sequence fold/scan を Kotlin 化（`fold(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `scan(Indexed)`, `runningFold/Reduce(Indexed)`, `sorted*`）
+- [x] KSP-445: Sequence fold/scan を Kotlin 化（`fold(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `scan(Indexed)`, `runningFold/Reduce(Indexed)`, `sorted*`）
   - 削除 kk_*: `RuntimeSequenceFoldScan.swift` の全関数
 - [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
 - [x] KSP-447: sequence{}/iterator{} ビルダーを (c) 残留分類として確定する

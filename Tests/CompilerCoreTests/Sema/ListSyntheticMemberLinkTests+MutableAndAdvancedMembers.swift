@@ -316,7 +316,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testSequenceReduceIndexedOrNullUsesRuntimeExternalLink() throws {
+    func testSequenceReduceIndexedOrNullIsSourceBacked() throws {
         let source = """
         fun render(values: Sequence<Int>) {
             println(values.reduceIndexedOrNull { index, acc, value -> acc + index * value })
@@ -330,16 +330,17 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let sequenceReduceIndexedOrNullSymbol = try #require(sema.symbols.lookup(
-                    fqName: [
-                        ctx.interner.intern("kotlin"),
-                        ctx.interner.intern("sequences"),
-                        ctx.interner.intern("Sequence"),
-                        ctx.interner.intern("reduceIndexedOrNull"),
-                    ]
-                ))
-            #expect(sema.symbols.externalLinkName(for: sequenceReduceIndexedOrNullSymbol) == "kk_sequence_reduceIndexedOrNull")
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceIndexedOrNull"
+            }, "Expected reduceIndexedOrNull member call")
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected reduceIndexedOrNull call to be bound"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
         }
     }
 
