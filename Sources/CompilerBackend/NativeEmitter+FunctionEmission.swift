@@ -2087,7 +2087,7 @@ extension NativeEmitter {
                    case let .symbolRef(localSymbol) = value,
                    !parameterValues.keys.contains(localSymbol)
                 {
-                    let varName = "local_\(localSymbol.rawValue)"
+                    let varName = nameCounter.nextName("local_")
                     var varLine: UInt32 = 0
                     if function.instructionLocations.count == function.body.count,
                        instructionIndex < function.instructionLocations.count,

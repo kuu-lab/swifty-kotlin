@@ -253,14 +253,8 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeInterop") { phase, symbols, types, interner in
             phase.registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "NativeInvoke") { phase, symbols, _, interner in
-            phase.registerSyntheticNativeInvokeStubs(symbols: symbols, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ThreadLocal") { phase, symbols, types, interner in
             phase.registerSyntheticThreadLocalStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "NativeSetter") { phase, symbols, _, interner in
-            phase.registerSyntheticNativeSetterStubs(symbols: symbols, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineCancellation") { phase, symbols, types, interner in
             phase.registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
@@ -273,9 +267,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeConcurrent") { phase, symbols, types, interner in
             phase.registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "NativeGetter") { phase, symbols, _, interner in
-            phase.registerSyntheticNativeGetterStubs(symbols: symbols, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, _, interner in
             phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, interner: interner)
