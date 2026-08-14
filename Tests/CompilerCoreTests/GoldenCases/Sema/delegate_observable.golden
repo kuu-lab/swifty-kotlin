@@ -5,7 +5,7 @@ symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=
 symbol fq=kotlin.properties.Delegates.observable.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.properties.Delegates.observable.initialValue kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.properties.Delegates.observable.onChange kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
+symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=_
 file fdelegate_observable package=golden.sema
   decl golden.sema.name property name var=1 sym=golden.sema.name
   decl golden.sema.main fun main sym=golden.sema.main

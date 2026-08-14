@@ -1164,6 +1164,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":
             [["kotlin", "Throwable"]]
+        case "__bundled_kotlin/properties/Interfaces.kt":
+            [["kotlin", "properties", "ReadWriteProperty"]]
         case "__bundled_kotlin/time/TimeSource.kt":
             [
                 ["kotlin", "time", "TimeSource"],
