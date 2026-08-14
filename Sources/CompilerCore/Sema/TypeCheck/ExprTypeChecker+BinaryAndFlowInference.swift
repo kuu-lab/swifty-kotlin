@@ -137,7 +137,7 @@ extension ExprTypeChecker {
             // For sequences: also fall back when candidates exist but none accepts the RHS type
             // (e.g. `seq + element` where only `plus(Sequence<Any>)` is registered).
             let shouldFallBack = (isListLhs || isCollExpr) && operatorCandidates.isEmpty
-                || isSeqLhs
+                || isSeqLhs && operatorCandidates.isEmpty
             if shouldFallBack {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)
@@ -170,6 +170,7 @@ extension ExprTypeChecker {
             default:
                 expectedType
             }
+            let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: CallExpr(
@@ -181,6 +182,11 @@ extension ExprTypeChecker {
                 implicitReceiverType: lhs,
                 ctx: ctx.semaCtx
             )
+            if isSeqLhs, resolved.chosenCallee == nil {
+                sema.bindings.bindExprType(id, type: lhs)
+                sema.bindings.markCollectionExpr(id)
+                return lhs
+            }
             if let diagnostic = resolved.diagnostic {
                 if let fallbackType = bindComparableUpperBoundOperatorFallback(
                     id,

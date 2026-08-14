@@ -129,6 +129,12 @@ struct BundledDeclarationIndex: Sendable {
             guard !Self.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) else {
                 continue
             }
+            // KSP-443: source-backed extensions with a runtime symbol name get a
+            // synthetic member alias for owner-based lookup. That alias is an
+            // intentional index entry, not a missed synthetic-stub skip.
+            guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
+                continue
+            }
             // joinTo/joinToString transform overloads intentionally share arity
             // with the non-transform default. The bundled-index key only tracks
             // arity, so suppress the warning when the synthetic stub carries a
@@ -146,6 +152,37 @@ struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    private static func isSyntheticAliasForSourceBackedMember(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard symbol.kind == .function,
+              symbol.declSite == nil,
+              let parentSymbol = symbols.parentSymbol(for: symbol.id),
+              let signature = symbols.functionSignature(for: symbol.id),
+              let externalLinkName = symbols.externalLinkName(for: symbol.id),
+              !externalLinkName.isEmpty
+        else {
+            return false
+        }
+
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.id != symbol.id,
+                  candidate.kind == .function,
+                  !candidate.flags.contains(.synthetic),
+                  candidate.declSite != nil,
+                  candidate.name == symbol.name,
+                  candidate.fqName != symbol.fqName,
+                  symbols.parentSymbol(for: candidate.id) == parentSymbol,
+                  symbols.functionSignature(for: candidate.id) == signature,
+                  symbols.externalLinkName(for: candidate.id) == externalLinkName
+            else {
+                return false
+            }
+            return true
         }
     }
 
