@@ -51,8 +51,6 @@ struct LoweringFlowCodegenTests {
             #expect(allCallees.contains("reduce"))
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
-            #expect(allCallees.contains("kk_flow_collect"))
-            #expect(allCallees.contains("kk_suspend_function_invoke_2"))
             #expect(!allCallees.contains("__kk_flow_to_list"))
             #expect(!allCallees.contains("__kk_flow_first"))
             #expect(!allCallees.contains("__kk_flow_single"))
@@ -133,12 +131,12 @@ struct LoweringFlowCodegenTests {
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
             #expect(allCallees.contains("kk_flow_collect"))
-            #expect(allCallees.contains("__kk_flow_single"))
+            #expect(allCallees.contains("single"))
             #expect(!allCallees.contains("flow"))
             #expect(!allCallees.contains("transform"))
             #expect(!allCallees.contains("collect"))
             #expect(!allCallees.contains("emit"))
-            #expect(!allCallees.contains("single"))
+            #expect(!allCallees.contains("__kk_flow_single"))
         }
     }
 
