@@ -315,6 +315,11 @@
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
 - [x] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（KSP-671 の `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開し、AtomicReference は `===` で参照同一性を保持）。synthetic compareAndSet stub と `kk_atomic_bool/ref_compareAndSet` 公開経路を削除し、ハードウェア CAS コアの `compareAndExchange` ブリッジは (c) として残留。equal-but-distinct reference の最小 diff case と成功/失敗時の値保持を回帰固定。RuntimeAtomic の比較を参照同一性へ修正し、最小再現を同一PRに包含。
+- [ ] KSP-695: `HeaderHelpers+SyntheticAtomicStubs.swift` を責務別に分割・整理する（docs/stdlib-pipeline.md 分類 (b)・約2,512行・`AtomicMigration.kt` owner。§9 follow-up order「Split mixed files before touching their residual parts」および分類表注記「split Java atomic interop cleanup pockets first」に従う）
+  - 目的：現存する大型合成スタブ `HeaderHelpers+SyntheticAtomicStubs.swift` を、docs/stdlib-pipeline.md の分類表注記「split Java atomic interop cleanup pockets first」および §9 follow-up order「Split mixed files before touching their residual parts」に従って分割・整理する。
+  - 着手手順：まず `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticAtomicStubs.swift` で登録単位を全列挙し、各登録を「① KSwiftK ターゲット外の Java atomic interop（`java.util.concurrent.atomic.*` 相当）の cleanup pocket → (a) として分離・削除候補」「② 既に Kotlin 移行済み（`KSP-688` の compareAndSet 公開層など、`AtomicMigration.kt` へ移行済み）で不要になった残骸 → 削除候補」「③ まだ (b) 移行されていない純残余で責務別に機械分割すべきもの」に仕分ける。①②は該当完了タスクの完了メモと突合してから削除する。③は責務ベース命名で既存の `HeaderHelpers+Synthetic*Stubs.swift` 命名慣習に合わせたサブファイルへ機械的に移動する。
+  - Atomic 領域固有の注意：`kk_atomic_*` はスタブ側で prefix + suffix の2段階動的生成（prefix 補間 emit）されるため、rg 完了チェック・削除範囲判定は補間を考慮すること（§concurrent 節の共通注意、および Dead Code 監査の「`kk_atomic_*` は prefix + suffix の2段階動的生成」除外注記と整合させる）。`KSP-CAP-004`（CAS ループの型検査）が `AtomicMigration.kt` コメントの保留解除をブロックしている点も、削除・移行範囲の判断時に確認する。
+  - 完了条件：純分割部分は挙動変更ゼロ / 削除部分は該当機能のテスト・golden で非回帰確認 / `Scripts/loc_report.sh` の `HeaderHelpers+Synthetic*` 合計行数の悪化なし（純分割部分は ±0）/ 共通ゲート G（`bash Scripts/swift_test.sh`、`bash Scripts/swift_test.sh --filter Golden`、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` すべて green）。
 
 #### delegates / reflect
 
