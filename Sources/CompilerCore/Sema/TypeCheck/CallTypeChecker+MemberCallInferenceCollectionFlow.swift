@@ -1223,6 +1223,9 @@ extension CallTypeChecker {
                         }
                     }
                 }
+                if let sourceBackedSequenceAggregateTypeArguments {
+                    bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments)
+                }
                 if ["filterTo", "filterNotTo", "filterIndexedTo"].contains(calleeStr),
                    !isSequenceReceiver
                 {
