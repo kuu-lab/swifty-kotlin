@@ -1170,6 +1170,12 @@ extension DataFlowSemaPhase {
                 ["kotlin", "time", "TimeSource", "WithComparableMarks"],
                 ["kotlin", "time", "TimeSource", "Monotonic"],
             ]
+        case "__bundled_kotlin/time/TimeSources.kt":
+            [
+                ["kotlin", "time", "AbstractLongTimeSource"],
+                ["kotlin", "time", "AbstractDoubleTimeSource"],
+                ["kotlin", "time", "TestTimeSource"],
+            ]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
         case "__bundled_kotlin/Tuples.kt":
