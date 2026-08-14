@@ -55,7 +55,22 @@ extension CallTypeChecker {
                     break
                 }
             }
-            return sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            let inferredType = sema.bindings.exprType(for: arg.expr)
+                ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            if calleeName == interner.intern("coerceIn"),
+               let rangeType = floatingPointRangeArgumentType(
+                   arg.expr,
+                   ast: ast,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                // Floating-point range expressions use a scalar lowering type for
+                // the existing range runtime path, but source-backed coerceIn
+                // resolves against ClosedFloatingPointRange<T>.
+                return rangeType
+            }
+            return inferredType
         }
 
         let hasLeadingLocaleArgument = calleeName == interner.intern("format")
@@ -847,6 +862,31 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if interner.resolve(calleeName) == "coerceIn",
+           args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
+        {
+            // Imported `.kklib` metadata does not make a generic extension whose
+            // receiver is a type parameter visible through the receiver-type
+            // fallback above. Recover the source-backed range overloads here so
+            // the same call resolves with bundled source injection and a library.
+            let genericRangeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      signature.parameterTypes.count == 1,
+                      let (_, parameterSymbol) = resolveClassTypeSymbol(
+                          signature.parameterTypes[0], sema: sema
+                      )
+                else {
+                    return false
+                }
+                let parameterName = interner.resolve(parameterSymbol.name)
+                return parameterName == "ClosedFloatingPointRange"
+            }
+            candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
+        }
         if ["sumBy", "sumByDouble", "sumOf"].contains(interner.resolve(calleeName)) {
             let desc = candidates.map { c in
                 let name = sema.symbols.symbol(c).map { interner.resolve($0.name) } ?? "?"
@@ -1462,6 +1502,38 @@ extension CallTypeChecker {
         let finalType = safeCall ? sema.types.makeNullable(adjustedReturnType) : adjustedReturnType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
+    }
+
+    private func floatingPointRangeArgumentType(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard sema.bindings.isFloatingPointRangeExpr(exprID),
+              let rangeSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("ranges"),
+                  interner.intern("ClosedFloatingPointRange"),
+              ])
+        else {
+            return nil
+        }
+        let elementType: TypeID = if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID) {
+            elementType
+        } else if case let .binary(_, lhs, rhs, _) = ast.arena.expr(exprID),
+                  sema.bindings.exprType(for: lhs) == sema.types.floatType
+                      || sema.bindings.exprType(for: rhs) == sema.types.floatType
+        {
+            sema.types.floatType
+        } else {
+            sema.types.doubleType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: rangeSymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
     }
 
     /// Whether `receiverType`'s nominal owner is one of the atomic stdlib classes

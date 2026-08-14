@@ -302,6 +302,55 @@ extension CallLowerer {
         // the originally-intended "chosenCallee == nil" fallback path so codegen
         // resolves purely by the (corrected) external ABI name.
         var callSymbol = chosenCallee
+        // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
+        // so lower the concrete Double/Float overload directly to the range ABI.
+        // The source-backed generic declaration remains available for overload
+        // resolution, while this path preserves the stdlib's empty-range and NaN
+        // behavior without dispatching synthetic range accessors through an
+        // unpopulated itable.
+        if interner.resolve(calleeName) == "coerceIn",
+           sourceArgExprs.count == 1,
+           sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
+        {
+            let receiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+            )
+            let floatingRangeCallee: InternedString? = if receiverType == sema.types.floatType {
+                interner.intern("__kk_float_coerceIn_range")
+            } else if receiverType == sema.types.doubleType {
+                interner.intern("__kk_double_coerceIn_range")
+            } else {
+                nil
+            }
+            if let floatingRangeCallee {
+                var rangeArguments = finalArguments
+                if rangeArguments.count == 1 {
+                    rangeArguments.insert(receiver.loweredID, at: 0)
+                }
+                guard rangeArguments.count == 2 else {
+                    preconditionFailure("KSP-641 range coerceIn must lower to receiver and range arguments")
+                }
+                let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: floatingRangeCallee,
+                    arguments: rangeArguments,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                let continueLabel = driver.ctx.makeLoopLabel()
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: thrownResult))
+                instructions.append(.label(continueLabel))
+                return
+            }
+        }
         if receiverIsRandom, loweredCallee == interner.intern("nextLong"),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
