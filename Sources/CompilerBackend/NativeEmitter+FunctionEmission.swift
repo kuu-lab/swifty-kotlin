@@ -499,6 +499,21 @@ extension NativeEmitter {
             return true
         }
 
+        /// Raw scalar values use Int64.min as the nullable sentinel, so zero
+        /// remains a valid value for nullable primitives and enum ordinals.
+        /// Reference-like values still use zero as the null representation.
+        func nullableRawScalarPreservesZero(_ type: TypeID?) -> Bool {
+            guard let type, let typeSystem else { return false }
+            switch typeSystem.kind(of: type) {
+            case .primitive(_, let nullability):
+                return nullability != .nonNull
+            case let .classType(classType):
+                return symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+            default:
+                return false
+            }
+        }
+
         func isCharSequenceRuntimeStringType(_ type: TypeID?) -> Bool {
             guard let type,
                   let typeSystem,
@@ -2965,7 +2980,8 @@ extension NativeEmitter {
                     continue
                 }
                 let resolved = resolveValue(value)
-                if let valueType = module.arena.exprType(value),
+                let valueType = module.arena.exprType(value)
+                if let valueType,
                    let typeLowering,
                    let typeSystem,
                    case .stringStruct = typeSystem.kind(of: valueType),
@@ -3011,14 +3027,21 @@ extension NativeEmitter {
                     rhs: nullSentinel,
                     name: "jnn_nonsentinel_\(instructionIndex)"
                 )
-                if let isNonZero,
-                   let isNotSentinel,
-                   let condition = bindings.buildAnd(
-                       builder,
-                       lhs: isNonZero,
-                       rhs: isNotSentinel,
-                       name: "jnn_cond_\(instructionIndex)"
-                   ),
+                let condition: LLVMCAPIBindings.LLVMValueRef? = if nullableRawScalarPreservesZero(valueType) {
+                    isNotSentinel
+                } else if let isNonZero,
+                          let isNotSentinel
+                {
+                    bindings.buildAnd(
+                        builder,
+                        lhs: isNonZero,
+                        rhs: isNotSentinel,
+                        name: "jnn_cond_\(instructionIndex)"
+                    )
+                } else {
+                    nil
+                }
+                if let condition,
                    let targetBlock = blockForLabel(target),
                    let fallthroughBlock = bindings.appendBasicBlock(
                        context: context,

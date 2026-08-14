@@ -1236,6 +1236,51 @@ final class InlineLoweringPass: LoweringPass {
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 }
                 var loweredArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+
+                // The nullable seed branch of bundled `generateSequence` can
+                // leave the bridge argument typed only as `T` after inlining.
+                // Recover the concrete call-site type before the erased bridge
+                // stores the seed, so enum ordinals retain their entry name.
+                if ctx.interner.resolve(callee) == "__kk_sequence_generate",
+                   let types = ctx.sema?.types,
+                   let seed = loweredArgs.first,
+                   let substitutedSeedType: TypeID? = {
+                       if let seedType = module.arena.exprType(seed),
+                          case .typeParam = types.kind(of: seedType),
+                          let substituted = substituteInlineType(
+                              seedType,
+                              using: inlineTypeSubstitution,
+                              ctx: ctx
+                          ),
+                          substituted != seedType
+                       {
+                           return substituted
+                       }
+                       // Some in-process test pipelines do not preserve the
+                       // expression type on the copy that crosses the nullable
+                       // branch. `generateSequence` has one type parameter, so
+                       // its inline substitution is still an unambiguous source
+                       // of the concrete seed type in that representation.
+                       guard let inlineTypeSubstitution,
+                             inlineTypeSubstitution.substitution.count == 1,
+                             let substituted = inlineTypeSubstitution.substitution.values.first
+                       else {
+                           return nil
+                       }
+                       return substituted
+                   }(),
+                   let substitutedSeedType
+                {
+                    loweredArgs[0] = boxValueForAnySlot(
+                        seed,
+                        sourceType: substitutedSeedType,
+                        types: types,
+                        symbols: ctx.sema?.symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        into: &lowered
+                    )
+                }
                 // The lambda could not be spliced, so it is reached through a
                 // function value whose adapter speaks the erased convention.
                 // Substituting concrete type arguments turned the values that
