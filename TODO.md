@@ -299,7 +299,7 @@
 - [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
-- [ ] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（`docs/stdlib-pipeline.md` §9 の Atomic 内訳が「`AtomicBoolean`/`AtomicReference` の `compareAndSet` は get/set 委譲順序の都合で**別タスク**」と明記したまま未起票だった — 2026-08-12 追補。KSP-671 が `AtomicInt`/`AtomicLong` で確立した `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開する。ハードウェア CAS コア（`compareAndExchange` 系ブリッジ）は (c) 残留。着手時 `rg 'compareAndSet' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticAtomicStubs.swift Sources/Runtime/RuntimeAtomic.swift` で削除対象を固定（kk_atomic_* はスタブ側 prefix 補間 emit のため rg は補間考慮）。手順: T / diff: AtomicBoolean/AtomicReference の CAS ケース新規）
+- [x] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（KSP-671 の `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開し、AtomicReference は `===` で参照同一性を保持）。synthetic compareAndSet stub と `kk_atomic_bool/ref_compareAndSet` 公開経路を削除し、ハードウェア CAS コアの `compareAndExchange` ブリッジは (c) として残留。equal-but-distinct reference の最小 diff case と成功/失敗時の値保持を回帰固定。RuntimeAtomic の比較を参照同一性へ修正し、最小再現を同一PRに包含。
 
 #### delegates / reflect
 
