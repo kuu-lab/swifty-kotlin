@@ -277,25 +277,25 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathNameExtensionPropertyInIOPathPackageSurfaceIsResolved
             """
             package sample13
-            
+
             fun cleanupStub117RemovedCase13() {}
             """,
             // testPathNameWithoutExtensionPropertyInIOPathPackageSurfaceIsResolved
             """
             package sample14
-            
+
             fun cleanupStub117RemovedCase14() {}
             """,
             // testPathExtensionPropertyInIOPathPackageSurfaceIsResolved
             """
             package sample15
-            
+
             fun cleanupStub117RemovedCase15() {}
             """,
             // testPathStringExtensionPropertyInIOPathPackageSurfaceIsResolved
             """
             package sample16
-            
+
             fun cleanupStub117RemovedCase16() {}
             """,
             // testCopyActionResultInIOPathPackageSurfaceIsResolved
@@ -316,19 +316,19 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathAppendTextExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample18
-            
+
             fun cleanupStub117RemovedCase18() {}
             """,
             // testPathWriteTextOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
             """
             package sample19
-            
+
             fun cleanupStub117RemovedCase19() {}
             """,
             // testPathCopyToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample20
-            
+
             fun cleanupStub117RemovedCase20() {}
             """,
             // CLEANUP-STUB-116 removed fileAttributesView; keep this slot to preserve path indices.
@@ -340,49 +340,49 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathGetLastModifiedTimeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample22
-            
+
             fun cleanupStub117RemovedCase22() {}
             """,
             // testPathIsDirectoryOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample23
-            
+
             fun cleanupStub117RemovedCase23() {}
             """,
             // testPathListDirectoryEntriesGlobExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample24
-            
+
             fun cleanupStub117RemovedCase24() {}
             """,
             // testPathOutputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample25
-            
+
             fun cleanupStub117RemovedCase25() {}
             """,
             // testPathInputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample26
-            
+
             fun cleanupStub117RemovedCase26() {}
             """,
             // testPathBaseSubpathsTopLevelFactoryInIOPathPackageSurfaceIsResolved
             """
             package sample27
-            
+
             fun cleanupStub117RemovedCase27() {}
             """,
             // testPathFileVisitorBuilderActionTopLevelFunctionSurfaceIsResolved
             """
             package sample28
-            
+
             fun cleanupStub117RemovedCase28() {}
             """,
             // testPathVisitFileTreeVisitorExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample29
-            
+
             fun cleanupStub117RemovedCase29() {}
             """,
             // CLEANUP-STUB-116 removed Path.useLines; keep this slot to preserve path indices.
@@ -394,7 +394,7 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathReadAttributesStringOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample31
-            
+
             fun cleanupStub117RemovedCase31() {}
             """,
             // CLEANUP-STUB-116 removed useDirectoryEntries; keep this slot to preserve path indices.
@@ -412,19 +412,19 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathTopLevelPathStringFactoryShapeInIOPathPackageSurfaceIsResolved
             """
             package sample34
-            
+
             fun cleanupStub117RemovedCase34() {}
             """,
             // testPathReaderCharsetOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample35
-            
+
             fun cleanupStub117RemovedCase35() {}
             """,
             // testPathSetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample36
-            
+
             fun cleanupStub117RemovedCase36() {}
             """,
             // CLEANUP-STUB-116 removed fileAttributesViewOrNull; keep this slot to preserve path indices.
@@ -436,103 +436,103 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathGetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample38
-            
+
             fun cleanupStub117RemovedCase38() {}
             """,
             // testPathGetOwnerOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample39
-            
+
             fun cleanupStub117RemovedCase39() {}
             """,
             // testPathMoveToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample40
-            
+
             fun cleanupStub117RemovedCase40() {}
             """,
             // testPathIsRegularFileOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample41
-            
+
             fun cleanupStub117RemovedCase41() {}
             """,
             // testPathExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample42
-            
+
             fun cleanupStub117RemovedCase42() {}
             """,
             // testPathForEachDirectoryEntryExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample43
-            
+
             fun cleanupStub117RemovedCase43() {}
             """,
             // testPathNotExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample44
-            
+
             fun cleanupStub117RemovedCase44() {}
             """,
             // testPathAppendLinesIterableExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample45
-            
+
             fun cleanupStub117RemovedCase45() {}
             """,
             // testPathWriteLinesIterableExtensionFunctionInIOPathPackageSurfaceIsRegistered
             """
             package sample46
-            
+
             fun cleanupStub117RemovedCase46() {}
             """,
             // testPathForEachLineExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample47
-            
+
             fun cleanupStub117RemovedCase47() {}
             """,
             // testPathWriteLinesSequenceExtensionFunctionInIOPathPackageSurfaceIsRegistered
             """
             package sample48
-            
+
             fun cleanupStub117RemovedCase48() {}
             """,
             // testPathWriterOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
             """
             package sample49
-            
+
             fun cleanupStub117RemovedCase49() {}
             """,
             // testPathBufferedWriterExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample50
-            
+
             fun cleanupStub117RemovedCase50() {}
             """,
             // testPathFileSizeExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample51
-            
+
             fun cleanupStub117RemovedCase51() {}
             """,
             // testPathRelativeToOrNullExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample52
-            
+
             fun cleanupStub117RemovedCase52() {}
             """,
             // testPathSetPosixFilePermissionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample53
-            
+
             fun cleanupStub117RemovedCase53() {}
             """,
             // testPathGetPosixFilePermissionsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample54
-            
+
             fun cleanupStub117RemovedCase54() {}
             """,
             // testOnErrorResultInIOPathPackageSurfaceIsResolved
@@ -552,91 +552,91 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathCreateDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample56
-            
+
             fun cleanupStub117RemovedCase56() {}
             """,
             // testPathCreateDirectoryAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample57
-            
+
             fun cleanupStub117RemovedCase57() {}
             """,
             // testPathCreateFileAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample58
-            
+
             fun cleanupStub117RemovedCase58() {}
             """,
             // testPathCreateParentDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample59
-            
+
             fun cleanupStub117RemovedCase59() {}
             """,
             // testPathDeleteIfExistsExtensionFunctionInIOPathPackageSurfaceMatchesOfficialShape
             """
             package sample60
-            
+
             fun cleanupStub117RemovedCase60() {}
             """,
             // testPathCreateSymbolicLinkPointingToAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample61
-            
+
             fun cleanupStub117RemovedCase61() {}
             """,
             // testCreateTempDirectoryDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample62
-            
+
             fun cleanupStub117RemovedCase62() {}
             """,
             // testCreateTempDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample63
-            
+
             fun cleanupStub117RemovedCase63() {}
             """,
             // testCreateTempFileDirectoryPrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample64
-            
+
             fun cleanupStub117RemovedCase64() {}
             """,
             // testCreateTempFilePrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample65
-            
+
             fun cleanupStub117RemovedCase65() {}
             """,
             // testPathCopyToRecursivelyOverwriteExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample66
-            
+
             fun cleanupStub117RemovedCase66() {}
             """,
             // testPathCopyToRecursivelyCopyActionExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample67
-            
+
             fun cleanupStub117RemovedCase67() {}
             """,
             // testPathReadSymbolicLinkExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample68
-            
+
             fun cleanupStub117RemovedCase68() {}
             """,
             // testPathRelativeToOrSelfExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample69
-            
+
             fun cleanupStub117RemovedCase69() {}
             """,
             // testPathRelativeToExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample70
-            
+
             fun cleanupStub117RemovedCase70() {}
             """,
             // testPathWalkOptionInIOPathPackageSurfaceIsResolved
@@ -656,37 +656,37 @@ struct SemanticsAndUtilitiesRegressionTests {
             // testPathWalkOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
             """
             package sample72
-            
+
             fun cleanupStub117RemovedCase72() {}
             """,
             // testPathInvariantSeparatorsPathStringPropertyInIOPathPackageSurfaceIsResolved
             """
             package sample73
-            
+
             fun cleanupStub117RemovedCase73() {}
             """,
             // testPathInvariantSeparatorsPathPropertyInIOPathPackageSurfaceIsResolved
             """
             package sample74
-            
+
             fun cleanupStub117RemovedCase74() {}
             """,
             // testPathAbsoluteExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample75
-            
+
             fun cleanupStub117RemovedCase75() {}
             """,
             // testPathAbsolutePathStringExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample76
-            
+
             fun cleanupStub117RemovedCase76() {}
             """,
             // testPathAppendBytesExtensionFunctionInIOPathPackageSurfaceIsResolved
             """
             package sample77
-            
+
             fun cleanupStub117RemovedCase77() {}
             """,
             // testMemoryOrderInAtomicsPackageIsResolved

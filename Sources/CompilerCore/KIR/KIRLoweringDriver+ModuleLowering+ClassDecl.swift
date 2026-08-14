@@ -68,6 +68,13 @@ extension KIRLoweringDriver {
             declIDs: &declIDs
         )
 
+        declIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
+            classDecl: classDecl,
+            ownerSymbol: symbol,
+            shared: shared,
+            compilationCtx: compilationCtx
+        ))
+
         return declIDs
     }
 
@@ -112,6 +119,13 @@ extension KIRLoweringDriver {
                     compilationCtx: compilationCtx,
                     declIDs: &declIDs
                 )
+
+                declIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
+                    classDecl: nestedClass,
+                    ownerSymbol: nestedSymbol,
+                    shared: shared,
+                    compilationCtx: compilationCtx
+                ))
             default:
                 break
             }
@@ -487,5 +501,164 @@ extension KIRLoweringDriver {
             canThrow: false,
             thrownResult: nil
         ))
+    }
+
+    /// BUG-205: Synthesizes per-enum-class, per-constructor-property helper
+    /// functions (`$enumConstructorProperty$<classID>$<propertyName>`) that switch
+    /// on the receiver's ordinal and return the corresponding constructor
+    /// argument. Without these helpers, reading `s.code` on an enum class
+    /// `Status(val code: Int)` is lowered as an unresolved zero-argument call.
+    private func synthesizeEnumConstructorPropertyHelperFunctions(
+        classDecl: ClassDecl,
+        ownerSymbol: SymbolID,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
+    ) -> [KIRDeclID] {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        guard let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              ownerInfo.kind == .enumClass,
+              !classDecl.enumEntries.isEmpty
+        else {
+            return []
+        }
+
+        let anyType = sema.types.anyType
+        let intType = sema.types.intType
+        let nullableAnyType = sema.types.nullableAnyType
+        var declIDs: [KIRDeclID] = []
+
+        for (paramIndex, param) in classDecl.primaryConstructorParams.enumerated() where param.isProperty {
+            let propertyName = param.name
+            guard let propertySymbol = sema.symbols.lookupAll(fqName: ownerInfo.fqName + [propertyName])
+                .first(where: { sema.symbols.symbol($0)?.kind == .property })
+            else {
+                continue
+            }
+            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? anyType
+            let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
+            let helperFQName = ownerInfo.fqName + [helperName]
+
+            guard sema.symbols.lookupAll(fqName: helperFQName)
+                .first(where: { sema.symbols.symbol($0)?.kind == .function }) == nil
+            else {
+                continue
+            }
+
+            let helperSymbol = sema.symbols.define(
+                kind: .function,
+                name: helperName,
+                fqName: helperFQName,
+                declSite: classDecl.range,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+
+            let receiverParamName = interner.intern("$receiver")
+            let receiverParamSymbol = sema.symbols.define(
+                kind: .valueParameter,
+                name: receiverParamName,
+                fqName: helperFQName + [receiverParamName],
+                declSite: classDecl.range,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+
+            let signature = FunctionSignature(
+                parameterTypes: [anyType],
+                returnType: propertyType,
+                isSuspend: false,
+                canThrow: false,
+                valueParameterSymbols: [receiverParamSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false]
+            )
+            sema.symbols.setFunctionSignature(signature, for: helperSymbol)
+
+            let helperBody = ctx.withNewScope { () -> [KIRInstruction] in
+                ctx.setCurrentFunctionSymbol(helperSymbol)
+                ctx.beginCallableLoweringScope()
+
+                let receiverRef = arena.appendExpr(.symbolRef(receiverParamSymbol), type: anyType)
+                var body: KIRLoweringEmitContext = [.beginBlock]
+                body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParamSymbol)))
+
+                let unboxedOrdinal = emitNonThrowingCall(
+                    callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                    arg: receiverRef,
+                    resultType: intType,
+                    arena: arena,
+                    into: &body.instructions
+                )
+
+                for (ordinal, entry) in classDecl.enumEntries.enumerated() {
+                    let ordinalExpr = arena.appendExpr(.intLiteral(Int64(ordinal)), type: intType)
+                    body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
+                    let matchLabel = ctx.makeLoopLabel()
+                    let nextLabel = ctx.makeLoopLabel()
+                    body.append(.jumpIfEqual(lhs: unboxedOrdinal, rhs: ordinalExpr, target: matchLabel))
+                    body.append(.jump(nextLabel))
+                    body.append(.label(matchLabel))
+
+                    let valueExpr: KIRExprID
+                    if paramIndex < entry.constructorArgs.count {
+                        valueExpr = lowerExpr(
+                            entry.constructorArgs[paramIndex].expr,
+                            shared: shared,
+                            emit: &body
+                        )
+                    } else if paramIndex < classDecl.primaryConstructorParams.count,
+                              let defaultExprID = classDecl.primaryConstructorParams[paramIndex].defaultValue
+                    {
+                        valueExpr = lowerExpr(
+                            defaultExprID,
+                            shared: shared,
+                            emit: &body
+                        )
+                    } else {
+                        let defaultValue = delegationDefaultValue(for: propertyType, sema: sema)
+                        valueExpr = arena.appendExpr(defaultValue, type: propertyType)
+                        body.append(.constValue(result: valueExpr, value: defaultValue))
+                    }
+
+                    body.append(.returnValue(valueExpr))
+                    body.append(.label(nextLabel))
+                }
+
+                let nullOutThrown = arena.appendExpr(.null, type: nullableAnyType)
+                body.append(.constValue(result: nullOutThrown, value: .null))
+                let fallbackResult = arena.appendTemporary(type: propertyType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_abort_unreachable"),
+                    arguments: [nullOutThrown],
+                    result: fallbackResult,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: false
+                ))
+                body.append(.returnValue(fallbackResult))
+                body.append(.endBlock)
+
+                return body.instructions
+            }
+
+            let generatedDecls = ctx.drainGeneratedCallableDecls()
+            let kirFunction = KIRFunction(
+                symbol: helperSymbol,
+                name: helperName,
+                params: [KIRParameter(symbol: receiverParamSymbol, type: anyType)],
+                returnType: propertyType,
+                body: helperBody,
+                isSuspend: false,
+                isInline: false,
+                sourceRange: nil
+            )
+            declIDs.append(arena.appendDecl(.function(kirFunction)))
+            declIDs.append(contentsOf: generatedDecls)
+        }
+
+        return declIDs
     }
 }

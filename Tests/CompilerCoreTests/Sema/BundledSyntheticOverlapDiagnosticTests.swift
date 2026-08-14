@@ -187,6 +187,28 @@ struct BundledSyntheticOverlapDiagnosticTests {
         #expect(overlapDiags.isEmpty, "Unexpected overlap warnings: \(overlapDiags.map(\.message))")
     }
 
+    @Test
+    func testSourceBackedSequenceRuntimeAliasDoesNotWarn() throws {
+        let source = """
+        fun main() {
+            sequenceOf(1, 2, 1).toHashSet()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let overlapDiagnostics = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-0102"
+            }
+            #expect(
+                overlapDiagnostics.isEmpty,
+                "Source-backed Sequence runtime alias leaked overlap diagnostics: \(overlapDiagnostics)"
+            )
+        }
+    }
+
     private func makeContext(diagnostics: DiagnosticEngine) -> CompilationContext {
         makeCompilationContext(inputs: ["/tmp/test.kt"], diagnostics: diagnostics)
     }

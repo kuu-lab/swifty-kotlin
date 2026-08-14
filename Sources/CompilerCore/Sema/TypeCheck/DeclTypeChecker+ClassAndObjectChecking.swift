@@ -80,6 +80,7 @@ extension DeclTypeChecker {
 
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
@@ -461,5 +462,57 @@ extension DeclTypeChecker {
         }
 
         return classScope
+    }
+
+    /// Type-checks enum entry constructor argument expressions against the
+    /// primary constructor parameter types. Without this the expressions are
+    /// never visited by Sema, so KIR lowering cannot resolve constants or
+    /// produce correct type information for constructor property dispatch.
+    private func typeCheckEnumEntryConstructorArguments(
+        _ classDecl: ClassDecl,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard !classDecl.enumEntries.isEmpty,
+              !classDecl.primaryConstructorParams.isEmpty
+        else {
+            return
+        }
+        let sema = ctx.sema
+        let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
+            .compactMap { sema.symbols.symbol($0) }
+            .first { $0.kind == .constructor }
+        guard let primaryCtorSymbol,
+              let signature = sema.symbols.functionSignature(for: primaryCtorSymbol.id)
+        else {
+            return
+        }
+
+        let argCtx = ctx.copying(scope: ctx.scope, implicitReceiverType: nil)
+        for entry in classDecl.enumEntries {
+            for (index, arg) in entry.constructorArgs.enumerated() {
+                guard index < signature.parameterTypes.count else {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0250",
+                        "Enum entry '\(ctx.interner.resolve(entry.name))' has too many constructor arguments",
+                        range: entry.range
+                    )
+                    break
+                }
+                let paramType = signature.parameterTypes[index]
+                var locals: LocalBindings = [:]
+                let argType = driver.inferExpr(arg.expr, ctx: argCtx, locals: &locals, expectedType: paramType)
+                driver.emitSubtypeConstraint(
+                    left: argType,
+                    right: paramType,
+                    range: ctx.ast.arena.exprRange(arg.expr),
+                    solver: solver,
+                    sema: sema,
+                    diagnostics: diagnostics
+                )
+            }
+        }
     }
 }
