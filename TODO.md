@@ -274,6 +274,10 @@
 
 - [x] KSP-692: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` を責務別に分割する（§9 follow-up order「Split mixed files before touching their residual parts」の最終残: Random/Atomic は分割・移行済みで、本ファイルのみ TODO()/File IO/system/duration/collection factory の登録が混在したまま現存最大の合成スタブ（2026-08-12 実測 3,614 行）。分割先は担当タスク対応で: File I/O 登録 → KSP-484 が触る単位 / duration 系 → KSP-683 が触る単位 / collection factory → 既存 `+SyntheticCollectionFactoryStubs.swift` へ / 残余（TODO()・system）→ 現ファイル縮小維持。着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift` で登録単位を全列挙してから機械的移動のみ行う（挙動変更ゼロ・`loc_report.sh` 合計行数 ±0 を完了条件に含む）。命名は責務ベース（CLAUDE.md の分割ファイル規約））
 
+#### text / strings
+
+- [ ] KSP-693: `HeaderHelpers+SyntheticStringStubs.swift` を責務別に機械分割する（stdlib-pipeline.md 分類 (b) M1 文字列移行、約4,180行。現存最大級の合成スタブを検索/置換系・変換系・フォーマット系・bridge-only `__kk_*` 宣言等の責務別サブファイルへ機械的に移動のみで整理し、後続の M1 文字列 Kotlin 移行（(b)）の前段を整える。分割先の責務グループは着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift` で登録単位を全列挙して確定する。命名は責務ベースで既存の `HeaderHelpers+Synthetic*Stubs.swift` 命名慣習に合わせる。完了条件: 挙動変更ゼロ / `Scripts/loc_report.sh` の `HeaderHelpers+Synthetic*` 合計行数 ±0 / 共通ゲート G（`bash Scripts/swift_test.sh` / `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` すべて green））
+
 #### collections
 
 - [ ] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
