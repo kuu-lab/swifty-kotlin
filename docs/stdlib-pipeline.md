@@ -600,4 +600,4 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
-| `random/Random.kt` | `Random` 1クラス統合 + セカンダリコンストラクタ | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— 本家形への移行自体は PRNG のビット精度検証を伴う別タスクで実施 |
+| `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |

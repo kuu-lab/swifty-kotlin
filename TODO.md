@@ -143,7 +143,7 @@
 
 #### kotlin.random [M7 実行体]
 
-- [ ] KSP-685: `random/Random.kt` を本家構造（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)`）へ戻す（構造逸脱台帳 `docs/stdlib-pipeline.md` §13-8 の解消実行体。KSP-CAP-006 の完了で「着手可能・PRNG のビット精度検証を伴う別タスクで実施」と記録されたまま未起票だった — 2026-08-12 追補）
+- [x] KSP-685: `random/Random.kt` を本家構造（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)`）へ戻す（構造逸脱台帳 `docs/stdlib-pipeline.md` §13-8 の解消実行体。KSP-CAP-006 の完了で「着手可能・PRNG のビット精度検証を伴う別タスクで実施」と記録されたまま未起票だった — 2026-08-12 追補）
   - 検証: シード付き `nextInt`/`nextInt(bound)`/`nextLong`/`nextBits`/`nextDouble` の決定値列を kotlinc と突合する diff ケースを追加（XorWowRandom のビット精度固定）。既存の `shuffled(Random(7))` 系決定性テスト（KSP-CAP-011）の非回帰も確認
   - 完了時: `docs/stdlib-pipeline.md` §13-8 の台帳行を解消済みへ更新 / 手順: T
 

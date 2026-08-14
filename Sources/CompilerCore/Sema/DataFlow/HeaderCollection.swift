@@ -197,6 +197,11 @@ extension DataFlowSemaPhase {
         if let reusableSyntheticSymbol {
             symbol = reusableSyntheticSymbol
             symbols.removeFlags(.synthetic, for: symbol)
+            // Preserve semantic modifiers from the bundled declaration when a
+            // predeclared synthetic placeholder is reused. Without this,
+            // abstract/open/sealed flags are lost for source-backed types such
+            // as kotlin.random.Random.
+            symbols.insertFlags(declaration.flags, for: symbol)
         } else {
             symbol = symbols.define(
                 kind: declaration.kind,
