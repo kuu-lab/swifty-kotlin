@@ -1,20 +1,8 @@
-// SKIP-DIFF (DEBT-DIFF-003): the Sema overload-resolution failure (KSWIFTK-SEMA-0002) on
-// Mutex.withLock / Semaphore.withPermit was fixed in KSP-677 (generic-lambda return-type
-// inference), and the coroutine-lowering feature gap KSWIFTK-CORO-0003 (capturing suspend
-// lambdas launched via launch { } / launch(dispatcher) { } / CoroutineScope.launch { })
-// was fixed in BUG-049 -- see the focused, deterministic regression in
-// Scripts/diff_cases/coroutine_launch_capture.kt. This broader case still stays skipped
-// because it fans out 100+ coroutines on Dispatchers.Default, which exposes a separate,
-// pre-existing runtime GC-under-parallelism crash (SIGSEGV in swift_retain when many
-// worker threads allocate/retain shared objects at once) that is independent of capture
-// forwarding, plus the `delay` runtime dependency inside a non-suspend permit block. See
-// docs/diff-skip-inventory.md and BUG-049.
+// TEST-CORO-003: Mutex and Semaphore — protecting shared state in coroutines,
+// withLock helper, and Semaphore for limiting concurrent access.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import java.util.concurrent.atomic.AtomicInteger
-
-// TEST-CORO-003: Mutex and Semaphore — protecting shared state in coroutines,
-// withLock helper, and Semaphore for limiting concurrent access.
 
 fun main() = runBlocking {
     // 1. Mutex protects shared counter
