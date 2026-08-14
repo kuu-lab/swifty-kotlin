@@ -282,13 +282,6 @@ extension CollectionLiteralLoweringSupport {
                 ulongRangeExprIDs.insert(result.rawValue)
             }
         }
-        // KSP-441〜447: Sequence ファクトリは source 化済み。runtime sequence handle として追跡しない。
-        // if let result,
-        //    callee == lookup.sequenceOfName || callee == lookup.generateSequenceName
-        //     || callee == lookup.kkStringAsSequenceName
-        // {
-        //     sequenceExprIDs.insert(result.rawValue)
-        // }
         // STDLIB-189: Classify string-producing calls
         if let result, lookup.stringProducingCallees.contains(callee) {
             stringExprIDs.insert(result.rawValue)

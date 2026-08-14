@@ -259,7 +259,7 @@ final class CallSupportLowerer {
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
         let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
-            || externalLinkName == "kk_sequence_of"
+            || externalLinkName == "__kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
         if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner) {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)

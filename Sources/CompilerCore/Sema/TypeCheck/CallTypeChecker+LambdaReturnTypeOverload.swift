@@ -160,7 +160,10 @@ extension CallTypeChecker {
                         // candidates each want exactly one parameter but disagree on its
                         // type, there is no way to check the body without guessing which
                         // overload was meant.
-                        if lambdaParams.isEmpty, expectation.hasAmbiguousImplicitParameterShape {
+                        if lambdaParams.isEmpty,
+                           expectation.hasAmbiguousImplicitParameterShape,
+                           lambdaBodyUsesImplicitIt(argument.expr, ctx: ctx)
+                        {
                             hasUnresolvableImplicitLambdaParameter = true
                         }
                     }
@@ -530,6 +533,84 @@ extension CallTypeChecker {
             }
             return true
         }
+
+        // A bare lambda literal is itself a function value. When overloads
+        // differ between a function-typed parameter and an unconstrained type
+        // parameter at the same position, prefer the function-typed candidates
+        // so the lambda receives a single contextual type. Otherwise a generic
+        // overload can also bind its type parameter to the lambda's function
+        // type, leaving equivalent candidates and untyped `it` parameters in
+        // later lambdas. This is a general shape rule, not a stdlib-name rule.
+        let emptyLambdaIndices = args.indices.filter { argIndex in
+            guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(args[argIndex].expr),
+                  lambdaParams.isEmpty
+            else {
+                return false
+            }
+            return true
+        }
+        let lambdaShapeIndices = emptyLambdaIndices.filter { argIndex in
+            let hasFunctionCandidate = narrowed.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = parameterTypeForArgument(at: argIndex, in: signature)
+                else {
+                    return false
+                }
+                return isFunctionTypeLike(parameterType, sema: sema)
+            }
+            let hasNonFunctionCandidate = narrowed.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = parameterTypeForArgument(at: argIndex, in: signature)
+                else {
+                    return false
+                }
+                return !isFunctionTypeLike(parameterType, sema: sema)
+            }
+            return hasFunctionCandidate && hasNonFunctionCandidate
+        }
+        let lambdaShapeNarrowed = narrowed.filter { candidate in
+            lambdaShapeIndices.allSatisfy { argIndex in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = parameterTypeForArgument(at: argIndex, in: signature)
+                else {
+                    return false
+                }
+                return isFunctionTypeLike(parameterType, sema: sema)
+            }
+        }
+        if !lambdaShapeNarrowed.isEmpty,
+           lambdaShapeNarrowed.count < narrowed.count
+        {
+            return lambdaShapeNarrowed
+        }
+
+        // A null-only producer has no non-null lower bound from which the
+        // generic `() -> T?` overload can infer T. Kotlin resolves this case
+        // through the bottom-type overload, but that overload must not win for
+        // ordinary producers such as `{ 42 }`.
+        let nullOnlyLambdaIndices = emptyLambdaIndices.filter { argIndex in
+            lambdaBodyIsNullLiteral(args[argIndex].expr, ctx: ctx)
+        }
+        let nullProducerNarrowed = narrowed.filter { candidate in
+            nullOnlyLambdaIndices.allSatisfy { argIndex in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = parameterTypeForArgument(at: argIndex, in: signature),
+                      case let .functionType(functionType) = sema.types.kind(
+                          of: sema.types.makeNonNullable(parameterType)
+                      )
+                else {
+                    return false
+                }
+                return functionType.returnType == sema.types.nullableNothingType
+            }
+        }
+        if !nullOnlyLambdaIndices.isEmpty,
+           !nullProducerNarrowed.isEmpty,
+           nullProducerNarrowed.count < narrowed.count
+        {
+            return nullProducerNarrowed
+        }
+
         return narrowed.isEmpty ? candidates : narrowed
     }
 
@@ -1108,6 +1189,138 @@ extension CallTypeChecker {
     ) -> Bool {
         sema.symbols.annotations(for: symbol).contains { annotation in
             KnownCompilerAnnotation.overloadResolutionByLambdaReturnType.matches(annotation.annotationFQName)
+        }
+    }
+
+    private func lambdaBodyUsesImplicitIt(
+        _ lambdaExprID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(lambdaExprID) else {
+            return false
+        }
+        var visited: Set<Int32> = []
+        return expressionUsesImplicitIt(body, ctx: ctx, visited: &visited)
+    }
+
+    private func lambdaBodyIsNullLiteral(
+        _ lambdaExprID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(lambdaExprID),
+              case let .nameRef(name, _) = ctx.ast.arena.expr(body)
+        else {
+            return false
+        }
+        return name == ctx.interner.intern("null")
+    }
+
+    // A no-arrow lambda only has an unresolvable implicit parameter when its
+    // body actually references `it`; `{ null }` is a zero-parameter producer.
+    private func expressionUsesImplicitIt(
+        _ exprID: ExprID,
+        ctx: TypeInferenceContext,
+        visited: inout Set<Int32>
+    ) -> Bool {
+        guard visited.insert(exprID.rawValue).inserted,
+              let expr = ctx.ast.arena.expr(exprID)
+        else {
+            return false
+        }
+        func visit(_ child: ExprID) -> Bool {
+            return self.expressionUsesImplicitIt(child, ctx: ctx, visited: &visited)
+        }
+        switch expr {
+        case let .nameRef(name, _):
+            return name == ctx.interner.intern("it")
+        case let .stringTemplate(parts, _):
+            return parts.contains { part in
+                if case let .expression(child) = part { return visit(child) }
+                return false
+            }
+        case let .forExpr(_, iterable, body, _, _):
+            return visit(iterable) || visit(body)
+        case let .whileExpr(condition, body, _, _):
+            return visit(condition) || visit(body)
+        case let .doWhileExpr(body, condition, _, _):
+            return visit(body) || visit(condition)
+        case let .localDecl(_, _, _, initializer, _, _):
+            return initializer.map(visit) ?? false
+        case let .localAssign(_, value, _):
+            return visit(value)
+        case let .memberAssign(receiver, _, value, _):
+            return visit(receiver) || visit(value)
+        case let .indexedAssign(receiver, indices, value, _):
+            return visit(receiver) || indices.contains(where: visit) || visit(value)
+        case let .call(callee, _, args, _):
+            return visit(callee) || args.contains { visit($0.expr) }
+        case let .memberCall(receiver, _, _, args, _):
+            return visit(receiver) || args.contains { visit($0.expr) }
+        case let .indexedAccess(receiver, indices, _):
+            return visit(receiver) || indices.contains(where: visit)
+        case let .binary(_, lhs, rhs, _):
+            return visit(lhs) || visit(rhs)
+        case let .whenExpr(subject, branches, elseExpr, _):
+            return (subject.map(visit) ?? false)
+                || branches.contains { branch in
+                    branch.conditions.contains(where: visit)
+                        || (branch.guard_.map(visit) ?? false)
+                        || visit(branch.body)
+                }
+                || (elseExpr.map(visit) ?? false)
+        case let .returnExpr(value, _, _):
+            return value.map(visit) ?? false
+        case let .ifExpr(condition, thenExpr, elseExpr, _):
+            return visit(condition) || visit(thenExpr) || (elseExpr.map(visit) ?? false)
+        case let .tryExpr(body, catchClauses, finallyExpr, _):
+            return visit(body)
+                || catchClauses.contains { visit($0.body) }
+                || (finallyExpr.map(visit) ?? false)
+        case let .unaryExpr(_, operand, _), let .nullAssert(operand, _):
+            return visit(operand)
+        case let .isCheck(value, _, _, _), let .asCast(value, _, _, _):
+            return visit(value)
+        case let .safeMemberCall(receiver, _, _, args, _):
+            return visit(receiver) || args.contains { visit($0.expr) }
+        case let .compoundAssign(_, _, value, _):
+            return visit(value)
+        case let .indexedCompoundAssign(_, receiver, indices, value, _):
+            return visit(receiver) || indices.contains(where: visit) || visit(value)
+        case let .memberCompoundAssign(_, receiver, _, value, _):
+            return visit(receiver) || visit(value)
+        case let .throwExpr(value, _):
+            return visit(value)
+        case .lambdaLiteral, .localFunDecl:
+            return false
+        case let .callableRef(receiver, _, _):
+            return receiver.map(visit) ?? false
+        case let .blockExpr(statements, trailingExpr, _):
+            return statements.contains(where: visit) || (trailingExpr.map(visit) ?? false)
+        case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
+            return visit(lhs) || visit(rhs)
+        case let .destructuringDecl(_, _, initializer, _):
+            return visit(initializer)
+        case let .forDestructuringExpr(_, iterable, body, _):
+            return visit(iterable) || visit(body)
+        case let .objectLiteral(_, declID, _):
+            guard let declID,
+                  let decl = ctx.ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl
+            else {
+                return false
+            }
+            return objectDecl.memberProperties.contains { propertyID in
+                guard let property = ctx.ast.arena.decl(propertyID),
+                      case let .propertyDecl(propertyDecl) = property,
+                      let initializer = propertyDecl.initializer
+                else { return false }
+                return visit(initializer)
+            }
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
+             .stringLiteral, .breakExpr, .continueExpr,
+             .superRef, .thisRef:
+            return false
         }
     }
 
