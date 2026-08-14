@@ -202,7 +202,9 @@ extension DataFlowSemaPhase {
             // abstract/open/sealed flags are lost for source-backed types such
             // as kotlin.random.Random.
             symbols.insertFlags(declaration.flags, for: symbol)
-            symbols.setDeclSite(declaration.range, for: symbol)
+            if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
+                symbols.setDeclSite(declaration.range, for: symbol)
+            }
         } else {
             symbol = symbols.define(
                 kind: declaration.kind,
@@ -1126,6 +1128,19 @@ extension DataFlowSemaPhase {
             guard let symbol = symbols.symbol(symbolID) else { return false }
             return symbol.kind == kind && symbol.flags.contains(.synthetic)
         }
+    }
+
+    private func shouldRestoreDeclSiteForReusableSyntheticSymbol(
+        fqName: [InternedString],
+        interner: StringInterner
+    ) -> Bool {
+        // Compatibility shells intentionally keep a nil declSite so bundled
+        // source declarations do not displace them in golden semantic dumps.
+        // KSP-683 needs the migrated Duration nominals to remain source-backed
+        // for their value-class and enum metadata.
+        let resolvedFQName = fqName.map(interner.resolve)
+        return resolvedFQName == ["kotlin", "time", "Duration"]
+            || resolvedFQName == ["kotlin", "time", "DurationUnit"]
     }
 
     /// The fully-qualified names a bundled source file is allowed to claim from

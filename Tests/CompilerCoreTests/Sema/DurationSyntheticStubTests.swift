@@ -143,6 +143,21 @@ struct DurationSyntheticStubTests {
     }
 
     @Test
+    func testUnrelatedReusableSyntheticNominalKeepsGoldenIdentity() throws {
+        let (sema, interner) = try sharedSema()
+        let closedRangeSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern("ClosedRange"),
+        ]))
+
+        // Golden semantic dumps must continue to include the compatibility shell
+        // instead of filtering it as a bundled source declaration.
+        #expect(sema.symbols.symbol(closedRangeSymbol)?.declSite == nil)
+        #expect(sema.symbols.symbol(closedRangeSymbol)?.flags.contains(.synthetic) == false)
+    }
+
+    @Test
     func testDurationSourceOperatorsDoNotPoisonLambdaArithmeticFallback() throws {
         let source = """
         fun main() {
