@@ -463,17 +463,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_bool_compareAndSet",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "expect", type: .intptr),
-                RuntimeABIParameter(name: "update", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_compareAndExchange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
@@ -528,17 +517,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "new", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_ref_compareAndSet",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "expect", type: .intptr),
-                RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic",

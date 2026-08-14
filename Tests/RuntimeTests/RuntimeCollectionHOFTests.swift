@@ -942,26 +942,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testAnyAllNoneShortCircuitAndNoArgOverloads() {
-        let source = makeList([1, 2, 3, 4])
-
-        gHOFState.reset()
-        #expect(kk_list_any(source, unsafeBitCast(anyGtTwoCounting, to: Int.self), 0, nil) == 1)
-        #expect(gHOFState.callsSnapshot() == 3)
-
-        gHOFState.reset()
-        #expect(kk_list_all(source, unsafeBitCast(allLtThreeCounting, to: Int.self), 0, nil) == 0)
-        #expect(gHOFState.callsSnapshot() == 3)
-
-        gHOFState.reset()
-        #expect(kk_list_none(source, unsafeBitCast(noneEqTwoCounting, to: Int.self), 0, nil) == 0)
-        #expect(gHOFState.callsSnapshot() == 2)
-
-        #expect(kk_list_any(source, 0, 0, nil) == 1)
-        #expect(kk_list_none(makeList([]), 0, 0, nil) == 1)
-    }
-
-    @Test
     func testIterableAnyShortCircuitsAcrossCollectionKindsAndNoArgOverload() {
         let listSource = makeList([1, 2, 3, 4])
 
@@ -1022,16 +1002,10 @@ struct RuntimeCollectionHOFTests {
     func testCountFirstLastFindAndEmptyFailures() {
         let source = makeList([1, 2, 3, 4])
 
-        #expect(kk_list_count(source, 0, 0, nil) == 4)
-        #expect(kk_list_count(source, unsafeBitCast(countEven, to: Int.self), 0, nil) == 2)
-
         #expect(kk_list_first(source, 0, 0, nil) == 1)
         #expect(kk_list_last(source, 0, 0, nil) == 4)
         #expect(kk_list_first(source, unsafeBitCast(firstGreaterThanTwo, to: Int.self), 0, nil) == 3)
         #expect(kk_list_last(source, unsafeBitCast(lastLessThanThree, to: Int.self), 0, nil) == 2)
-        #expect(kk_list_find(source, unsafeBitCast(findEqualTwo, to: Int.self), 0, nil) == 2)
-        #expect(kk_list_find(source, unsafeBitCast(firstGreaterThanTwo, to: Int.self), 0, nil) == 3)
-        #expect(kk_list_findLast(source, unsafeBitCast(countEven, to: Int.self), 0, nil) == 4)
 
         var thrown = 0
         #expect(kk_list_first(makeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
@@ -1135,20 +1109,6 @@ struct RuntimeCollectionHOFTests {
         #expect(mapKeys(mappedKeys) == [101, 102])
         #expect(kk_map_get(mappedKeys, 101) == 32)
         #expect(kk_map_get(mappedKeys, 102) == 21)
-    }
-
-    @Test
-    func testListToMapKeepsLastValueForDuplicateKeys() {
-        let pairs = makeList([
-            kk_pair_new(1, 10),
-            kk_pair_new(2, 20),
-            kk_pair_new(1, 99),
-        ])
-
-        let map = kk_list_toMap(pairs)
-        #expect(mapKeys(map) == [1, 2])
-        #expect(kk_map_get(map, 1) == 99)
-        #expect(kk_map_get(map, 2) == 20)
     }
 
     @Test
@@ -1404,10 +1364,6 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testBoolAbiForCollectionHelpersReturnsRaw() {
         let source = makeList([1, 2, 3])
-        #expect(kk_unbox_bool(kk_list_contains(source, 2)) == 1)
-        #expect(kk_unbox_bool(kk_list_contains(source, 9)) == 0)
-        #expect(kk_unbox_bool(kk_list_containsAll(source, makeList([1, 3]))) == 1)
-        #expect(kk_unbox_bool(kk_list_containsAll(source, makeList([1, 9]))) == 0)
         #expect(kk_unbox_bool(kk_list_is_empty(source)) == 0)
         #expect(kk_unbox_bool(kk_list_is_empty(makeList([]))) == 1)
 
@@ -1436,15 +1392,6 @@ struct RuntimeCollectionHOFTests {
 
         #expect(listElements(first) == [1, 2, 3])
         #expect(listElements(second) == [10, 20, 30])
-    }
-
-    @Test
-    func testListToHashSetDeduplicatesAndCopiesElements() {
-        let source = makeList([1, 2, 2, 3])
-        let copied = kk_list_toHashSet(source)
-
-        #expect(setElements(copied) == [1, 2, 3])
-        #expect(listElements(source) == [1, 2, 2, 3])
     }
 
     private func makeArray(_ elements: [Int]) -> Int {
@@ -1510,8 +1457,6 @@ struct RuntimeCollectionHOFTests {
             }
         }
     }
-
-    // MARK: - associateByTo / associateWithTo / groupByTo tests
 
     @Test
     func testListAssociateBuildsMapAndOverwritesDuplicateKeys() {
@@ -1754,15 +1699,6 @@ struct RuntimeCollectionHOFTests {
         // Existing key 0 gets 2 appended; new key 1 gets [1]
         #expect(listElements(kk_map_get(result, 0)) == [10, 2])
         #expect(listElements(kk_map_get(result, 1)) == [1])
-    }
-
-    @Test
-    func testListIndexOfFindsFirstMatchAndMissingElement() {
-        let source = makeList([10, 20, 10])
-
-        #expect(kk_list_indexOf(source, 10) == 0)
-        #expect(kk_list_indexOf(source, 20) == 1)
-        #expect(kk_list_indexOf(source, 30) == -1)
     }
 
     @Test

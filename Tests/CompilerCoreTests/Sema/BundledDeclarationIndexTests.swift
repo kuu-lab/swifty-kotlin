@@ -230,8 +230,8 @@ struct BundledDeclarationIndexTests {
                 sema.symbols.externalLinkName(for: $0) == "kk_list_joinToString_transform"
         }
         #expect(
-            !listJoinTransforms.isEmpty,
-            "Expected synthetic List.joinToString transform overloads to remain available"
+            listJoinTransforms.isEmpty,
+            "Expected bundled Iterable.joinToString transform overloads to replace List synthetic stubs"
         )
     }
 
@@ -300,6 +300,76 @@ struct BundledDeclarationIndexTests {
         #expect(warnings.first?.severity == .warning)
         #expect(warnings.first?.message.contains("Synthetic stub 'any'") == true)
         #expect(warnings.first?.message.contains("'kotlin.collections.List' (arity 1)") == true)
+    }
+
+    @Test
+    func syntheticAliasForSourceBackedMemberDoesNotWarn() throws {
+        let sourceManager = SourceManager()
+        let fileID = sourceManager.addFile(
+            path: "__bundled_sequence_source.kt",
+            contents: Data("".utf8),
+            origin: .bundledStdlib
+        )
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: 0),
+            end: SourceLocation(file: fileID, offset: 0)
+        )
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let ownerFQName = intern(["kotlin", "sequences", "Sequence"], interner)
+        let ownerName = interner.intern("Sequence")
+        let ownerSymbol = symbols.define(
+            kind: .interface,
+            name: ownerName,
+            fqName: ownerFQName,
+            declSite: range,
+            visibility: .public
+        )
+        let receiverType = types.make(.classType(ClassType(classSymbol: ownerSymbol)))
+        let memberName = interner.intern("toHashSet")
+        let signature = FunctionSignature(
+            receiverType: receiverType,
+            parameterTypes: [],
+            returnType: types.anyType
+        )
+        let sourceSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: intern(["kotlin", "sequences", "toHashSet"], interner),
+            declSite: range,
+            visibility: .public
+        )
+        symbols.setParentSymbol(ownerSymbol, for: sourceSymbol)
+        symbols.setFunctionSignature(signature, for: sourceSymbol)
+        symbols.setExternalLinkName("kk_sequence_toHashSet", for: sourceSymbol)
+
+        let aliasSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: ownerFQName + [memberName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: aliasSymbol)
+        symbols.setFunctionSignature(signature, for: aliasSymbol)
+        symbols.setExternalLinkName("kk_sequence_toHashSet", for: aliasSymbol)
+
+        var bundledIndex = BundledDeclarationIndex.empty
+        bundledIndex.insert(
+            BundledMemberKey(ownerFQName: ownerFQName, name: memberName, arity: 0)
+        )
+        let diagnostics = DiagnosticEngine()
+        bundledIndex.warnSyntheticOverlaps(
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner
+        )
+
+        #expect(diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }.isEmpty)
     }
 
     @Test

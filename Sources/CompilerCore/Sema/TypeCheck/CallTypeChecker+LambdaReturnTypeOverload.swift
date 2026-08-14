@@ -351,10 +351,9 @@ extension CallTypeChecker {
         else {
             return ambiguousCallResult(range: range)
         }
-        // When all viable candidates share the same input-only HOF link name (e.g.
-        // String.zip and CharSequence.zip both map to kk_string_zipTransform), the
+        // When all viable candidates share the same input-only HOF shape, the
         // apparent ambiguity is structural — not semantic. Fall back to the standard
-        // resolver which picks the most specific receiver type (String over CharSequence).
+        // resolver which picks the most specific receiver type.
         if viableSymbols.allSatisfy({
             Self.inputOnlyExternalLinkNames.contains(ctx.sema.symbols.externalLinkName(for: $0) ?? "")
         }) {
@@ -776,12 +775,6 @@ extension CallTypeChecker {
     }
 
     private static let inputOnlyExternalLinkNames: Set<String> = [
-        "kk_string_zipTransform",
-        "kk_string_zipTransform_flat",
-        "kk_string_zipWithNextTransform",
-        "kk_string_zipWithNextTransform_flat",
-        "kk_string_chunked_sequence_transform",
-        "kk_string_windowedSequence_transform",
     ]
 
     /// Whether the only candidate for the call declares this argument as a
@@ -820,8 +813,7 @@ extension CallTypeChecker {
         blocksRefinement: Bool,
         hasAmbiguousImplicitParameterShape: Bool
     ) {
-        // When all candidates share the same input-only HOF link name (e.g. String and
-                // CharSequence overloads of zip both map to kk_string_zipTransform), pick the
+        // When all candidates share the same input-only HOF shape, pick the
         // first candidate and treat the lambda as input-only so that its return type is
         // not used for constraint solving — matches what the single-candidate path does.
         if !candidates.isEmpty,

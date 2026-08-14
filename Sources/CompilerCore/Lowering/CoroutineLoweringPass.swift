@@ -29,8 +29,6 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withTimeoutOrNull"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("flow"),
-            ctx.interner.intern("channelFlow"),
-            ctx.interner.intern("callbackFlow"),
             ctx.interner.intern("emit"),
             ctx.interner.intern("collect"),
             ctx.interner.intern("collectLatest"),
@@ -202,10 +200,13 @@ final class CoroutineLoweringPass: LoweringPass {
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames,
                 runtimeDelayCallee: runtimeDelayCallee,
+                runtimeYieldCallee: runtimeYieldCallee,
+                sourceYieldCallee: kxMiniYieldCallee,
                 suspendPlan: suspendLoweringPlan,
                 spillSlotByExpr: continuationNominal?.spillSlotByExpr ?? [:],
                 smTypes: StateMachineTypeContext(
                     continuationType: continuationType,
+                    anyType: anyType ?? continuationType,
                     intType: intType,
                     unitType: unitType
                 )

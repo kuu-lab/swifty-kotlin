@@ -1,12 +1,5 @@
 // swiftlint:disable file_length
 
-/// Centralized FQ-name suffixes used to discriminate the binarySearch
-/// overloads from the element-based one. Module-internal so the helper
-/// files split from this dispatcher (`+SyntheticListStubs`, `+SyntheticArrayStubs`)
-/// can reference them without duplication.
-let binarySearchCompareFQSuffix = "binarySearch$compare"
-let binarySearchComparatorFQSuffix = "binarySearch$comparator"
-
 extension DataFlowSemaPhase {
     /// Register `kotlin.Comparable<in T>` interface stub with `operator fun compareTo(other: T): Int`.
     func registerSyntheticComparableStub(
@@ -214,17 +207,23 @@ extension DataFlowSemaPhase {
         registerIterablePlusElementMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableMinusElementMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableMinusMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableReduceRightIndexedOrNullMember(
             symbols: symbols, types: types, interner: interner,
@@ -240,41 +239,15 @@ extension DataFlowSemaPhase {
         )
         registerIterableSumByMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableSumByDoubleMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
-
-        // --- STDLIB-533: List?.orEmpty() ---
-        let listTypeParamSymbols = types.nominalTypeParameterSymbols(for: listInterfaceSymbol)
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbols.first!,
-            nullability: .nonNull
-        )))
-        let nullableListType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nullable
-        )))
-        let nonNullListType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerSyntheticListExtensionFunction(
-            named: "orEmpty",
-            externalLinkName: "kk_list_orEmpty",
-            receiverType: nullableListType,
-            parameters: [],
-            returnType: nonNullListType,
-            typeParameterSymbols: listTypeParamSymbols,
-            packageFQName: kotlinCollectionsPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         registerSyntheticMutableListStub(
@@ -444,13 +417,6 @@ extension DataFlowSemaPhase {
             listTypeParamType: listTypeParamType,
             bundledIndex: bundledIndex,
             skipStats: skipStats
-        )
-        registerListComponentNMembers(
-            symbols: symbols, types: types, interner: interner,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
         )
     }
 

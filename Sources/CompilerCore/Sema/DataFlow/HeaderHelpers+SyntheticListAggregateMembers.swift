@@ -444,248 +444,6 @@ extension DataFlowSemaPhase {
         // lookup that would otherwise find both Kotlin-source overloads,
         // permanently hiding the predicate overload.
 
-        // STDLIB-214: binarySearch(element) — non-HOF, element argument
-        let binarySearchName = interner.intern("binarySearch")
-        let binarySearchFQName = listFQName + [binarySearchName]
-        if symbols.lookup(fqName: binarySearchFQName) == nil {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: binarySearchName,
-                fqName: binarySearchFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_binarySearch", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [listTypeParamType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    typeParameterUpperBoundsList: [comparableElementBounds],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        func registerMemberOverload(
-            memberName: InternedString,
-            memberFQName: [InternedString],
-            parameterTypes: [TypeID],
-            externalLinkName: String,
-            returnTypeOverride: TypeID? = nil,
-            typeParameterSymbols: [SymbolID]? = nil,
-            typeParameterUpperBoundsList: [[TypeID]]? = nil,
-            flags: SymbolFlags = [.synthetic],
-            reifiedTypeParameterIndices: Set<Int> = []
-        ) {
-            let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
-                guard let sig = symbols.functionSignature(for: symbolID) else { return false }
-                return sig.parameterTypes == parameterTypes
-            }
-            guard !alreadyRegistered else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: flags
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: returnTypeOverride ?? receiverType,
-                    typeParameterSymbols: typeParameterSymbols ?? [listTypeParamSymbol],
-                    reifiedTypeParameterIndices: reifiedTypeParameterIndices,
-                    typeParameterUpperBoundsList: typeParameterUpperBoundsList ?? [],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // STDLIB-COL-BSEARCH-001: binarySearchBy(key, fromIndex, toIndex, selector)
-        // The Kotlin stdlib models the omitted fromIndex/toIndex values as defaults,
-        // but this compiler keeps the resolution shape explicit with 2/3/4-argument
-        // overloads so the lambda always stays in the final slot.
-        let binarySearchByName = interner.intern("binarySearchBy")
-        let binarySearchByFQName = listFQName + [binarySearchByName]
-        let binarySearchByKeyTypeParamName = interner.intern("R")
-        let binarySearchByKeyTypeParamFQName = binarySearchByFQName + [binarySearchByKeyTypeParamName]
-        let binarySearchByKeyTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: binarySearchByKeyTypeParamName,
-            fqName: binarySearchByKeyTypeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let binarySearchByKeyTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: binarySearchByKeyTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        let binarySearchByComparableBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
-            [types.make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.invariant(binarySearchByKeyTypeParamType)],
-                nullability: .nonNull
-            )))]
-        } else {
-            []
-        }
-        let binarySearchByKeyType: TypeID
-        let binarySearchByTypeParameterSymbols: [SymbolID]
-        let binarySearchByTypeParameterUpperBoundsList: [[TypeID]]
-        binarySearchByKeyType = types.makeNullable(binarySearchByKeyTypeParamType)
-        binarySearchByTypeParameterSymbols = [listTypeParamSymbol, binarySearchByKeyTypeParamSymbol]
-        binarySearchByTypeParameterUpperBoundsList = [[], binarySearchByComparableBounds]
-        let binarySearchBySelectorType = types.make(.functionType(FunctionType(
-            params: [listTypeParamType],
-            returnType: binarySearchByKeyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: binarySearchByName,
-            memberFQName: binarySearchByFQName,
-            parameterTypes: [binarySearchByKeyType, binarySearchBySelectorType],
-            externalLinkName: "kk_list_binarySearchBy",
-            returnTypeOverride: types.intType,
-            typeParameterSymbols: binarySearchByTypeParameterSymbols,
-            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
-            flags: [.synthetic, .inlineFunction]
-        )
-        registerMemberOverload(
-            memberName: binarySearchByName,
-            memberFQName: binarySearchByFQName,
-            parameterTypes: [binarySearchByKeyType, types.intType, binarySearchBySelectorType],
-            externalLinkName: "kk_list_binarySearchBy_fromIndex",
-            returnTypeOverride: types.intType,
-            typeParameterSymbols: binarySearchByTypeParameterSymbols,
-            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
-            flags: [.synthetic, .inlineFunction]
-        )
-        registerMemberOverload(
-            memberName: binarySearchByName,
-            memberFQName: binarySearchByFQName,
-            parameterTypes: [binarySearchByKeyType, types.intType, types.intType, binarySearchBySelectorType],
-            externalLinkName: "kk_list_binarySearchBy_range",
-            returnTypeOverride: types.intType,
-            typeParameterSymbols: binarySearchByTypeParameterSymbols,
-            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
-            flags: [.synthetic, .inlineFunction]
-        )
-
-        // STDLIB-547: binarySearch(comparison: (T) -> Int) — HOF, comparison lambda
-        let binarySearchCompareName = interner.intern("binarySearch")
-        // Use a distinct FQ name to differentiate from the element-based overload
-        let binarySearchCompareFQName = listFQName + [interner.intern(binarySearchCompareFQSuffix)]
-        if symbols.lookup(fqName: binarySearchCompareFQName) == nil {
-            let comparisonType = types.make(.functionType(FunctionType(
-                params: [listTypeParamType],
-                returnType: types.intType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: binarySearchCompareName,
-                fqName: binarySearchCompareFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_binarySearch_compare", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [comparisonType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // STDLIB-COL-BSEARCH-002: binarySearch(element, comparator, fromIndex, toIndex)
-        // comparator object overload with defaulted search range.
-        let binarySearchComparatorName = interner.intern("binarySearch")
-        let binarySearchComparatorFQName = listFQName + [interner.intern(binarySearchComparatorFQSuffix)]
-        if symbols.lookup(fqName: binarySearchComparatorFQName) == nil {
-            let comparatorType: TypeID = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
-                types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(listTypeParamType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType, listTypeParamType],
-                    returnType: types.intType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: binarySearchComparatorName,
-                fqName: binarySearchComparatorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_binarySearch_comparator", for: memberSymbol)
-
-            let parameterSpecs: [(name: String, type: TypeID, hasDefault: Bool)] = [
-                ("element", listTypeParamType, false),
-                ("comparator", comparatorType, false),
-                ("fromIndex", types.intType, true),
-                ("toIndex", types.intType, true),
-            ]
-            var parameterTypes: [TypeID] = []
-            var parameterSymbols: [SymbolID] = []
-            var parameterDefaults: [Bool] = []
-            for parameter in parameterSpecs {
-                let parameterName = interner.intern(parameter.name)
-                let parameterSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: parameterName,
-                    fqName: binarySearchComparatorFQName + [parameterName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-                parameterTypes.append(parameter.type)
-                parameterSymbols.append(parameterSymbol)
-                parameterDefaults.append(parameter.hasDefault)
-            }
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: types.intType,
-                    valueParameterSymbols: parameterSymbols,
-                    valueParameterHasDefaultValues: parameterDefaults,
-                    valueParameterIsVararg: Array(repeating: false, count: parameterSpecs.count),
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
         let sumOfName = interner.intern("sumOf")
         let sumOfFQName = listFQName + [sumOfName]
         let shouldSkipSumOf: Bool
@@ -850,7 +608,16 @@ extension DataFlowSemaPhase {
         // partition (HOF, predicate lambda)
         let partitionName = interner.intern("partition")
         let partitionFQName = listFQName + [partitionName]
-        if symbols.lookup(fqName: partitionFQName) == nil {
+        let shouldSkipPartition = BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: partitionName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if !shouldSkipPartition, symbols.lookup(fqName: partitionFQName) == nil {
             let predicateType2 = types.make(.functionType(FunctionType(
                 params: [listTypeParamType],
                 returnType: types.booleanType,
@@ -866,7 +633,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .inlineFunction]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_partition", for: memberSymbol)
             // Return type is Pair<List<T>, List<T>>
             let partitionReturnType: TypeID
             if let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")]) {
@@ -1036,7 +802,16 @@ extension DataFlowSemaPhase {
         // unzip(): Pair<List<A>, List<B>> for List<Pair<A, B>>
         let unzipName = interner.intern("unzip")
         let unzipFQName = listFQName + [unzipName]
-        if symbols.lookup(fqName: unzipFQName) == nil {
+        let shouldSkipUnzip = BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: unzipName,
+            arity: 0,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if !shouldSkipUnzip, symbols.lookup(fqName: unzipFQName) == nil {
             let aName = interner.intern("A")
             let aSymbol = symbols.define(
                 kind: .typeParameter,
@@ -1100,7 +875,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_unzip", for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: specializedReceiverType,

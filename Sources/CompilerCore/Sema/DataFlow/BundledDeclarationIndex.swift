@@ -129,6 +129,12 @@ struct BundledDeclarationIndex: Sendable {
             guard !Self.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) else {
                 continue
             }
+            // KSP-443: source-backed extensions with a runtime symbol name get a
+            // synthetic member alias for owner-based lookup. That alias is an
+            // intentional index entry, not a missed synthetic-stub skip.
+            guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
+                continue
+            }
             // joinTo/joinToString transform overloads intentionally share arity
             // with the non-transform default. The bundled-index key only tracks
             // arity, so suppress the warning when the synthetic stub carries a
@@ -146,6 +152,37 @@ struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    private static func isSyntheticAliasForSourceBackedMember(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard symbol.kind == .function,
+              symbol.declSite == nil,
+              let parentSymbol = symbols.parentSymbol(for: symbol.id),
+              let signature = symbols.functionSignature(for: symbol.id),
+              let externalLinkName = symbols.externalLinkName(for: symbol.id),
+              !externalLinkName.isEmpty
+        else {
+            return false
+        }
+
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.id != symbol.id,
+                  candidate.kind == .function,
+                  !candidate.flags.contains(.synthetic),
+                  candidate.declSite != nil,
+                  candidate.name == symbol.name,
+                  candidate.fqName != symbol.fqName,
+                  symbols.parentSymbol(for: candidate.id) == parentSymbol,
+                  symbols.functionSignature(for: candidate.id) == signature,
+                  symbols.externalLinkName(for: candidate.id) == externalLinkName
+            else {
+                return false
+            }
+            return true
         }
     }
 
@@ -266,11 +303,11 @@ struct BundledDeclarationIndex: Sendable {
         // implementations are only valid for concrete List receivers. Keep the
         // runtime bridge for nominal Iterable<T> receivers until they get their
         // own Kotlin source. joinTo/joinToString/any/all/last/... moved to
-        // Stdlib/kotlin/collections/Iterables.kt in KSP-435.
+        // Stdlib/kotlin/collections/Iterables.kt in KSP-435; reduceRight*
+        // and the remaining Iterable HOFs moved in KSP-632.
         switch interner.resolve(key.name) {
         case "filter",
-             "reduce", "reduceIndexed",
-             "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
+             "reduce", "reduceIndexed":
             return key.arity == 1
         default:
             return false
@@ -954,8 +991,8 @@ struct BundledDeclarationIndex: Sendable {
         // declared in bundled .kt files. These must resolve to the same FQ name
         // as the symbol created later by HeaderHelpers so the KSP-002 skip guard
         // matches. Source-defined names take precedence below.
-        let synthesizedNamesByPackage: [[InternedString]: [String]] = [
-            [kotlin, collections]: [
+        let synthesizedNamesByPackage: [([InternedString], [String])] = [
+            ([kotlin, collections], [
                 "Iterable", "MutableIterable",
                 "Collection", "MutableCollection",
                 "List", "MutableList",
@@ -964,22 +1001,22 @@ struct BundledDeclarationIndex: Sendable {
                 "Iterator", "MutableIterator",
                 "ListIterator", "MutableListIterator",
                 "RandomAccess",
-            ],
-            [kotlin, sequences]: ["Sequence"],
-            [kotlin, ranges]: [
+            ]),
+            ([kotlin, sequences], ["Sequence"]),
+            ([kotlin, ranges], [
                 "ClosedRange", "OpenEndRange",
                 "IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange",
                 "IntProgression", "LongProgression", "CharProgression",
                 "UIntProgression", "ULongProgression",
-            ],
-            [kotlin, text]: [
+            ]),
+            ([kotlin, text], [
                 "Regex", "MatchResult", "MatchGroup",
                 "StringBuilder", "Appendable", "CharSequence",
-            ],
-            [kotlin, io]: [
+            ]),
+            ([kotlin, io], [
                 "File", "InputStream", "OutputStream",
-            ],
-            [kotlin]: [
+            ]),
+            ([kotlin], [
                 "Array",
                 "ByteArray", "ShortArray", "IntArray", "LongArray",
                 "FloatArray", "DoubleArray", "CharArray", "BooleanArray",
@@ -987,11 +1024,11 @@ struct BundledDeclarationIndex: Sendable {
                 "Pair", "Triple", "Result",
                 "Throwable", "Exception", "Error", "RuntimeException",
                 "Comparator",
-            ],
-            [kotlin, reflect]: [
+            ]),
+            ([kotlin, reflect], [
                 "KClass", "KClassifier", "KType", "KTypeParameter",
                 "KTypeProjection", "KCallable", "KFunction", "KProperty",
-            ],
+            ]),
         ]
 
         var map: [InternedString: [InternedString]] = [:]
@@ -1008,7 +1045,9 @@ struct BundledDeclarationIndex: Sendable {
 
         // Source-defined top-level nominal names take precedence over the seed.
         for pkg in defaultImportPackages {
-            for name in topLevelNominalNamesByPackage[pkg] ?? [] {
+            let sourceNames = (topLevelNominalNamesByPackage[pkg] ?? [])
+                .sorted { interner.resolve($0) < interner.resolve($1) }
+            for name in sourceNames {
                 map[name] = pkg
             }
         }

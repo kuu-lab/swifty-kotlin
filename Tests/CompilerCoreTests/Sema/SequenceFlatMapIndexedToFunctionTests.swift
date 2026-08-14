@@ -6,12 +6,11 @@ import Testing
 /// through Sema for the `kotlin.sequences.Sequence` receiver wired through
 /// the standard HOF infrastructure. The transform receives the element index
 /// and value and returns an `Iterable<R>` whose contents are appended to the
-/// destination `MutableCollection<R>`. The call is linked to the runtime
-/// symbol `kk_sequence_flatMapIndexedTo` and the call expression is typed as
-/// the destination collection type.
+/// destination `MutableCollection<R>`. The call is backed by bundled Kotlin
+/// source and is typed as the destination collection type.
 @Suite
 struct SequenceFlatMapIndexedToFunctionTests {
-    @Test func testSequenceFlatMapIndexedToResolvesToRuntimeABIAndDestinationResult() throws {
+    @Test func testSequenceFlatMapIndexedToResolvesToSourceAndDestinationResult() throws {
         let source = """
         fun probe(values: Sequence<Int>): MutableList<String> {
             val dest: MutableList<String> = mutableListOf()
@@ -33,13 +32,11 @@ struct SequenceFlatMapIndexedToFunctionTests {
 
             let sema = try #require(ctx.sema)
             let memberFQName = [
-                "kotlin", "sequences", "Sequence", "flatMapIndexedTo",
+                "kotlin", "sequences", "flatMapIndexedTo",
             ].map { ctx.interner.intern($0) }
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(
-                sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexedTo" },
-                "Expected Sequence.flatMapIndexedTo synthetic member to link to kk_sequence_flatMapIndexedTo"
-            )
+            #expect(sequenceMembers.contains { sema.symbols.isSourceBackedSymbol($0) })
+            #expect(sequenceMembers.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 }

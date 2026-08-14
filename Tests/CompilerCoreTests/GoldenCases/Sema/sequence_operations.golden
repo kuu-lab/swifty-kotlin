@@ -8,8 +8,7 @@ symbol fq=__local_6.r kind=local vis=private flags=_ type=kotlin.collections.Lis
 symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
+symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic sig=recv=kotlin.sequences.Sequence<kotlin.sequences.toList.$0.T> params=[] ret=kotlin.collections.List<kotlin.sequences.toList.$0.T>
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_operations package=_
   decl main fun main sym=main

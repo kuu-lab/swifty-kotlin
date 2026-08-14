@@ -51,6 +51,14 @@ public inline fun <T : Comparable<T>> minOf(vararg values: T): T {
 
 // Comparator overloads
 
+// Top-level comparator-based selections
+
+public fun <T> maxWith(comparator: Comparator<in T>, a: T, b: T): T =
+    if (comparator.compare(a, b) >= 0) a else b
+
+public fun <T> minWith(comparator: Comparator<in T>, a: T, b: T): T =
+    if (comparator.compare(a, b) <= 0) a else b
+
 public inline fun <T> maxOf(a: T, b: T, comparator: Comparator<T>): T =
     if (comparator.compare(a, b) >= 0) a else b
 

@@ -104,7 +104,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListConversionMembersUseRuntimeExternalLinks() throws {
+    func testListConversionMembersResolveToBundledSource() throws {
         let source = """
         fun convert(values: List<Int>) {
             values.toMutableList()
@@ -121,13 +121,8 @@ extension ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks: [String: String?] = [
-                "toMutableList": "kk_list_to_mutable_list",
-                "toSet": "kk_list_to_set",
-                // KSP-INF-011: List<T>.joinToString is now source-backed
-                // (StringSplitJoin.kt) and its body delegates to the private
-                // __kk_string_joinToString bridge with external link
-                // kk_list_joinToString. The public member itself has no
-                // external link name.
+                "toMutableList": nil,
+                "toSet": nil,
                 "joinToString": nil,
             ]
 
@@ -141,12 +136,14 @@ extension ListSyntheticMemberLinkTests {
                     ]))
                     #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 } else {
-                    // Exclude bundled stdlib files (FileIDs 0 and 1) to avoid matching
-                    // internal calls like `result.add(element)` inside bundled Set HOFs.
+                    // Exclude bundled stdlib files to avoid matching internal calls
+                    // like `result.add(element)` or `this.toMutableList()` inside
+                    // bundled Iterable/Set HOFs.
                     let callExpr = try #require(firstExprID(in: ast) { id, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         guard ctx.interner.resolve(callee) == memberName else { return false }
-                        if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
+                        if let range = ast.arena.exprRange(id),
+                           ctx.sourceManager.origin(of: range.start.file)?.isBundledStdlib == true {
                             return false
                         }
                         return true
@@ -297,7 +294,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "unzip"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
+            // KSP-425: List.unzip() is now source-backed and has no external runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected List.unzip to resolve to bundled source")
 
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {
@@ -345,7 +343,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testSequenceReduceIndexedOrNullUsesRuntimeExternalLink() throws {
+    func testSequenceReduceIndexedOrNullIsSourceBacked() throws {
         let source = """
         fun render(values: Sequence<Int>) {
             println(values.reduceIndexedOrNull { index, acc, value -> acc + index * value })
@@ -359,16 +357,17 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let sequenceReduceIndexedOrNullSymbol = try #require(sema.symbols.lookup(
-                    fqName: [
-                        ctx.interner.intern("kotlin"),
-                        ctx.interner.intern("sequences"),
-                        ctx.interner.intern("Sequence"),
-                        ctx.interner.intern("reduceIndexedOrNull"),
-                    ]
-                ))
-            #expect(sema.symbols.externalLinkName(for: sequenceReduceIndexedOrNullSymbol) == "kk_sequence_reduceIndexedOrNull")
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceIndexedOrNull"
+            }, "Expected reduceIndexedOrNull member call")
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected reduceIndexedOrNull call to be bound"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
         }
     }
 

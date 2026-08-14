@@ -1,5 +1,6 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValuesUnchecked
 import kotlin.internal.__valuesEqual
 
 // MIGRATION-COL-005
@@ -229,4 +230,104 @@ public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
         i++
     }
     return true
+}
+
+// --- binarySearch -----------------------------------------------------------
+
+private fun checkListBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
+    if (fromIndex > toIndex) {
+        throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")
+    }
+    if (fromIndex < 0) {
+        throw IndexOutOfBoundsException("fromIndex ($fromIndex) is less than zero.")
+    }
+    if (toIndex > size) {
+        throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
+    }
+}
+
+public fun <T> List<T>.binarySearch(element: T, fromIndex: Int = 0, toIndex: Int = this.size): Int {
+    checkListBinarySearchBounds(this.size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val cmp = compareValuesUnchecked(this[mid], element)
+        if (cmp < 0) {
+            low = mid + 1
+        } else if (cmp > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+public fun <T> List<T>.binarySearch(
+    fromIndex: Int = 0,
+    toIndex: Int = this.size,
+    comparison: (T) -> Int
+): Int {
+    checkListBinarySearchBounds(this.size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val cmp = comparison(this[mid])
+        if (cmp < 0) {
+            low = mid + 1
+        } else if (cmp > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+public fun <T> List<T>.binarySearch(
+    element: T,
+    comparator: Comparator<in T>,
+    fromIndex: Int = 0,
+    toIndex: Int = this.size
+): Int {
+    checkListBinarySearchBounds(this.size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val cmp = comparator.compare(this[mid], element)
+        if (cmp < 0) {
+            low = mid + 1
+        } else if (cmp > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+public fun <T, K> List<T>.binarySearchBy(
+    key: K,
+    fromIndex: Int = 0,
+    toIndex: Int = this.size,
+    selector: (T) -> K
+): Int {
+    checkListBinarySearchBounds(this.size, fromIndex, toIndex)
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val cmp = compareValuesUnchecked(selector(this[mid]), key)
+        if (cmp < 0) {
+            low = mid + 1
+        } else if (cmp > 0) {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
 }

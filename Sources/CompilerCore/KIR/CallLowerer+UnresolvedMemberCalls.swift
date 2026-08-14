@@ -116,31 +116,43 @@ extension CallLowerer {
             // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
             case "distinctBy":
                 return interner.intern("kk_list_distinctBy")
-            case "onEach":
-                return interner.intern("kk_list_onEach")
-            case "onEachIndexed":
-                return interner.intern("kk_list_onEachIndexed")
-            case "partition":
-                return interner.intern("kk_list_partition")
-            case "binarySearch":
-                if hasHOFLambdaArg && argumentCount == 2 {
-                    return interner.intern("kk_list_binarySearch_compare")
-                }
-                if argumentCount > 2 {
-                    return interner.intern("kk_list_binarySearch_comparator")
-                }
-                return interner.intern("kk_list_binarySearch")
-            case "binarySearchBy":
-                switch argumentCount {
-                case 2:
-                    return interner.intern("kk_list_binarySearchBy")
-                case 3:
-                    return interner.intern("kk_list_binarySearchBy_fromIndex")
-                case 4:
-                    return interner.intern("kk_list_binarySearchBy_range")
-                default:
-                    break
-                }
+            case "sortedByDescending":
+                return interner.intern("kk_list_sortedByDescending")
+            case "sortedWith":
+                return interner.intern("kk_list_sortedWith")
+
+            case "maxBy":
+                return interner.intern("kk_list_maxBy")
+            case "maxByOrNull":
+                return interner.intern("kk_list_maxByOrNull")
+            case "minByOrNull":
+                return interner.intern("kk_list_minByOrNull")
+            case "minBy":
+                return interner.intern("kk_list_minBy")
+            case "maxOf":
+                return interner.intern("kk_list_maxOf")
+            case "minOf":
+                return interner.intern("kk_list_minOf")
+            case "max":
+                return interner.intern("kk_list_max")
+            case "min":
+                return interner.intern("kk_list_min")
+            case "maxWith":
+                return interner.intern("kk_list_maxWith")
+            case "maxWithOrNull":
+                return interner.intern("kk_list_maxWithOrNull")
+            case "minWith":
+                return interner.intern("kk_list_minWith")
+            case "minWithOrNull":
+                return interner.intern("kk_list_minWithOrNull")
+            case "maxOfWith":
+                return interner.intern("kk_list_maxOfWith")
+            case "maxOfWithOrNull":
+                return interner.intern("kk_list_maxOfWithOrNull")
+            case "minOfWith":
+                return interner.intern("kk_list_minOfWith")
+            case "minOfWithOrNull":
+                return interner.intern("kk_list_minOfWithOrNull")
             default:
                 break
             }
@@ -300,20 +312,42 @@ extension CallLowerer {
         // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
         case "distinctBy":
             return interner.intern("kk_list_distinctBy")
-        case "partition":
-            return interner.intern("kk_list_partition")
-        case "onEach":
-            return interner.intern("kk_list_onEach")
-        case "onEachIndexed":
-            return interner.intern("kk_list_onEachIndexed")
-        case "binarySearch":
-            if hasHOFLambdaArg && argumentCount == 2 {
-                return interner.intern("kk_list_binarySearch_compare")
-            }
-            if argumentCount > 2 {
-                return interner.intern("kk_list_binarySearch_comparator")
-            }
-            return interner.intern("kk_list_binarySearch")
+        case "sortedByDescending":
+            return interner.intern("kk_list_sortedByDescending")
+        case "maxBy":
+            return interner.intern("kk_list_maxBy")
+        case "maxByOrNull":
+            return interner.intern("kk_list_maxByOrNull")
+        case "minByOrNull":
+            return interner.intern("kk_list_minByOrNull")
+        case "minBy":
+            return interner.intern("kk_list_minBy")
+        case "maxOf":
+            return interner.intern("kk_list_maxOf")
+        case "minOf":
+            return interner.intern("kk_list_minOf")
+        case "max":
+            return interner.intern("kk_list_max")
+        case "min":
+            return interner.intern("kk_list_min")
+        case "maxWith":
+            return interner.intern("kk_list_maxWith")
+        case "maxWithOrNull":
+            return interner.intern("kk_list_maxWithOrNull")
+        case "minWith":
+            return interner.intern("kk_list_minWith")
+        case "minWithOrNull":
+            return interner.intern("kk_list_minWithOrNull")
+        case "maxOfWith":
+            return interner.intern("kk_list_maxOfWith")
+        case "maxOfWithOrNull":
+            return interner.intern("kk_list_maxOfWithOrNull")
+        case "minOfWith":
+            return interner.intern("kk_list_minOfWith")
+        case "minOfWithOrNull":
+            return interner.intern("kk_list_minOfWithOrNull")
+        case "sortedWith":
+            return interner.intern("kk_list_sortedWith")
         default:
             break
         }
@@ -390,10 +424,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_firstNotNullOf")
             case firstNotNullOfOrNullName:
                 return interner.intern("kk_sequence_firstNotNullOfOrNull")
-            case interner.intern("flatMapIndexedTo"):
-                return interner.intern("kk_sequence_flatMapIndexedTo")
-            case interner.intern("flatMapTo"):
-                return interner.intern("kk_sequence_flatMapTo")
             case interner.intern("contains"):
                 return interner.intern("kk_sequence_contains")
             case interner.intern("indexOf"):
@@ -622,13 +652,6 @@ extension CallLowerer {
                 return interner.intern("kk_array_is_empty")
             case .list?, .collection?:
                 return interner.intern("kk_list_is_empty")
-            default:
-                break
-            }
-        case "isNotEmpty":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .collection?:
-                return interner.intern("kk_list_is_not_empty")
             default:
                 break
             }

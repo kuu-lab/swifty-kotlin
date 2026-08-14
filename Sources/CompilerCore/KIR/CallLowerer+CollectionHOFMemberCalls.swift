@@ -168,19 +168,55 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
-        if loweredCallee == interner.intern("kk_list_binarySearch_comparator"),
-           finalArguments.count == 5,
-           sourceArgExprs.count >= 2
+        let comparatorOnlyCallees: Set<InternedString> = [
+            interner.intern("kk_list_maxWith"),
+            interner.intern("kk_list_maxWithOrNull"),
+            interner.intern("kk_list_minWith"),
+            interner.intern("kk_list_minWithOrNull"),
+            interner.intern("__kk_mutable_list_sortWith"),
+        ]
+        if comparatorOnlyCallees.contains(loweredCallee),
+           finalArguments.count == 2
         {
             let comparatorArgs = makeComparatorObjectArgumentPair(
-                loweredComparatorID: finalArguments[2],
+                loweredComparatorID: finalArguments[1],
                 sema: sema,
                 arena: arena,
                 instructions: &instructions
             )
-            var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
+            return [finalArguments[0]] + comparatorArgs
+        }
+
+        let comparatorSelectorCallees: Set<InternedString> = [
+            interner.intern("kk_list_maxOfWith"),
+            interner.intern("kk_list_maxOfWithOrNull"),
+            interner.intern("kk_list_minOfWith"),
+            interner.intern("kk_list_minOfWithOrNull"),
+        ]
+        if comparatorSelectorCallees.contains(loweredCallee),
+           sourceArgExprs.count == 2
+        {
+            let hasReceiver = finalArguments.count >= 4
+            let receiverArg = hasReceiver ? finalArguments[0] : nil
+            let comparatorIndex = hasReceiver ? 1 : 0
+            let selectorStartIndex = hasReceiver ? 2 : 1
+            let comparatorArgs = makeComparatorObjectArgumentPair(
+                loweredComparatorID: finalArguments[comparatorIndex],
+                sema: sema,
+                arena: arena,
+                instructions: &instructions
+            )
+            guard finalArguments.count >= selectorStartIndex + 2
+            else {
+                return finalArguments
+            }
+
+            var adapted: [KIRExprID] = []
+            if let receiverArg {
+                adapted.append(receiverArg)
+            }
             adapted.append(contentsOf: comparatorArgs)
-            adapted.append(contentsOf: finalArguments[3...])
+            adapted.append(contentsOf: finalArguments[selectorStartIndex...])
             return adapted
         }
 

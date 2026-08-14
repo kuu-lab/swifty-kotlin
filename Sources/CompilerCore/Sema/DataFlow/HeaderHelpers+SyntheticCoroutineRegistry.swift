@@ -416,6 +416,35 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // STDLIB-CORO-001: CoroutineStart enum for launch(start:) overload.
+        let coroutineStartSymbol = ensureEnumClassSymbol(
+            named: "CoroutineStart",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let coroutineStartType = types.make(.classType(ClassType(
+            classSymbol: coroutineStartSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let coroutineStartFQName = coroutinesPkg + [interner.intern("CoroutineStart")]
+        for entryName in ["DEFAULT", "LAZY", "ATOMIC", "UNDISPATCHED"] {
+            let entryInterned = interner.intern(entryName)
+            let entryFQName = coroutineStartFQName + [entryInterned]
+            if symbols.lookup(fqName: entryFQName) == nil {
+                let entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryInterned,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(coroutineStartSymbol, for: entrySymbol)
+                symbols.setPropertyType(coroutineStartType, for: entrySymbol)
+            }
+        }
         let channelType = types.make(.classType(ClassType(
             classSymbol: channelSymbol,
             args: [],
@@ -588,6 +617,7 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(dispatchersType, for: dispatchersSymbol)
         symbols.setPropertyType(flowRawType, for: flowInterfaceSymbol)
         symbols.setPropertyType(dispatcherType, for: dispatcherSymbol)
+        symbols.setPropertyType(coroutineStartType, for: coroutineStartSymbol)
         symbols.setPropertyType(channelType, for: channelSymbol)
         symbols.setPropertyType(channelIteratorType, for: channelIteratorSymbol)
         symbols.setPropertyType(cancellationType, for: cancellationSymbol)
@@ -764,19 +794,27 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // NOTE: CoroutineStart.LAZY / launch(start:, block:) is intentionally
-        // NOT registered yet. rewriteLauncherCall's dispatcher-aware path
-        // (STDLIB-CORO-072) treats ANY 2-arg launch call's first argument as
-        // a CoroutineDispatcher and forwards it to kk_kxmini_launch_with_dispatcher,
-        // which dereferences it as such -- a CoroutineStart value there
-        // crashes (EXC_BAD_ACCESS deep in kk_job_is_cancelled once the bogus
-        // "dispatcher" corrupts later state). Registering the enum without
-        // teaching the lowering to tell start apart from context, and without
-        // real deferred-start scheduling semantics, would trade a clean
-        // compile error for a crash while still not matching reference
-        // behavior. Needs: (1) lowering-side disambiguation by argument type,
-        // (2) an actual "pending, not yet started" RuntimeJobHandle state
-        // that .start()/.join()/.cancel() honor before the body ever runs.
+        // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "launch",
+            packageFQName: coroutinesPkg,
+            parameters: [
+                (name: "start", type: coroutineStartType),
+                (name: "block", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.unitType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))),
+            ],
+            returnType: jobType,
+            symbols: symbols,
+            interner: interner
+        )
+        // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
+        // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
+        // first argument's type: CoroutineDispatcher goes to the dispatcher-
+        // aware runtime, CoroutineStart goes to the lazy-start runtime.
         registerSyntheticCoroutineExtensionFunction(
             named: "intercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -1756,26 +1794,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "channelFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "callbackFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
         // KSP-674: flowOf / emptyFlow / Iterable.asFlow are now Kotlin source
         // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
         // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
@@ -2298,6 +2316,7 @@ extension DataFlowSemaPhase {
             name: "lock",
             externalLinkName: "kk_mutex_lock",
             returnType: types.unitType,
+            isSuspend: true,
             symbols: symbols,
             interner: interner
         )
@@ -2350,6 +2369,7 @@ extension DataFlowSemaPhase {
             name: "acquire",
             externalLinkName: "kk_semaphore_acquire",
             returnType: types.unitType,
+            isSuspend: true,
             symbols: symbols,
             interner: interner
         )
@@ -2722,6 +2742,7 @@ extension DataFlowSemaPhase {
         flags: SymbolFlags = [.synthetic],
         typeParameterSymbols: [SymbolID] = [],
         classTypeParameterCount: Int = 0,
+        isSuspend: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -2764,7 +2785,7 @@ extension DataFlowSemaPhase {
                 receiverType: ownerType,
                 parameterTypes: parameters.map(\.type),
                 returnType: returnType,
-                isSuspend: false,
+                isSuspend: isSuspend,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),

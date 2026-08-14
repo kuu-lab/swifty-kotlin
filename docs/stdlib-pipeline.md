@@ -243,7 +243,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
-| `HeaderHelpers+SyntheticComparisonStubs.swift` | 1083 | (b) | M5 `maxOf`/`minOf` and comparison helpers. |
+| `HeaderHelpers+SyntheticComparisonStubs.swift` | 157 | (b) | **完了・ファイル削除済み**（KSP-684）。トップレベル `maxWith`/`minWith` は `Stdlib/kotlin/comparisons/Comparisons.kt` へ移行し、残る比較ヘルパーは source-backed または Comparator anchor 側で管理する。 |
 | `HeaderHelpers+SyntheticCoroutineRegistry.swift` | 3552 | (c) | RF-STUB-005 consolidated coroutine package, ABI, and helper registry. |
 | `HeaderHelpers+SyntheticDeepRecursiveStubs.swift` | 324 | (b) | ~~Public stdlib surface; source migration before removal.~~ **完了・ファイル削除済み**（KSP-612, `Stdlib/kotlin/DeepRecursive.kt`）。 |
 | `HeaderHelpers+SyntheticDurationStubs.swift` | 1390 | (b) | M8 duration source migration; bridge-only `__kk_*` declarations may remain private. |
@@ -322,7 +322,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
-| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | `java.net.URI`; cleanup candidate. |
+| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | `java.net.URL`; cleanup candidate. |
 | `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
@@ -463,18 +463,20 @@ Flow terminal/合成を (b) 化するには、このパスを「対象シンボ�
 
 Atomic の内訳:
 
-- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet` に加えて、KSP-671 で
-  `fetchAndAdd`/`fetchAndIncrement`/`fetchAndDecrement`（reverse 変種）と `compareAndSet`（`AtomicInt`/`AtomicLong`）を
+- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet` に加えて、KSP-671/KSP-688 で
+  `fetchAndAdd`/`fetchAndIncrement`/`fetchAndDecrement`（reverse 変種）と `compareAndSet`（`AtomicInt`/`AtomicLong`/`AtomicBoolean`/`AtomicReference`）を
   `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt` で Kotlin 化済み。reverse 変種は
   `addAndFetch`/`incrementAndFetch`/`decrementAndFetch` に、`compareAndSet` は `compareAndExchange` に委譲する。
-  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}`
-  は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
+  `AtomicReference` は Kotlin API の契約どおり参照同一性（`===`）で委譲結果を判定する。
+  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}` と
+  `kk_atomic_bool_{load,store,exchange,compareAndExchange}` は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
   `java.util.concurrent.atomic.AtomicInteger` の直接構築サーフェスと同一ボックス/接頭辞を共有するため、これらの
   ブリッジは Java interop からも参照される＝削除不可。ただし KSP-672 で member-call / indexed access 解決が
   bundled 拡張を atomic レシーバに限り解決できるようになったため、これらの bundled 委譲ソースは休眠ではなく
-  **live**（重複合成スタブは登録スキップされ、`isRuntimeBackedAtomicSyntheticRetainedOverlap` による保持は廃止）
-- **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`/`AtomicReference`
-  の `compareAndSet` は get/set 委譲順序の都合で別タスク）。`updateAndGet`/`getAndUpdate` は `while(true)`
+  **live**（重複合成スタブは登録スキップされ、`isRuntimeBackedAtomicSyntheticRetainedOverlap` による保持は廃止）。KSP-688 では
+  `AtomicBoolean`/`AtomicReference` の `compareAndSet` synthetic stub と `kk_atomic_*_compareAndSet` 公開経路を削除し、
+  `compareAndExchange` の CAS コアだけを残した。
+- **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At` のうち未移行分）。`updateAndGet`/`getAndUpdate` は `while(true)`
   ループを要するため、`AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで
   **ブロック**。`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_` 残留になると想定される
 
@@ -495,8 +497,11 @@ Atomic の内訳:
   `kk_mutable_state_flow_{create,emit,try_emit}` / `kk_state_flow_value` / `kk_flow_state_in` を削除。
   `kk_flow_stopped` / `kk_flow_emit_with_timestamp` / `kk_flow_release` / `kk_flow_retain` は (c) 残留。
 - **Flow builder**: `kk_flow_{as_flow,empty,of}`（計3関数）。`kk_flow_create` + `kk_flow_emit` の合成で (b) 化できる
-  可能性が高い。なお `channelFlow`/`callbackFlow` は Sema 側のみ登録されており Runtime 実装は未確認（Channel 実体を
-  持つ可能性が高く (c) 濃厚）
+  可能性が高い。`channelFlow`/`callbackFlow` は KSP-686 で (a)（未実装 API）に分類した。最小実測では real API 形の
+  `channelFlow { send(1) }` が `KSWIFTK-SEMA-0023: Unresolved function 'send'`、
+  `callbackFlow { trySend(1); close() }` が `trySend`/`close` 未解決で止まり、実装済みの `emit` alias だけが `kk_flow_create`
+  経由で動作した（両者とも `1` を出力）。そのため合成 Flow 宣言・Flow/Coroutine lowering 特例・未実装 ABI allowlist を削除し、
+  fiction を通常の未解決 API として明示した。real `ProducerScope` 実装は別タスクで設計する。
 - `kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
   KSP-499 着手時に再調査
 
@@ -600,4 +605,4 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
-| `random/Random.kt` | `Random` 1クラス統合 + セカンダリコンストラクタ | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— 本家形への移行自体は PRNG のビット精度検証を伴う別タスクで実施 |
+| `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |

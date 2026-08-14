@@ -85,8 +85,6 @@ extension CoroutineLoweringPass {
     /// `CollectionLiteralLoweringPass`.
     func lowerFlowExpressions(module: KIRModule, ctx: KIRContext) {
         let flowName = ctx.interner.intern("flow")
-        let channelFlowName = ctx.interner.intern("channelFlow")
-        let callbackFlowName = ctx.interner.intern("callbackFlow")
         let emitName = ctx.interner.intern("emit")
         let collectName = ctx.interner.intern("collect")
         let collectLatestName = ctx.interner.intern("collectLatest")
@@ -278,7 +276,7 @@ extension CoroutineLoweringPass {
                         if let result, !flowExprIDs.contains(result.rawValue), isFlowClassResultType(result) {
                             if markFlowExpr(result) { changed = true }
                         }
-                        if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                        if callee == flowName,
                            arguments.count == 1,
                            isFlowRewriteCandidate(symbol, callee)
                         {
@@ -439,7 +437,7 @@ extension CoroutineLoweringPass {
             let hasFlowLikeCalls = function.body.contains { instruction in
                 switch instruction {
                 case let .call(_, callee, _, _, _, _, _, _):
-                    callee == flowName || callee == channelFlowName || callee == callbackFlowName ||
+                    callee == flowName ||
                         callee == emitName || callee == collectName || callee == collectLatestName ||
                         callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||

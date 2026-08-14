@@ -1,6 +1,7 @@
 // swiftlint:disable file_length
 import RuntimeABI
 import CompilerCore
+
 extension NativeEmitter {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func emitFunctionBody(
@@ -173,6 +174,16 @@ extension NativeEmitter {
 
         guard let zeroValue = bindings.constInt(int64Type, value: 0) else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMConstInt returned null")
+        }
+        let zeroReturnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
+            zeroValue
+        } else {
+            zeroLLVMValue(
+                for: function.returnType,
+                lowering: typeLowering,
+                int64Type: int64Type,
+                context: context
+            ) ?? zeroValue
         }
         guard let undefThrownPointer = bindings.getUndef(type: outThrownPointerType) else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMGetUndef for outThrown pointer returned null")
@@ -676,7 +687,7 @@ extension NativeEmitter {
                 bindings.positionBuilder(builder, at: thrownBlock)
                 storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
                 emitFramePop("throw_\(instructionIndex)")
-                _ = bindings.buildRet(builder, value: zeroValue)
+                _ = bindings.buildRet(builder, value: zeroReturnValue)
 
                 currentBlock = continueBlock
                 bindings.positionBuilder(builder, at: continueBlock)
@@ -745,6 +756,12 @@ extension NativeEmitter {
             }
 
             var flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
+                "kk_string_to_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_to_flat",
+                    stringArgumentCount: 0,
+                    extraArgumentCount: 1,
+                    canThrow: false
+                ),
                 "kk_string_concat_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_concat_flat",
                     stringArgumentCount: 2,
@@ -935,6 +952,11 @@ extension NativeEmitter {
             }
 
             var flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
+                "kk_string_from_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_from_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
                 "kk_locale_new_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_locale_new_flat",
                     stringArgumentCount: 1,
@@ -1004,74 +1026,6 @@ extension NativeEmitter {
                     flatName: "kk_string_splitToSequence_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
-                ),
-                "kk_string_chunked_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_chunked_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_chunked_sequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_chunked_sequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_chunked_sequence_transform_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_chunked_sequence_transform_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_windowed_default_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_windowed_default_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_windowed_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_windowed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_windowed_partial_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_windowed_partial_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_windowedSequence_partial_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_windowedSequence_partial_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_windowedSequence_transform_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_windowedSequence_transform_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 5,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_zipWithNext_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_zipWithNext_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_zipWithNextTransform_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_zipWithNextTransform_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_zip_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_zip_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_zipTransform_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_zipTransform_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
                 ),
                 "__kk_regex_create_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_regex_create_flat",
@@ -2132,7 +2086,7 @@ extension NativeEmitter {
                    case let .symbolRef(localSymbol) = value,
                    !parameterValues.keys.contains(localSymbol)
                 {
-                    let varName = "local_\(localSymbol.rawValue)"
+                    let varName = nameCounter.nextName("local_")
                     var varLine: UInt32 = 0
                     if function.instructionLocations.count == function.body.count,
                        instructionIndex < function.instructionLocations.count,
@@ -2280,7 +2234,7 @@ extension NativeEmitter {
                             bindings.positionBuilder(builder, at: thrownBlock)
                             storeOutThrownIfNonNull(thrownValue, suffix: "notnull_throw_\(instructionIndex)")
                             emitFramePop("notnull_throw_\(instructionIndex)")
-                            _ = bindings.buildRet(builder, value: zeroValue)
+                            _ = bindings.buildRet(builder, value: zeroReturnValue)
                             currentBlock = continueBlock
                             bindings.positionBuilder(builder, at: continueBlock)
                         }
@@ -2682,7 +2636,7 @@ extension NativeEmitter {
                         bindings.positionBuilder(builder, at: thrownBlock)
                         storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
                         emitFramePop("throw_\(instructionIndex)")
-                        _ = bindings.buildRet(builder, value: zeroValue)
+                        _ = bindings.buildRet(builder, value: zeroReturnValue)
 
                         currentBlock = continueBlock
                         bindings.positionBuilder(builder, at: continueBlock)
@@ -2991,7 +2945,7 @@ extension NativeEmitter {
                         bindings.positionBuilder(builder, at: thrownBlock)
                         storeOutThrownIfNonNull(thrownValue, suffix: "vthrow_\(instructionIndex)")
                         emitFramePop("vthrow_\(instructionIndex)")
-                        _ = bindings.buildRet(builder, value: zeroValue)
+                        _ = bindings.buildRet(builder, value: zeroReturnValue)
 
                         currentBlock = continueBlock
                         bindings.positionBuilder(builder, at: continueBlock)
@@ -3161,7 +3115,7 @@ extension NativeEmitter {
                 let resolved = resolveValue(value)
                 storeOutThrownIfNonNull(resolved, suffix: "rethrow_\(instructionIndex)")
                 emitFramePop("rethrow_\(instructionIndex)")
-                _ = bindings.buildRet(builder, value: zeroValue)
+                _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnIfEqual(lhs, rhs):
                 guard !bindings.hasTerminator(currentBlock),
@@ -3195,7 +3149,7 @@ extension NativeEmitter {
                     continue
                 }
                 emitFramePop("ret_unit_\(instructionIndex)")
-                _ = bindings.buildRet(builder, value: zeroValue)
+                _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnValue(value):
                 guard !bindings.hasTerminator(currentBlock) else {
@@ -3245,14 +3199,14 @@ extension NativeEmitter {
                     }
                     _ = bindings.buildRet(builder, value: returnValue)
                 } else {
-                    _ = bindings.buildRet(builder, value: zeroValue)
+                    _ = bindings.buildRet(builder, value: zeroReturnValue)
                 }
             }
         }
 
         if !bindings.hasTerminator(currentBlock) {
             emitFramePop("ret_fallthrough")
-            _ = bindings.buildRet(builder, value: zeroValue)
+            _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
     }
 

@@ -3,9 +3,7 @@ import Foundation
 import Testing
 
 /// STDLIB-SEQ-FN-030: Validates that `Sequence<T>.filterNotTo` resolves through Sema
-/// to the runtime ABI entry point (`kk_sequence_filterNotTo`). The destination-argument
-/// HOF appends elements that do NOT match the predicate to the supplied mutable
-/// collection and returns the destination.
+/// to the bundled Kotlin source implementation.
 @Suite
 struct SequenceFilterNotToFunctionTests {
     @Test func testSequenceFilterNotToResolvesInSource() throws {
@@ -27,14 +25,12 @@ struct SequenceFilterNotToFunctionTests {
             )
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "filterNotTo"]
+            let memberFQName = ["kotlin", "sequences", "filterNotTo"]
                 .map(ctx.interner.intern)
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
 
-            #expect(
-                sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_filterNotTo" },
-                "Expected Sequence.filterNotTo synthetic member to link to kk_sequence_filterNotTo"
-            )
+            #expect(sequenceMembers.contains { sema.symbols.isSourceBackedSymbol($0) })
+            #expect(sequenceMembers.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 }

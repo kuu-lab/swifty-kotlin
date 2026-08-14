@@ -1418,145 +1418,6 @@ struct RuntimeStringArrayTests {
         #expect(destination?.elements == [97, 98, 97])
     }
 
-    @Test
-    func testFlatStringChunkedWindowedRuntimeAPIsUseFlattenedStringFields() {
-        withFlatString("abcde") { data, length, byteCount, hash in
-            let chunks = runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))
-            #expect(chunks?.elements.map(runtimeStringValue) == ["ab", "cd", "e"])
-
-            let chunkSequence = kk_string_chunked_sequence_flat(data, length, byteCount, hash, 3)
-            #expect(runtimeSequenceSourceElements(from: chunkSequence)?.map(runtimeStringValue) == ["abc", "de"])
-
-            var thrown = -1
-            let transformedChunks = kk_string_chunked_sequence_transform_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                2,
-                unsafeBitCast(runtimeFlatStringLengthTransform, to: Int.self),
-                0,
-                &thrown
-            )
-            #expect(thrown == 0)
-            assertRawValueSequence(transformedChunks, equals: [2, 2, 1])
-
-            thrown = -1
-            let transformedChunkStrings = kk_string_chunked_sequence_transform_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                2,
-                unsafeBitCast(runtimeReturnValueTransform, to: Int.self),
-                0,
-                &thrown
-            )
-            #expect(thrown == 0)
-            assertStringValueSequence(transformedChunkStrings, equals: ["ab", "cd", "e"])
-
-            let defaultWindows = runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 3))
-            #expect(defaultWindows?.elements.map(runtimeStringValue) == ["abc", "bcd", "cde"])
-
-            let steppedWindows = runtimeListBox(from: kk_string_windowed_flat(data, length, byteCount, hash, 3, 2))
-            #expect(steppedWindows?.elements.map(runtimeStringValue) == ["abc", "cde"])
-
-            let partialWindows = runtimeListBox(from: kk_string_windowed_partial_flat(data, length, byteCount, hash, 3, 2, 1))
-            #expect(partialWindows?.elements.map(runtimeStringValue) == ["abc", "cde", "e"])
-
-            let partialWindowSequence = kk_string_windowedSequence_partial_flat(data, length, byteCount, hash, 3, 2, 1)
-            #expect(runtimeSequenceSourceElements(from: partialWindowSequence)?.map(runtimeStringValue) == ["abc", "cde", "e"])
-
-            thrown = -1
-            let transformedWindows = kk_string_windowedSequence_transform_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                3,
-                2,
-                1,
-                unsafeBitCast(runtimeFlatStringLengthTransform, to: Int.self),
-                0,
-                &thrown
-            )
-            #expect(thrown == 0)
-            assertRawValueSequence(transformedWindows, equals: [3, 3, 1])
-
-            thrown = -1
-            let transformedWindowStrings = kk_string_windowedSequence_transform_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                3,
-                2,
-                1,
-                unsafeBitCast(runtimeReturnValueTransform, to: Int.self),
-                0,
-                &thrown
-            )
-            #expect(thrown == 0)
-            assertStringValueSequence(transformedWindowStrings, equals: ["abc", "cde", "e"])
-        }
-
-        withFlatString("") { data, length, byteCount, hash in
-            #expect(runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))?.elements.count == 0)
-            #expect(runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 2))?.elements.count == 0)
-        }
-    }
-
-    @Test
-    func testStringChunkedWindowedContainersAvoidLegacyStringBoxes() {
-        withFlatString("abcde") { data, length, byteCount, hash in
-            let baselineObjectCount = kk_debugging_global_object_count()
-
-            let chunksRaw = kk_string_chunked_flat(data, length, byteCount, hash, 2)
-
-            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_chunked_flat should only allocate the list container")
-            let chunks = runtimeListBox(from: chunksRaw)
-            #expect(chunks?.values.map(\.tag) == [
-                RuntimeValue.stringTag,
-                RuntimeValue.stringTag,
-                RuntimeValue.stringTag,
-            ])
-            #expect(chunks?.values.map(runtimeFlatStringValue) == ["ab", "cd", "e"])
-            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1)
-        }
-
-        withFlatString("abcde") { data, length, byteCount, hash in
-            let baselineObjectCount = kk_debugging_global_object_count()
-
-            let sequenceRaw = kk_string_chunked_sequence_flat(data, length, byteCount, hash, 3)
-
-            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_chunked_sequence_flat should build a direct sequence without an intermediate list")
-            guard let sequence = runtimeSequenceBox(from: sequenceRaw),
-                  case let .valueSource(values)? = sequence.steps.first
-            else {
-                Issue.record("Expected direct valueSource sequence")
-                return
-            }
-            #expect(values.map(\.tag) == [RuntimeValue.stringTag, RuntimeValue.stringTag])
-            #expect(values.map(runtimeFlatStringValue) == ["abc", "de"])
-            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1)
-        }
-
-        withFlatString("abcde") { data, length, byteCount, hash in
-            let baselineObjectCount = kk_debugging_global_object_count()
-
-            let windowsRaw = kk_string_windowed_partial_flat(data, length, byteCount, hash, 3, 2, 1)
-
-            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_windowed_partial_flat should only allocate the list container")
-            let windows = runtimeListBox(from: windowsRaw)
-            #expect(windows?.values.map(\.tag) == [
-                RuntimeValue.stringTag,
-                RuntimeValue.stringTag,
-                RuntimeValue.stringTag,
-            ])
-            #expect(windows?.values.map(runtimeFlatStringValue) == ["abc", "cde", "e"])
-            #expect(kk_debugging_global_object_count() == baselineObjectCount + 1)
-        }
-    }
 
     @Test
     func testStringAsIterableToListMaterialises() {
@@ -1634,15 +1495,11 @@ struct RuntimeStringArrayTests {
     func testStringCharCollectionCopiesPreserveTaggedChars() {
         let listRaw = kk_collection_toMutableList(flatStringAsIterable("aba"))
 
-        let set = runtimeSetBox(from: kk_list_to_set(listRaw))
-        let mutableSet = runtimeSetBox(from: kk_list_to_mutable_set(listRaw))
-        let hashSet = runtimeSetBox(from: kk_list_toHashSet(listRaw))
+        let mutableSet = runtimeSetBox(from: kk_iterable_toMutableSet(listRaw))
         let mutableList = runtimeListBox(from: kk_collection_toMutableList(listRaw))
         let typedArray = runtimeArrayBox(from: kk_collection_toTypedArray(listRaw))
 
-        #expect(set?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
         #expect(mutableSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
-        #expect(hashSet?.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
         #expect(mutableList?.values.map(\.tag) == [
             RuntimeValue.charTag,
             RuntimeValue.charTag,
@@ -1653,7 +1510,6 @@ struct RuntimeStringArrayTests {
             RuntimeValue.charTag,
             RuntimeValue.charTag,
         ])
-        #expect(set?.elements == [97, 98])
         #expect(mutableList?.elements == [97, 98, 97])
         #expect(typedArray?.elements == [97, 98, 97])
     }
@@ -1669,24 +1525,6 @@ struct RuntimeStringArrayTests {
         )
 
         #expect(runtimeStringValue(Int(bitPattern: result)) == "<a|é|?|?>")
-    }
-
-    @Test
-    func testStringJoinToStringUsesAggregateListStorageWithoutLegacyStringBoxes() {
-        let listRaw = makeRuntimeValueList([
-            runtimeStringAggregateValue("red"),
-            runtimeStringAggregateValue("green"),
-            runtimeStringAggregateValue("blue"),
-        ])
-        let separatorRaw = rawFromRuntimeString("|")
-        let prefixRaw = rawFromRuntimeString("<")
-        let postfixRaw = rawFromRuntimeString(">")
-        let baselineObjectCount = kk_debugging_global_object_count()
-
-        let resultRaw = kk_string_joinToString(listRaw, separatorRaw, prefixRaw, postfixRaw)
-
-        #expect(runtimeStringValue(resultRaw) == "<red|green|blue>")
-        #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage")
     }
 
     @Test

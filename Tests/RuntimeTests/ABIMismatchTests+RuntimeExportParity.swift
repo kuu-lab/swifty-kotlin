@@ -77,19 +77,12 @@ struct ABIMismatchRuntimeExportParityTests {
         [
             "kk_regex_create_with_option",
             "kk_regex_create_with_options",
-            "kk_string_chunked_sequence",
-            "kk_string_chunked_sequence_transform",
-            "__kk_string_toByte",
-            "__kk_string_toByte_radix",
+            "kk_string_toByte",
+            "kk_string_toByte_radix",
             "kk_string_toCharArray",
-            "__kk_string_toRegex_with_option",
-            "__kk_string_toRegex_with_options",
-            "__kk_string_toShort",
-            "kk_string_windowed",
-            "kk_string_windowed_default",
-            "kk_string_windowed_partial",
-            "kk_string_windowedSequence_partial",
-            "kk_string_windowedSequence_transform",
+            "kk_string_toRegex_with_option",
+            "kk_string_toRegex_with_options",
+            "kk_string_toShort",
         ]
     }
 
@@ -103,11 +96,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_callable_ref_call_1",
             "kk_callable_ref_call_2",
             "kk_callable_ref_call_3",
-            "kk_callback_flow_await_close",
-            "kk_callback_flow_create",
-            "kk_channel_flow_create",
-            "kk_channel_flow_send",
-            "kk_channel_flow_try_send",
             "kk_channel_send_suspending",
             "kk_flow_catch",
             "kk_flow_on_completion",
@@ -195,6 +183,24 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_mutable_list_sortWith",
             "kk_mutable_list_sort_primitive",
             "kk_list_zip_transform",
+            // KSP-688: List slice/take/drop HOFs are source-backed in
+            // kotlin.collections.ListSliceTakeDrop.kt; their compatibility
+            // ABI specs remain but no runtime exports are emitted.
+            "kk_list_takeWhile",
+            "kk_list_takeLastWhile",
+            "kk_list_dropWhile",
+            "kk_list_dropLastWhile",
+            // KSP-445: Sequence fold/scan HOFs are source-backed in bundled
+            // kotlin.collections/sequences; runtime bridge is no longer exported.
+            "kk_sequence_foldIndexed",
+            "kk_sequence_reduceIndexed",
+            "kk_sequence_reduceIndexedOrNull",
+            "kk_sequence_runningFold",
+            "kk_sequence_runningFoldIndexed",
+            "kk_sequence_runningReduce",
+            "kk_sequence_runningReduceIndexed",
+            "kk_sequence_scan",
+            "kk_sequence_scanIndexed",
             // KSP-430: Map higher-order functions are now source-backed in
             // bundled MapHOF.kt; these ABI entries remain for compatibility
             // with the synthetic stub externalLinkName literals.
@@ -266,7 +272,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_path_reader_default",
             "kk_path_readAttributes_string",
             "kk_path_writeText_options",
-            "kk_uri_toPath",
         ]
     }
 
