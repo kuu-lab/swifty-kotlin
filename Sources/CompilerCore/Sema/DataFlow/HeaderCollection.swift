@@ -881,6 +881,43 @@ extension DataFlowSemaPhase {
                ),
                !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) {
                 symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol)
+
+                // KSP-443: Runtime-linked bundled extension functions are registered
+                // under their declaring package FQ, but synthetic-member-link tests
+                // and surface-spec checks resolve by owner + member name. Create a
+                // synthetic member alias under the receiver class FQ that reuses the
+                // same signature and externalLinkName, so lookups like
+                // kotlin.sequences.Sequence.toHashSet resolve to kk_sequence_toHashSet.
+                if let externalLinkName = symbols.externalLinkName(for: symbol),
+                   !externalLinkName.isEmpty,
+                   let ownerSymbol = symbols.symbol(receiverClassType.classSymbol),
+                   let signature = symbols.functionSignature(for: symbol) {
+                    let memberFQName = ownerSymbol.fqName + [semanticSymbol.name]
+                    let alreadyExists = symbols.lookupAll(fqName: memberFQName).contains { existingID in
+                        guard existingID != symbol,
+                              let existingSig = symbols.functionSignature(for: existingID),
+                              symbols.parentSymbol(for: existingID) == receiverClassType.classSymbol
+                        else {
+                            return false
+                        }
+                        return existingSig == signature
+                    }
+                    if !alreadyExists {
+                        var aliasFlags = semanticSymbol.flags
+                        aliasFlags.insert(.synthetic)
+                        let aliasSymbol = symbols.define(
+                            kind: .function,
+                            name: semanticSymbol.name,
+                            fqName: memberFQName,
+                            declSite: nil,
+                            visibility: semanticSymbol.visibility,
+                            flags: aliasFlags
+                        )
+                        symbols.setParentSymbol(receiverClassType.classSymbol, for: aliasSymbol)
+                        symbols.setFunctionSignature(signature, for: aliasSymbol)
+                        symbols.setExternalLinkName(externalLinkName, for: aliasSymbol)
+                    }
+                }
             }
 
             checkAndReportJVMErasedCallableConflict(

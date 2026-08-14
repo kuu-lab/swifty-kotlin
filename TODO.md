@@ -96,7 +96,16 @@
   - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
 #### kotlin.sequences [M4 実行体]（KSP-441 が先頭。他は 441 完了後に並列可）
 
-- [ ] KSP-443: Sequence 変換・集合演算を Kotlin 化（`toList`, `toMutableList`, `toSet`, `toMutableSet`, `toHashSet`, `toSortedSet`, `toCollection`, `toMap`, `flatten`, `unzip`, `union`, `intersect`, `subtract`, `plus*`, `minus`, `ifEmpty`, `constrainOnce`, `orEmpty`）
+- [x] KSP-441: Sequence 遅延 transform 基盤を Kotlin 化（`Sequence`/`Iterator` インターフェース + `map`, `filter` 系 transform）
+  - 注意: object 式（匿名クラス）でパイプラインを表現する。コンパイラの object 式・ジェネリクス対応が不足していれば**ブロッカーとして報告し中断**
+  - 対象 kk_*: `RuntimeSequence.swift` の transform 系（`kk_sequence_map*`, `kk_sequence_filter*`, `kk_sequence_withIndex`, `kk_sequence_flatMap*`, `kk_sequence_onEach*`, `kk_sequence_requireNoNulls` 等。rg で全列挙）
+  - **完了 (2026-08-06)**: object 式（匿名 `Sequence`/`Iterator`）+ ジェネリクスは実用上ブロッカーではなく、`Stdlib/kotlin/sequences/SequenceTransformHOF.kt` の source 実装がそのまま動作する。残っていた 441 のギャップは `flatMap`/`flatMapIndexed` で、(a) `CollectionLiteralLoweringPass` が source 実装を明示的に除外して `kk_sequence_flatMap*` に落としていた、(b) `flatMapIndexed` の early-receiver 経路が source overload ではなく synthetic member を選んでいた、の 2 点。両方を修正し、`map`/`mapIndexed`/`mapNotNull`/`mapIndexedNotNull`/`filter`/`filterNot`/`filterIndexed`/`filterNotNull`/`onEach`/`onEachIndexed`/`withIndex`/`flatMap`/`flatMapIndexed`/`flatten` は Kotlin source 実装で解決する（回帰: `Tests/CompilerCoreTests/Sema/SequenceTransformSourceMigrationTests.swift`, `Scripts/diff_cases/sequence_transform_source_pipeline.kt`）。
+  - ブリッジ残留（`RuntimeSequence.swift`）: runtime Sequence handle（`sequenceOf`/`generateSequence`/`asSequence` が返す `RuntimeSequenceBox`）を直接受け取る経路の `kk_sequence_map`/`filter`/`flatMap`/`flatMapIndexed`、reified 型が要る `kk_sequence_filterIsInstance`、`hasNext()` から例外を伝播する必要がある `kk_sequence_requireNoNulls`、iterator ブリッジ `kk_sequence_box_iterator`/`kk_sequence_iterator_hasNext`/`kk_sequence_iterator_next`。factory 側の Kotlin 化は KSP-651、builder は KSP-447 で扱う。
+  - 同時修正（コンパイラバグ）: `InlineLoweringPass` が inline 展開を 1 回しか回さず、外側 inline の展開で新たに露出した inline call が未展開のまま残って `undefined reference to 'map'` 等のリンクエラーになっていた。最大 4 ラウンドの固定点反復に変更（最小再現・回帰: `Scripts/diff_cases/sequence_nested_transform_lazy.kt`）。
+- [x] KSP-442: Sequence terminal を Kotlin 化（`first*`, `last*`, `single*`, `elementAt*`, `find(Last)`, `contains`, `indexOf*`, `any`, `all`, `none`, `count`, `min*`, `max*`, `sum`, `average`）
+  - 前提: KSP-441 / 既存 `SequenceAggregateHOF.kt` に追記
+  - 完了 (2026-08-12): `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt` に上記関数を追加し、`kk_sequence_*` 経路を `BundledDeclarationIndex` で抑制。Sema/Backend の既存テストを source-backed 解決を期待するよう更新。`SmokeTests` と関連 Sequence テスト群が green、手動で `average`/`last`/`single`/`lastIndexOf`/`contains`/`none`/`min`/`max`/`sum` の実行も確認。
+- [x] KSP-443: Sequence 変換・集合演算を Kotlin 化（`toList`, `toMutableList`, `toSet`, `toMutableSet`, `toHashSet`, `toSortedSet`, `toCollection`, `toMap`, `flatten`, `unzip`, `union`, `intersect`, `subtract`, `plus*`, `minus`, `ifEmpty`, `constrainOnce`, `orEmpty`）
   - 注意: インライン `kotlinSequencesSource`（toList/toMutableList/toSet）と統合（KSP-503 と調整）
 - [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
 #### kotlin.ranges [M6 実行体]（前提: KSP-312）
