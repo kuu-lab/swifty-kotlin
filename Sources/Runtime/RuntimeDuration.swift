@@ -11,7 +11,21 @@ final class RuntimeDurationBox {
 
 private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    let isRegisteredObject = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isRegisteredObject else { return nil }
     return tryCast(ptr, to: RuntimeDurationBox.self)
+}
+
+/// Reads both the legacy boxed representation and Duration's source-backed
+/// value-class payload. Raw values are only treated as object handles when the
+/// runtime has registered the pointer, so ordinary small Long payloads are safe.
+func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
+    if let box = runtimeDurationBox(from: raw) {
+        return box.nanoseconds
+    }
+    return Int64(bitPattern: UInt64(bitPattern: Int64(raw)))
 }
 
 private func runtimeDurationIsInfinite(_ nanoseconds: Int64) -> Bool {
@@ -19,6 +33,10 @@ private func runtimeDurationIsInfinite(_ nanoseconds: Int64) -> Bool {
 }
 
 private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
+    Int(truncatingIfNeeded: nanoseconds)
+}
+
+private func runtimeDurationBoxHandle(fromNanoseconds nanoseconds: Int64) -> Int {
     registerRuntimeObject(RuntimeDurationBox(nanoseconds: nanoseconds))
 }
 
@@ -364,18 +382,17 @@ public func kk_duration_toDuration_double(_ valueBits: Int, _ unitOrdinal: Int) 
 
 @_cdecl("kk_duration_inWholeNanoseconds")
 public func kk_duration_inWholeNanoseconds(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_inWholeNanoseconds received invalid Duration handle")
     }
-    return Int(box.nanoseconds)
+    return Int(truncatingIfNeeded: nanoseconds)
 }
 
 @_cdecl("kk_duration_toString")
 public func kk_duration_toString(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let ns = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toString received invalid Duration handle")
     }
-    let ns = box.nanoseconds
 
     if ns == 0 {
         return runtimeDurationMakeString("0s")
@@ -485,7 +502,7 @@ public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoString")
@@ -510,126 +527,124 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)
 
 @_cdecl("kk_duration_absoluteValue")
 public func kk_duration_absoluteValue(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let ns = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_absoluteValue received invalid Duration handle")
     }
-    let ns = box.nanoseconds
     let absNs = ns == Int64.min ? Int64.max : (ns < 0 ? -ns : ns)
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: absNs))
+    return runtimeDurationHandle(fromNanoseconds: absNs)
 }
 
 @_cdecl("kk_duration_isNegative")
 public func kk_duration_isNegative(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isNegative received invalid Duration handle")
     }
-    return box.nanoseconds < 0 ? 1 : 0
+    return nanoseconds < 0 ? 1 : 0
 }
 
 @_cdecl("kk_duration_isPositive")
 public func kk_duration_isPositive(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isPositive received invalid Duration handle")
     }
-    return box.nanoseconds > 0 ? 1 : 0
+    return nanoseconds > 0 ? 1 : 0
 }
 
 @_cdecl("kk_duration_isInfinite")
 public func kk_duration_isInfinite(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isInfinite received invalid Duration handle")
     }
-    return (box.nanoseconds == Int64.max || box.nanoseconds == Int64.min) ? 1 : 0
+    return (nanoseconds == Int64.max || nanoseconds == Int64.min) ? 1 : 0
 }
 
 @_cdecl("kk_duration_plus")
 public func kk_duration_plus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationBox(from: lhsRaw),
-          let rhs = runtimeDurationBox(from: rhsRaw) else {
+    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
+          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_plus received invalid Duration handle")
     }
-    let (result, overflow) = lhs.nanoseconds.addingReportingOverflow(rhs.nanoseconds)
-    let ns: Int64 = overflow ? ((lhs.nanoseconds > 0) ? Int64.max : Int64.min) : result
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: ns))
+    return runtimeDurationHandle(fromNanoseconds: runtimeDurationSaturatingAdd(lhs, rhs))
 }
 
 @_cdecl("kk_duration_minus")
 public func kk_duration_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationBox(from: lhsRaw),
-          let rhs = runtimeDurationBox(from: rhsRaw) else {
+    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
+          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_minus received invalid Duration handle")
     }
-    let (result, overflow) = lhs.nanoseconds.subtractingReportingOverflow(rhs.nanoseconds)
-    let ns: Int64 = overflow ? ((lhs.nanoseconds >= 0) ? Int64.max : Int64.min) : result
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: ns))
+    return runtimeDurationHandle(fromNanoseconds: runtimeDurationSaturatingAdd(lhs, -rhs))
 }
 
 @_cdecl("kk_duration_times_int")
 public func kk_duration_times_int(_ durationRaw: Int, _ scale: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_times_int received invalid Duration handle")
     }
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: saturatingMultiply(box.nanoseconds, Int64(scale))))
+    return runtimeDurationHandle(fromNanoseconds: saturatingMultiply(nanoseconds, Int64(scale)))
 }
 
 @_cdecl("kk_duration_div_int")
 public func kk_duration_div_int(_ durationRaw: Int, _ scale: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_div_int received invalid Duration handle")
     }
     guard scale != 0 else {
-        let ns: Int64 = box.nanoseconds >= 0 ? Int64.max : Int64.min
-        return registerRuntimeObject(RuntimeDurationBox(nanoseconds: ns))
+        let ns: Int64 = nanoseconds >= 0 ? Int64.max : Int64.min
+        return runtimeDurationHandle(fromNanoseconds: ns)
     }
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: box.nanoseconds / Int64(scale)))
+    if nanoseconds == Int64.min, scale == -1 {
+        return runtimeDurationHandle(fromNanoseconds: Int64.max)
+    }
+    return runtimeDurationHandle(fromNanoseconds: nanoseconds / Int64(scale))
 }
 
 @_cdecl("kk_duration_div_duration")
 public func kk_duration_div_duration(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationBox(from: lhsRaw),
-          let rhs = runtimeDurationBox(from: rhsRaw) else {
+    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
+          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_div_duration received invalid Duration handle")
     }
-    let lhsValue = runtimeDurationIsInfinite(lhs.nanoseconds)
-        ? (lhs.nanoseconds > 0 ? Double.infinity : -Double.infinity)
-        : Double(lhs.nanoseconds)
-    let rhsValue = runtimeDurationIsInfinite(rhs.nanoseconds)
-        ? (rhs.nanoseconds > 0 ? Double.infinity : -Double.infinity)
-        : Double(rhs.nanoseconds)
+    let lhsValue = runtimeDurationIsInfinite(lhs)
+        ? (lhs > 0 ? Double.infinity : -Double.infinity)
+        : Double(lhs)
+    let rhsValue = runtimeDurationIsInfinite(rhs)
+        ? (rhs > 0 ? Double.infinity : -Double.infinity)
+        : Double(rhs)
     return kk_double_to_bits(lhsValue / rhsValue)
 }
 
 @_cdecl("kk_duration_unary_minus")
 public func kk_duration_unary_minus(_ durationRaw: Int) -> Int {
-    guard let box = runtimeDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_unary_minus received invalid Duration handle")
     }
     let ns: Int64
-    if box.nanoseconds == Int64.min {
+    if nanoseconds == Int64.min {
         ns = Int64.max
-    } else if box.nanoseconds == Int64.max {
+    } else if nanoseconds == Int64.max {
         ns = Int64.min
     } else {
-        ns = -box.nanoseconds
+        ns = -nanoseconds
     }
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: ns))
+    return runtimeDurationHandle(fromNanoseconds: ns)
 }
 
 @_cdecl("kk_duration_compareTo")
 public func kk_duration_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationBox(from: lhsRaw),
-          let rhs = runtimeDurationBox(from: rhsRaw) else {
+    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
+          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_compareTo received invalid Duration handle")
     }
-    if lhs.nanoseconds < rhs.nanoseconds { return -1 }
-    if lhs.nanoseconds > rhs.nanoseconds { return 1 }
+    if lhs < rhs { return -1 }
+    if lhs > rhs { return 1 }
     return 0
 }
 

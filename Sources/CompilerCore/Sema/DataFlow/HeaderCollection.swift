@@ -202,6 +202,9 @@ extension DataFlowSemaPhase {
             // abstract/open/sealed flags are lost for source-backed types such
             // as kotlin.random.Random.
             symbols.insertFlags(declaration.flags, for: symbol)
+            if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
+                symbols.setDeclSite(declaration.range, for: symbol)
+            }
         } else {
             symbol = symbols.define(
                 kind: declaration.kind,
@@ -1115,7 +1118,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> SymbolID? {
-        guard kind == .class || kind == .interface || kind == .object else { return nil }
+        guard kind == .class || kind == .interface || kind == .object || kind == .enumClass else { return nil }
         let reusableKeys = reusableSyntheticSourceDeclarationKeys(
             for: file,
             sourceManager: sourceManager,
@@ -1128,6 +1131,19 @@ extension DataFlowSemaPhase {
             guard let symbol = symbols.symbol(symbolID) else { return false }
             return symbol.kind == kind && symbol.flags.contains(.synthetic)
         }
+    }
+
+    private func shouldRestoreDeclSiteForReusableSyntheticSymbol(
+        fqName: [InternedString],
+        interner: StringInterner
+    ) -> Bool {
+        // Compatibility shells intentionally keep a nil declSite so bundled
+        // source declarations do not displace them in golden semantic dumps.
+        // KSP-683 needs the migrated Duration nominals to remain source-backed
+        // for their value-class and enum metadata.
+        let resolvedFQName = fqName.map(interner.resolve)
+        return resolvedFQName == ["kotlin", "time", "Duration"]
+            || resolvedFQName == ["kotlin", "time", "DurationUnit"]
     }
 
     /// The fully-qualified names a bundled source file is allowed to claim from
@@ -1175,6 +1191,10 @@ extension DataFlowSemaPhase {
                 ["kotlin", "time", "TimeSource", "WithComparableMarks"],
                 ["kotlin", "time", "TimeSource", "Monotonic"],
             ]
+        case "__bundled_kotlin/time/Duration.kt":
+            [["kotlin", "time", "Duration"]]
+        case "__bundled_kotlin/time/DurationUnit.kt":
+            [["kotlin", "time", "DurationUnit"]]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
         case "__bundled_kotlin/Tuples.kt":
