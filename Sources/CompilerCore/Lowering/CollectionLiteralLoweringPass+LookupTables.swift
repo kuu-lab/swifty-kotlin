@@ -232,17 +232,6 @@ struct CollectionLiteralLookupTables {
     var kkSequencePlusElementName: InternedString { sequenceLookup.kkSequencePlusElementName }
     var kkSequenceMinusName: InternedString { sequenceLookup.kkSequenceMinusName }
     var kkSequenceOfSingleName: InternedString { sequenceLookup.kkSequenceOfSingleName }
-    var kkSequenceFilterToName: InternedString { sequenceLookup.kkSequenceFilterToName }
-    var kkSequenceFilterNotToName: InternedString { sequenceLookup.kkSequenceFilterNotToName }
-    var kkSequenceMapToName: InternedString { sequenceLookup.kkSequenceMapToName }
-    var kkSequenceMapNotNullToName: InternedString { sequenceLookup.kkSequenceMapNotNullToName }
-    var kkSequenceMapIndexedToName: InternedString { sequenceLookup.kkSequenceMapIndexedToName }
-    var kkSequenceFlatMapToName: InternedString { sequenceLookup.kkSequenceFlatMapToName }
-    var kkSequenceMapIndexedNotNullToName: InternedString { sequenceLookup.kkSequenceMapIndexedNotNullToName }
-    var kkSequenceFlatMapIndexedToName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedToName }
-    var kkSequenceFilterIndexedToName: InternedString { sequenceLookup.kkSequenceFilterIndexedToName }
-    var kkSequenceFilterNotNullToName: InternedString { sequenceLookup.kkSequenceFilterNotNullToName }
-    var kkSequenceFilterIsInstanceToName: InternedString { sequenceLookup.kkSequenceFilterIsInstanceToName }
     var plusMemberName: InternedString { sequenceLookup.plusMemberName }
     var plusElementName: InternedString { sequenceLookup.plusElementName }
     var minusElementName: InternedString { sequenceLookup.minusElementName }

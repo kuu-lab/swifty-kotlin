@@ -129,6 +129,34 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        // IndexingIterable is the iterator bridge retained by List.withIndex().
+        RuntimeABIFunctionSpec(
+            name: "kk_indexing_iterable_iterator",
+            parameters: [
+                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_indexing_iterable_hasNext",
+            parameters: [
+                RuntimeABIParameter(name: "iterRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_indexing_iterable_next",
+            parameters: [
+                RuntimeABIParameter(name: "iterRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_list_iterator_hasPrevious",
             parameters: [

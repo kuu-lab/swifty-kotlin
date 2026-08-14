@@ -42,7 +42,17 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.filterIndexedName
             || callee == lookup.associateName
             || callee == lookup.associateByName
+            || callee == lookup.associateWithName
+            || callee == lookup.associateToName
+            || callee == lookup.associateByToName
+            || callee == lookup.associateWithToName
             || callee == lookup.groupByName
+            || callee == lookup.groupByToName
+            || callee == lookup.partitionName
+            || callee == lookup.unzipName
+            || callee == lookup.withIndexName
+            || callee == lookup.onEachName
+            || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
@@ -723,7 +733,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         guard arguments.count == 2 || arguments.count == 3,
-              listExprIDs.contains(receiver.rawValue) || sequenceExprIDs.contains(receiver.rawValue)
+              listExprIDs.contains(receiver.rawValue)
         else {
             return false
         }
@@ -739,8 +749,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             closureRawExpr = zeroExpr
         }
 
-        let ownerKind: StdlibSurfaceOwnerKind = sequenceExprIDs.contains(receiver.rawValue) ? .sequence : .list
-        guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: ownerKind, callee: callee, arity: 2) else {
+        guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 2) else {
             return false
         }
 

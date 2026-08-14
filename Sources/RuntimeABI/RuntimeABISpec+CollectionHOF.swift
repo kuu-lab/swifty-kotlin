@@ -104,58 +104,6 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
 
-        let associateBySpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateBy",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateByTransformSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateByTransform",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "keyFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "keyClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "valueFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "valueClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateWithSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateWith",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associate",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateTo",
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
         let listWindowChunkReceiverSizeParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
             RuntimeABIParameter(name: "size", type: .intptr),
@@ -380,7 +328,6 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let genericAfter = [
-            "kk_list_groupBy",
             "kk_list_sortedBy",
         ]
         var functions: [RuntimeABIFunctionSpec] = []
@@ -399,59 +346,7 @@ public extension RuntimeABISpec {
             }
         )
 
-        functions.append(contentsOf: [
-                associateBySpec, associateByTransformSpec, associateWithSpec, associateSpec, associateToSpec,
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_associateByTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_associateWithTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_groupByTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_groupByTransform",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "keyFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "keyClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "valueFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "valueClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-            ]
-            + [legacyListZipTransformSpec]
+        functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
                 unzipSpec, asReversedSpec,
@@ -498,7 +393,6 @@ public extension RuntimeABISpec {
                     section: "Collection"
                 ),
                 hofSpec("kk_list_sortedWith"),
-                hofSpec("kk_list_partition"),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_maxBy",
                     parameters: [

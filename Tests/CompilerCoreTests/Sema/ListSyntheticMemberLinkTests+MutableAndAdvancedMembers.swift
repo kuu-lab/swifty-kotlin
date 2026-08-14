@@ -270,7 +270,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "unzip"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
+            // KSP-425: List.unzip() is now source-backed and has no external runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected List.unzip to resolve to bundled source")
 
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {

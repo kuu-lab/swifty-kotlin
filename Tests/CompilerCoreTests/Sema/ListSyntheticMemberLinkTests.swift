@@ -2362,6 +2362,189 @@ struct ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
+    func testListBinarySearchHasComparableElementUpperBound() throws {
+        let source = """
+        fun render(values: List<Int>) {
+            values.binarySearch(5)
+            values.binarySearch(5, 1, 4)
+            values.binarySearch { it - 5 }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let symbolID = try #require(sema.symbols.lookupAll(
+                    fqName: [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern("collections"),
+                        ctx.interner.intern("binarySearch"),
+                    ]
+                ).first(where: { sema.symbols.isSourceBackedSymbol($0) }))
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            #expect(signature.typeParameterUpperBoundsList == [[]])
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true])
+
+            let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      case let .memberCall(_, callee, _, _, _) = expr,
+                      ctx.interner.resolve(callee) == "binarySearch"
+                else {
+                    return nil
+                }
+                return exprID
+            }
+            #expect(callExprIDs.count == 3)
+            for callExprID in callExprIDs {
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExprID)?.chosenCallee)
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                let chosenSignature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let receiverType = try #require(chosenSignature.receiverType)
+                guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
+                    Issue.record("Expected binarySearch source receiver to be a class type"); continue
+                }
+                let listSymbol = try #require(sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("collections"),
+                    ctx.interner.intern("List"),
+                ]))
+                #expect(receiverClassType.classSymbol == listSymbol)
+            }
+        }
+    }
+
+    @Test
+    func testListBinarySearchComparatorOverloadHasDefaultedRange() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let symbolID = try #require(sema.symbols.lookupAll(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("collections"),
+                    ctx.interner.intern("binarySearch"),
+                ]).first(where: { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.parameterTypes.count == 4
+                        && sema.symbols.isSourceBackedSymbol(candidate)
+                }))
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            #expect(signature.parameterTypes.count == 4)
+            #expect(signature.valueParameterSymbols.count == 4)
+            #expect(signature.valueParameterHasDefaultValues == [false, false, true, true])
+            #expect(signature.typeParameterSymbols.count == 1)
+            #expect(signature.classTypeParameterCount == 0)
+            #expect(signature.typeParameterUpperBoundsList == [[]])
+
+            let parameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
+                sema.symbols.symbol(paramSymbol)?.name
+            }.map { ctx.interner.resolve($0) }
+            #expect(parameterNames == ["element", "comparator", "fromIndex", "toIndex"])
+
+            #expect(signature.parameterTypes[0] == sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[0],
+                nullability: .nonNull
+            ))))
+            #expect(signature.parameterTypes[2] == sema.types.intType)
+            #expect(signature.parameterTypes[3] == sema.types.intType)
+
+            if let comparatorSymbol = sema.symbols.lookupByShortName(ctx.interner.intern("Comparator")).first,
+               case let .classType(comparatorClassType) = sema.types.kind(of: signature.parameterTypes[1])
+            {
+                #expect(comparatorClassType.classSymbol == comparatorSymbol)
+                #expect(comparatorClassType.args.count == 1)
+            } else {
+                guard case let .functionType(comparatorFunctionType) = sema.types.kind(of: signature.parameterTypes[1]) else {
+                    Issue.record("Expected binarySearch comparator parameter to be Comparator<T> or a comparator function type"); return
+                }
+                #expect(comparatorFunctionType.params.count == 2)
+                #expect(comparatorFunctionType.returnType == sema.types.intType)
+            }
+        }
+    }
+
+    @Test
+    func testListBinarySearchByUsesComparableKeyAndRuntimeOverloads() throws {
+        let source = """
+        data class Person(val name: String, val age: Int)
+
+        fun render(values: List<Person>) {
+            values.binarySearchBy(35) { it.age }
+            values.binarySearchBy(35, 1) { it.age }
+            values.binarySearchBy(35, 1, 4) { it.age }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      case let .memberCall(_, callee, _, _, _) = expr,
+                      ctx.interner.resolve(callee) == "binarySearchBy"
+                else {
+                    return nil
+                }
+                return exprID
+            }
+            #expect(callExprIDs.count == 3, "Expected three binarySearchBy calls")
+
+            for callExprID in callExprIDs {
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExprID)?.chosenCallee)
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+                #expect(sema.bindings.exprType(for: callExprID) == sema.types.intType, "Expected binarySearchBy to return Int")
+            }
+
+            let binarySearchByFQName: [InternedString] = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("binarySearchBy"),
+            ]
+
+            let symbolID = try #require(sema.symbols.lookupAll(fqName: binarySearchByFQName).first(where: {
+                sema.symbols.isSourceBackedSymbol($0)
+            }))
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            #expect(signature.returnType == sema.types.intType)
+            #expect(signature.parameterTypes.count == 4)
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true, false])
+            #expect(signature.typeParameterSymbols.count == 2)
+            #expect(signature.typeParameterUpperBoundsList == [[], []])
+
+            let selectorType = try #require(signature.parameterTypes.last)
+            guard case let .functionType(functionType) = sema.types.kind(of: selectorType) else {
+                Issue.record("Expected selector parameter to be a function type"); return
+            }
+            #expect(functionType.params.count == 1)
+
+            let expectedListElementType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[0],
+                nullability: .nonNull
+            )))
+            #expect(functionType.params[0] == expectedListElementType)
+            #expect(functionType.returnType == signature.parameterTypes[0])
+
+            let expectedKeyType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[1],
+                nullability: .nonNull
+            )))
+            #expect(signature.parameterTypes[0] == expectedKeyType)
+            #expect(signature.parameterTypes[1] == sema.types.intType)
+            #expect(signature.parameterTypes[2] == sema.types.intType)
+        }
+    }
 
     @Test
     func testListToTypeArrayResolvesToSourceBackedDeclaration() throws {

@@ -590,7 +590,16 @@ extension DataFlowSemaPhase {
         // partition (HOF, predicate lambda)
         let partitionName = interner.intern("partition")
         let partitionFQName = listFQName + [partitionName]
-        if symbols.lookup(fqName: partitionFQName) == nil {
+        let shouldSkipPartition = BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: partitionName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if !shouldSkipPartition, symbols.lookup(fqName: partitionFQName) == nil {
             let predicateType2 = types.make(.functionType(FunctionType(
                 params: [listTypeParamType],
                 returnType: types.booleanType,
@@ -606,7 +615,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .inlineFunction]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_partition", for: memberSymbol)
             // Return type is Pair<List<T>, List<T>>
             let partitionReturnType: TypeID
             if let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")]) {
@@ -776,7 +784,16 @@ extension DataFlowSemaPhase {
         // unzip(): Pair<List<A>, List<B>> for List<Pair<A, B>>
         let unzipName = interner.intern("unzip")
         let unzipFQName = listFQName + [unzipName]
-        if symbols.lookup(fqName: unzipFQName) == nil {
+        let shouldSkipUnzip = BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: unzipName,
+            arity: 0,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if !shouldSkipUnzip, symbols.lookup(fqName: unzipFQName) == nil {
             let aName = interner.intern("A")
             let aSymbol = symbols.define(
                 kind: .typeParameter,
@@ -840,7 +857,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_unzip", for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: specializedReceiverType,

@@ -26,6 +26,8 @@ extension CallLowerer {
         }
     }
 
+
+    // KSP-423: preserve the Kotlin defaults when a named range argument skips fromIndex.
     func materializeBinarySearchDefaultArguments(
         _ defaultMask: Int64,
         receiverExpr: ExprID,
@@ -62,8 +64,7 @@ extension CallLowerer {
                 sema: sema,
                 interner: interner
             ) ?? interner.intern("__kk_list_size")
-            let sizeExpr = arena.appendTemporary(type: intType
-            )
+            let sizeExpr = arena.appendTemporary(type: intType)
             emitNonThrowingCall(
                 callee: sizeCallee,
                 arg: loweredReceiverID,
