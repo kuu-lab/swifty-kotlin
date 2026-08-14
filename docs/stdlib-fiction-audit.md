@@ -154,3 +154,20 @@ JDK / kotlinx ライブラリのクラスは「Kotlin stdlib ではない」も�
 - `swift build` 成功（ベースライン）。
 - 除去後は `bash Scripts/swift_test.sh` 全テスト + `UPDATE_GOLDEN=1 ... matchesGolden` で
   ゴールデン再生成（フルダンプ golden は 5 件）+ `bash Scripts/diff_kotlinc.sh` スポット確認。
+
+## 2026-08-14 CLEANUP-STUB-123（`java.net.URI` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-14 CLEANUP-STUB-123 | `.synthetic` フラグ付き残留サーフェス | 3386 | `kotlin=2630`, `java=291`, `kotlinx=186`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+この値は CLEANUP-STUB-102 以降の master 上の削減を含むため、前回記録の 5099 との差分を URI 単独の削減量としては扱わない。
+今回の対象では `java.net.URI` の synthetic shell、公開 URI exports、Path/URL の URI 変換を除去し、HTTP request builder 内部の URI handoff は保持した。

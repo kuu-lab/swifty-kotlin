@@ -790,49 +790,6 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uri_new",
-            parameters: [
-                RuntimeABIParameter(name: "specRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(name: "kk_uri_toString", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(name: "kk_uri_scheme", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(name: "kk_uri_authority", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(name: "kk_uri_path", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(name: "kk_uri_query", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(name: "kk_uri_fragment", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(name: "kk_uri_normalize", parameters: [RuntimeABIParameter(name: "uriRaw", type: .intptr)], returnType: .intptr, section: "FileIO",
-            isThrowing: false),
-        RuntimeABIFunctionSpec(
-            name: "kk_uri_resolve",
-            parameters: [
-                RuntimeABIParameter(name: "baseRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uri_relativize",
-            parameters: [
-                RuntimeABIParameter(name: "baseRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_url_new",
             parameters: [
                 RuntimeABIParameter(name: "specRaw", type: .intptr),
@@ -857,15 +814,6 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(name: "kk_url_path", parameters: [RuntimeABIParameter(name: "urlRaw", type: .intptr)], returnType: .intptr, section: "FileIO"),
         RuntimeABIFunctionSpec(name: "kk_url_query", parameters: [RuntimeABIParameter(name: "urlRaw", type: .intptr)], returnType: .intptr, section: "FileIO"),
         RuntimeABIFunctionSpec(name: "kk_url_fragment", parameters: [RuntimeABIParameter(name: "urlRaw", type: .intptr)], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(
-            name: "kk_url_toURI",
-            parameters: [
-                RuntimeABIParameter(name: "urlRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
         RuntimeABIFunctionSpec(name: "kk_url_toExternalForm", parameters: [RuntimeABIParameter(name: "urlRaw", type: .intptr)], returnType: .intptr, section: "FileIO"),
         RuntimeABIFunctionSpec(
             name: "kk_url_sameFile",

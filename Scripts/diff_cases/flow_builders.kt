@@ -15,12 +15,13 @@ fun main() = runBlocking {
         .collect { println(it) }
 
     channelFlow<Int> {
-        emit(7)
-        emit(8)
+        send(7)
+        send(8)
     }.collect { println(it) }
 
     callbackFlow<Int> {
-        emit(9)
-        emit(10)
+        trySend(9)
+        trySend(10)
+        close()
     }.collect { println(it) }
 }

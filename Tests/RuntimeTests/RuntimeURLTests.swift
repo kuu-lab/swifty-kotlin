@@ -22,7 +22,7 @@ struct RuntimeURLTests {
     }
 
     @Test
-    func testURLParsesResolvesAndConvertsToURI() {
+    func testURLParsesAndResolves() {
         var thrown = 0
         let base = kk_url_new(runtimeString("https://example.com/base/index.html?x=1#frag"), &thrown)
         #expect(thrown == 0)
@@ -37,9 +37,6 @@ struct RuntimeURLTests {
         #expect(thrown == 0)
         #expect(stringValue(kk_url_toExternalForm(child)) == "https://example.com/child?q=a%20b#next")
 
-        let uri = kk_url_toURI(child, &thrown)
-        #expect(thrown == 0)
-        #expect(stringValue(kk_uri_toString(uri)) == "https://example.com/child?q=a%20b#next")
     }
 
     @Test

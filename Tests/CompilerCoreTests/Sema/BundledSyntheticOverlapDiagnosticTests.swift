@@ -159,6 +159,35 @@ struct BundledSyntheticOverlapDiagnosticTests {
     }
 
     @Test
+    func testKSP688AtomicBooleanAndReferenceCompareAndSetUseBundledSource() throws {
+        // KSP-688: compareAndSet is a bundled Kotlin wrapper over the retained
+        // compareAndExchange runtime core. No synthetic compareAndSet stub or
+        // public kk_atomic_* compareAndSet bridge should remain for these types.
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
+        import kotlin.concurrent.atomics.AtomicBoolean
+        import kotlin.concurrent.atomics.AtomicReference
+
+        data class Token(val id: Int)
+
+        fun main() {
+            val flag = AtomicBoolean(true)
+            println(flag.compareAndSet(true, false))
+            val current = Token(1)
+            val equalButDistinct = Token(1)
+            val ref = AtomicReference(current)
+            println(ref.compareAndSet(equalButDistinct, Token(2)))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let overlapDiags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }
+        #expect(overlapDiags.isEmpty, "Unexpected overlap warnings: \(overlapDiags.map(\.message))")
+    }
+
+    @Test
     func testSourceBackedSequenceRuntimeAliasDoesNotWarn() throws {
         let source = """
         fun main() {

@@ -20,8 +20,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         let calleeNames: Set<InternedString> = [
             ctx.interner.intern("flow"),
-            ctx.interner.intern("channelFlow"),
-            ctx.interner.intern("callbackFlow"),
             ctx.interner.intern("emit"),
             ctx.interner.intern("map"),
             ctx.interner.intern("filter"),
@@ -45,8 +43,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     func run(module: KIRModule, ctx: KIRContext) throws {
         let interner = ctx.interner
         let flowName = interner.intern("flow")
-        let channelFlowName = interner.intern("channelFlow")
-        let callbackFlowName = interner.intern("callbackFlow")
         let emitName = interner.intern("emit")
         let mapName = interner.intern("map")
         let filterName = interner.intern("filter")
@@ -115,7 +111,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
-                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    guard callee == flowName,
                           arguments.count == 1
                     else {
                         continue
@@ -131,7 +127,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     let fallbackLambdaName = interner.intern("kk_lambda_\(lambdaArg.rawValue)")
                     flowBuilderFunctionNames.insert(fallbackLambdaName)
                 case let .virtualCall(_, callee, _, arguments, _, _, _, _):
-                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    guard callee == flowName,
                           arguments.count == 1
                     else {
                         continue
@@ -236,7 +232,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    if callee == flowName,
                        arguments.count == 1
                     {
                         let continuation = appendIntConstant(0)
