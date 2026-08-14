@@ -131,7 +131,14 @@
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
-- [ ] KSP-684: トップレベル `maxWith`/`minWith`（Comparator + 2値）を Kotlin 化し `HeaderHelpers+SyntheticComparisonStubs.swift` を削除する（2026-08-12 ギャップ再調査で追補: KSP-461 完了後の同ファイル残余は `kotlin.comparisons.maxWith(comparator, a, b)` / `minWith` の 2 登録（STDLIB-COMP-FN-027/028）のみ — 実測で他の登録関数ゼロ。実装先: `Stdlib/kotlin/comparisons/Comparisons.kt` へ追記し `Comparator.compare` の member dispatch で書く。runtime 対応分は着手時 `rg 'kk_[a-zA-Z_]*(maxWith|minWith)' Sources/Runtime Sources/CompilerCore` で固定（比較コアは KSP-461 で移行済みのため専用 cdecl は無い見込み — あれば削除）。ファイル削除まで完遂 / 手順: T / diff: トップレベル maxWith/minWith 単独ケース新規）
+- [x] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
+ - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+ - 残留: `kk_string_case_insensitive_order(_trampoline)` は companion `val` の同一インスタンス保証（BUG-036/BUG-154）のため runtime シングルトンのまま。比較コアは `__kk_comparable_compareTo` / Comparator 呼び出しは `__kk_compare_with_comparator` へ降格
+ - Comparator 消費側（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`）: 上記 rg パターンには**含まれない**。実体は `RuntimeCollectionHOFMaxMin.swift` の `kk_list_maxWith(OrNull)` / `kk_list_minWith(OrNull)` と `RuntimeSequenceAssociation.swift` の `kk_sequence_maxWith(OrNull)` / `kk_sequence_minWith(OrNull)` の 8 関数で、削除自体は KSP-426（List）/ KSP-444（Sequence）の担当。KSP-461 は本 API が依存する Comparator の Kotlin 実装（`compare` の member dispatch）を提供する側として整合を確認する
+
+- [x] KSP-684: トップレベル `maxWith`/`minWith`（Comparator + 2値）を Kotlin 化し `HeaderHelpers+SyntheticComparisonStubs.swift` を削除する（2026-08-12 ギャップ再調査で追補: KSP-461 完了後の同ファイル残余は `kotlin.comparisons.maxWith(comparator, a, b)` / `minWith` の 2 登録（STDLIB-COMP-FN-027/028）のみ — 実測で他の登録関数ゼロ。実装先: `Stdlib/kotlin/comparisons/Comparisons.kt` へ追記し `Comparator.compare` の member dispatch で書く。runtime 対応分は着手時 `rg 'kk_[a-zA-Z_]*(maxWith|minWith)' Sources/Runtime Sources/CompilerCore` で固定（比較コアは KSP-461 で移行済みのため専用 cdecl は無い見込み — あれば削除）。ファイル削除まで完遂 / 手順: T / diff: トップレベル maxWith/minWith 単独ケース新規）
+ - 実施: `Comparisons.kt` に `Comparator.compare` を使う `maxWith` / `minWith` を追加し、合成登録・bucket entry・`HeaderHelpers+SyntheticComparisonStubs.swift` を削除。List/Sequence member の runtime/lowering はKSP-426/KSP-444の管轄として維持
+ - 検証: `ComparisonsTopLevelMaxMinWithFunctionTests`、`top_level_max_min_with.kt`（`DEBT-DIFF-001` reference skip + candidate 直接実行）、Golden、ABI、build、diff 全体、TODO ID重複、`git diff --check`。全体 `swift_test.sh` は高負荷時の共有 Runtime isolation lock timeout（本変更外）で失敗
 
 #### kotlin.random [M7 実行体]
 
