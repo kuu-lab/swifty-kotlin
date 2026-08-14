@@ -61,8 +61,9 @@
 
 #### kotlin.text [M1/M2 実行体]（前提: KSP-202。実装先は原則 `Sources/CompilerCore/Stdlib/kotlin/text/` の既存ファイルへ追記、なければ本家準拠名で新規）
 
-- [ ] KSP-406: substring/slice/range 編集系を Kotlin 化（`substring`, `subSequence`, `slice`, `removeRange`, `replaceRange`）
+- [x] KSP-406: substring/slice/range 編集系を Kotlin 化（`substring`, `subSequence`, `slice`, `removeRange`, `replaceRange`）
   - 削除 kk_*: `kk_string_substring`, `kk_string_subSequence`, `kk_string_slice_range`, `kk_string_slice_iterable`, `kk_string_removeRange`, `kk_string_removeRange_range`, `kk_string_replaceRange`, `kk_string_replaceRange_indices`（`RuntimeStringStdlib.swift`/`RuntimeStringSubstring.swift`）。基点の `substring(startIndex, endIndex)` のみ `__kk_` 降格可
+  - 完了確認（2026-08-14、現行master `0e4c3b975`）：実装 #5007（`4b494c005`）、CharSequence 回帰 #5420（`0d4c322f6`）、TODO同期 #5662（`06d3cc03d`）はすべて `origin/master` の祖先。現行実装は `Sources/CompilerCore/Stdlib/kotlin/text/StringSubstringSlice.kt`、削除対象8 bridgeの `Sources/` 定義・emit参照はなし。Sema/KIR/shared-artifact回帰、`RuntimeABIExternalLinkValidationTests`（4件）、`Scripts/diff_cases/string_substring_slice_range.kt` の `diff_kotlinc` がすべてpass。openなKSP-406 PRなし。
 
   **本PR内で修正したバグ4件**: (1) `in` 演算子が String 相手に常に `false` を返す既存バグ — `ExprTypeChecker.inferContainsCallBinding` のレシーバ型ガードが `.classType` のみで String（`.stringStruct`）を除外していたため。ガードを `.classType`/`.stringStruct` 両対応に拡張して修正。(2) `operator fun contains` は `in` 解決対象になるため引数1個限定（`inferContainsCallBinding` のシグネチャ一致は defaulted 引数を考慮せず厳密に `parameterTypes.count == 1` を要求）— 1引数 `operator fun contains(other)` が2引数 non-operator `fun contains(other, ignoreCase)` へ委譲する分割で対応（旧合成スタブと同じ arity 分割）。(3) デフォルト引数値が非リテラル式（`Int.MIN_VALUE` 相当）だと省略呼び出しのオーバーロード解決が失敗する既存バグ — `lastIndexOf`/`lastIndexOfAny`/`findLastAnyOf` を「startIndex 省略」「startIndex 明示」の2オーバーロードへ分割し、共有 private impl の引数型を `Int?`（`null` センチネル）にすることでリテラルのみのデフォルト値で構成し回避。(4) Kotlin `private` トップレベル宣言がファイルスコープで正しく分離されない既存バグ — 新規ヘルパー名を `ksp408` 接頭辞で衝突回避。
 
