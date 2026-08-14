@@ -714,7 +714,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticExceptionConstructors(
+        registerSyntheticPlatformExceptionConstructors(
             ownerSymbol: cancellationSymbol,
             ownerType: cancellationType,
             symbols: symbols,
@@ -728,7 +728,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nullable
         )))
-        registerSyntheticExceptionConstructor(
+        registerSyntheticPlatformExceptionConstructor(
             ownerSymbol: cancellationSymbol,
             ownerType: cancellationType,
             parameters: [("cause", nullableThrowableType)],

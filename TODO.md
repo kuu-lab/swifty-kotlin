@@ -294,7 +294,7 @@
 #### 例外・言語コア表面（(c) 再監査 2026-07-10 で b-reclass 確定分）
 
 - [ ] KSP-655: stackTraceToString/printStackTrace を Kotlin 化する（前提: KSP-654 + runtime の renderedMessage を「生フレーム取得（`__kk_throwable_rawStackFrames` 新設）」と「整形（Kotlin 側で cause/suppressed チェーンを辿る）」に分離するリファクタ）
-- [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）
+- [x] KSP-656: 例外サブクラス階層の宣言を .kt 化する（`Exceptions.kt` と `kotlin.text.CharacterCodingException.kt` を source-backed 化し、common exception の synthetic constructor ループを置換。JVM/platform 固有の配列例外と coroutine 残余は対象外。検証: Sema/Runtime/ABI/Golden/diff_kotlinc）
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
 - [ ] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（`docs/stdlib-pipeline.md` §9 の Atomic 内訳が「`AtomicBoolean`/`AtomicReference` の `compareAndSet` は get/set 委譲順序の都合で**別タスク**」と明記したまま未起票だった — 2026-08-12 追補。KSP-671 が `AtomicInt`/`AtomicLong` で確立した `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開する。ハードウェア CAS コア（`compareAndExchange` 系ブリッジ）は (c) 残留。着手時 `rg 'compareAndSet' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticAtomicStubs.swift Sources/Runtime/RuntimeAtomic.swift` で削除対象を固定（kk_atomic_* はスタブ側 prefix 補間 emit のため rg は補間考慮）。手順: T / diff: AtomicBoolean/AtomicReference の CAS ケース新規）
