@@ -783,6 +783,22 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        // KCallable.name is shared by KFunction, KConstructor, and KProperty
+        // boxes. Handle the safe-call form here after the receiver null check;
+        // otherwise the generic fallback emits an undefined `name` symbol.
+        if tryLowerKCallableNameAccess(
+            receiverType: nonNullSafeReceiverType,
+            receiverID: loweredReceiverID,
+            result: result,
+            calleeName: effectiveCalleeName,
+            sema: sema,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // External member property read (e.g. Duration?.inWholeNanoseconds →
         // kk_duration_inWholeNanoseconds).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
