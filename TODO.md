@@ -105,8 +105,9 @@
   - 削除 kk_*: `RuntimeCollectionHOFMaxMin.swift` の sorted 系 18 + max/min 系 20（rg で列挙）。比較コアは KSP-309 の Comparator Kotlin 実装を利用
 - [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
-- [ ] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
-  - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
+- [x] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
+  - 完了: `Iterables.kt` / `ListConversions.kt` に汎用変換・join・nullable・destructuring・index 実装を移し、List 固有の synthetic 登録・call lowering・公開ランタイム ABI を削除。`isEmpty` は抽象 Collection の型タグ dispatch コアとして保持し、`isNotEmpty` は Kotlin source から `isEmpty` を利用する。
+  - 回帰: `Scripts/diff_cases/list_ksp429_surface.kt` と `CodegenBackendIntegrationTests` の実 kotlinc 比較・実行ケースで固定。
 #### kotlin.sequences [M4 実行体]（KSP-441 が先頭。他は 441 完了後に並列可）
 
 - [x] KSP-441: Sequence 遅延 transform 基盤を Kotlin 化（`Sequence`/`Iterator` インターフェース + `map`, `filter` 系 transform）
@@ -232,9 +233,10 @@
     4. **bundled Stdlib に `suspend` の前例が無い** — 🟢 **検証済み（2026-07-08）**: `Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/` に一時ファイルを置いて実機確認。bundled ソースでの `suspend fun`（ジェネリック含む）は正常にコンパイル・実行できる（`suspend fun <T, R> f(v: T, g: suspend (T) -> R): R` 相当が動作）。前例が無かっただけで、経路自体に問題は無い。
     - 対応が必要な前段作業（いずれも本タスクの想定規模を超える別タスク相当・進行中）: (a) 上記 Lowering パスを「bundled/実体宣言優先」に改修 — **完了 (PR #4988)** (b) ジェネリック高階関数のラムダ内演算子/メンバ解決バグの修正 — 演算子部分は修正済み、メンバー呼び出し部分は既知の限界として残存 (c) KSP-498 の正式な分類表作成 — 未着手。
 
-- [ ] KSP-686: channelFlow/callbackFlow の (b)/(c) 分類を確定し fiction を解消する（KSP-498 棚卸しの「未分類」残り。2026-08-12 実測: `channelFlow`/`callbackFlow` は Sema 登録（`HeaderHelpers+SyntheticCoroutineRegistry.swift`）と特例（`CallTypeChecker.swift` / `CoroutineLoweringPass.swift` / `FlowLoweringPass.swift` / `TypeCheck/Helpers.swift`）のみで **`Sources/Runtime` に対応実装が 0 件** — 宣言だけコンパイルが通り、実体はリンク/実行が成立しない fiction 状態）
-  - 対応: 着手時にまず最小 .kt（`channelFlow { send(1) }.collect { }`）の実挙動（リンクエラー / クラッシュ / 動作）を実測して分類を確定する。(i) (b) 化 = Channel (c) コア（KSP-678 の `kk_channel_*` ブリッジ）+ `kk_flow_create` の合成で bundled Kotlin 実装する、(ii) (a) 化 = Sema 登録・Lowering 特例ごと削除し未実装 API として明示する、のどちらかへ倒す
-  - 前提: KSP-676 / 手順: T（(b) の場合）or RF-STUB-002 レシピ（(a) の場合）
+- [x] KSP-686: channelFlow/callbackFlow の (b)/(c) 分類を確定し fiction を解消する（KSP-498 棚卸しの「未分類」残り。前提 KSP-676 は master の PR #5713 で完了済み。2026-08-14 実測で (a)（未実装 API）に分類）
+  - 実測: `channelFlow<Int> { send(1) }.collect { println(it) }` は `KSWIFTK-SEMA-0023: Unresolved function 'send'`、`callbackFlow<Int> { trySend(1); close() }.collect { println(it) }` は `trySend`/`close` 未解決でコンパイル終了（リンク・実行には到達しない）。一方、fiction の `emit` alias は両 builder とも compile/run して `1` を出力したが、real `ProducerScope` API の動作ではない。
+  - 対応: `HeaderHelpers+SyntheticCoroutineRegistry.swift` の合成登録、`CallTypeChecker`/`TypeCheck/Helpers` の fallback、`FlowLoweringPass`/`CoroutineLoweringPass` の特例、および未実装 `kk_channel_flow_*`/`kk_callback_flow_*` ABI allowlist を削除。Sema 回帰テストで両 API を明示的な未解決診断として固定し、`flow_builders.kt` は real API 形へ更新した。
+  - 残課題: real `ProducerScope` を用いた channelFlow/callbackFlow の (b) 実装は別タスクで設計する。
 
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 
@@ -347,12 +349,13 @@
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
   - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
-- [ ] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
+- [x] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
   - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:257`（`name: "URI"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeURI.swift`（`kk_uri_*` 29件）、`Sources/Runtime/RuntimePath.swift` 内 URI 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URI ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURITests.swift`、`Tests/RuntimeTests/RuntimeURITests.swift`/`RuntimeURLTests.swift`、diff case `url_basic.kt` 内 URI 使用箇所の確認
+  - 完了 (2026-08-14): URL 本体と Network の HTTP request builder 用 URI handoff は CLEANUP-STUB-124 の責務境界として保持し、Java URI の公開 Sema/runtime surface のみ除去
 - [ ] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURLStubs.swift`（332行）
   - 削除内容: `registerSyntheticURLStubs(...)` および `java.net.URL` クラス・コンストラクタ / `readText` / `readBytes` / `openConnection` 等の登録を削除

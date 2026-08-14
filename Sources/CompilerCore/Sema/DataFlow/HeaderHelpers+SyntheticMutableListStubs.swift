@@ -1316,40 +1316,4 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Helper function for registering List extension functions.
-    func registerSyntheticListExtensionFunction(
-        named name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
-        returnType: TypeID,
-        typeParameterSymbols: [SymbolID] = [],
-        flags: SymbolFlags = [.synthetic],
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionSymbol = registerSyntheticFunctionStub(
-            named: name,
-            ownerFQName: packageFQName,
-            parentSymbol: symbols.lookup(fqName: packageFQName),
-            receiverType: receiverType,
-            parameters: parameters,
-            returnType: returnType,
-            externalLinkName: externalLinkName,
-            flags: flags,
-            typeParameterSymbols: typeParameterSymbols,
-            symbols: symbols,
-            interner: interner
-        )
-
-        let parameterTypes = parameters.map(\.type)
-        symbols.setPropertyType(types.make(.functionType(FunctionType(
-            params: parameterTypes,
-            returnType: returnType,
-            isSuspend: false,
-            nullability: .nonNull
-        ))), for: functionSymbol)
-    }
 }

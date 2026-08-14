@@ -322,7 +322,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
-| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | `java.net.URI`; cleanup candidate. |
+| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | `java.net.URL`; cleanup candidate. |
 | `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
@@ -495,8 +495,11 @@ Atomic の内訳:
   `kk_mutable_state_flow_{create,emit,try_emit}` / `kk_state_flow_value` / `kk_flow_state_in` を削除。
   `kk_flow_stopped` / `kk_flow_emit_with_timestamp` / `kk_flow_release` / `kk_flow_retain` は (c) 残留。
 - **Flow builder**: `kk_flow_{as_flow,empty,of}`（計3関数）。`kk_flow_create` + `kk_flow_emit` の合成で (b) 化できる
-  可能性が高い。なお `channelFlow`/`callbackFlow` は Sema 側のみ登録されており Runtime 実装は未確認（Channel 実体を
-  持つ可能性が高く (c) 濃厚）
+  可能性が高い。`channelFlow`/`callbackFlow` は KSP-686 で (a)（未実装 API）に分類した。最小実測では real API 形の
+  `channelFlow { send(1) }` が `KSWIFTK-SEMA-0023: Unresolved function 'send'`、
+  `callbackFlow { trySend(1); close() }` が `trySend`/`close` 未解決で止まり、実装済みの `emit` alias だけが `kk_flow_create`
+  経由で動作した（両者とも `1` を出力）。そのため合成 Flow 宣言・Flow/Coroutine lowering 特例・未実装 ABI allowlist を削除し、
+  fiction を通常の未解決 API として明示した。real `ProducerScope` 実装は別タスクで設計する。
 - `kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
   KSP-499 着手時に再調査
 
