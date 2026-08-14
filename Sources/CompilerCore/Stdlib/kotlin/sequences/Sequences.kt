@@ -49,3 +49,16 @@ public fun <T> Iterable<T>.asSequence(): Sequence<T> {
         }
     }
 }
+
+// KSP-631: preserve the original iterator and expose it as a one-shot lazy sequence.
+public fun <T> Iterator<T>.asSequence(): Sequence<T> {
+    val source = this
+    var used = false
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> {
+            if (used) throw IllegalStateException("Sequence can be consumed only once.")
+            used = true
+            return source
+        }
+    }
+}
