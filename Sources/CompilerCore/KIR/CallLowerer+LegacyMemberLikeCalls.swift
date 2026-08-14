@@ -2543,7 +2543,6 @@ extension CallLowerer {
                 let sortedDescendingID = interner.intern("sortedDescending")
                 let filterNotNullID = interner.intern("filterNotNull")
                 let requireNoNullsID = interner.intern("requireNoNulls")
-                let asIterableID = interner.intern("asIterable")
                 let withIndexID = interner.intern("withIndex")
                 let firstID = interner.intern("first")
                 let firstOrNullID = interner.intern("firstOrNull")
@@ -2588,10 +2587,6 @@ extension CallLowerer {
                     interner.intern("kk_sequence_filterNotNull")
                 case requireNoNullsID:
                     interner.intern("kk_sequence_requireNoNulls")
-                case interner.intern("asSequence"):
-                    interner.intern("kk_sequence_asSequence")
-                case asIterableID:
-                    interner.intern("kk_sequence_asIterable")
                 case withIndexID:
                     interner.intern("kk_sequence_withIndex")
                 case firstID:

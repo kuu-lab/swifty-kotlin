@@ -195,6 +195,16 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeSequenceSourceValues(from: rawValue) {
         return values
     }
+    // Source-backed Iterable wrappers (for example Sequence.asIterable())
+    // expose only the Iterable itable, so materialise them through their
+    // iterator when a runtime bridge consumes an Iterable value directly.
+    if let iteratorRaw = runtimeSourceIterableIterator(rawValue) {
+        var values: [RuntimeValue] = []
+        while kk_iterator_hasNext(iteratorRaw) != 0 {
+            values.append(RuntimeValue(raw: kk_iterator_next(iteratorRaw)))
+        }
+        return values
+    }
     return nil
 }
 
