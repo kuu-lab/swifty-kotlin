@@ -259,7 +259,7 @@
 #### コア util（kotlin 直下）
 
 - [ ] KSP-601: let/also/takeIf/takeUnless を Kotlin 化する（非レシーバ形ラムダのみで CAP 不要。実装先 `kotlin/Standard.kt` 新設。kk_* ゼロ（全インライン特例）— 削除対象は `HeaderHelpers+SyntheticScopeFunctionStubs.swift` の該当登録と `ScopeFunctionKind` 該当分岐。インライン特例の撤去可否は KSP-INF-007 の実測とセットで判断）
-- [ ] KSP-602: run/with/apply を Kotlin 化する（前提: KSP-CAP-008。`apply` は**スタブ未登録・名前特例のみ**で動作中のため宣言を新設。削除対象は同スタブの with/run 登録 + `CallLowerer+ScopeFunctionLowering.swift` の該当分岐）
+- [x] KSP-602: run/with/apply を Kotlin 化する（前提: KSP-CAP-008。`apply` は**スタブ未登録・名前特例のみ**で動作中のため宣言を新設。削除対象は同スタブの with/run 登録 + `CallLowerer+ScopeFunctionLowering.swift` の該当分岐）
 #### io / system
 
 - [x] KSP-692: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` を責務別に分割する（§9 follow-up order「Split mixed files before touching their residual parts」の最終残: Random/Atomic は分割・移行済みで、本ファイルのみ TODO()/File IO/system/duration/collection factory の登録が混在したまま現存最大の合成スタブ（2026-08-12 実測 3,614 行）。分割先は担当タスク対応で: File I/O 登録 → KSP-484 が触る単位 / duration 系 → KSP-683 が触る単位 / collection factory → 既存 `+SyntheticCollectionFactoryStubs.swift` へ / 残余（TODO()・system）→ 現ファイル縮小維持。着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift` で登録単位を全列挙してから機械的移動のみ行う（挙動変更ゼロ・`loc_report.sh` 合計行数 ±0 を完了条件に含む）。命名は責務ベース（CLAUDE.md の分割ファイル規約））

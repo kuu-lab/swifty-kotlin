@@ -305,46 +305,6 @@ final class CallTypeChecker {
             return refinedReturnType
         }
 
-        // --- Scope function: with(receiver, block) (STDLIB-004, STDLIB-061) ---
-        // Must intercept BEFORE eager arg inference so the lambda argument
-        // is inferred with the correct implicit receiver type.
-        // Intercept when no local or user-defined (non-synthetic) `with` shadows the stdlib helper.
-        if let calleeName, args.count == 2,
-           calleeName == knownNames.with,
-           locals[calleeName] == nil,
-           !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
-               guard let sym = ctx.cachedSymbol(candidate) else { return false }
-               return !sym.flags.contains(.synthetic)
-           })
-        {
-            // First arg is the receiver object
-            let withReceiverType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            // Second arg is the lambda with receiver
-            let receiverCtx = ctx.with(implicitReceiverType: withReceiverType)
-            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                receiver: withReceiverType,
-                params: [],
-                returnType: expectedType ?? sema.types.anyType
-            )))
-            let lambdaType = driver.inferExpr(
-                args[1].expr, ctx: receiverCtx, locals: &locals,
-                expectedType: lambdaExpectedType
-            )
-            let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                fnType.returnType
-            } else {
-                sema.bindings.exprTypes[args[1].expr].flatMap { typeID in
-                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                        return fnType.returnType
-                    }
-                    return nil
-                } ?? sema.types.anyType
-            }
-            sema.bindings.markScopeFunctionExpr(id, kind: .scopeWith)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-
         // --- Context helper: context(with, block) (STDLIB-KOTLIN-ROOT-CTX-001) ---
         // The helper makes the first argument available as a context receiver
         // for the block type, but does not make it an implicit receiver.
@@ -486,46 +446,6 @@ final class CallTypeChecker {
             }
             sema.bindings.bindExprType(id, type: refinedChannelType)
             return refinedChannelType
-        }
-
-        // --- Scope function: top-level run(block) (STDLIB-401) ---
-        // `run { expr }` simply executes the block lambda and returns the result.
-        // Intercept when no local or user-defined (non-synthetic) `run` shadows the stdlib helper.
-        // The single argument must be a lambda literal or callable reference;
-        // otherwise (e.g. `run(123)`) fall through to normal call resolution.
-        if isTopLevelRunCandidate(
-            calleeName: calleeName,
-            args: args,
-            knownNames: knownNames,
-            ast: ast,
-            ctx: ctx,
-            locals: locals
-        ) {
-            let lambdaExpectedType: TypeID? = if let expectedType {
-                sema.types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: expectedType
-                )))
-            } else {
-                nil
-            }
-            let lambdaType = driver.inferExpr(
-                args[0].expr, ctx: ctx, locals: &locals,
-                expectedType: lambdaExpectedType
-            )
-            let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                fnType.returnType
-            } else {
-                sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
-                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                        return fnType.returnType
-                    }
-                    return nil
-                } ?? sema.types.anyType
-            }
-            sema.bindings.markScopeFunctionExpr(id, kind: .scopeTopLevelRun)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
         }
 
         // --- kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn ---
