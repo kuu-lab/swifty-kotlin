@@ -129,5 +129,75 @@ struct CodegenBackendVirtualDispatchTests {
         """
         try assertKotlinOutput(source, moduleName: "UnqualifiedSelfCallDispatchRuntime", expected: "hello world\n")
     }
+
+    @Test
+    func testPropertyReferenceAccessorsDispatchForBoundUnboundAndUpcastValues() throws {
+        let source = """
+        import kotlin.reflect.KMutableProperty0
+        import kotlin.reflect.KMutableProperty1
+        import kotlin.reflect.KProperty
+        import kotlin.reflect.KProperty0
+        import kotlin.reflect.KProperty1
+
+        class Person(val name: String, var age: Int, var label: String)
+
+        fun main() {
+            val person = Person("A", 1, "L")
+            println(person.name)
+            val boundName: KProperty0<String> = person::name
+            println(boundName.name)
+            println(boundName.get())
+            println(boundName.invoke())
+            val boundNameAsProperty: KProperty<String> = boundName
+            println(boundNameAsProperty.name)
+            val nullableName: KProperty0<String>? = boundName
+            println(nullableName?.name)
+
+            val boundAge: KMutableProperty0<Int> = person::age
+            println(boundAge.name)
+            println(boundAge.get())
+            println(boundAge.invoke())
+            val boundAgeAsProperty0: KProperty0<Int> = boundAge
+            println(boundAgeAsProperty0.get())
+            boundAge.set(2)
+            println(person.age)
+
+            val boundLabel: KMutableProperty0<String> = person::label
+            println(boundLabel.name)
+            println(boundLabel.get())
+            println(boundLabel.invoke())
+            boundLabel.set("M")
+            println(person.label)
+
+            val unboundName: KProperty1<Person, String> = Person::name
+            println(unboundName.name)
+            println(unboundName.get(person))
+            println(unboundName.invoke(person))
+            val unboundNameAsProperty: KProperty<String> = unboundName
+            println(unboundNameAsProperty.name)
+
+            val unboundAge: KMutableProperty1<Person, Int> = Person::age
+            println(unboundAge.name)
+            println(unboundAge.get(person))
+            println(unboundAge.invoke(person))
+            val unboundAgeAsProperty1: KProperty1<Person, Int> = unboundAge
+            println(unboundAgeAsProperty1.get(person))
+            unboundAge.set(person, 3)
+            println(person.age)
+
+            val unboundLabel: KMutableProperty1<Person, String> = Person::label
+            println(unboundLabel.name)
+            println(unboundLabel.get(person))
+            println(unboundLabel.invoke(person))
+            unboundLabel.set(person, "N")
+            println(person.label)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "PropertyReferenceAccessorDispatchRuntime",
+            expected: "A\nname\nA\nA\nname\nname\nage\n1\n1\n1\n2\nlabel\nL\nL\nM\nname\nA\nA\nname\nage\n2\n2\n2\n3\nlabel\nM\nM\nN\n"
+        )
+    }
 }
 #endif
