@@ -4,6 +4,31 @@
 
 import Foundation
 
+// CharSequence.length occupies the first interface-property slot because the
+// synthetic CharSequence interface currently has no method slots. Registering
+// the bridge on runtime-created String boxes lets the normal interface-property
+// dispatch path serve both built-in and user-defined CharSequence receivers.
+private let runtimeCharSequenceInterfaceTypeID: Int64 =
+    runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+private let runtimeCharSequenceLengthGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_char_sequence_length(raw)
+}
+
+func runtimeRegisterCharSequenceLengthItable(_ raw: Int) {
+    _ = kk_object_register_itable_iface(
+        raw,
+        Int(runtimeCharSequenceInterfaceTypeID),
+        0
+    )
+    _ = kk_object_register_itable_method(
+        raw,
+        0,
+        0,
+        unsafeBitCast(runtimeCharSequenceLengthGetter, to: Int.self)
+    )
+}
+
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     // Match the flat String aggregate length field used by String.length lowering.

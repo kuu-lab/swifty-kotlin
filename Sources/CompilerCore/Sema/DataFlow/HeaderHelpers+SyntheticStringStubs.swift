@@ -22,6 +22,30 @@ extension DataFlowSemaPhase {
         if let kotlinRootPkgSymbol = symbols.lookup(fqName: kotlinRootPkg) {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
+
+        // `CharSequence.length` is an interface property, not an extension
+        // function. Keep a synthetic declaration in the interface so bundled
+        // Kotlin reads use the same itable path as user-defined implementations
+        // instead of forcing every receiver through a String-shaped runtime
+        // bridge. The extension stub below remains for String's legacy surface.
+        let charSequenceLengthName = interner.intern("length")
+        let charSequenceLengthFQName = charSequenceSymbol == .invalid
+            ? []
+            : (symbols.symbol(charSequenceSymbol)?.fqName ?? []) + [charSequenceLengthName]
+        if !charSequenceLengthFQName.isEmpty,
+           symbols.lookup(fqName: charSequenceLengthFQName) == nil
+        {
+            let lengthSymbol = symbols.define(
+                kind: .property,
+                name: charSequenceLengthName,
+                fqName: charSequenceLengthFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(charSequenceSymbol, for: lengthSymbol)
+            symbols.setPropertyType(types.intType, for: lengthSymbol)
+        }
         let appendableSymbol = ensureInterfaceSymbol(
             named: "Appendable",
             in: kotlinTextPkg,

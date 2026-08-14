@@ -292,21 +292,22 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Synthetic stdlib interface properties (e.g. `Collection.size`,
-        // `CharSequence.length`) are backed by runtime objects that never
-        // register itable property getters; their reads are lowered by the
-        // collection/runtime fallbacks that run after this helper. Only
-        // properties declared in Kotlin dispatch through the itable: user code
-        // and bundled stdlib source (they carry a decl site, e.g.
-        // `SharedFlow.replayCache`), plus the same declarations read back from
-        // a precompiled library. The owner alone is not enough — an imported
-        // nominal can still gain synthetic runtime members.
+        // Synthetic stdlib interface properties (e.g. `Collection.size`) are
+        // backed by runtime objects that do not register itable property
+        // getters, so their reads remain on the runtime fallback path. The
+        // synthetic CharSequence.length declaration is different: it is a real
+        // interface property and user-defined CharSequence implementations must
+        // be able to register their getter in the itable.
         guard let propertyInfo = sema.symbols.symbol(propertySymbol),
-              propertyInfo.declSite != nil
-                  || propertyInfo.flags.contains(.importedLibrary),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .interface,
+              (propertyInfo.declSite != nil
+                  || propertyInfo.flags.contains(.importedLibrary)
+                  || (ownerInfo.fqName == [
+                      interner.intern("kotlin"),
+                      interner.intern("CharSequence"),
+                  ] && interner.resolve(propertyInfo.name) == "length")),
               let methodSlot = kirInterfacePropertyGetterSlot(
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,

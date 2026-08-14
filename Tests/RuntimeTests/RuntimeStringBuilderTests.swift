@@ -14,6 +14,29 @@ struct RuntimeStringBuilderTests {
         #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "hello")
     }
 
+    // BUG-211: the CharSequence.length getter is an interface property. Runtime
+    // StringBuilder objects must advertise its itable slot so bundled Kotlin
+    // extensions can dispatch through the same path as user-defined classes.
+    @Test
+    func testCharSequenceLengthItableRegistrationForRuntimeObjects() {
+        let builder = makeBuilder("abc")
+        let string = makeRuntimeString("hello")
+        let interfaceTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
+        let getterRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 0)
+        let stringGetterRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 0)
+
+        #expect(getterRaw != 0)
+        #expect(stringGetterRaw != 0)
+
+        let getter = unsafeBitCast(
+            getterRaw,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var thrown = 0
+        #expect(getter(builder, &thrown) == 3)
+        #expect(thrown == 0)
+    }
+
     @Test
     func testFlatConstructorAndFlatAppendUseFlattenedStringFields() {
         let builder = withFlatString("ab") { data, length, byteCount, hash in
