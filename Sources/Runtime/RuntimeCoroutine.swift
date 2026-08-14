@@ -1008,6 +1008,9 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// Lets a suspend-aware `Job.join()` caller resume via its continuation instead
     /// of blocking a GCD thread on `completionSemaphore`.
     private var joinResumers: [@Sendable (Int) -> Void] = []
+    /// STDLIB-CORO-001: Closure that dispatches the body for CoroutineStart.LAZY.
+    /// Set when `kk_kxmini_launch_lazy` returns; `startIfNeeded()` runs it once.
+    private var lazyStartBody: (@Sendable () -> Void)?
 
     init() {
         RuntimeLiveHandles.register(self)
@@ -1064,6 +1067,27 @@ final class RuntimeJobHandle: @unchecked Sendable {
             state = .active
         }
         lock.unlock()
+    }
+
+    /// STDLIB-CORO-001: Capture the deferred-start action for a LAZY job.
+    func installLazyStartBody(_ body: @escaping @Sendable () -> Void) {
+        lock.lock()
+        if state == .new {
+            lazyStartBody = body
+        }
+        lock.unlock()
+    }
+
+    /// STDLIB-CORO-001: Start a LAZY job by dispatching its body exactly once.
+    func startIfNeeded() {
+        lock.lock()
+        guard state == .new, let body = lazyStartBody else {
+            lock.unlock()
+            return
+        }
+        lazyStartBody = nil
+        lock.unlock()
+        body()
     }
 
     func registerChild(_ childHandle: Int) {
@@ -1252,6 +1276,8 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// a GCD thread) is handled by `kk_job_join` via `addJoinResumer` (CORO-004); this
     /// method is the synchronous fallback for non-suspend contexts.
     func join() -> Int {
+        // STDLIB-CORO-001: Start a LAZY job on demand before joining.
+        startIfNeeded()
         // BUG-041: this (or a sibling launched on the same thread) may still be
         // sitting undispatched in RuntimePendingLaunchQueue -- flush before any
         // chance of blocking below, or a job that was never handed to GCD would
@@ -2075,6 +2101,124 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     job.dispatchWorkItem = workItem
     job.markScheduled()
     RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
+    return Int(bitPattern: jobPtr)
+}
+
+// MARK: - STDLIB-CORO-001: CoroutineStart.LAZY launch
+
+/// Launch a coroutine without starting it immediately (CoroutineStart.LAZY).
+/// The body is dispatched the first time `join()` or `startIfNeeded()` is called.
+@_cdecl("kk_kxmini_launch_lazy")
+public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> Int {
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    let continuation = kk_coroutine_continuation_new(functionID)
+    if let state = runtimeContinuationState(from: continuation) {
+        job.continuationState = state
+        state.jobHandle = job
+    }
+
+    // CORO-003: Capture caller's scope from context (not TLS) and register child
+    let callerScope = RuntimeCoroutineScope.current
+    if let callerScope {
+        callerScope.registerChild(Int(bitPattern: jobPtr))
+    }
+    let callerJob = RuntimeJobHandle.current
+    if let callerJob {
+        callerJob.registerChild(Int(bitPattern: jobPtr))
+    }
+    // Propagate caller's scope to child continuation context
+    if let contState = runtimeContinuationState(from: continuation) {
+        contState.scope = callerScope
+    }
+
+    job.installLazyStartBody { [entryPointRaw, continuation, callerScope, callerJob] in
+        let workItem = DispatchWorkItem {
+            job.markStarted()
+            if job.cancellationSnapshot() {
+                _ = job.complete(with: 0)
+                return
+            }
+            RuntimeCoroutineScope.current = callerScope
+            RuntimeJobHandle.current = callerJob
+            var thrown = 0
+            let result = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: entryPointRaw,
+                continuation: continuation,
+                outThrown: &thrown
+            )
+            RuntimeCoroutineScope.current = nil
+            RuntimeJobHandle.current = nil
+            if thrown != 0 {
+                _ = job.completeExceptionally(with: thrown)
+            } else {
+                _ = job.complete(with: result)
+            }
+        }
+        job.dispatchWorkItem = workItem
+        job.markScheduled()
+        RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
+    }
+    return Int(bitPattern: jobPtr)
+}
+
+/// Variant of kk_kxmini_launch_lazy that accepts a pre-built continuation
+/// (for lambda arguments that capture outer variables).
+@_cdecl("kk_kxmini_launch_lazy_with_cont")
+public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    if let state = runtimeContinuationState(from: continuation) {
+        job.continuationState = state
+        state.jobHandle = job
+    }
+
+    // CORO-003: Capture caller's scope from context (not TLS) and register child
+    let callerScope = RuntimeCoroutineScope.current
+    if let callerScope {
+        callerScope.registerChild(Int(bitPattern: jobPtr))
+    }
+    let callerJob = RuntimeJobHandle.current
+    if let callerJob {
+        callerJob.registerChild(Int(bitPattern: jobPtr))
+    }
+    if let contState = runtimeContinuationState(from: continuation) {
+        contState.scope = callerScope
+    }
+
+    job.installLazyStartBody { [entryPointRaw, continuation, callerScope, callerJob] in
+        let workItem = DispatchWorkItem {
+            job.markStarted()
+            if job.cancellationSnapshot() {
+                _ = job.complete(with: 0)
+                return
+            }
+            RuntimeCoroutineScope.current = callerScope
+            RuntimeJobHandle.current = callerJob
+            var thrown = 0
+            let result = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: entryPointRaw,
+                continuation: continuation,
+                outThrown: &thrown
+            )
+            RuntimeCoroutineScope.current = nil
+            RuntimeJobHandle.current = nil
+            if thrown != 0 {
+                _ = job.completeExceptionally(with: thrown)
+            } else {
+                _ = job.complete(with: result)
+            }
+        }
+        job.dispatchWorkItem = workItem
+        job.markScheduled()
+        RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
+    }
     return Int(bitPattern: jobPtr)
 }
 
@@ -2905,12 +3049,15 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
     // instead of freeing memory a still-live Kotlin variable can reach.
     let releaseHandle: @Sendable () -> Void = {}
     if continuation != 0, let callerState = runtimeContinuationState(from: continuation) {
-        if let job = obj as? RuntimeJobHandle, !job.completedSnapshot() {
-            job.addJoinResumer { value in
-                callerState.resume(with: value)
-                releaseHandle()
+        if let job = obj as? RuntimeJobHandle {
+            job.startIfNeeded()
+            if !job.completedSnapshot() {
+                job.addJoinResumer { value in
+                    callerState.resume(with: value)
+                    releaseHandle()
+                }
+                return Int(bitPattern: kk_coroutine_suspended())
             }
-            return Int(bitPattern: kk_coroutine_suspended())
         } else if let task = obj as? RuntimeAsyncTask {
             switch task.awaitResult(callerState: callerState, afterResume: releaseHandle) {
             case .suspended:
@@ -2946,10 +3093,16 @@ public func kk_job_await_completion(_ jobHandle: Int, _ continuation: Int) -> In
 /// Cooperatively yields the current coroutine, allowing other coroutines to run.
 /// This is the lowering target for `kotlinx.coroutines.yield()`.
 @_cdecl("kk_coroutine_yield")
-public func kk_coroutine_yield() -> Int {
-    // Yield the current thread briefly so other coroutines get a chance to run.
-    Thread.sleep(forTimeInterval: 0)
-    return 0 // Unit
+public func kk_coroutine_yield(_ continuation: Int) -> Int {
+    guard let state = runtimeContinuationState(from: continuation) else {
+        return 0
+    }
+    // Schedule the continuation to resume after a brief delay so other
+    // dispatched coroutines get a turn before this one continues.
+    DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(1)) { [weak state] in
+        _ = state?.resume(with: 0)
+    }
+    return Int(bitPattern: kk_coroutine_suspended())
 }
 
 // MARK: - withTimeout / withTimeoutOrNull

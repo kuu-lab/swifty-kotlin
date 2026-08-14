@@ -476,7 +476,15 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let resultKind = resolveValueClassKind(
                         types.kind(of: resultType), types: types, symbols: symbols
                     )
-                    if let unboxCallee = unboxingCallee(
+                    // Strings stored in generic arrays/collections are represented as
+                    // raw object handles at runtime; the backend already bridges that
+                    // raw handle to a flat string aggregate when the result type is
+                    // String. Inserting an explicit kk_string_to_flat here would
+                    // unbox a flat aggregate as if it were a raw handle, causing a
+                    // double conversion crash.
+                    if case .stringStruct = resultKind {
+                        // Leave string unboxing to the backend bridge.
+                    } else if let unboxCallee = unboxingCallee(
                         sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
                         boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
                     ) {

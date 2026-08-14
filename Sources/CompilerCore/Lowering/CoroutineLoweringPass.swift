@@ -202,10 +202,13 @@ final class CoroutineLoweringPass: LoweringPass {
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames,
                 runtimeDelayCallee: runtimeDelayCallee,
+                runtimeYieldCallee: runtimeYieldCallee,
+                sourceYieldCallee: kxMiniYieldCallee,
                 suspendPlan: suspendLoweringPlan,
                 spillSlotByExpr: continuationNominal?.spillSlotByExpr ?? [:],
                 smTypes: StateMachineTypeContext(
                     continuationType: continuationType,
+                    anyType: anyType ?? continuationType,
                     intType: intType,
                     unitType: unitType
                 )
