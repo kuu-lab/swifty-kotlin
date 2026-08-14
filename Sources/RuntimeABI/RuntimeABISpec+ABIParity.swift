@@ -111,28 +111,6 @@ public extension RuntimeABISpec {
             p("tagged", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_callback_flow_await_close", parameters: [
-            p("channelRaw", .intptr),
-            p("closeHandlerFnPtr", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callback_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_channel_flow_try_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-        ]),
         // KSP-678: these Channel residuals are bridged from bundled Kotlin
         // (Channels.kt) and return a plain Int handle/flag; they do not use the
         // outThrown ABI lowering path.

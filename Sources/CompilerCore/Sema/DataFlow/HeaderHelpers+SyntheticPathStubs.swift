@@ -455,26 +455,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(inputStreamType, for: inputStreamSymbol)
 
-        let javaNetPkg = ensurePackage(
-            path: ["java", "net"],
-            symbols: symbols,
-            interner: interner
-        )
-        let javaNetPkgSymbol = symbols.lookup(fqName: javaNetPkg)
-        let uriSymbol = ensureClassSymbol(
-            named: "URI",
-            in: javaNetPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let javaNetPkgSymbol {
-            symbols.setParentSymbol(javaNetPkgSymbol, for: uriSymbol)
-        }
-        let uriType = types.make(.classType(ClassType(
-            classSymbol: uriSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(uriType, for: uriSymbol)
-
         let javaNioFilePackage = ensurePackage(
             path: ["java", "nio", "file"],
             symbols: symbols,

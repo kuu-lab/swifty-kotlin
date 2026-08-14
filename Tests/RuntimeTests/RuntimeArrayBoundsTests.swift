@@ -12,7 +12,7 @@ struct RuntimeArrayBoundsTests {
             #expect(setResult == element)
             #expect(thrown == 0)
         }
-        return kk_list_to_mutable_list(kk_list_of(array, elements.count))
+        return kk_collection_toMutableList(kk_list_of(array, elements.count))
     }
 
     @Test
