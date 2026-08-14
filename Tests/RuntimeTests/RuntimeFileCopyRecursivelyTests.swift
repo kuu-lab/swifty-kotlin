@@ -2,7 +2,7 @@ import Foundation
 @testable import Runtime
 import Testing
 
-/// STDLIB-IO-FN-012: Runtime tests for `kk_file_copyRecursively`.
+/// STDLIB-IO-FN-012: Runtime tests for `__kk_file_copyRecursively`.
 ///
 /// Mirrors the behaviour of `kotlin.io.copyRecursively` on `java.io.File`:
 ///   public fun File.copyRecursively(
@@ -25,7 +25,7 @@ struct RuntimeFileCopyRecursivelyTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
+        let resultRaw = __kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         #expect(thrown == 0)
         #expect(kk_unbox_bool(resultRaw) != 0) // true
@@ -49,7 +49,7 @@ struct RuntimeFileCopyRecursivelyTests {
         let sourceRaw = runtimeTestFileHandle(sourceDir.path)
         let targetRaw = runtimeTestFileHandle(targetDir.path)
         var thrown = 0
-        let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
+        let resultRaw = __kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         #expect(thrown == 0)
         #expect(kk_unbox_bool(resultRaw) != 0) // true
@@ -77,7 +77,7 @@ struct RuntimeFileCopyRecursivelyTests {
         let sourceRaw = runtimeTestFileHandle(sourceDir.path)
         let targetRaw = runtimeTestFileHandle(targetDir.path)
         var thrown = 0
-        let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
+        let resultRaw = __kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         #expect(thrown == 0)
         #expect(kk_unbox_bool(resultRaw) != 0) // true
@@ -103,7 +103,7 @@ struct RuntimeFileCopyRecursivelyTests {
         let sourceRaw = runtimeTestFileHandle(sourceDir.path)
         let targetRaw = runtimeTestFileHandle(targetDir.path)
         var thrown = 0
-        let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(1), &thrown)
+        let resultRaw = __kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(1), &thrown)
 
         #expect(thrown == 0)
         #expect(kk_unbox_bool(resultRaw) != 0) // true
@@ -119,7 +119,7 @@ struct RuntimeFileCopyRecursivelyTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        let resultRaw = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
+        let resultRaw = __kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         #expect(thrown == 0)
         #expect(kk_unbox_bool(resultRaw) == 0) // false — source does not exist
@@ -143,7 +143,7 @@ struct RuntimeFileCopyRecursivelyTests {
         let sourceRaw = runtimeTestFileHandle(sourceDir.path)
         let targetRaw = runtimeTestFileHandle(targetDir.path)
         var thrown = 0
-        _ = kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
+        _ = __kk_file_copyRecursively(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         // Without overwrite, a conflicting file should produce a thrown exception.
         #expect(thrown != 0)
@@ -160,7 +160,7 @@ struct RuntimeFileCopyRecursivelyTests {
     }
 
     private func runtimeTestFileHandle(_ path: String) -> Int {
-        kk_file_new(runtimeStringRaw(path))
+        __kk_file_new(runtimeStringRaw(path))
     }
 
     private func runtimeStringRaw(_ value: String) -> Int {
