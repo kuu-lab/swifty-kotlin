@@ -46,6 +46,9 @@ struct MathOverloadResolutionTests {
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID) else { continue }
+                guard let exprRange = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.origin(of: exprRange.start.file) == .user
+                else { continue }
                 let matchesCallName: Bool
                 switch expr {
                 case let .call(calleeExpr, _, _, _):
