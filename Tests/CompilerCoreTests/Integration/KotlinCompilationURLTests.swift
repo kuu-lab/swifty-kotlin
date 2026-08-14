@@ -16,7 +16,6 @@ import Testing
             val path = child.path
             val query = child.query
             val fragment = child.fragment
-            val uri = child.toURI()
             val external = child.toExternalForm()
             val same = child.sameFile(URL("https://example.com/child?q=1#other"))
             val equal = child.equals(URL("https://example.com/child?q=1#next"))

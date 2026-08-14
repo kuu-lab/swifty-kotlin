@@ -867,6 +867,40 @@ extension CallLowerer {
             }
         }
 
+        // Safe-call collection fallback can resolve the source-backed
+        // joinToString declaration without retaining its default-value flags.
+        // In that case normalizedCallArguments leaves zero sentinels for the
+        // omitted String parameters, which become literal `null` at runtime.
+        // Recover the mask from the source call labels and materialize the
+        // Kotlin defaults before emitting the direct source-backed call.
+        let sourceBackedJoinToStringMask: Int64 = {
+            guard interner.resolve(effectiveCalleeName) == "joinToString",
+                  let chosen,
+                  sema.symbols.isSourceBackedSymbol(chosen),
+                  finalArguments.count >= 4,
+                  !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true })
+            else {
+                return 0
+            }
+            return joinToStringDefaultMask(sourceArguments: args, interner: interner)
+        }()
+        let joinToStringMask = safeNormalized.defaultMask | sourceBackedJoinToStringMask
+        if joinToStringMask != 0,
+           interner.resolve(effectiveCalleeName) == "joinToString",
+           let chosen,
+           sema.symbols.isSourceBackedSymbol(chosen),
+           finalArguments.count >= 4
+        {
+            materializeJoinToStringDefaultArguments(
+                joinToStringMask,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions,
+                arguments: &finalArguments
+            )
+        }
+
         if safeNormalized.defaultMask != 0,
            let chosen,
            sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true

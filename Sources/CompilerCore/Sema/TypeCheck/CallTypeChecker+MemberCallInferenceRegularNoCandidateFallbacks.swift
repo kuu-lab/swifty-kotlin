@@ -646,32 +646,6 @@ extension CallTypeChecker {
         let stringHOFReceiverType = safeCall
             ? sema.types.makeNonNullable(lookupReceiverType)
             : lookupReceiverType
-        if let boundType = tryBindStringChunkedSequenceTransform(
-            id,
-            calleeName: calleeName,
-            receiverType: stringHOFReceiverType,
-            args: args,
-            safeCall: safeCall,
-            ast: ast,
-            ctx: ctx,
-            locals: &locals,
-            explicitTypeArgs: explicitTypeArgs
-        ) {
-            return boundType
-        }
-        if let boundType = tryBindStringWindowedSequenceTransform(
-            id,
-            calleeName: calleeName,
-            receiverType: stringHOFReceiverType,
-            args: args,
-            safeCall: safeCall,
-            ast: ast,
-            ctx: ctx,
-            locals: &locals,
-            explicitTypeArgs: explicitTypeArgs
-        ) {
-            return boundType
-        }
         if let boundType = tryBindStringChunkedTransform(
             id,
             calleeName: calleeName,
@@ -697,25 +671,6 @@ extension CallTypeChecker {
             explicitTypeArgs: explicitTypeArgs
         ) {
             return boundType
-        }
-        // String stdlib: HOF filter/map/count/any/all/none (STDLIB-189)
-        if args.count == 2, interner.resolve(calleeName) == "chunkedSequence" {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            if let result = tryInferStringChunkedSequenceTransform(
-                id,
-                calleeName: calleeName,
-                receiverType: receiverTypeForCheck,
-                args: args,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: expectedType,
-                explicitTypeArgs: explicitTypeArgs,
-                safeCall: safeCall
-            ) {
-                return result
-            }
         }
         if args.count == 1 {
             let receiverTypeForCheck = safeCall

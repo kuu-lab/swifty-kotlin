@@ -75,7 +75,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListConversionMembersUseRuntimeExternalLinks() throws {
+    func testListConversionMembersResolveToBundledSource() throws {
         let source = """
         fun convert(values: List<Int>) {
             values.toMutableList()
@@ -92,13 +92,8 @@ extension ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks: [String: String?] = [
-                "toMutableList": "kk_list_to_mutable_list",
-                "toSet": "kk_list_to_set",
-                // KSP-INF-011: List<T>.joinToString is now source-backed
-                // (StringSplitJoin.kt) and its body delegates to the private
-                // __kk_string_joinToString bridge with external link
-                // kk_list_joinToString. The public member itself has no
-                // external link name.
+                "toMutableList": nil,
+                "toSet": nil,
                 "joinToString": nil,
             ]
 
@@ -270,7 +265,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "unzip"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
+            // KSP-425: List.unzip() is now source-backed and has no external runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected List.unzip to resolve to bundled source")
 
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {

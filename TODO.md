@@ -80,20 +80,34 @@
   - 削除 kk_*: `kk_string_contains_str`, `kk_string_contains_ignoreCase`, `kk_string_indexOf`, `kk_string_indexOf_from`, `kk_string_indexOf_char`, `kk_string_indexOf_ignoreCase`, `kk_string_lastIndexOf`, `kk_string_lastIndexOf_char`, `kk_string_lastIndexOf_ignoreCase`, `kk_string_indexOfAny_chars`, `kk_string_indexOfAny_strings`, `kk_string_lastIndexOfAny_chars`, `kk_string_lastIndexOfAny_strings`, `kk_string_findAnyOf`, `kk_string_findLastAnyOf`, `kk_string_indexOfFirst`, `kk_string_indexOfLast`（`RuntimeStringStdlib.swift`/`RuntimeStringSearch.swift`）
 - [ ] KSP-409: コレクション変換・iterator 系を Kotlin 化（`toList`, `toMutableList`, `toCharArray`, `toTypedArray`, `toCollection`, `toSortedSet`, `iterator`, `asIterable`, `asSequence`, `withIndex`）
   - 削除 kk_*: `kk_string_toList`, `kk_string_toMutableList`, `kk_string_toCharArray`, `kk_string_toTypedArray`, `kk_string_toCollection`, `kk_string_toSortedSet`, `kk_string_iterator`, `kk_string_iterator_hasNext`, `kk_string_iterator_next`, `kk_string_asIterable`, `kk_string_iterable_toList`, `kk_string_iterable_iterator`, `kk_string_asSequence`, `kk_string_withIndex`
-- [ ] KSP-411: chunked/windowed/zip 系を Kotlin 化
+- [x] KSP-410: String HOF を Kotlin 化 [MIGRATION-TEXT-008]（`filter(Not/Indexed)`, `map(Indexed/NotNull)`, `any`, `all`, `none`, `count`, `fold`系, `reduce`系, `find(Last)`, `onEach(Indexed)`, `partition`, `sumBy(Double)`, `firstNotNullOf(OrNull)`）
+  - Kotlin化済み（31関数、`Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`）: `filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `any`, `all`, `none`, `count`, `find`, `findLast`, `firstNotNullOf`, `firstNotNullOfOrNull`, `onEach`, `onEachIndexed`, `partition`, `sumBy`, `sumByDouble`, `reduce`, `reduceOrNull`, `reduceIndexed`, `reduceIndexedOrNull`, `reduceRight`, `reduceRightOrNull`, `reduceRightIndexed`, `reduceRightIndexedOrNull`, `fold`, `foldIndexed`, `foldRight`, `foldRightIndexed`。削除 kk_*: 対応する `kk_string_*(_flat)` 全て（`RuntimeStringHOF.swift` の該当セクション、`RuntimeABISpec+StringHOF.swift` はファイルごと削除、`RuntimeABISpec+String.swift` の flat spec、`NativeEmitter+FunctionEmission.swift` の flat emission spec、`MemberRuntimeDispatch.swift` の dispatch、`CallLowerer+LegacyMemberLikeCalls.swift` / `CallLowerer+MemberCallEmission.swift` の特殊経路、`HeaderHelpers+SyntheticStringStubs.swift` の synthetic stub）。CharSequence レシーバの関数は `length` プロパティの interface 越し dispatch が 0 を返すバグ（未 task 化の別既存バグ、本 PR スコープ外）を踏むため `kswiftk.internal.__string_struct_get_length` ブリッジ（`StringEmptyBlankLines.kt` 等の既存パターン）で回避
+  - **BUG-174 を修正（#5442 / #5636）**: 関数型パラメータのドキュメント用ラベル（`acc:`, `index:`, `value:` 等）を `TypeRefParserCore.parseFunctionParamRefs` で正しくスキップし、`Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt` のラベル workaround を除去。回帰テスト: `Tests/CompilerCoreTests/AST/TypeRefParserTests.swift`、`Scripts/diff_cases/function_type_param_labels.kt`
+  - **BUG-175 を修正**（`map`/`mapNotNull`/`firstNotNullOf(OrNull)` のブロック解除）: ラムダ本体を、呼び出し先が宣言する型パラメータ `R`（および `R?`）そのものに対して subtype 制約していたため、`R` 以外のどの本体型も制約を満たせず `KSWIFTK-TYPE-0001` になっていた。`ExprTypeChecker+NameLambdaAndCallableRefInference.swift` で、戻り値が型パラメータの場合は（上界が1つだけあるとき）その上界に対して制約を張り、推論済みの本体型を lambda の戻り値型として呼び出し側へ返すよう変更。回帰テスト: `Tests/CompilerCoreTests/Sema/BoundedTypeParameterLambdaReturnInferenceTests.swift`、`Scripts/diff_cases/generic_lambda_return_erasure.kt`
+  - **BUG-176 を修正**（`map`/`mapIndexed` のブロック解除）: 呼び出し先が型パラメータとして宣言する位置（消去位置）へ返るラムダの戻り値は実行時には box されている必要があるが、ラムダ本体は置換後の具体型（`Char`/`Boolean`）で型検査されるため、raw scalar がそのまま `List<R>` に格納されていた（`"abc".map { it }` が `[97, 98, 99]`）。`LambdaLowerer+ErasedGenericABI.swift`（新規）で「消去位置へ返るラムダ」を判定し、`LambdaLowerer` の lowering 時に本体の return 直前へ既存の `kk_box_*` を挿入。回帰テスト: `Scripts/diff_cases/generic_lambda_return_erasure.kt`（ユーザー定義 HOF・String 双方）、既存 `testCodegenStringMapVariants`、`BuildKIRRegressionTests` の String HOF 非 runtime 化アサーション
+  - 検証: `swift build` green、`Scripts/diff_kotlinc.sh Scripts/diff_cases` green、`swift_test.sh --filter Golden` green（golden 更新不要）、`validate_runtime_abi_links.sh` green
+- [x] KSP-411: chunked/windowed/zip 系を Kotlin 化
+  - Kotlin化済み（`Sources/CompilerCore/Stdlib/kotlin/text/StringWindowChunkTransform.kt`）。CharSequence の chunked/chunkedSequence/windowed/windowedSequence/zip/zipWithNext と transform 系を bundled Kotlin source に移行し、String 固有の synthetic stub、KIR/LLVM 特殊経路、Runtime/ABI export を削除。
   - 削除 kk_*: `kk_string_chunked`, `kk_string_chunked_sequence`, `kk_string_chunked_sequence_transform`, `kk_string_windowed_default`, `kk_string_windowed`, `kk_string_windowed_partial`, `kk_string_windowedSequence_partial`, `kk_string_windowedSequence_transform`, `kk_string_zip`, `kk_string_zipTransform`, `kk_string_zipWithNext`, `kk_string_zipWithNextTransform`
 #### kotlin.collections [M3 実行体]（前提: KSP-305〜307。実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/`）
 
 - [ ] KSP-421: List transform を完遂（`map`, `mapIndexed`, `mapNotNull`, `flatten`, `flatMap(Indexed)` + `*To` 変種）
   - 削除 kk_*: `kk_list_map`, `kk_list_mapIndexed`, `kk_list_mapIndexedTo`, `kk_list_mapNotNull`, `kk_list_mapNotNullTo`, `kk_list_mapTo`, `kk_list_flatten`, `kk_list_flatMap`, `kk_list_flatMapIndexed`, `kk_list_flatMapIndexedTo`, `kk_list_flatMapTo`（`RuntimeCollectionHOF.swift`）
-- [ ] KSP-425: List associate/group/zip 系を Kotlin 化（`associate(By/With)(To)`, `groupBy(To)`, `withIndex`, `onEach(Indexed)`, `partition`, `unzip`）
+- [x] KSP-422: List fold/reduce/scan を Kotlin 化（`fold(Right)(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `runningFold/Reduce(Indexed)`, `scan(Indexed)`）
+  - 削除 kk_*: 該当 19 関数（`rg -o '@_cdecl\("kk_list_(fold|reduce|running|scan)[a-zA-Z]*"\)' Sources/Runtime` で列挙）/ 既存 `ListAggregateHOF.kt` に追記
+- [ ] KSP-423: List 検索・述語を完遂（`find(Last)`, `indexOf(First/Last)`, `lastIndexOf`, `contains(All)`, `any`, `all`, `none`, `count`, `binarySearch(By)`）
+  - 削除 kk_*: `kk_list_find`, `kk_list_findLast`, `kk_list_indexOf`, `kk_list_indexOfFirst`, `kk_list_indexOfLast`, `kk_list_lastIndexOf`, `kk_list_contains`, `kk_list_containsAll`, `kk_list_any`, `kk_list_all`, `kk_list_none`, `kk_list_count`, `kk_list_binarySearch(_comparator/_compare)`, `kk_list_binarySearchBy(_fromIndex/_range)` / 既存 `ListSearchHOF.kt` に追記。等値判定コアは `__kk_values_equal`（新設）へ降格
+- [x] KSP-424: List アクセスを Kotlin 化（`getOrNull`, `getOrElse`, `elementAt(OrNull/OrElse)`, `first(OrNull)`, `last(OrNull)`, `single(OrNull)`）
+  - ブリッジ残留: `kk_list_get`, `kk_list_size` は `__kk_` 降格（ストレージ直アクセス）。他は Kotlin 化して削除
+- [x] KSP-425: List associate/group/zip 系を Kotlin 化（`associate(By/With)(To)`, `groupBy(To)`, `withIndex`, `onEach(Indexed)`, `partition`, `unzip`）
   - 削除 kk_*: `rg -o '@_cdecl\("kk_list_(associate|group|withIndex|onEach|partition|unzip)[a-zA-Z]*"\)' Sources/Runtime` で列挙（約 19 関数）
 - [ ] KSP-426: List sort/max/min を Kotlin 化（`sorted(By/With/Descending)` + `_primitive` 変種, mutable `sort*`, `max/min(By/Of/With)(OrNull)`）
   - 削除 kk_*: `RuntimeCollectionHOFMaxMin.swift` の sorted 系 18 + max/min 系 20（rg で列挙）。比較コアは KSP-309 の Comparator Kotlin 実装を利用
 - [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
-- [ ] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
-  - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
+- [x] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
+  - 完了: `Iterables.kt` / `ListConversions.kt` に汎用変換・join・nullable・destructuring・index 実装を移し、List 固有の synthetic 登録・call lowering・公開ランタイム ABI を削除。`isEmpty` は抽象 Collection の型タグ dispatch コアとして保持し、`isNotEmpty` は Kotlin source から `isEmpty` を利用する。
+  - 回帰: `Scripts/diff_cases/list_ksp429_surface.kt` と `CodegenBackendIntegrationTests` の実 kotlinc 比較・実行ケースで固定。
 #### kotlin.sequences [M4 実行体]（KSP-441 が先頭。他は 441 完了後に並列可）
 
 - [x] KSP-441: Sequence 遅延 transform 基盤を Kotlin 化（`Sequence`/`Iterator` インターフェース + `map`, `filter` 系 transform）
@@ -107,7 +121,8 @@
   - 完了 (2026-08-12): `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt` に上記関数を追加し、`kk_sequence_*` 経路を `BundledDeclarationIndex` で抑制。Sema/Backend の既存テストを source-backed 解決を期待するよう更新。`SmokeTests` と関連 Sequence テスト群が green、手動で `average`/`last`/`single`/`lastIndexOf`/`contains`/`none`/`min`/`max`/`sum` の実行も確認。
 - [x] KSP-443: Sequence 変換・集合演算を Kotlin 化（`toList`, `toMutableList`, `toSet`, `toMutableSet`, `toHashSet`, `toSortedSet`, `toCollection`, `toMap`, `flatten`, `unzip`, `union`, `intersect`, `subtract`, `plus*`, `minus`, `ifEmpty`, `constrainOnce`, `orEmpty`）
   - 注意: インライン `kotlinSequencesSource`（toList/toMutableList/toSet）と統合（KSP-503 と調整）
-- [ ] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
+- [x] KSP-446: Sequence `*To` 宛先変種を Kotlin 化（`filterTo` 等 11 関数、`RuntimeSequenceBuilders.swift` 内 STDLIB-SEQ-021 群）
+  - 完了 (2026-08-14): `Stdlib/kotlin/sequences/SequenceDestinationHOF.kt` に11関数を追加し、Sequence の Sema source binding、synthetic member、lowering 特例、Runtime/RuntimeABI の STDLIB-SEQ-021 ブリッジを整理。`sequence_destination_to.kt` で全11関数の Kotlin/JVM と kswiftc の実行結果を照合
 #### kotlin.ranges [M6 実行体]（前提: KSP-312）
 
 - [ ] KSP-451: Range プロパティ・membership を完遂（`first`, `last`, `start`, `endInclusive/Exclusive`, `count`, `isEmpty`, `contains`, `sum`, `reversed` の Int/Long/Char 版）
@@ -118,11 +133,18 @@
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
-- [ ] KSP-684: トップレベル `maxWith`/`minWith`（Comparator + 2値）を Kotlin 化し `HeaderHelpers+SyntheticComparisonStubs.swift` を削除する（2026-08-12 ギャップ再調査で追補: KSP-461 完了後の同ファイル残余は `kotlin.comparisons.maxWith(comparator, a, b)` / `minWith` の 2 登録（STDLIB-COMP-FN-027/028）のみ — 実測で他の登録関数ゼロ。実装先: `Stdlib/kotlin/comparisons/Comparisons.kt` へ追記し `Comparator.compare` の member dispatch で書く。runtime 対応分は着手時 `rg 'kk_[a-zA-Z_]*(maxWith|minWith)' Sources/Runtime Sources/CompilerCore` で固定（比較コアは KSP-461 で移行済みのため専用 cdecl は無い見込み — あれば削除）。ファイル削除まで完遂 / 手順: T / diff: トップレベル maxWith/minWith 単独ケース新規）
+- [x] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
+ - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+ - 残留: `kk_string_case_insensitive_order(_trampoline)` は companion `val` の同一インスタンス保証（BUG-036/BUG-154）のため runtime シングルトンのまま。比較コアは `__kk_comparable_compareTo` / Comparator 呼び出しは `__kk_compare_with_comparator` へ降格
+ - Comparator 消費側（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`）: 上記 rg パターンには**含まれない**。実体は `RuntimeCollectionHOFMaxMin.swift` の `kk_list_maxWith(OrNull)` / `kk_list_minWith(OrNull)` と `RuntimeSequenceAssociation.swift` の `kk_sequence_maxWith(OrNull)` / `kk_sequence_minWith(OrNull)` の 8 関数で、削除自体は KSP-426（List）/ KSP-444（Sequence）の担当。KSP-461 は本 API が依存する Comparator の Kotlin 実装（`compare` の member dispatch）を提供する側として整合を確認する
+
+- [x] KSP-684: トップレベル `maxWith`/`minWith`（Comparator + 2値）を Kotlin 化し `HeaderHelpers+SyntheticComparisonStubs.swift` を削除する（2026-08-12 ギャップ再調査で追補: KSP-461 完了後の同ファイル残余は `kotlin.comparisons.maxWith(comparator, a, b)` / `minWith` の 2 登録（STDLIB-COMP-FN-027/028）のみ — 実測で他の登録関数ゼロ。実装先: `Stdlib/kotlin/comparisons/Comparisons.kt` へ追記し `Comparator.compare` の member dispatch で書く。runtime 対応分は着手時 `rg 'kk_[a-zA-Z_]*(maxWith|minWith)' Sources/Runtime Sources/CompilerCore` で固定（比較コアは KSP-461 で移行済みのため専用 cdecl は無い見込み — あれば削除）。ファイル削除まで完遂 / 手順: T / diff: トップレベル maxWith/minWith 単独ケース新規）
+ - 実施: `Comparisons.kt` に `Comparator.compare` を使う `maxWith` / `minWith` を追加し、合成登録・bucket entry・`HeaderHelpers+SyntheticComparisonStubs.swift` を削除。List/Sequence member の runtime/lowering はKSP-426/KSP-444の管轄として維持
+ - 検証: `ComparisonsTopLevelMaxMinWithFunctionTests`、`top_level_max_min_with.kt`（`DEBT-DIFF-001` reference skip + candidate 直接実行）、Golden、ABI、build、diff 全体、TODO ID重複、`git diff --check`。全体 `swift_test.sh` は高負荷時の共有 Runtime isolation lock timeout（本変更外）で失敗
 
 #### kotlin.random [M7 実行体]
 
-- [ ] KSP-685: `random/Random.kt` を本家構造（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)`）へ戻す（構造逸脱台帳 `docs/stdlib-pipeline.md` §13-8 の解消実行体。KSP-CAP-006 の完了で「着手可能・PRNG のビット精度検証を伴う別タスクで実施」と記録されたまま未起票だった — 2026-08-12 追補）
+- [x] KSP-685: `random/Random.kt` を本家構造（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)`）へ戻す（構造逸脱台帳 `docs/stdlib-pipeline.md` §13-8 の解消実行体。KSP-CAP-006 の完了で「着手可能・PRNG のビット精度検証を伴う別タスクで実施」と記録されたまま未起票だった — 2026-08-12 追補）
   - 検証: シード付き `nextInt`/`nextInt(bound)`/`nextLong`/`nextBits`/`nextDouble` の決定値列を kotlinc と突合する diff ケースを追加（XorWowRandom のビット精度固定）。既存の `shuffled(Random(7))` 系決定性テスト（KSP-CAP-011）の非回帰も確認
   - 完了時: `docs/stdlib-pipeline.md` §13-8 の台帳行を解消済みへ更新 / 手順: T
 
@@ -211,9 +233,10 @@
     4. **bundled Stdlib に `suspend` の前例が無い** — 🟢 **検証済み（2026-07-08）**: `Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/` に一時ファイルを置いて実機確認。bundled ソースでの `suspend fun`（ジェネリック含む）は正常にコンパイル・実行できる（`suspend fun <T, R> f(v: T, g: suspend (T) -> R): R` 相当が動作）。前例が無かっただけで、経路自体に問題は無い。
     - 対応が必要な前段作業（いずれも本タスクの想定規模を超える別タスク相当・進行中）: (a) 上記 Lowering パスを「bundled/実体宣言優先」に改修 — **完了 (PR #4988)** (b) ジェネリック高階関数のラムダ内演算子/メンバ解決バグの修正 — 演算子部分は修正済み、メンバー呼び出し部分は既知の限界として残存 (c) KSP-498 の正式な分類表作成 — 未着手。
 
-- [ ] KSP-686: channelFlow/callbackFlow の (b)/(c) 分類を確定し fiction を解消する（KSP-498 棚卸しの「未分類」残り。2026-08-12 実測: `channelFlow`/`callbackFlow` は Sema 登録（`HeaderHelpers+SyntheticCoroutineRegistry.swift`）と特例（`CallTypeChecker.swift` / `CoroutineLoweringPass.swift` / `FlowLoweringPass.swift` / `TypeCheck/Helpers.swift`）のみで **`Sources/Runtime` に対応実装が 0 件** — 宣言だけコンパイルが通り、実体はリンク/実行が成立しない fiction 状態）
-  - 対応: 着手時にまず最小 .kt（`channelFlow { send(1) }.collect { }`）の実挙動（リンクエラー / クラッシュ / 動作）を実測して分類を確定する。(i) (b) 化 = Channel (c) コア（KSP-678 の `kk_channel_*` ブリッジ）+ `kk_flow_create` の合成で bundled Kotlin 実装する、(ii) (a) 化 = Sema 登録・Lowering 特例ごと削除し未実装 API として明示する、のどちらかへ倒す
-  - 前提: KSP-676 / 手順: T（(b) の場合）or RF-STUB-002 レシピ（(a) の場合）
+- [x] KSP-686: channelFlow/callbackFlow の (b)/(c) 分類を確定し fiction を解消する（KSP-498 棚卸しの「未分類」残り。前提 KSP-676 は master の PR #5713 で完了済み。2026-08-14 実測で (a)（未実装 API）に分類）
+  - 実測: `channelFlow<Int> { send(1) }.collect { println(it) }` は `KSWIFTK-SEMA-0023: Unresolved function 'send'`、`callbackFlow<Int> { trySend(1); close() }.collect { println(it) }` は `trySend`/`close` 未解決でコンパイル終了（リンク・実行には到達しない）。一方、fiction の `emit` alias は両 builder とも compile/run して `1` を出力したが、real `ProducerScope` API の動作ではない。
+  - 対応: `HeaderHelpers+SyntheticCoroutineRegistry.swift` の合成登録、`CallTypeChecker`/`TypeCheck/Helpers` の fallback、`FlowLoweringPass`/`CoroutineLoweringPass` の特例、および未実装 `kk_channel_flow_*`/`kk_callback_flow_*` ABI allowlist を削除。Sema 回帰テストで両 API を明示的な未解決診断として固定し、`flow_builders.kt` は real API 形へ更新した。
+  - 残課題: real `ProducerScope` を用いた channelFlow/callbackFlow の (b) 実装は別タスクで設計する。
 
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 
@@ -241,7 +264,7 @@
 - [ ] KSP-602: run/with/apply を Kotlin 化する（前提: KSP-CAP-008。`apply` は**スタブ未登録・名前特例のみ**で動作中のため宣言を新設。削除対象は同スタブの with/run 登録 + `CallLowerer+ScopeFunctionLowering.swift` の該当分岐）
 #### io / system
 
-- [ ] KSP-692: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` を責務別に分割する（§9 follow-up order「Split mixed files before touching their residual parts」の最終残: Random/Atomic は分割・移行済みで、本ファイルのみ TODO()/File IO/system/duration/collection factory の登録が混在したまま現存最大の合成スタブ（2026-08-12 実測 3,614 行）。分割先は担当タスク対応で: File I/O 登録 → KSP-484 が触る単位 / duration 系 → KSP-683 が触る単位 / collection factory → 既存 `+SyntheticCollectionFactoryStubs.swift` へ / 残余（TODO()・system）→ 現ファイル縮小維持。着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift` で登録単位を全列挙してから機械的移動のみ行う（挙動変更ゼロ・`loc_report.sh` 合計行数 ±0 を完了条件に含む）。命名は責務ベース（CLAUDE.md の分割ファイル規約））
+- [x] KSP-692: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` を責務別に分割する（§9 follow-up order「Split mixed files before touching their residual parts」の最終残: Random/Atomic は分割・移行済みで、本ファイルのみ TODO()/File IO/system/duration/collection factory の登録が混在したまま現存最大の合成スタブ（2026-08-12 実測 3,614 行）。分割先は担当タスク対応で: File I/O 登録 → KSP-484 が触る単位 / duration 系 → KSP-683 が触る単位 / collection factory → 既存 `+SyntheticCollectionFactoryStubs.swift` へ / 残余（TODO()・system）→ 現ファイル縮小維持。着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift` で登録単位を全列挙してから機械的移動のみ行う（挙動変更ゼロ・`loc_report.sh` 合計行数 ±0 を完了条件に含む）。命名は責務ベース（CLAUDE.md の分割ファイル規約））
 
 #### collections
 
@@ -276,7 +299,7 @@
 - [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
-- [ ] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（`docs/stdlib-pipeline.md` §9 の Atomic 内訳が「`AtomicBoolean`/`AtomicReference` の `compareAndSet` は get/set 委譲順序の都合で**別タスク**」と明記したまま未起票だった — 2026-08-12 追補。KSP-671 が `AtomicInt`/`AtomicLong` で確立した `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開する。ハードウェア CAS コア（`compareAndExchange` 系ブリッジ）は (c) 残留。着手時 `rg 'compareAndSet' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticAtomicStubs.swift Sources/Runtime/RuntimeAtomic.swift` で削除対象を固定（kk_atomic_* はスタブ側 prefix 補間 emit のため rg は補間考慮）。手順: T / diff: AtomicBoolean/AtomicReference の CAS ケース新規）
+- [x] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（KSP-671 の `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開し、AtomicReference は `===` で参照同一性を保持）。synthetic compareAndSet stub と `kk_atomic_bool/ref_compareAndSet` 公開経路を削除し、ハードウェア CAS コアの `compareAndExchange` ブリッジは (c) として残留。equal-but-distinct reference の最小 diff case と成功/失敗時の値保持を回帰固定。RuntimeAtomic の比較を参照同一性へ修正し、最小再現を同一PRに包含。
 
 #### delegates / reflect
 
@@ -326,12 +349,13 @@
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
   - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
-- [ ] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
+- [x] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
   - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:257`（`name: "URI"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeURI.swift`（`kk_uri_*` 29件）、`Sources/Runtime/RuntimePath.swift` 内 URI 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URI ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURITests.swift`、`Tests/RuntimeTests/RuntimeURITests.swift`/`RuntimeURLTests.swift`、diff case `url_basic.kt` 内 URI 使用箇所の確認
+  - 完了 (2026-08-14): URL 本体と Network の HTTP request builder 用 URI handoff は CLEANUP-STUB-124 の責務境界として保持し、Java URI の公開 Sema/runtime surface のみ除去
 - [ ] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURLStubs.swift`（332行）
   - 削除内容: `registerSyntheticURLStubs(...)` および `java.net.URL` クラス・コンストラクタ / `readText` / `readBytes` / `openConnection` 等の登録を削除

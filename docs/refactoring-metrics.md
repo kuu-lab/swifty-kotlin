@@ -1,6 +1,6 @@
 # Refactoring Metrics
 
-Baseline refreshed on 2026-08-10 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
+Baseline refreshed on 2026-08-14 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
 
 ## LoC Guard
 
@@ -10,32 +10,41 @@ Command:
 bash Scripts/loc_report.sh
 ```
 
+`loc_report.sh` itself is compatible with macOS's system Bash 3.2. Other scripts
+under `Scripts/` may require Bash 4+.
+
+The KSP-691 task note captured `__kk_` 390 / `kk_` 1,770 on 2026-08-12;
+this table is the current post-fetch baseline after subsequent master changes.
+
 Output:
 
 ```tsv
 metric	scope	value
-loc_by_directory	.	1315
-loc_by_directory	.agents	73
-loc_by_directory	.github	778
-loc_by_directory	Scripts	27743
-loc_by_directory	Sources	306909
-loc_by_directory	Stdlib	3068
-loc_by_directory	Tests	241866
-loc_by_directory	docs	3552
-loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	75157
-loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	36626
-header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	56810
-call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	3564
+loc_by_directory	.	862
+loc_by_directory	.agents	167
+loc_by_directory	.github	783
+loc_by_directory	Scripts	28895
+loc_by_directory	Sources	298413
+loc_by_directory	Tests	250891
+loc_by_directory	docs	3592
+loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	68998
+loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	36986
+header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	50298
+call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	3182
 kir_lowering_todo_fixme_count	Sources/CompilerCore/{KIR,Lowering}/*.swift	0
-kk_literal_count	Swift/Kotlin sources	11385
-interner_resolve_literal_comparison_count	Swift sources	695
-typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	81
+kk_literal_count	Swift/Kotlin sources	9104
+kk_cdecl_count	Sources/Runtime/@_cdecl("kk_*")	1582
+__kk_cdecl_count	Sources/Runtime/@_cdecl("__kk_*")	463
+interner_resolve_literal_comparison_count	Swift sources	728
+typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	78
 ```
 
 Notes:
 - `loc_by_directory` counts physical lines in git-tracked files, grouped by top-level directory.
 - `loc_by_path_prefix` tracks phase-specific line-count targets that are too coarse at top-level directory granularity.
 - `kk_literal_count` counts Swift/Kotlin string literals beginning with `"kk_`.
+- `kk_cdecl_count` counts distinct `@_cdecl("kk_...")` names in tracked Swift files under `Sources/Runtime/`.
+- `__kk_cdecl_count` counts distinct `@_cdecl("__kk_...")` names in the same scope. These two metrics count bridge definitions only; they do not count references, `RuntimeABISpec` entries, generated files, fixtures, docs, or arbitrary string literals.
 - `kir_lowering_todo_fixme_count` counts remaining `TODO` / `FIXME` markers in `Sources/CompilerCore/KIR/*.swift` and `Sources/CompilerCore/Lowering/*.swift`.
 - `call_lowerer_legacy_total_lines` and `typecheck_interner_resolve_literal_comparison_count` track RF4 reduction goals directly.
 

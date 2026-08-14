@@ -31,12 +31,6 @@ func bridgeSpec(
 }
 
 private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_indexing_iterable_hasNext", section: "Collection", params: ["iterRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_indexing_iterable_iterator", section: "Collection", params: ["iterableRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_indexing_iterable_next", section: "Collection", params: ["iterRaw"],
-            isThrowing: false),
 ]
 
 private let listClosureBridgeNames = [
@@ -47,8 +41,6 @@ private let listClosureBridgeNames = [
     "kk_list_minOf",
     "kk_list_minWith",
     "kk_list_minWithOrNull",
-    "kk_list_onEach",
-    "kk_list_onEachIndexed",
 ]
 
 private let listClosureBridgeFunctions = listClosureBridgeNames.map {
@@ -92,7 +84,6 @@ private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_list_of_not_null", section: "Collection", params: ["arrayRaw", "count"]),
     bridgeSpec("kk_list_subtract", section: "Collection", params: ["listRaw", "otherRaw"],
             isThrowing: false),
-    bridgeSpec("kk_list_toHashSet", section: "Collection", params: ["listRaw"]),
     bridgeSpec("kk_list_union", section: "Collection", params: ["listRaw", "otherRaw"],
             isThrowing: false),
 ]

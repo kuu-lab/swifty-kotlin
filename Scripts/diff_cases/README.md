@@ -82,6 +82,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
 - `array_for_loop.kt`: `for (x in array)` による ByteArray / IntArray / `Array<String>` の直接イテレーション（DEBT-KIR-005）、空配列での 0 回実行、`continue`/`break` との組み合わせの parity
 - `class_and_function_same_name.kt`: クラスと同名のトップレベル関数の共存（`class Point` + `fun Point(value: Int)` / `fun Point(pair: Pair<Int, Int>)`、kotlin-stdlib の `Random(seed)` ファクトリ関数と同型パターン）と、コンストラクタ・関数オーバーロードを跨いだ引数型による呼び出し解決の parity（KSP-CAP-006）
+- `random_xorwow_parity.kt`: `Random(seed)` の Int/Long factory、XorWow の warm-up、`nextInt`/`nextInt(until)`/`nextLong`/`nextBits`/`nextDouble` の固定 seed ビット列 parity（KSP-685）
 - `object_literal_local_capture.kt`: object 式のメンバ関数本体からの外側ローカル変数/パラメータキャプチャ（KSP-CAP-001）。`val` パラメータ・`var` local の複数回呼び出しをまたぐミューテーション・自プロパティによる同名 outer local の shadowing・関数型パラメータ（`() -> Int`）キャプチャの parity
 
 The set intentionally includes both successful programs and compile-error cases.

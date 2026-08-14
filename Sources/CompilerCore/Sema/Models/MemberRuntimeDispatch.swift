@@ -389,24 +389,16 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
-        case ("zipWithNext", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_zipWithNext_flat")
         case ("asSequence", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
         case ("withIndex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
-        case ("windowed", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
         case ("get", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
         case ("compareTo", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareTo_flat")
         case ("matches", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_matches_regex_flat")
-        case ("chunked", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
-        case ("chunkedSequence", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_sequence_flat")
         case ("encodeToByteArray", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
@@ -414,13 +406,6 @@ enum MemberRuntimeDispatch {
         case ("toCollection", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCollection_flat")
 
-        case ("windowed", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_flat")
-
-        case ("windowed", 3):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_partial_flat")
-        case ("windowedSequence", 3):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowedSequence_partial_flat")
         default:
             return nil
         }
