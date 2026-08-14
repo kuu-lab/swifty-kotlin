@@ -242,9 +242,10 @@
 
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 
-- [ ] KSP-504: ルート `Stdlib/` 死蔵ツリー（35 ファイル）を整理する
+- [x] KSP-504: ルート `Stdlib/` 死蔵ツリー（35 ファイル）を整理する
   - 手順: (1) `Package.swift` の `resources: [.copy("Stdlib")]` が `Sources/CompilerCore/Stdlib` を指すこと（ルートではない）を確認 (2) 各 .kt を「対応 KSP タスクの下敷きに使う / 即削除」に分類（W3/W4 の該当タスクへ移設済みのものから削除） (3) `git rm -r Stdlib/`
   - 完了: ルート `Stdlib/` が存在しない + G
+  - 完了確認（2026-08-14）: merged PR #5740 / merge commit `4a38e5364` が root `Stdlib/` の 27 `.kt` を削除したことを履歴で確認。latest master `0a9c0c248` でも root `Stdlib/` は不在で、`Package.swift` は `CompilerCore` の `.copy("Stdlib")` として `Sources/CompilerCore/Stdlib` を resource 化している。`BundledStdlibExecutionTests` 27/27、`StdlibArtifactRegressionTests` 27/27 を現行コードで検証済み。
 - [ ] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃し、ファイル名を本家準拠へリネームする
   - 前提: W3 全完了。手順: (1) セットが空であることを確認して機構ごと削除 (2) `text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム（`docs/stdlib-pipeline.md` §6） (3) U で golden 更新
 
