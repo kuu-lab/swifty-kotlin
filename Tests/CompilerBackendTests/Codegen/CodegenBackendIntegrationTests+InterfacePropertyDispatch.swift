@@ -175,5 +175,38 @@ struct CodegenBackendInterfacePropertyDispatchTests {
                 """ + "\n"
         )
     }
+
+    // BUG-211: CharSequence.length must use the interface-property dispatch
+    // path from bundled Kotlin extension bodies. The receiver may be a flat
+    // String, the runtime-backed StringBuilder, or a user-defined class.
+    @Test
+    func testBug211CharSequenceLengthDispatchAcrossImplementations() throws {
+        let source = """
+        fun lengthOf(value: CharSequence): Int = value.length
+        fun CharSequence.lengthViaExtension(): Int = this.length
+
+        class CustomSequence(private val content: String) : CharSequence {
+            override val length: Int
+                get() = content.length
+            override fun get(index: Int): Char = content[index]
+            override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+                content.substring(startIndex, endIndex)
+        }
+
+        fun main() {
+            println(lengthOf("hello"))
+            println("world".lengthViaExtension())
+            println(StringBuilder("xyz").lengthViaExtension())
+            println(lengthOf(CustomSequence("custom")))
+            println(CustomSequence("custom").lengthViaExtension())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "Bug211CharSequenceLengthDispatch",
+            expected: "5\n5\n3\n6\n6\n"
+        )
+    }
 }
 #endif
