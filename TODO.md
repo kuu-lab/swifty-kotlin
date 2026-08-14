@@ -252,10 +252,10 @@
 - [ ] KSP-690: bundled stdlib 自身の diagnostics ゼロを enforcing テスト化する（§8 の要件「stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う（warning 含めゼロを CI で enforcing にする）」に対応するテストが存在しない — 2026-08-12 実装確認で該当テストゼロ）
   - 実装: 全 bundled .kt を注入した最小入力（`hello.kt` 相当）のコンパイルで、`__bundled_*` パスを source location とする診断が warning 含め 0 件であることを固定するテストを `Tests/CompilerCoreTests/Driver/` に追加する。`KSWIFTK-SEMA-0102`（bundled×synthetic 二重定義 warning）のガード漏れ検知網を兼ねる
   - 完了: テスト green + G
-- [ ] KSP-691: `__kk_*` ブリッジ総数を `Scripts/loc_report.sh` のメトリクスへ追加し、ベースラインを `docs/refactoring-metrics.md` へ記録する（§13-2 ブリッジ入場審査は「`__kk_*` 総数メトリクスの悪化理由を必須」とするが、loc_report.sh に `__kk_` 計測が無く運用不能だった — 2026-08-12 実装確認）
+- [x] KSP-691: `__kk_*` ブリッジ総数を `Scripts/loc_report.sh` のメトリクスへ追加し、ベースラインを `docs/refactoring-metrics.md` へ記録する（§13-2 ブリッジ入場審査は「`__kk_*` 総数メトリクスの悪化理由を必須」とするが、loc_report.sh に `__kk_` 計測が無く運用不能だった — 2026-08-12 実装確認）
   - 2026-08-12 実測ベースライン: `@_cdecl("__kk_` 390 個 / `@_cdecl("kk_` 1,770 個（`grep -rhoE '@_cdecl\("(__)?kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include='*.swift' | sort -u` で計測）
   - 意図: 降格（`kk_` 減 + `__kk_` 増のペア）は正常、**理由コード無しの `__kk_` 純増**をリファクタゲート（CLAUDE.md）で機械検出できるようにする
-  - 完了: loc_report.sh の TSV に kk\_/\_\_kk\_ 両カウント列が追加され、refactoring-metrics.md にベースライン記録 + G
+  - 完了: merged PR #5777（merge commit `7a98e4a1b`）で実装済み。現行 master `0a9c0c248` に `Scripts/loc_report.sh` の `kk_cdecl_count` / `__kk_cdecl_count`、`docs/refactoring-metrics.md` のベースライン、`CLAUDE.md` のリファクタゲート追記が存在することを確認した。`bash -n Scripts/loc_report.sh`、`/bin/bash -n Scripts/loc_report.sh`、`bash Scripts/loc_report.sh`、独立 grep カウント（現行値 `1503` / `462` と一致）、`bash Scripts/check_todo_ids.sh`、`git diff --check` を実行済み。専用 Swift テストは既存 inventory に無く、PR #5777 のスクリプト検証および CI の refactoring-metrics artifact 経路で検証されている。なお docs の TSV は #5777 merge 時点の `1582` / `463` を記録しており、後続 master の移行で現行出力が変化したため、今回の TODO 同期 PR では実装ファイルを再更新しない。
 
 ### KSP-W6: 追補モジュール移行（ギャップ監査 2026-07-10。手順は全て T。粒度ルール適用済み = 1タスク1PR）
 
