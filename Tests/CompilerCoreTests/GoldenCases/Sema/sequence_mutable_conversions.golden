@@ -9,10 +9,8 @@ symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=syntheti
 symbol fq=kotlin.collections.MutableSet.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableSet.add kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence.toHashSet kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.MutableSet<kotlin.sequences.Sequence.T>
-symbol fq=kotlin.sequences.Sequence.toMutableList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.MutableList<kotlin.sequences.Sequence.T>
-symbol fq=kotlin.sequences.Sequence.toMutableSet kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.MutableSet<kotlin.sequences.Sequence.T>
+symbol fq=kotlin.sequences.Sequence.toHashSet kind=function vis=public flags=synthetic sig=recv=kotlin.sequences.Sequence<kotlin.sequences.toHashSet.$0.T> params=[] ret=kotlin.collections.MutableSet<kotlin.sequences.toHashSet.$0.T>
+symbol fq=kotlin.sequences.Sequence.toMutableSet kind=function vis=public flags=synthetic sig=recv=kotlin.sequences.Sequence<kotlin.sequences.toMutableSet.$1.T> params=[] ret=kotlin.collections.MutableSet<kotlin.sequences.toMutableSet.$1.T>
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_mutable_conversions package=_
   decl main fun main sym=main
@@ -24,7 +22,7 @@ expr e@2:38 int(3) type=Int
 expr e@2:15 call callee=e@2:15#1 args=[_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35,_:e@2:38] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@2:5 localDecl seq mutable=0 type=_ init=e@2:15 type=Unit ref=__local_0.seq
 expr e@4:41 name(seq) type=kotlin.sequences.Sequence<Int> ref=__local_0.seq
-expr e@4:41#1 memberCall recv=e@4:41 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.sequences.Sequence.toMutableList
+expr e@4:41#1 memberCall recv=e@4:41 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.sequences.toMutableList targs=[Int]
 expr e@4:5 localDecl mutableList mutable=0 type=MutableList<Int> init=e@4:41#1 type=Unit ref=__local_1.mutableList
 expr e@5:5 name(mutableList) type=kotlin.collections.MutableList<Int> ref=__local_1.mutableList
 expr e@5:21 int(99) type=Int

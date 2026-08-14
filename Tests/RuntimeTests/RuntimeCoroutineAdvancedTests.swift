@@ -450,10 +450,11 @@ struct RuntimeCoroutineAdvancedTests {
 
     // MARK: - Test 14: Coroutine yield is a non-blocking no-op
 
-    /// kk_coroutine_yield must return 0 promptly without blocking or crashing.
+    /// kk_coroutine_yield must return 0 promptly without blocking or crashing
+    /// when called outside an active coroutine (invalid continuation).
     @Test func testCoroutineYieldReturnsZeroAndDoesNotBlock() {
         let start = Date()
-        let result = kk_coroutine_yield()
+        let result = kk_coroutine_yield(0)
         let elapsed = Date().timeIntervalSince(start)
         #expect(result == 0, "kk_coroutine_yield must return 0 (Unit)")
         #expect(elapsed < 1.0, "kk_coroutine_yield must not block for more than 1 second")

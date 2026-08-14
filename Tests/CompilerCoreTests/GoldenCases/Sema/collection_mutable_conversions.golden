@@ -33,7 +33,7 @@ expr e@3:45 int(3) type=Int
 expr e@3:32 call callee=e@3:32#1 args=[_:e@3:39,_:e@3:42,_:e@3:45] type=kotlin.collections.Iterable<Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@3:5 localDecl items mutable=0 type=Iterable<Int> init=e@3:32 type=Unit ref=__local_0.items
 expr e@4:33 name(items) type=kotlin.collections.Iterable<Int> ref=__local_0.items
-expr e@4:33#1 memberCall recv=e@4:33 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.collections.toMutableList
+expr e@4:33#1 memberCall recv=e@4:33 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.collections.toMutableList targs=[Int]
 expr e@4:5 localDecl ml1 mutable=0 type=MutableList<Int> init=e@4:33#1 type=Unit ref=__local_1.ml1
 expr e@5:5 name(ml1) type=kotlin.collections.MutableList<Int> ref=__local_1.ml1
 expr e@5:13 int(4) type=Int
@@ -66,7 +66,7 @@ expr e@19:52 string(c) type=String
 expr e@19:35 call callee=e@19:35#1 args=[_:e@19:42,_:e@19:47,_:e@19:52] type=kotlin.collections.Collection<String> call=kotlin.collections.listOf#1 targs=[String]
 expr e@19:5 localDecl col mutable=0 type=Collection<String> init=e@19:35 type=Unit ref=__local_4.col
 expr e@20:36 name(col) type=kotlin.collections.Collection<String> ref=__local_4.col
-expr e@20:36#1 memberCall recv=e@20:36 callee=toMutableList args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.toMutableList
+expr e@20:36#1 memberCall recv=e@20:36 callee=toMutableList args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.toMutableList targs=[String]
 expr e@20:5 localDecl ml2 mutable=0 type=MutableList<String> init=e@20:36#1 type=Unit ref=__local_5.ml2
 expr e@21:5 name(ml2) type=kotlin.collections.MutableList<String> ref=__local_5.ml2
 expr e@21:13 string(d) type=String

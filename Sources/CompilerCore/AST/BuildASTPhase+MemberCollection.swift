@@ -15,7 +15,9 @@ extension BuildASTPhase {
     func declarationEnumEntries(
         from nodeID: NodeID,
         in arena: SyntaxArena,
-        interner: StringInterner
+        interner: StringInterner,
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine?
     ) -> [EnumEntryDecl] {
         guard let bodyBlockID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
             guard case let .node(childID) = child,
@@ -116,16 +118,30 @@ extension BuildASTPhase {
                     annotIndex += 1
                 }
             }
-            guard let nameToken = segment[annotIndex...].first(where: { token in
+            guard let nameIndex = segment[annotIndex...].firstIndex(where: { token in
                 internedIdentifier(from: token, interner: interner) != nil
-            }), let name = internedIdentifier(from: nameToken, interner: interner) else {
+            }), let name = internedIdentifier(from: segment[nameIndex], interner: interner) else {
                 continue
+            }
+            let nameToken = segment[nameIndex]
+            var constructorArgs: [CallArgument] = []
+            if let parenIndex = segment[nameIndex...].dropFirst().firstIndex(where: { $0.kind == .symbol(.lParen) }) {
+                let afterParen = skipBalancedBracket(in: segment, from: parenIndex, open: .symbol(.lParen), close: .symbol(.rParen))
+                let argTokens = Array(segment[(parenIndex + 1)..<afterParen])
+                let parser = ExpressionParser(
+                    tokens: argTokens,
+                    interner: interner,
+                    astArena: astArena,
+                    diagnostics: diagnostics
+                )
+                constructorArgs = parser.parseCallArguments()
             }
             let end = segment.last?.range.end ?? nameToken.range.end
             entries.append(EnumEntryDecl(
                 range: SourceRange(start: nameToken.range.start, end: end),
                 name: name,
-                annotations: annotations
+                annotations: annotations,
+                constructorArgs: constructorArgs
             ))
         }
         return entries

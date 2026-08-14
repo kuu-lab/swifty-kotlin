@@ -504,7 +504,8 @@ final class BuildASTPhase: CompilerPhase {
                 let decl = Decl.enumEntryDecl(EnumEntryDecl(
                     range: node.range,
                     name: declarationName(from: nodeID, in: cst, interner: interner),
-                    annotations: declarationAnnotations(from: nodeID, in: cst, interner: interner)
+                    annotations: declarationAnnotations(from: nodeID, in: cst, interner: interner),
+                    constructorArgs: []
                 ))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 

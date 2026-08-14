@@ -202,7 +202,7 @@ extension CallLowerer {
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface
+              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .enumClass
         else {
             return nil
         }
@@ -244,6 +244,24 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+        }
+
+        if ownerInfo.kind == .enumClass,
+           let propertyInfo = sema.symbols.symbol(propertySymbol),
+           propertyInfo.kind == .property || propertyInfo.kind == .field
+        {
+            let propertyName = propertyInfo.name
+            let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: helperName,
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
         }
 
         guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
