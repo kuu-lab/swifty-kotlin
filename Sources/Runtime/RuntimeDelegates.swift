@@ -95,11 +95,8 @@ public func kk_callable_ref_parameters(_ tagged: Int) -> Int {
 @_cdecl("__kk_kproperty_stub_create")
 public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> Int {
     let stub = RuntimeKPropertyStub(name: nameStr, returnType: returnTypeStr)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(stub).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
 }
 
 // (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 / STDLIB-REFLECT-062 (KProperty 完全メタデータ実装)
@@ -120,11 +117,8 @@ public func kk_kproperty_stub_create_full(
         isLateinit: isLateinit != 0,
         isConst: isConst != 0
     )
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(stub).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
 }
 
 @_cdecl("__kk_kproperty_stub_name")
