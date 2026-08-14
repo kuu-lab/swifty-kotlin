@@ -3879,6 +3879,130 @@ extension CallTypeChecker {
             )
         } ?? false
         if isFlowReceiver,
+           hasBundledFlowDeclaration,
+           let bundledFlowType = tryBuiltinFlowMemberCall(
+               id,
+               calleeName: calleeName,
+               receiverElementType: flowElementType,
+               args: args,
+               safeCall: safeCall,
+               ast: ast,
+               sema: sema,
+               ctx: ctx,
+               locals: &locals
+           )
+        {
+            // The builtin path above supplies the contextual lambda types and
+            // Flow element-type tracking. Once a Flow operator has a bundled
+            // Kotlin declaration, retain that source-backed symbol as the
+            // call target so lowering cannot fall back to a name-only bridge.
+            let flowPackageFQName = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("flow"),
+                calleeName,
+            ]
+            if let bundledCallee = sema.symbols.lookupAll(fqName: flowPackageFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate)
+                else {
+                    return false
+                }
+                return signature.parameterTypes.count == args.count && signature.receiverType != nil
+            }),
+               let signature = sema.symbols.functionSignature(for: bundledCallee)
+            {
+                func typeID(from argument: TypeArg) -> TypeID {
+                    switch argument {
+                    case let .invariant(type), let .out(type), let .in(type):
+                        type
+                    case .star:
+                        sema.types.anyType
+                    }
+                }
+
+                func inferTypeParameters(
+                    declared: TypeID,
+                    actual: TypeID,
+                    substitutions: inout [SymbolID: TypeID]
+                ) {
+                    switch sema.types.kind(of: declared) {
+                    case let .typeParam(typeParameter):
+                        substitutions[typeParameter.symbol] = actual
+                    case let .classType(declaredClass):
+                        guard case let .classType(actualClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)),
+                              declaredClass.classSymbol == actualClass.classSymbol
+                        else {
+                            return
+                        }
+                        for (declaredArgument, actualArgument) in zip(declaredClass.args, actualClass.args) {
+                            inferTypeParameters(
+                                declared: typeID(from: declaredArgument),
+                                actual: typeID(from: actualArgument),
+                                substitutions: &substitutions
+                            )
+                        }
+                    case let .functionType(declaredFunction):
+                        guard case let .functionType(actualFunction) = sema.types.kind(of: actual) else {
+                            return
+                        }
+                        if let declaredReceiver = declaredFunction.receiver,
+                           let actualReceiver = actualFunction.receiver
+                        {
+                            inferTypeParameters(
+                                declared: declaredReceiver,
+                                actual: actualReceiver,
+                                substitutions: &substitutions
+                            )
+                        }
+                        for (declaredParameter, actualParameter) in zip(declaredFunction.params, actualFunction.params) {
+                            inferTypeParameters(
+                                declared: declaredParameter,
+                                actual: actualParameter,
+                                substitutions: &substitutions
+                            )
+                        }
+                        inferTypeParameters(
+                            declared: declaredFunction.returnType,
+                            actual: actualFunction.returnType,
+                            substitutions: &substitutions
+                        )
+                    default:
+                        return
+                    }
+                }
+
+                var substitutions: [SymbolID: TypeID] = [:]
+                if let declaredReceiver = signature.receiverType {
+                    inferTypeParameters(
+                        declared: declaredReceiver,
+                        actual: receiverType,
+                        substitutions: &substitutions
+                    )
+                }
+                for (index, parameterType) in signature.parameterTypes.enumerated()
+                where index < args.count {
+                    let actualType = sema.bindings.exprType(for: args[index].expr)
+                        ?? driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals)
+                    inferTypeParameters(
+                        declared: parameterType,
+                        actual: actualType,
+                        substitutions: &substitutions
+                    )
+                }
+                let typeArguments = signature.typeParameterSymbols.map { substitutions[$0] ?? sema.types.anyType }
+                sema.bindings.bindCall(id, binding: CallBinding(
+                    chosenCallee: bundledCallee,
+                    substitutedTypeArguments: typeArguments,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                ))
+                sema.bindings.bindCallableTarget(id, target: .symbol(bundledCallee))
+            }
+            return bundledFlowType
+        }
+        if isFlowReceiver,
            !hasBundledFlowDeclaration,
            let builtinFlowType = tryBuiltinFlowMemberCall(
                id,

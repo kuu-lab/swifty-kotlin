@@ -312,7 +312,7 @@ public extension RuntimeABISpec {
             p("handlerFnPtr", .intptr),
             p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_flow_emit_with_timestamp", parameters: [
+        abiParitySpec("__kk_flow_emit_with_timestamp", parameters: [
             p("flowHandle", .intptr),
             p("value", .intptr),
             p("tag", .intptr),
