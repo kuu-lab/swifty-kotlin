@@ -621,6 +621,58 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
     }
 
     @Test
+    func testCodegenMutableMapCastsToMap() throws {
+        let source = """
+        fun main() {
+            val m = mutableMapOf<Int, String>()
+            m[1] = "one"
+            val n: Map<Int, String> = m as Map<Int, String>
+            println(n[1])
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "MutableMapCastToMapRuntime", expected: "one\n")
+    }
+
+    @Test
+    func testCodegenListGroupByUsesRuntimeMapBuilder() throws {
+        let source = """
+        fun main() {
+            val values = listOf("a", "bb", "cc", "ddd")
+            println(values.groupBy { it.length })
+            println(values.groupBy({ it.length }, { it.uppercase() }))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListGroupByRuntime",
+            expected: "{1=[a], 2=[bb, cc], 3=[ddd]}\n{1=[A], 2=[BB, CC], 3=[DDD]}\n"
+        )
+    }
+
+    @Test
+    func testCodegenListPartitionOnEachAndWithIndex() throws {
+        let source = """
+        fun main() {
+            val values = listOf(1, 2, 3, 4)
+            println(values.partition { it % 2 == 0 })
+            val indexed = values.withIndex()
+            for (iv in indexed) {
+                println(iv.index)
+                println(iv.value)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListPartitionOnEachWithIndexRuntime",
+            expected: "([2, 4], [1, 3])\n0\n1\n1\n2\n2\n3\n3\n4\n"
+        )
+    }
+
+    @Test
     func testCodegenListIndexedHelpersUseRuntimeHOFs() throws {
         let source = """
         fun main() {

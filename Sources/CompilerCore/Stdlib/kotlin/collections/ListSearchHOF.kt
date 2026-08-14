@@ -265,17 +265,16 @@ public fun <T> List<T>.binarySearch(element: T, fromIndex: Int = 0, toIndex: Int
 }
 
 public fun <T> List<T>.binarySearch(
-    element: T,
-    comparator: Comparator<in T>,
     fromIndex: Int = 0,
-    toIndex: Int = this.size
+    toIndex: Int = this.size,
+    comparison: (T) -> Int
 ): Int {
     checkListBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
     var high = toIndex - 1
     while (low <= high) {
         val mid = (low + high) ushr 1
-        val cmp = comparator.compare(this[mid], element)
+        val cmp = comparison(this[mid])
         if (cmp < 0) {
             low = mid + 1
         } else if (cmp > 0) {
@@ -288,16 +287,17 @@ public fun <T> List<T>.binarySearch(
 }
 
 public fun <T> List<T>.binarySearch(
+    element: T,
+    comparator: Comparator<in T>,
     fromIndex: Int = 0,
-    toIndex: Int = this.size,
-    comparison: (T) -> Int
+    toIndex: Int = this.size
 ): Int {
     checkListBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
     var high = toIndex - 1
     while (low <= high) {
         val mid = (low + high) ushr 1
-        val cmp = comparison(this[mid])
+        val cmp = comparator.compare(this[mid], element)
         if (cmp < 0) {
             low = mid + 1
         } else if (cmp > 0) {

@@ -246,12 +246,12 @@ struct StringSyntheticMemberLinkTests {
             // Originally testChunkedSequenceStubsHaveCorrectExternalLinks
                     let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
                     #expect(
-                        links.contains("kk_string_chunked_sequence_transform"),
-                        "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
+                        links.isEmpty,
+                        "CharSequence.chunkedSequence(size, transform) should be bundled Kotlin source"
                     )
                     #expect(
-                        links.contains("kk_string_chunked_sequence"),
-                        "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
+                        links.isEmpty,
+                        "CharSequence.chunkedSequence should be bundled Kotlin source"
                     )
         }
 
@@ -392,16 +392,11 @@ struct StringSyntheticMemberLinkTests {
         }
 
         do {
-            // Originally testStringCollectionAndSequenceResultStubsUseFlatExternalLinks
+                    // Originally testStringCollectionAndSequenceResultStubsUseFlatExternalLinks
                     let expected: [(member: String, parameterCount: Int, link: String)] = [
                         ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
                         ("toCollection", 1, "kk_string_toCollection_flat"),
                         ("asIterable", 0, "kk_string_asIterable_flat"),
-                        ("chunked", 1, "kk_string_chunked_flat"),
-                        ("windowed", 1, "kk_string_windowed_default"),
-                        ("windowed", 2, "kk_string_windowed"),
-                        ("windowed", 3, "kk_string_windowed_partial"),
-                        ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
                         ("asSequence", 0, "kk_string_asSequence_flat"),
                         ("withIndex", 0, "kk_string_withIndex_flat"),
                     ]
@@ -525,12 +520,12 @@ struct StringSyntheticMemberLinkTests {
             // Originally testChunkedSequenceStubHasCorrectExternalLink
                     let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
                     #expect(
-                        links.contains("kk_string_chunked_sequence"),
-                        "CharSequence.chunkedSequence should link to kk_string_chunked_sequence, got \(links.sorted())"
+                        links.isEmpty,
+                        "CharSequence.chunkedSequence should be bundled Kotlin source, got \(links.sorted())"
                     )
                     #expect(
-                        links.contains("kk_string_chunked_sequence_transform"),
-                        "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
+                        links.isEmpty,
+                        "CharSequence.chunkedSequence(size, transform) should be bundled Kotlin source"
                     )
         }
 
@@ -538,12 +533,12 @@ struct StringSyntheticMemberLinkTests {
             // Originally testWindowedSequenceStubHasCorrectExternalLink
                     let windowedLinks = externalLinks(for: "windowedSequence", sema: sema, interner: interner)
                     #expect(
-                        windowedLinks.contains("kk_string_windowedSequence_partial"),
-                        "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial, got \(windowedLinks.sorted())"
+                        windowedLinks.isEmpty,
+                        "CharSequence.windowedSequence should be bundled Kotlin source, got \(windowedLinks.sorted())"
                     )
                     #expect(
-                        windowedLinks.contains("kk_string_windowedSequence_transform"),
-                        "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform"
+                        windowedLinks.isEmpty,
+                        "CharSequence.windowedSequence transform should be bundled Kotlin source"
                     )
         }
 
@@ -1802,8 +1797,8 @@ struct StringSyntheticMemberLinkTests {
                         "Expected call binding for chunkedSequence"
                     )
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_chunked_sequence",
-                        "Expected chunkedSequence to resolve to kk_string_chunked_sequence"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected chunkedSequence to resolve to bundled Kotlin source"
                     )
                 }
 
@@ -1826,8 +1821,8 @@ struct StringSyntheticMemberLinkTests {
                         "Expected call binding for chunkedSequence"
                     )
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_chunked_sequence_transform",
-                        "Expected chunkedSequence transform to resolve to kk_string_chunked_sequence_transform"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected chunkedSequence transform to resolve to bundled Kotlin source"
                     )
                 }
 
@@ -1850,8 +1845,8 @@ struct StringSyntheticMemberLinkTests {
                         "Expected call binding for windowedSequence"
                     )
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_windowedSequence_partial",
-                        "Expected windowedSequence to resolve to kk_string_windowedSequence_partial"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected windowedSequence to resolve to bundled Kotlin source"
                     )
                 }
 
@@ -1874,8 +1869,8 @@ struct StringSyntheticMemberLinkTests {
                         "Expected call binding for windowedSequence"
                     )
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_windowedSequence_transform",
-                        "Expected windowedSequence transform to resolve to kk_string_windowedSequence_transform"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected windowedSequence transform to resolve to bundled Kotlin source"
                     )
                 }
 
@@ -2063,7 +2058,7 @@ struct StringSyntheticMemberLinkTests {
                 }
 
                 #expect(
-                    externalLinks == ["kk_string_zipWithNext_flat", "kk_string_zipWithNextTransform_flat"]
+                    externalLinks.isEmpty
                 )
 
             }
@@ -2121,7 +2116,7 @@ struct StringSyntheticMemberLinkTests {
                 }
 
                 #expect(
-                    externalLinks == ["kk_string_zip_flat", "kk_string_zipTransform_flat"]
+                    externalLinks.isEmpty
                 )
 
             }

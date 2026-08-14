@@ -366,6 +366,34 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + producerArgs + jobArgs
         }
+        let isComparatorBinarySearch: Bool = {
+            guard loweredCallee == interner.intern("binarySearch"),
+                  let chosenCallee,
+                  let signature = sema.symbols.functionSignature(for: chosenCallee)
+            else {
+                return false
+            }
+            return signature.parameterTypes.contains { parameterType in
+                guard let (_, symbol) = resolveClassTypeSymbol(parameterType, sema: sema)
+                else {
+                    return false
+                }
+                return interner.resolve(symbol.name) == "Comparator"
+            }
+        }()
+        if isComparatorBinarySearch {
+            materializeBinarySearchDefaultArguments(
+                normalized.defaultMask,
+                receiverExpr: receiver.expr,
+                loweredReceiverID: receiver.loweredID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArguments,
+                sourceArgLabels: sourceArgLabels
+            )
+        }
         if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
            finalArguments.count >= 3
         {
@@ -446,23 +474,6 @@ extension CallLowerer {
                 finalArguments.insert(exprID, at: lambdaArgIndex + offset)
             }
         }
-        if (loweredCallee == interner.intern("kk_string_zipTransform")
-            || loweredCallee == interner.intern("kk_string_zipTransform_flat")),
-           finalArguments.count == 3
-        {
-            // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
-            // (parameterMapping only covers 2 original args; the extra closureBox at index 2 is not mapped).
-            // Re-split finalArguments[2] (the already-extracted fnPtr) to restore (fnPtr, closureRaw).
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[2] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
         if loweredCallee == interner.intern("kk_list_zip_transform"),
            finalArguments.count == 3
         {
@@ -474,20 +485,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments[2] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
-        if (loweredCallee == interner.intern("kk_string_zipWithNextTransform")
-            || loweredCallee == interner.intern("kk_string_zipWithNextTransform_flat")),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[1] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
@@ -937,10 +934,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_zipTransform"),
-            interner.intern("kk_string_zipWithNextTransform"),
-            interner.intern("kk_string_chunked_sequence_transform"),
-            interner.intern("kk_string_windowedSequence_transform"),
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
