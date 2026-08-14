@@ -445,6 +445,10 @@ final class LambdaLowerer {
         // the declared isSuspend always matches what the body actually needs.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
             || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+        let hasNonLocalReturn = lambdaBody.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        }
 
         let lambdaDecl = arena.appendDecl(
             .function(
@@ -456,7 +460,7 @@ final class LambdaLowerer {
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
                     isInline: false,
-                    isInlineOnly: allowsNonLocalReturn
+                    isInlineOnly: hasNonLocalReturn
                 )
             )
         )
@@ -1570,6 +1574,10 @@ final class LambdaLowerer {
         // does, so trust the lowered body over a non-suspend contextual type.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
             || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+        let hasNonLocalReturn = lambdaBody.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        }
 
         // Create optimized function declaration
         let lambdaDecl = arena.appendDecl(
@@ -1582,7 +1590,7 @@ final class LambdaLowerer {
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
                     isInline: true, // Mark as inline for better optimization
-                    isInlineOnly: allowsNonLocalReturn
+                    isInlineOnly: hasNonLocalReturn
                 )
             )
         )

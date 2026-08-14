@@ -59,6 +59,13 @@ extension LoweringPassRegressionTests {
         #expect(lambdasWithNonLocalReturn.count == 1)
         #expect(lambdasWithNonLocalReturn.first?.isInlineOnly == true,
                 "A lambda carrying nonLocalReturn must never be emitted standalone")
+        #expect(lambdaFunctions.filter { function in
+            !function.body.contains { instruction in
+                if case .nonLocalReturn = instruction { return true }
+                return false
+            }
+        }.allSatisfy { !$0.isInlineOnly },
+        "A lambda that only has a normal or labeled return must remain emittable")
         #expect(lambdasWithNonLocalReturn.first?.body.contains { instruction in
             if case .returnValue = instruction { return true }
             return false
