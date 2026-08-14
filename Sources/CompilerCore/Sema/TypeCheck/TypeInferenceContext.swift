@@ -44,6 +44,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// When true, the current scope is a `flow { ... }` builder lambda body.
     /// Used to resolve unqualified `emit(...)` fallback.
     var isFlowBuilderLambdaScope: Bool = false
+    /// When true, the current scope is a coroutine builder lambda body.
+    /// The lambda keeps the existing no-receiver ABI, but unqualified
+    /// `CoroutineScope` extension calls still resolve against the ambient scope.
+    var isCoroutineBuilderLambdaScope: Bool = false
     /// When true, assigning to an immutable member property is treated as
     /// initialization rather than reassignment. Used for `init {}` and
     /// constructor bodies.

@@ -880,6 +880,13 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_coroutine_current_scope",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_is_cancelled",
             parameters: [
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),

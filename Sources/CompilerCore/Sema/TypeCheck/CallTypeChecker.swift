@@ -2062,10 +2062,17 @@ final class CallTypeChecker {
         }
 
         var expectedTypeOverrides: [Int: TypeID] = [:]
+        var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType
         {
             expectedTypeOverrides[launcherIndex] = coroutineLauncherExpectedLambdaType
+            var builderContext = ctx
+            builderContext.isCoroutineBuilderLambdaScope = true
+            if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
+                builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
+            }
+            lambdaContextOverrides[launcherIndex] = builderContext
         }
         if let withContextExpectedLambdaType, args.count > 1 {
             expectedTypeOverrides[1] = withContextExpectedLambdaType
@@ -2075,6 +2082,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
+            lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
         )
@@ -2556,6 +2564,14 @@ final class CallTypeChecker {
             {
                 adjustedReturnType = expectedType
             }
+            if let implicitReceiverType = ctx.implicitReceiverType {
+                markCoroutineScopeImplicitReceiverCallIfNeeded(
+                    id,
+                    chosenCallee: chosen,
+                    receiverType: implicitReceiverType,
+                    ctx: ctx
+                )
+            }
             applyContractEffects(
                 chosen: chosen,
                 args: args,
@@ -2821,6 +2837,12 @@ final class CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    markCoroutineScopeImplicitReceiverCallIfNeeded(
+                        id,
+                        chosenCallee: chosen,
+                        receiverType: receiverType,
+                        ctx: ctx
+                    )
                     sema.bindings.bindExprType(id, type: resultType)
                     return resultType
                 } else if memberCandidates.count == 1,

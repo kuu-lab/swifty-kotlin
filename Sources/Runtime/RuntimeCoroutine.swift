@@ -277,6 +277,9 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// CORO-003: The coroutine scope is carried in the continuation context instead
     /// of Thread Local Storage, so it survives suspend/resume across threads.
     var scope: RuntimeCoroutineScope?
+    /// Flow collect context carried with the continuation so a flow emitter can
+    /// continue delivering values after a suspend/resume on another thread.
+    var flowCollectContext: RuntimeFlowCollectContext?
     /// Stores a thrown exception pointer when the coroutine body throws.
     /// Zero means no exception was thrown.  Set by runSuspendEntryLoopWithContinuation
     /// and consumed by kk_kxmini_launch_with_exception_handler to reliably
@@ -2295,8 +2298,17 @@ public func kk_kxmini_run_blocking_with_cont(
     // re-parent a supervisor scope's children to the root job and break failure
     // isolation. A genuine top-level `runBlocking` has no ambient scope,
     // so this is a no-op there.
-    if let contState = runtimeContinuationState(from: continuation), contState.scope == nil {
+    let contState = runtimeContinuationState(from: continuation)
+    if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
+    }
+    if let contState {
+        // A non-capturing flow emitter enters through the direct C callback and
+        // creates this continuation before the nested suspend loop installs its
+        // task-local state. Preserve the collector context from the flow stack
+        // as a fallback so delayed emissions remain attached to the same collect.
+        contState.flowCollectContext = RuntimeContinuationState.current?.flowCollectContext
+            ?? runtimeFlowCurrentCollectContext()
     }
     // Forward `outThrown` so an exception thrown by the blocking body reaches the
     // caller. Callers (e.g. the `runBlocking`/suspend-value thunks) branch on this
@@ -2849,7 +2861,11 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
 @_cdecl("kk_coroutine_scope_is_active")
 public func kk_coroutine_scope_is_active(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
-        return 0
+        // Builder lambdas use a no-receiver ABI. Older lowering can still name
+        // the CoroutineScope property bridge for a bare `isActive` read, but
+        // provides no scope handle; in that shape the Kotlin meaning is the
+        // currently running job's active state.
+        return kk_coroutine_current_is_active()
     }
     return scope.isCancelled ? 0 : 1
 }
@@ -3339,10 +3355,40 @@ public func kk_job_is_active(_ jobHandle: Int) -> Int {
 /// not-yet-cancelled default.
 @_cdecl("kk_coroutine_current_is_active")
 public func kk_coroutine_current_is_active() -> Int {
-    guard let job = RuntimeJobHandle.current else {
+    // Prefer the job attached to the active continuation. The separate
+    // task-local job map can still contain the parent runBlocking job while a
+    // launcher thunk is entering its child continuation.
+    guard let job = RuntimeContinuationState.current?.jobHandle ?? RuntimeJobHandle.current else {
         return 1
     }
     return job.isActiveSnapshot() ? 1 : 0
+}
+
+/// Returns the raw handle for the CoroutineScope carried by the current
+/// continuation. Coroutine builder lambdas keep a no-receiver ABI, so the
+/// lowering of an implicit CoroutineScope extension call obtains its receiver
+/// through this bridge instead.
+@_cdecl("kk_coroutine_current_scope")
+public func kk_coroutine_current_scope() -> Int {
+    if let state = RuntimeContinuationState.current {
+        if let scope = state.scope ?? RuntimeCoroutineScope.current {
+            state.scope = scope
+            return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
+        }
+
+        // A top-level runBlocking body has a continuation but no inherited scope.
+        // Materialize its CoroutineScope lazily when a builder lambda needs the
+        // implicit receiver, then attach it to the continuation for suspensions
+        // and child launchers that follow.
+        let scope = RuntimeCoroutineScope()
+        state.scope = scope
+        RuntimeCoroutineScope.current = scope
+        return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
+    }
+    guard let scope = RuntimeCoroutineScope.current else {
+        return 0
+    }
+    return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
 }
 
 /// Returns 1 if the job has completed (either normally or by cancellation).

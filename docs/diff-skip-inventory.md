@@ -34,7 +34,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 18 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）を含む、現行18件 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
-| DEBT-DIFF-003 | 2 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・`coroutine_exception_handling.kt`・`coroutine_scope_lifecycle.kt`・structured concurrency / Deferred / Supervisor 3 件・`coroutine_mutex_semaphore.kt`・`coroutine_edge_cases.kt` は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_exception_handling.kt`, `coroutine_scope_lifecycle.kt`, `coroutine_supervisor_job.kt`, `coroutine_structured_concurrency.kt`, `coroutine_deferred.kt`, `coroutine_mutex_semaphore.kt`, `coroutine_edge_cases.kt`）。残り `coroutine_channels_advanced.kt` / `coroutine_flow_backpressure.kt` は独立した設計変更（`CoroutineScope` 暗黙レシーバ、Flow emitter thread-crossing context）が必要 |
+| DEBT-DIFF-003 | 0 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・`coroutine_exception_handling.kt`・`coroutine_scope_lifecycle.kt`・structured concurrency / Deferred / Supervisor 3 件・`coroutine_mutex_semaphore.kt`・`coroutine_edge_cases.kt`・`coroutine_channels_advanced.kt`・`coroutine_flow_backpressure.kt` は解除済み。2026-08-14 に現行 master で4ケースと最小回帰ケースを個別再実行し、全て PASS を確認 |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
@@ -103,13 +103,13 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | cancellation（解除済み） | ~~`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`~~ | `currentCoroutineContext()`/`ensureActive()`/`NonCancellable`/`CoroutineContext.isActive` を追加し、`withTimeoutOrNull` の null 判定バグ（`runtimeNullSentinelInt` ではなく生の `0` を返していた）と `coroutineScope`/`supervisorScope` の直接 throw 握りつぶしバグ（`outThrown` を forward していなかった）、および `job.join()`/`Job.await()` が返却後にハンドルを解放し join 後の `isCancelled` 参照が use-after-free になっていたバグを修正して通常 diff へ復帰 |
 | CoroutineScope lifecycle（解除済み） | ~~`coroutine_scope_lifecycle.kt`~~ | 2026-07-29 に再判定して通常 diff で PASS を確認（`--no-parallel` で2回再検証済み）。以前ここに記載していた2件のブロッカー（`private val scope = CoroutineScope(...)` 型注釈なしプロパティの `typeCheckClassLikeMembers` パス順序バグ、非ctor引数プロパティ初期化子の instance storage 書き込み漏れ = PR #4691 相当）はいずれも再現しなくなっていた |
 | structured concurrency / Deferred / Supervisor（解除済み） | ~~`coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt`~~ | Job hierarchy / async-await / supervisor semantics。詳細は下記「structured concurrency / Deferred / Supervisor 詳細」節を参照 |
-|| Channel / produce / Flow backpressure | `coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt` | `DEBT-CORO-002` の producer / channel runtime と Flow lowering |
+|| Channel / produce / Flow backpressure（解除済み） | ~~`coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt`~~ | `CoroutineScope` 暗黙 receiver のSema/KIR解決、produce launcher ABI、Flow emitter continuation context を修正 |
 || sync primitives（解除済み） | ~~`coroutine_mutex_semaphore.kt`~~ | `withLock`/`withPermit` の `action` を suspend 化し `lock`/`acquire` を suspend 関数として登録。並列実行時の `String` 戻り値の erased-generic boxing/unboxing クラッシュは、`kk_lambda_*` / `kk_closure_invoke_*` thunk を `kk_function_invoke_*` 経由の raw ポインタ ABI 対象として扱うことで解消。2026-08-13 に `--force-run-skipped` / 通常 diff 共に PASS 確認。 |
 
 `coroutine_base_edge_cases.kt`（direct suspend call のデッドロック、try/catch 内 suspend call の例外もみ消し）と
 `coroutine_context_switching.kt`（`withContext` の期待型ハンドリング）は 2026-07-09 に skip 解除済み。
 
-残る未解除は `coroutine_channels_advanced.kt` / `coroutine_flow_backpressure.kt` の 2 件。root cause は下記の通り。
+2026-08-14 時点で、この DEBT-DIFF-003 に残る未解除ケースはない。今回の修正内容と個別検証は下記の通り。
 
 ### `coroutine_edge_cases.kt` 個別メモ（2026-08-13 解除済み）
 
@@ -121,6 +121,8 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 - `yield()` を `CoroutineLoweringPass+StateMachine.swift` の suspend call として扱い、`kk_coroutine_yield(continuation)` を呼び出す。`RuntimeCoroutine.swift` の `kk_coroutine_yield` を、短い delay 後に `state.resume(with: 0)` する実際のサスペンションポイントに変更。
 
 検証: `--force-run-skipped` および通常の `diff_kotlinc.sh` で `PASS`。`CoroutineStart.LAZY` と `yield()` の順序が JVM 参照と一致。
+
+2026-08-14 追記: 現行 master で `launch { isActive }` が `false` になる差分を最小ケース `coroutine_is_active.kt` で再現した。bare synthetic property の identifier lowering が global load に流れていたため、runtime bridge を先に生成するよう修正し、`active: true` の一致を確認した。`coroutine_edge_cases.kt` の共有 `MutableList` は GCD 上のデータ競合を避けるため `Mutex` と `join()` で保護した。
 
 ### `coroutine_mutex_semaphore.kt` 個別メモ（2026-08-13 解除済み）
 
@@ -134,23 +136,21 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 `produce { }` ブロック内の暗黙レシーバ呼び出し（`send(x)` など）が `lowerCallExpr`（暗黙レシーバ経路）を通り、`lowerMemberCallExpr`（明示レシーバ経路）が付与する continuation プレースホルダー引数を受け取れず、`kk_channel_send` に渡る実引数が1個不足して SIGSEGV していた。`CallLowerer.swift` の `lowerCallExpr` 末尾に、`kk_channel_send` / `kk_channel_receive` / `kk_mutex_lock` / `kk_semaphore_acquire` 向けの continuation 0 補完を追加して解決（SKIP-DIFF 解除済み、通常 diff で PASS）。
 
-### 未解除: `coroutine_channels_advanced.kt`
+### 解除済み: `coroutine_channels_advanced.kt`
 
-2026-08-13 の再検証でも `produce(1, 5)` 呼び出しで `KSWIFTK-SEMA-0002: No viable overload found for call` が再現。root cause は下記の通り。
+2026-08-14 に現行 master で個別再実行し、reference と candidate の出力一致を確認した。
 
-`fun CoroutineScope.produce(from: Int, to: Int): ReceiveChannel<Int>` のような、ユーザー定義の `CoroutineScope` 拡張関数が `runBlocking { }` 直下で暗黙レシーバとして解決できない。`runBlocking` / `launch` / `async` / `coroutineScope` 等のビルダーラムダは現状 `CoroutineScope` を暗黙レシーバ型として保持しないため、拡張関数は明示レシーバでの呼び出しでしか解決しない。
+- `CoroutineScope` を builder lambda の Sema 上の implicit receiver として扱い、`produce(1, 5)` のユーザー定義拡張関数を解決できるようにした。
+- builder lambda の no-receiver ABI を維持したまま、implicit receiver の coroutine scope bridge を lowering し、produce launcher の receiver-first ABI と scope capture を整合させた。
+- 最小回帰 `coroutine_implicit_scope_extension.kt` も PASS。
 
-`CoroutineScope` を builder ラムダの `receiver:` として追加する対応を試みたが、クロージャ変換パスの `suspendFunctionArityBySymbol` がレシーバの有無を考慮しておらず、`runBlocking { println("hi") }` のような最も基本的なパターンまで `passed 0 argument(s) but referenced suspend function expects 1` で壊れる重大な回帰を引き起こした。`LambdaLowerer` / `LambdaClosureConversionPass` まで踏み込む必要があり、リスクが高いため撤回済み。`CoroutineScope` インターフェースの型登録と `ReceiveChannel<T>` の `Channel<T>` type alias 登録のみ残している。
+### 解除済み: `coroutine_flow_backpressure.kt`
 
-### 未解除: `coroutine_flow_backpressure.kt`
+2026-08-14 に現行 master で個別再実行し、`collected: 5` / `buffered: 5` / `latestSeen: 5` を含む reference と candidate の出力一致を確認した。
 
-2026-08-13 の再検証でも `collected: 1` / `buffered: 1` / `latestSeen: 1`（JVM 参照は `5` / `5` / `5`）の stdout 差分が再現。現状は下記の通り。
-
-4シナリオ全てで `collect { capturedList.add(it) }` / `collectLatest { value -> capturedVar = value }` のように、collector ラムダが外部変数をキャプチャする。調査の過程で以下2件を発見・修正したが、根本原因は残っている。
-
-- **解決済み**: `kk_flow_collect` / `kk_flow_collectLatest` の Runtime ABI が collector の「クロージャ環境ポインタ (closureRaw)」を渡すスロットを持たず、常に `0` (null 環境) で呼び出していたため、collector が外部変数をキャプチャすると値が配信されなかった。`kk_list_map` 等の通常コレクション HOF は `(fnPtr, closureRaw)` のペアを渡す設計なのに対し Flow 側だけこの規約から外れていた。`kk_flow_collect` / `kk_flow_collectLatest` のシグネチャに `collectorEnvPtr` を追加し、`CoroutineLoweringPass+CallRewriting.swift` の `rewriteFlowCollectCall` で `KIRArena.callableValueInfo` から capture 情報を復元して解決。
-- **解決済み**: `rewriteFlowCollectCall` の callee ガードが `kk_flow_collect` のみで `kk_flow_collectLatest` を含んでいなかったため、`collectLatest` は書き換えを経由せず、CPS 変換前のラムダシンボル参照がそのまま関数ポインタとして `unsafeBitCast` され SIGSEGV していた。ガードに `kk_flow_collectLatest` を追加して解決。
-- **未解決（根本原因）**: `fastProducer()` の `flow { for (i in 1..5) { emit(i); delay(1) } }` のように emitter ブロック内で `delay` を挟むと、`delay` のサスペンド/レジュームが常に `DispatchQueue.global()`（GCD グローバルキュー）上の別スレッドで実行される（`scheduleDelay` / `signalResume` の実装）。一方 `RuntimeFlowCollectContext` は `pthread` のスレッドローカルストレージ（`runtimeFlowCollectStackBox`）で管理されているため、再開後のスレッドではこのスタックが空になり、`kk_flow_emit` が `context == nil` と判定して値を破棄する。結果として、`delay` 前の1回目の emit だけが collector に届く。修正には `RuntimeFlowCollectContext` を `RuntimeContinuationState` のようなスレッドをまたいで伝播する構造に紐付け直す設計変更が必要で、コルーチン全体のスレッドスケジューリングに関わるため対応を見送った。
+- Flow emitter の collect context を thread-local だけに依存させず、continuation state に保持して suspend/resume をまたいで伝播するようにした。
+- `kk_kxmini_run_blocking_with_cont` と Flow invocation path で context を引き継ぎ、delay 後の emit が同じ collector に届くようにした。
+- 最小回帰 `coroutine_flow_resume_context.kt` も PASS。
 
 ### structured concurrency / Deferred / Supervisor 詳細（解消済み、2026-07-30）
 

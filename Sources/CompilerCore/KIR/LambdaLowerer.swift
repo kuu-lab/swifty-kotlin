@@ -153,7 +153,19 @@ final class LambdaLowerer {
         // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
         let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
-        let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
+        let activeReceiverSatisfiesExpectedType: Bool = {
+            guard let expectedReceiverType = functionType?.receiver,
+                  let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                  let activeReceiverType = arena.exprType(activeReceiverExprID)
+            else {
+                return false
+            }
+            return sema.types.isSubtype(
+                sema.types.makeNonNullable(activeReceiverType),
+                sema.types.makeNonNullable(expectedReceiverType)
+            )
+        }()
+        let needsExplicitReceiver = hasReceiverParam && !activeReceiverSatisfiesExpectedType
         let effectiveParamCount: Int = {
             let baseCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
                 functionType.params.count
@@ -202,7 +214,8 @@ final class LambdaLowerer {
             lambdaParamCount: effectiveParamCount,
             lambdaBodyExprID: bodyExpr,
             ast: ast,
-            sema: sema
+            sema: sema,
+            hasExplicitReceiver: needsExplicitReceiver
         )
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
@@ -428,6 +441,16 @@ final class LambdaLowerer {
         lambdaBody.append(.returnValue(returnedBody))
         lambdaBody.append(.endBlock)
 
+        // Coroutine launcher lambdas with an explicit receiver use launcher slot 0
+        // for that receiver (for example, the Channel receiver of `produce {}`).
+        // Keep that receiver first in the lowered function ABI; ordinary captured
+        // lambdas retain the historical capture-first layout.
+        let receiverFirstLauncherABI = sema.bindings.isCoroutineLauncherLambdaExpr(exprID)
+            && needsExplicitReceiver
+        let functionParameters = receiverFirstLauncherABI
+            ? lambdaParameters + functionCaptureBindings.map(\.param)
+            : functionCaptureBindings.map(\.param) + lambdaParameters
+
         // The expected/contextual function type (e.g. a plain `(T) -> R)` HOF
         // parameter like `List.map`'s `transform`) doesn't always match what the
         // lambda body actually does: Kotlin only requires the *parameter* to be
@@ -448,7 +471,7 @@ final class LambdaLowerer {
                 KIRFunction(
                     symbol: lambdaSymbol,
                     name: lambdaName,
-                    params: functionCaptureBindings.map(\.param) + lambdaParameters,
+                    params: functionParameters,
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
