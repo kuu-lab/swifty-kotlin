@@ -179,10 +179,12 @@
 
 #### kotlin.text.Regex [M 番号なし・新設]（棚卸し 2026-07-01: 39 @_cdecl。正規表現エンジン = NSRegularExpression はブリッジ残留）
 
-- [ ] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する
+- [x] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する（PR #5669 / merge commit `3765b961b`）
   - Kotlin 化: `String.toRegex`×3 / `matches` / `contains` / `replace(First)` / `split` のオーバーロード分岐・入力検証（下敷き: 死蔵 `Stdlib/kotlin/text/Regex.kt` はコメントアウト状態 — 実質新規実装）
   - `__kk_` 降格: `kk_regex_create(_with_option/_with_options)`, `kk_regex_from_literal`, `kk_regex_find(All)`, `kk_regex_matchEntire`, `kk_regex_matches`, `kk_regex_containsMatchIn`, `kk_regex_replace_lambda`, `kk_string_*_regex` 系エンジン呼び出し
   - 削除: `HeaderHelpers+SyntheticRegexStubs.swift` の該当登録 / 手順: T
+  - 現行コード（master `0a9c0c248`）: `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt` / `StringSearchReplace.kt` が公開APIを定義し、`Sources/Runtime/RuntimeRegex.swift` / `Sources/RuntimeABI/RuntimeABISpec+Regex.swift` が `__kk_*` エンジン境界を提供。Sema/CodegenのRegex関連テストも現行masterに保持。
+  - 再監査（2026-08-14）: `swift build`、Regex関連7 suites 82 tests（Sema/API/Codegen/ABI）が全pass、`bash Scripts/validate_runtime_abi_links.sh`（4 tests）がpass。後続PR #5111 の棚卸し再導入で未チェック化していたTODOのみを同期。
 
 #### kotlin.properties [M 番号なし・新設]（棚卸し 2026-07-01: `RuntimeDelegates.swift`。`by` 式は `StdlibDelegateLoweringPass` が call site を直接書き換える構造）
 
