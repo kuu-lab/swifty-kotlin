@@ -354,12 +354,13 @@
   - 呼び出し元: `HeaderHelpers.swift:1247`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:219`（`name: "Path"`）を削除
   - 連動整理: 3つの split ファイル（CLEANUP-STUB-116〜118）も併せて削除；Runtime `Sources/Runtime/RuntimePath.swift`（`kk_path_*` 273件、`kk_uri_*`/`kk_url_*` も含む）、`Sources/RuntimeABI/RuntimeABISpec+Path.swift`（114件）
   - テスト影響: `Tests/CompilerCoreTests/Sema/Path*FunctionTests.swift`（5ファイル）、`PathWalkOptionEnumTests.swift`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+PathCreateSymbolicLink.swift`、`Scripts/diff_cases/path_basic.kt`、Golden 該当ケースの整理
-- [ ] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
+- [x] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticReadWriteLockStubs.swift`（216行）
   - 削除内容: `registerSyntheticReadWriteLockStubs(...)` および `java.util.concurrent.locks.ReentrantReadWriteLock` クラス・`kotlin.concurrent.read` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
   - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
+  - 完了（2026-08-14、PR #5737、merge commit `26deec1b93b7275eedd59e49a638e0887eb39ff6`）: 最新 `origin/master` (`f64c991b5d6dc9a5e5a6922bb357188477bd9b85`) に対象ファイル・registry 登録・CallTypeChecker/CallLowerer 特例・`kk_read_write_lock_*` / `kk_reentrant_read_write_lock_*` の Runtime/ABI 実装と spec が存在せず、merge 後の再導入もないことを確認。代替の公開層は `Stdlib/kotlin/concurrent/Lock.kt` の `__kk_lock_withLock` と `Stdlib/kotlinx/coroutines/sync/Sync.kt` の `__kk_mutex_*` / `__kk_semaphore_*` および c-soft kernel primitives が担う。`MutexSyntheticMemberLinkTests` / `SemaphoreSyntheticMemberLinkTests`（2 tests）、`RuntimeABIExternalLinkValidationTests`（4 tests）、`ABIMismatchTests`（87 tests）が green、`bash Scripts/validate_runtime_abi_links.sh` も green。docs/TODO の旧名称は履歴・完了記録としてのみ残る。
 - [x] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
   - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除
