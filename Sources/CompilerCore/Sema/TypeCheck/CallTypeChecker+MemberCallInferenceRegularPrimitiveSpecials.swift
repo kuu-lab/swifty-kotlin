@@ -199,12 +199,12 @@ extension CallTypeChecker {
         }
 
         // STDLIB-NUM-130 (previous fast-path) removed:
-        // isNaN / isInfinite / isFinite / toBits / toRawBits / ulp / nextUp / nextDown
-        // are registered as real extension functions with external link names
-        // (kk_{double,float}_*) in HeaderHelpers+SyntheticCoercionStubs.swift. Letting
-        // them flow through the normal extension-function resolution path carries the
-        // link name into codegen; the old early-return bound only the result type, so
-        // the linker saw raw "_isNaN"/"_nextUp" symbols.
+        // isNaN / isInfinite / isFinite / toBits / toRawBits
+        // are resolved through bundled Kotlin source. Letting them flow through normal
+        // extension-function resolution preserves the source-backed call target in
+        // codegen. The old early-return bound only the result type, so the linker saw
+        // raw member names. ulp / nextUp / nextDown remain runtime-backed synthetic
+        // functions until their respective migrations.
 
         // Unsigned coercion (UByte/UShort/UInt/ULong) is handled by bundled Kotlin source
         // (RangeCoercion.kt); no primitive fast-path is needed.
