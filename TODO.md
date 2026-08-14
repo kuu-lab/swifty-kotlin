@@ -301,7 +301,7 @@
 - [ ] KSP-651: SequenceFactories を移設する（死蔵 `Stdlib/kotlin/sequences/SequenceFactories.kt`（112行・sequence{} ビルダー込み・完成度高）を bundled ツリーへ。kk_*: `kk_sequence_of`/`kk_empty_sequence`/`kk_sequence_generate(_noarg)` 4 → `__kk_` 降格 + Sema 未登録の孤立 `kk_sequence_of_single` の生死判定。特例: CallTypeChecker 6箇所（二重実装疑い含む）+ CollectionLiteralLoweringPass 3箇所 + `CallLowerer.swift` の generateSequence ハードコード撤去。前提: KSP-CAP-001（sequence{} 部分）。KSP-441 と同時か直後）
 #### 例外・言語コア表面（(c) 再監査 2026-07-10 で b-reclass 確定分）
 
-- [ ] KSP-655: stackTraceToString/printStackTrace を Kotlin 化する（前提: KSP-654 + runtime の renderedMessage を「生フレーム取得（`__kk_throwable_rawStackFrames` 新設）」と「整形（Kotlin 側で cause/suppressed チェーンを辿る）」に分離するリファクタ）
+- [x] KSP-655: stackTraceToString/printStackTrace を Kotlin 化する（前提: KSP-654 + runtime の renderedMessage を「生フレーム取得（`__kk_throwable_rawStackFrames` 新設）」と「整形（Kotlin 側で cause/suppressed チェーンを辿る）」に分離するリファクタ）
 - [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
