@@ -53,9 +53,12 @@
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 
-- [ ] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
+- [x] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
   - 前提: KSP-441（Sequence 遅延パイプラインの Kotlin 表現）。それまで着手不可
   - 削除: `kk_sequence_take`, `kk_sequence_takeWhile`, `kk_sequence_drop`, `kk_sequence_dropWhile`, `kk_sequence_chunked`, `kk_sequence_chunked_transform`, `kk_sequence_windowed`, `kk_sequence_windowed_transform`, `kk_sequence_zip`, `kk_sequence_zipWithNext`, `kk_sequence_zipWithNextTransform`, `kk_sequence_distinct`, `kk_sequence_distinctBy`（`RuntimeSequence.swift`）/ `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` の同登録
+  - 完了（PR #5664 / merge commit `09c3282447b471d4ce20c2299842624baada0211`）：`SequenceWindowChunk.kt` の遅延Kotlin実装を現行masterへ配線し、Sema/KIR/Loweringの旧runtime経路とSyntheticSequenceTerminalStubsの対象登録を削除。`RuntimeSequence.swift` はSwiftテスト用実装を残したまま対象 `@_cdecl` を除去して降格（`kk_sequence_zip_transform`を含む）。
+  - 現行master確認（`d220caeb4`）：`Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceWindowChunk.kt` が対象10 APIの実体を保持し、`Tests/CompilerCoreTests/Sema/SequenceWindowChunkSourceMigrationTests.swift` がbundled source定義・receiver・外部リンクなし・旧member linkなしを固定。対象bridgeはRuntimeABI/Sema登録に残留なし。
+  - 検証：`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter SequenceWindowChunkSourceMigrationTests -Xswiftc -swift-version -Xswiftc 6`（2 tests PASS）、PR #5664 CI（全Verification成功）、`git ls-remote origin refs/heads/master`＝`d220caeb4`、`bash Scripts/check_todo_ids.sh`および`git diff --check`を同期PRで再確認する。
 
 ### KSP-W4: モジュール量産移行（各タスク = 1 PR。手順はすべて T）
 
