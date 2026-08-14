@@ -2658,9 +2658,12 @@ public func kk_sequence_findLast(
 
 @_cdecl("kk_sequence_asIterable")
 public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
-    // Sequence and Iterable are distinct Kotlin interfaces. Materialize a
-    // list so the returned handle has the Iterable iterator ABI required by
-    // generic Iterable source implementations.
+    // Preserve the identity conversion for runtime-backed sequences. A
+    // source-implemented Sequence has only the Sequence itable, so materialize
+    // it into a list before exposing it through the Iterable ABI.
+    if runtimeSequenceBox(from: seqRaw) != nil {
+        return seqRaw
+    }
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
     return registerRuntimeObject(RuntimeListBox(values: values))
 }

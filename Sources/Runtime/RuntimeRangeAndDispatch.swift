@@ -572,6 +572,10 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
+    if runtimeSequenceBox(from: rangeRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: rangeRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
     if runtimeListBox(from: rangeRaw) != nil {
         return kk_list_iterator(rangeRaw)
     }
