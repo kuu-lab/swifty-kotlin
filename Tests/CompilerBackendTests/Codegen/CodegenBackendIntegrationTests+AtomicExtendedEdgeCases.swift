@@ -302,13 +302,13 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val a = AtomicBoolean(true)
-            println(a.compareAndSet(true, false))
+            println(a.compareAndSet(false, false))
             println(a.load())
             println(a.compareAndSet(true, false))
             println(a.load())
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicBooleanCAS", expected: "true\nfalse\nfalse\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanCAS", expected: "false\ntrue\ntrue\nfalse\n")
     }
 
     @Test
@@ -336,19 +336,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicReference
 
+        data class Token(val id: Int)
+
         fun main() {
-            val obj1 = "hello"
-            val obj2 = "hello"
-            val ref = AtomicReference(obj1)
-            // CAS with equal-but-different object (obj2 has same content but may be distinct)
-            // In Kotlin Native/JVM, AtomicReference CAS uses identity (===)
-            // obj1 is the loaded reference; use identity match
-            val loaded = ref.load()
-            println(ref.compareAndSet(loaded, obj2))
-            println(ref.load())
+            val current = Token(1)
+            val equalButDistinct = Token(1)
+            val replacement = Token(2)
+            val ref = AtomicReference(current)
+            // AtomicReference CAS compares references, not structural equality.
+            println(ref.compareAndSet(equalButDistinct, replacement))
+            println(ref.load() === current)
+            println(ref.compareAndSet(current, replacement))
+            println(ref.load() === replacement)
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicRefIdentity", expected: "true\nhello\n")
+        try assertKotlinOutput(source, moduleName: "AtomicRefIdentity", expected: "false\ntrue\ntrue\ntrue\n")
     }
 
     @Test
@@ -357,22 +359,24 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicReference
 
+        data class Token(val value: String)
+
         fun main() {
-            val a = "alpha"
-            val b = "beta"
-            val c = "gamma"
+            val a = Token("alpha")
+            val b = Token("beta")
+            val c = Token("gamma")
             val ref = AtomicReference(a)
-            // Success: returns old value (a)
+            // Success: returns old value (a) and stores b.
             val old = ref.compareAndExchange(a, b)
-            println(old)
-            println(ref.load())
-            // Failure: returns current (b), unchanged
+            println(old === a)
+            println(ref.load() === b)
+            // Failure: returns current (b), unchanged.
             val cur = ref.compareAndExchange(c, a)
-            println(cur)
-            println(ref.load())
+            println(cur === b)
+            println(ref.load() === b)
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicRefCAE", expected: "alpha\nbeta\nbeta\nbeta\n")
+        try assertKotlinOutput(source, moduleName: "AtomicRefCAE", expected: "true\ntrue\ntrue\ntrue\n")
     }
 
     @Test

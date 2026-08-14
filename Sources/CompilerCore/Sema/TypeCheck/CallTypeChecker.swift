@@ -635,8 +635,6 @@ final class CallTypeChecker {
         // resolves in Sema fallback.
         let flowFactoryNames: Set<InternedString> = [
             knownNames.flow,
-            interner.intern("channelFlow"),
-            interner.intern("callbackFlow"),
         ]
         if let calleeName,
            flowFactoryNames.contains(calleeName),

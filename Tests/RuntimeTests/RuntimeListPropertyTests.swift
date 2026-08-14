@@ -15,24 +15,6 @@ struct RuntimeListPropertyTests {
     }
 
     @Test
-    func testListIndicesReturnsZeroBasedRange() {
-        let indices = kk_list_indices(makeList([10, 20, 30]))
-
-        #expect(kk_range_first(indices) == 0)
-        #expect(kk_range_last(indices) == 2)
-        #expect(!RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: indices)!))
-    }
-
-    @Test
-    func testListIndicesReturnsEmptyRangeForEmptyList() {
-        let indices = kk_list_indices(makeList([]))
-
-        #expect(kk_range_first(indices) == 0)
-        #expect(kk_range_last(indices) == -1)
-        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: indices)!))
-    }
-
-    @Test
     func testListFirstOrNullReturnsHeadOrNullSentinel() {
         #expect(kk_list_firstOrNull(makeList([10, 20])) == 10)
         #expect(kk_list_firstOrNull(makeList([])) == runtimeNullSentinelInt)

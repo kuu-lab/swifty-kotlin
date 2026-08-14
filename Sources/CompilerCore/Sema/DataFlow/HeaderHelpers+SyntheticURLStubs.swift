@@ -16,21 +16,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let uriSymbol = ensureClassSymbol(
-            named: "URI",
-            in: javaNetPkg,
-            symbols: symbols,
-            interner: interner
-        )
         if let javaNetPkgSymbol {
             symbols.setParentSymbol(javaNetPkgSymbol, for: urlSymbol)
         }
 
         let urlType = types.make(.classType(ClassType(
             classSymbol: urlSymbol, args: [], nullability: .nonNull
-        )))
-        let uriType = types.make(.classType(ClassType(
-            classSymbol: uriSymbol, args: [], nullability: .nonNull
         )))
         let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg)
@@ -89,16 +80,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerURLMemberFunction(
-            named: "toURI",
-            externalLinkName: "kk_url_toURI",
-            ownerSymbol: urlSymbol,
-            ownerType: urlType,
-            parameters: [],
-            returnType: uriType,
-            symbols: symbols,
-            interner: interner
-        )
         registerURLMemberFunction(
             named: "toExternalForm",
             externalLinkName: "kk_url_toExternalForm",

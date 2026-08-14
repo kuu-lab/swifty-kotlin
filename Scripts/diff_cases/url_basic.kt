@@ -9,7 +9,6 @@ fun main() {
     println(child.port)
     println(child.path)
     println(child.toExternalForm())
-    println(child.toURI().toString())
     println(child.sameFile(URL("https://example.com/child?q=a%20b#other")))
     println(child.equals(URL("https://example.com/child?q=a%20b#next")))
     println(URL("https://example.com/child?q=a%20b#next").hashCode() == child.hashCode())

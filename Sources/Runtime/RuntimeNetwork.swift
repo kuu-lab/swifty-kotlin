@@ -253,6 +253,16 @@ final class RuntimeURLBox {
     }
 }
 
+/// URI handles remain an internal Network handoff for HTTP request builders.
+/// The public java.net.URI compiler/runtime surface is intentionally removed.
+final class RuntimeNetworkURIBox {
+    let components: URLComponents
+
+    init(components: URLComponents) {
+        self.components = components
+    }
+}
+
 private func runtimeURLBox(from raw: Int) -> RuntimeURLBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeURLBox.self)
@@ -268,6 +278,18 @@ private func boxURL(_ url: URL) -> Int {
 
 private func runtimeURL(from spec: String) -> URL? {
     URL(string: spec)
+}
+
+/// Build the URI handle consumed by the HTTP request builder's internal ABI.
+/// This keeps Network tests independent from the removed `kk_uri_new` export.
+func runtimeNetworkURI(from specRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let spec = networkString(from: specRaw, caller: #function)
+    guard let components = URLComponents(string: spec) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "URISyntaxException: \(spec)")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeNetworkURIBox(components: components))
 }
 
 private func runtimeURLRelative(baseRaw: Int, relativeRaw: Int) -> URL? {
@@ -398,17 +420,6 @@ public func kk_url_fragment(_ urlRaw: Int) -> Int {
     return networkStringRaw(runtimePercentDecode(fragment))
 }
 
-@_cdecl("kk_url_toURI")
-public func kk_url_toURI(_ urlRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let box = runtimeURLComponents(from: urlRaw, caller: #function)
-    guard let components = URLComponents(url: box.url, resolvingAgainstBaseURL: true) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "URISyntaxException: \(box.url.absoluteString)")
-        return 0
-    }
-    return registerRuntimeObject(RuntimeURIBox(components: components))
-}
-
 @_cdecl("kk_url_toExternalForm")
 public func kk_url_toExternalForm(_ urlRaw: Int) -> Int {
     networkStringRaw(runtimeURLExternalForm(runtimeURLComponents(from: urlRaw, caller: #function)))
@@ -481,7 +492,7 @@ public func kk_url_decode(_ valueRaw: Int) -> Int {
 
 private func networkURL(from uriRaw: Int) -> URL? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: uriRaw),
-          let uriBox = tryCast(ptr, to: RuntimeURIBox.self)
+          let uriBox = tryCast(ptr, to: RuntimeNetworkURIBox.self)
     else {
         return nil
     }
