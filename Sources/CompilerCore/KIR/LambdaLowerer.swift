@@ -1188,6 +1188,29 @@ final class LambdaLowerer {
             sema: sema
         )
 
+        // BUG-162: KProperty0/1 references need a real object implementing the
+        // bundled KProperty and Function interfaces. A raw property symbol is
+        // sufficient for a direct getter call, but it has no itable entries for
+        // KProperty.get/invoke/set and cannot carry the bound receiver safely.
+        if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           let propertyValue = lowerPropertyReferenceWrapperValue(
+               exprID,
+               targetSymbol: targetSymbol,
+               memberName: memberName,
+               boundType: boundType,
+               isUnbound: isUnbound,
+               captureArguments: captureArguments,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers,
+               instructions: &instructions
+           )
+        {
+            return propertyValue
+        }
+
         // BUG-048: A callable reference in SAM-conversion position must become an
         // object implementing the functional interface (with an itable entry), the
         // same way a SAM-converted lambda literal does.  Lowering it as a bare
