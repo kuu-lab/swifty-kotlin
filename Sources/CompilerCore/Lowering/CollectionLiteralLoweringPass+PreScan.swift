@@ -382,13 +382,7 @@ extension CollectionLiteralLoweringSupport {
         let src = arguments[0].rawValue
         // KSP-441〜447: Sequence パイプラインは source 化済み。runtime sequence handle の追跡は不要。
         _ = sequenceExprIDs
-        if callee == lookup.kkArrayMapName || callee == lookup.kkArrayFilterName {
-            // The KIR builder resolves array HOF calls (map/filter) to kk_array_*
-            // directly when the receiver type is statically known.  Track their
-            // results as list expressions so that downstream size/isEmpty/forEach
-            // rewrites fire correctly (STDLIB-004).
-            listExprIDs.insert(result.rawValue)
-        } else if callee == lookup.groupByName || callee == lookup.associateByName
+        if callee == lookup.groupByName || callee == lookup.associateByName
             || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.associateByToName || callee == lookup.associateWithToName
             || callee == lookup.groupByToName,

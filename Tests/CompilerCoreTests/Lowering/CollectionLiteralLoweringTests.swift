@@ -1312,14 +1312,12 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayAll() throws {
+    func testVirtualCallOnArrayTypedParameterDoesNotRewriteArrayHOFToRuntime() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
-        #expect(
-            callees.contains("kk_array_all"),
-            "virtualCall(all) on Array-typed parameter should be rewritten to kk_array_all, got: \(callees)"
-        )
+        #expect(!callees.contains("kk_array_all"),
+                "source-backed Array HOF must not be rewritten to a removed runtime bridge, got: \(callees)")
     }
 
     @Test

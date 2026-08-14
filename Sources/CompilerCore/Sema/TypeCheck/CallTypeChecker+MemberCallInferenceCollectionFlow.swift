@@ -19,6 +19,18 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        // Primitive-array HOFs are bundled Kotlin extensions, not collection or
+        // sequence operations. Unsigned arrays currently also classify as
+        // synthetic sequences, so let exact primitive-array source lookup run
+        // before the generic collection-flow fast path.
+        if !collectPrimitiveArraySourceHOFs(
+            named: calleeName,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ).isEmpty {
+            return nil
+        }
         // Defer inference of lambda arguments for collection HOFs so that the
         // contextual function type (and thus implicit `it`) is available.
         let collectionHOFNames: Set = [

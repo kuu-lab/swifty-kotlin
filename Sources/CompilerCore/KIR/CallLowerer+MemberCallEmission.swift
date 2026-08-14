@@ -330,20 +330,6 @@ extension CallLowerer {
         {
             finalArguments.insert(receiver.loweredID, at: 0)
         }
-        // Array.count() with no predicate: kk_array_count's native signature always
-        // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
-        // lambda argument, finalArguments only has the receiver. Without this padding,
-        // fnPtr/closureRaw read whatever garbage occupies those ABI slots, and
-        // kk_array_count's `if fnPtr == 0` fast path is skipped, crashing when it tries
-        // to invoke the garbage pointer as a closure.
-        if loweredCallee == interner.intern("kk_array_count"),
-           finalArguments.count == 1
-        {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            finalArguments.append(zeroExpr)
-            finalArguments.append(zeroExpr)
-        }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,
            sourceArgExprs.count == 3
@@ -447,7 +433,6 @@ extension CallLowerer {
             )
         }
         if loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
-            || loweredCallee == interner.intern("kk_array_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
             let lambdaArgIndex = originalArgumentCount - 1
