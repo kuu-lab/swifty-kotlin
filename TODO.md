@@ -92,8 +92,9 @@
   - 削除 kk_*: `kk_string_chunked`, `kk_string_chunked_sequence`, `kk_string_chunked_sequence_transform`, `kk_string_windowed_default`, `kk_string_windowed`, `kk_string_windowed_partial`, `kk_string_windowedSequence_partial`, `kk_string_windowedSequence_transform`, `kk_string_zip`, `kk_string_zipTransform`, `kk_string_zipWithNext`, `kk_string_zipWithNextTransform`
 #### kotlin.collections [M3 実行体]（前提: KSP-305〜307。実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/`）
 
-- [ ] KSP-421: List transform を完遂（`map`, `mapIndexed`, `mapNotNull`, `flatten`, `flatMap(Indexed)` + `*To` 変種）
-  - 削除 kk_*: `kk_list_map`, `kk_list_mapIndexed`, `kk_list_mapIndexedTo`, `kk_list_mapNotNull`, `kk_list_mapNotNullTo`, `kk_list_mapTo`, `kk_list_flatten`, `kk_list_flatMap`, `kk_list_flatMapIndexed`, `kk_list_flatMapIndexedTo`, `kk_list_flatMapTo`（`RuntimeCollectionHOF.swift`）
+- [x] KSP-421: List transform を完遂（`map`, `mapIndexed`, `mapNotNull`, `flatten`, `flatMap(Indexed)` + `*To` 変種）
+  - 実装根拠: PR #5666（merge commit `6945f7500`; 先行実装 #5001）で `Sources/CompilerCore/Stdlib/kotlin/collections/ListHOF.kt` に対象のsource-backed実装を揃え、List transformの製品側 `kk_*` bridgeを `RuntimeCollectionHOF.swift`、`RuntimeABISpec+CollectionHOF.swift`、`StdlibSurfaceSpec+ListHOF.swift` から削除。現行master `0a9c0c248` は同merge commitを祖先に持つ。`Tests/RuntimeTests/RuntimeCollectionHOF421422Shims.swift` の同名関数はRuntime unit test専用shim。
+  - 回帰・検証根拠: `Tests/CompilerCoreTests/Sema/MemberRuntimeDispatchTests.swift` がList transform全対象をruntime linkなしとして固定し、#5666のlowering/codegen回帰検査が旧 `kk_list_*` calleeの不使用を確認。現行masterで `swift build` green、`validate_runtime_abi_links.sh`・focused Sema回帰（138 tests/3 suites）・codegen回帰（9 tests/5 suites）・`diff_kotlinc` 3ケース・TODO-ID検査を実行済み。
 - [x] KSP-422: List fold/reduce/scan を Kotlin 化（`fold(Right)(Indexed)`, `reduce(Right)(Indexed)(OrNull)`, `runningFold/Reduce(Indexed)`, `scan(Indexed)`）
   - 削除 kk_*: 該当 19 関数（`rg -o '@_cdecl\("kk_list_(fold|reduce|running|scan)[a-zA-Z]*"\)' Sources/Runtime` で列挙）/ 既存 `ListAggregateHOF.kt` に追記
 - [ ] KSP-423: List 検索・述語を完遂（`find(Last)`, `indexOf(First/Last)`, `lastIndexOf`, `contains(All)`, `any`, `all`, `none`, `count`, `binarySearch(By)`）
