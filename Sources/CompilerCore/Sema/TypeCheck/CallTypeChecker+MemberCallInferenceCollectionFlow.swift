@@ -3190,6 +3190,30 @@ extension CallTypeChecker {
                 } else {
                     nil
                 }
+                let binarySearchFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    calleeName,
+                ]
+                func bindBinarySearchSource(parameterCount: Int, parameterMapping: [Int: Int]) {
+                    guard let chosenCallee = sema.symbols.lookupAll(fqName: binarySearchFQName).first(where: { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate),
+                              let signatureReceiver = signature.receiverType
+                        else { return false }
+                        return sema.symbols.isSourceBackedSymbol(candidate)
+                            && signature.parameterTypes.count == parameterCount
+                            && receiverClassifier.isConcreteListLikeType(signatureReceiver)
+                    }) else {
+                        return
+                    }
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: chosenCallee,
+                        substitutedTypeArguments: [collectionElementType],
+                        parameterMapping: parameterMapping
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+                }
+
                 if args.count == 1 {
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [collectionElementType],
@@ -3200,12 +3224,29 @@ extension CallTypeChecker {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     } else {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                        bindBinarySearchSource(parameterCount: 3, parameterMapping: [0: 0])
+                    }
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        bindBinarySearchSource(parameterCount: 1, parameterMapping: [0: 0])
                     }
                     resultType = sema.types.intType
                 } else if (2 ... 4).contains(args.count) {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
-                    if let comparatorLambdaExpr = ast.arena.expr(args[1].expr),
-                       comparatorLambdaExpr.isLambdaOrCallableRef
+                    let secondIsLambda = ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
+                    let secondType = sema.bindings.exprTypes[args[1].expr]
+                        ?? driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
+                    let isNaturalRange = !secondIsLambda && secondType == sema.types.intType && args.count <= 3
+                    if isNaturalRange {
+                        _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                        if args.count == 3 {
+                            _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                        }
+                        bindBinarySearchSource(
+                            parameterCount: 3,
+                            parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                        )
+                    } else if let comparatorLambdaExpr = ast.arena.expr(args[1].expr),
+                              comparatorLambdaExpr.isLambdaOrCallableRef
                     {
                         let comparatorLambdaType = sema.types.make(.functionType(FunctionType(
                             params: [collectionElementType, collectionElementType],
@@ -3226,6 +3267,12 @@ extension CallTypeChecker {
                     }
                     if args.count >= 4 {
                         _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                    }
+                    if !isNaturalRange {
+                        bindBinarySearchSource(
+                            parameterCount: 4,
+                            parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                        )
                     }
                     resultType = sema.types.intType
                 } else {
@@ -3253,7 +3300,7 @@ extension CallTypeChecker {
                     case .nothing:
                         sema.types.nullableAnyType
                     default:
-                        sema.types.makeNullable(keyType)
+                        sema.types.makeNonNullable(keyType)
                     }
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
