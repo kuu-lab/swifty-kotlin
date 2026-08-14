@@ -246,9 +246,9 @@
 - [ ] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃し、ファイル名を本家準拠へリネームする
   - 前提: W3 全完了。手順: (1) セットが空であることを確認して機構ごと削除 (2) `text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム（`docs/stdlib-pipeline.md` §6） (3) U で golden 更新
 
-- [ ] KSP-690: bundled stdlib 自身の diagnostics ゼロを enforcing テスト化する（§8 の要件「stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う（warning 含めゼロを CI で enforcing にする）」に対応するテストが存在しない — 2026-08-12 実装確認で該当テストゼロ）
-  - 実装: 全 bundled .kt を注入した最小入力（`hello.kt` 相当）のコンパイルで、`__bundled_*` パスを source location とする診断が warning 含め 0 件であることを固定するテストを `Tests/CompilerCoreTests/Driver/` に追加する。`KSWIFTK-SEMA-0102`（bundled×synthetic 二重定義 warning）のガード漏れ検知網を兼ねる
-  - 完了: テスト green + G
+- [x] KSP-690: bundled stdlib 自身の diagnostics ゼロを enforcing テスト化する（§8 の要件「stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う（warning 含めゼロを CI で enforcing にする）」に対応するテストが存在しない — 2026-08-12 実装確認で該当テストゼロ）。KSP-INF-004 の既存実装（PR #4967）で充足済み
+  - 実装: 全 bundled .kt を注入した最小入力（`hello.kt` 相当）のコンパイルで、`__bundled_*` パスを source location とする診断が warning 含め 0 件であることを固定する `Tests/CompilerCoreTests/Integration/BundledStdlibDiagnosticsTests.swift` を追加済み。`KSWIFTK-SEMA-0102`（bundled×synthetic 二重定義 warning）のガード漏れ検知網を兼ねる
+  - 完了: `Tests/CompilerCoreTests/Integration/BundledStdlibDiagnosticsTests.swift` の enforcing test green（PR #4967）
 - [ ] KSP-691: `__kk_*` ブリッジ総数を `Scripts/loc_report.sh` のメトリクスへ追加し、ベースラインを `docs/refactoring-metrics.md` へ記録する（§13-2 ブリッジ入場審査は「`__kk_*` 総数メトリクスの悪化理由を必須」とするが、loc_report.sh に `__kk_` 計測が無く運用不能だった — 2026-08-12 実装確認）
   - 2026-08-12 実測ベースライン: `@_cdecl("__kk_` 390 個 / `@_cdecl("kk_` 1,770 個（`grep -rhoE '@_cdecl\("(__)?kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include='*.swift' | sort -u` で計測）
   - 意図: 降格（`kk_` 減 + `__kk_` 増のペア）は正常、**理由コード無しの `__kk_` 純増**をリファクタゲート（CLAUDE.md）で機械検出できるようにする
