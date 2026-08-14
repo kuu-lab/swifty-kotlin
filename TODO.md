@@ -302,7 +302,7 @@
 
 #### delegates / reflect
 
-- [ ] KSP-680: delegate インターフェース群を .kt 化する（ReadOnlyProperty/ReadWriteProperty/PropertyDelegateProvider。前提: KSP-CAP-007）
+- [x] KSP-680: delegate インターフェース群を .kt 化する（ReadOnlyProperty/ReadWriteProperty/PropertyDelegateProvider。前提: KSP-CAP-007）
 - [ ] KSP-681: ObservableProperty/Delegates 残余を Kotlin 化する（KSP-491 の範囲を超える残り約20系統。前提: KSP-491, KSP-680）。BUG-017はKSP-CAP-013のPR #4976で独立に修正済みのため本タスクの前提から外れた
 - [x] KSP-689: KClass の members/constructors 系が返すランタイムハンドルへ nominal 型 ID を付与し、interface 適合（`is`/`as`・共有メンバ dispatch）を成立させる（KSP-496 の未完了メモが実装手順まで特定した上で「一定規模の別タスクとして切り出すのが妥当」と明記したまま未起票だった — 2026-08-12 追補。Reflection box の安定型ID・継承辺と KCallable 共通 name dispatch を実装）
   - 手順（KSP-496 調査の再掲）: (1) `KCallable`/`KFunction`/`KProperty` 等リフレクション interface の nominal 型 ID を `runtimeStableNominalTypeID(fqName:)` で計算し起動時に一度登録 (2) `RuntimeKFunctionBox`/`RuntimeKPropertyStub` 等の生成箇所を `registerRuntimeObject(_:typeID:)` 経由に変更（前例: `IndexedValue`/`Map.Entry` の `runtimeRegisterObjectType` + `runtimeRegisterTypeEdge`。Sema 側の supertype 関係は `addSyntheticDirectSupertypes` でモデル化済み） (3) `KCallable.name` 等の共有メンバを複数 Box 型を順に tryCast するディスパッチへ書き換え
