@@ -1801,6 +1801,16 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if interner.resolve(calleeName) == "toList",
+               let implicitReceiverType = ctx.implicitReceiverType
+            {
+                candidates = preferCollectionToListCandidates(
+                    candidates,
+                    receiverType: implicitReceiverType,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             // If all candidates were blocked by DslMarker, emit a specific diagnostic.
             if candidates.isEmpty, !dslBlockedCandidates.isEmpty {
                 ctx.semaCtx.diagnostics.error(
@@ -2794,12 +2804,20 @@ final class CallTypeChecker {
             }
 
             // General member function lookup via implicit receiver
-            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            var memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: nonNullReceiver,
                 sema: sema,
                 interner: interner
             )
+            if interner.resolve(calleeName) == "toList" {
+                memberCandidates = preferCollectionToListCandidates(
+                    memberCandidates,
+                    receiverType: nonNullReceiver,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             if !memberCandidates.isEmpty {
                 // Eagerly infer argument types for overload resolution.
                 let memberArgTypes = args.map { argument in

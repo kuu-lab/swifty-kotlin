@@ -550,7 +550,7 @@ private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
 /// the value does not implement `Iterable` in source, so callers can fall back
 /// to the runtime box representations.
-private func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
+func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
     guard fnPtr != 0 else {
         return nil

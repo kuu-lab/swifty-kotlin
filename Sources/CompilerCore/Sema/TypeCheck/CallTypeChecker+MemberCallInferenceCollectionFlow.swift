@@ -286,9 +286,20 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
+                    let signatureIsSequence = receiverClassifier.isSequenceLikeType(signatureReceiver)
+                    // Sequence<T> is marked as a collection expression while
+                    // its static type is being inferred. Do not let that
+                    // heuristic select Iterable<T>.asSequence(): Kotlin's
+                    // Sequence<T>.asSequence() overload is the identity
+                    // conversion and must win for a Sequence receiver.
+                    if isSequenceReceiver {
+                        return signatureIsSequence
+                    }
+                    if signatureIsSequence {
+                        return false
+                    }
                     return receiverClassifier.isIterableLikeType(signatureReceiver)
                         || receiverClassifier.isCollectionLikeType(signatureReceiver)
-                        || receiverClassifier.isSequenceLikeType(signatureReceiver)
                 }) {
                     sema.bindings.bindCall(id, binding: CallBinding(
                         chosenCallee: chosenCallee,

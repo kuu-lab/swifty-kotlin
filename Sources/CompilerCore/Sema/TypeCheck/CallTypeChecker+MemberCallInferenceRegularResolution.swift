@@ -847,6 +847,14 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if interner.resolve(calleeName) == "toList" {
+            candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
         if ["sumBy", "sumByDouble", "sumOf"].contains(interner.resolve(calleeName)) {
             let desc = candidates.map { c in
                 let name = sema.symbols.symbol(c).map { interner.resolve($0.name) } ?? "?"
