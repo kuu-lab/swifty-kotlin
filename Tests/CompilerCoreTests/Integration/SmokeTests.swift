@@ -189,6 +189,22 @@ import Testing
         """, moduleName: "SmokeTypealiasExtension")
     }
 
+    @Test func testSmokeEnumClassConstructorPropertyCompilesToKIR() throws {
+        // BUG-205: reading a constructor property of an enum class instance
+        // (enum class Status(val code: Int) { OK(200) }) must compile to KIR
+        // instead of being lowered as an unresolved zero-argument call.
+        try assertKotlinCompilesToKIR("""
+        enum class Status(val code: Int) {
+            OK(200)
+        }
+
+        fun main() {
+            val s = Status.OK
+            println(s.code)
+        }
+        """, moduleName: "SmokeEnumCtorProp")
+    }
+
     @Test func testSmokeUsePinnedCompilesToKIR() throws {
         // usePinned (STDLIB-CINTEROP-FN-042) is hand-lowered as a scope function:
         // pin() the receiver, invoke the block with the Pinned<T> handle inside a

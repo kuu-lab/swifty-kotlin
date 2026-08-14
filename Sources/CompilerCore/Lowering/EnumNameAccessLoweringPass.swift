@@ -20,9 +20,11 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
         let kkAnyMemberToStringCallee = ctx.interner.intern("kk_any_member_to_string")
+        let enumConstructorPropertyPrefix = "$enumConstructorProperty$"
         return module.usedCallees.contains(nameCallee)
             || module.usedCallees.contains(ordinalCallee)
             || module.usedCallees.contains(kkAnyMemberToStringCallee)
+            || module.usedCallees.contains(where: { ctx.interner.resolve($0).hasPrefix(enumConstructorPropertyPrefix) })
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -46,6 +48,15 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     interner: ctx.interner,
                     precedingInstructions: newBody,
                     kkAnyMemberToStringCallee: kkAnyMemberToStringCallee
+                ) {
+                    newBody.append(contentsOf: rewritten)
+                    continue
+                }
+                if let rewritten = rewriteEnumConstructorPropertyCall(
+                    instruction: instruction,
+                    sema: sema,
+                    arena: module.arena,
+                    interner: ctx.interner
                 ) {
                     newBody.append(contentsOf: rewritten)
                     continue
@@ -191,6 +202,65 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             callee: helperName,
             arguments: [arguments[0]],
             result: result,
+            canThrow: false,
+            thrownResult: nil,
+            isSuperCall: false
+        )]
+    }
+
+    /// Rewrites a placeholder call emitted by `tryLowerStoredMemberPropertyRead`
+    /// for an enum class constructor property (`enum class Status(val code: Int)`)
+    /// into a real call to the per-enum, per-property `$enumConstructorProperty$`
+    /// helper synthesized by `KIRLoweringDriver`.
+    private func rewriteEnumConstructorPropertyCall(
+        instruction: KIRInstruction,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> [KIRInstruction]? {
+        let prefix = "$enumConstructorProperty$"
+        guard case let .call(symbol, callee, arguments, result, _, _, _, _) = instruction,
+              symbol == nil,
+              arguments.count == 1,
+              interner.resolve(callee).hasPrefix(prefix)
+        else {
+            return nil
+        }
+
+        let remainder = String(interner.resolve(callee).dropFirst(prefix.count))
+        guard let separatorIndex = remainder.firstIndex(of: "$"),
+              let classID = Int32(remainder[..<separatorIndex]),
+              !remainder[remainder.index(after: separatorIndex)...].isEmpty
+        else {
+            return nil
+        }
+        let propertyName = interner.intern(String(remainder[remainder.index(after: separatorIndex)...]))
+        let classSymbol = SymbolID(rawValue: classID)
+        guard let classSym = sema.symbols.symbol(classSymbol),
+              classSym.kind == .enumClass
+        else {
+            return nil
+        }
+
+        let propSymbol = sema.symbols.lookupAll(fqName: classSym.fqName + [propertyName])
+            .first { id in
+                sema.symbols.symbol(id).map { $0.kind == .property } ?? false
+            }
+        let propType = propSymbol.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
+
+        let helperName = callee
+        let helperSymbol = sema.symbols.lookupAll(fqName: classSym.fqName + [helperName])
+            .first { id in
+                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+            }
+        guard let helperSymbol else { return nil }
+
+        let targetResult = result ?? arena.appendTemporary(type: propType)
+        return [.call(
+            symbol: helperSymbol,
+            callee: helperName,
+            arguments: [arguments[0]],
+            result: targetResult,
             canThrow: false,
             thrownResult: nil,
             isSuperCall: false

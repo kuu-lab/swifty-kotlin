@@ -924,7 +924,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_toHashSet",

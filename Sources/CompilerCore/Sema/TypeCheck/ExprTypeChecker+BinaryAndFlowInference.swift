@@ -140,7 +140,7 @@ extension ExprTypeChecker {
             // kk_list_minus_collection is used, even when element-minus stubs exist as candidates.
             let rhsIsCollectionExpr = sema.bindings.isCollectionExpr(rhsID)
             let shouldFallBack = (isListLhs || isCollExpr) && operatorCandidates.isEmpty
-                || isSeqLhs
+                || isSeqLhs && operatorCandidates.isEmpty
                 || isListLhs && op == .subtract && rhsIsCollectionExpr
             if shouldFallBack {
                 sema.bindings.bindExprType(id, type: lhs)
@@ -174,6 +174,7 @@ extension ExprTypeChecker {
             default:
                 expectedType
             }
+            let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: CallExpr(
@@ -185,6 +186,11 @@ extension ExprTypeChecker {
                 implicitReceiverType: lhs,
                 ctx: ctx.semaCtx
             )
+            if isSeqLhs, resolved.chosenCallee == nil {
+                sema.bindings.bindExprType(id, type: lhs)
+                sema.bindings.markCollectionExpr(id)
+                return lhs
+            }
             if let diagnostic = resolved.diagnostic {
                 if let fallbackType = bindComparableUpperBoundOperatorFallback(
                     id,
