@@ -143,7 +143,7 @@
 
 #### kotlin.random [M7 実行体]
 
-- [ ] KSP-685: `random/Random.kt` を本家構造（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)`）へ戻す（構造逸脱台帳 `docs/stdlib-pipeline.md` §13-8 の解消実行体。KSP-CAP-006 の完了で「着手可能・PRNG のビット精度検証を伴う別タスクで実施」と記録されたまま未起票だった — 2026-08-12 追補）
+- [x] KSP-685: `random/Random.kt` を本家構造（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)`）へ戻す（構造逸脱台帳 `docs/stdlib-pipeline.md` §13-8 の解消実行体。KSP-CAP-006 の完了で「着手可能・PRNG のビット精度検証を伴う別タスクで実施」と記録されたまま未起票だった — 2026-08-12 追補）
   - 検証: シード付き `nextInt`/`nextInt(bound)`/`nextLong`/`nextBits`/`nextDouble` の決定値列を kotlinc と突合する diff ケースを追加（XorWowRandom のビット精度固定）。既存の `shuffled(Random(7))` 系決定性テスト（KSP-CAP-011）の非回帰も確認
   - 完了時: `docs/stdlib-pipeline.md` §13-8 の台帳行を解消済みへ更新 / 手順: T
 
@@ -262,7 +262,7 @@
 - [ ] KSP-602: run/with/apply を Kotlin 化する（前提: KSP-CAP-008。`apply` は**スタブ未登録・名前特例のみ**で動作中のため宣言を新設。削除対象は同スタブの with/run 登録 + `CallLowerer+ScopeFunctionLowering.swift` の該当分岐）
 #### io / system
 
-- [ ] KSP-692: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` を責務別に分割する（§9 follow-up order「Split mixed files before touching their residual parts」の最終残: Random/Atomic は分割・移行済みで、本ファイルのみ TODO()/File IO/system/duration/collection factory の登録が混在したまま現存最大の合成スタブ（2026-08-12 実測 3,614 行）。分割先は担当タスク対応で: File I/O 登録 → KSP-484 が触る単位 / duration 系 → KSP-683 が触る単位 / collection factory → 既存 `+SyntheticCollectionFactoryStubs.swift` へ / 残余（TODO()・system）→ 現ファイル縮小維持。着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift` で登録単位を全列挙してから機械的移動のみ行う（挙動変更ゼロ・`loc_report.sh` 合計行数 ±0 を完了条件に含む）。命名は責務ベース（CLAUDE.md の分割ファイル規約））
+- [x] KSP-692: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` を責務別に分割する（§9 follow-up order「Split mixed files before touching their residual parts」の最終残: Random/Atomic は分割・移行済みで、本ファイルのみ TODO()/File IO/system/duration/collection factory の登録が混在したまま現存最大の合成スタブ（2026-08-12 実測 3,614 行）。分割先は担当タスク対応で: File I/O 登録 → KSP-484 が触る単位 / duration 系 → KSP-683 が触る単位 / collection factory → 既存 `+SyntheticCollectionFactoryStubs.swift` へ / 残余（TODO()・system）→ 現ファイル縮小維持。着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift` で登録単位を全列挙してから機械的移動のみ行う（挙動変更ゼロ・`loc_report.sh` 合計行数 ±0 を完了条件に含む）。命名は責務ベース（CLAUDE.md の分割ファイル規約））
 
 #### collections
 
