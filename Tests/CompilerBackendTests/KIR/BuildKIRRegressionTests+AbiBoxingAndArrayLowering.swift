@@ -681,9 +681,10 @@ struct BuildKIRCodegenRegressionTests {
         fun main(): Any? {
             val values = intArrayOf(1, 2, 3)
             val mapped = values.map { it * 2 }
+            val mappedNotNull = values.mapNotNull { if (it > 1) it.toString() else null }
             val total = values.fold(0) { accumulator, value -> accumulator + value }
             val rendered = values.joinToString(transform = { it.toString() })
-            return listOf(mapped, total, rendered)
+            return listOf(mapped, mappedNotNull, total, rendered)
         }
         """
 
@@ -696,6 +697,7 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             #expect(callNames.contains("map"))
+            #expect(callNames.contains("mapNotNull"))
             #expect(callNames.contains("fold"))
             #expect(callNames.contains("joinToString$default"))
             #expect(!callNames.contains("kk_array_map"))

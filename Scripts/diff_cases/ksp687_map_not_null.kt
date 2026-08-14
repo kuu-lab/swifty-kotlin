@@ -1,3 +1,5 @@
+// SKIP-DIFF (DEBT-DIFF-001): JVM kotlinc does not expose primitive-array mapNotNull;
+// run the KSwiftK candidate directly and cover source dispatch in KIR regression tests.
 // KSP-687 candidate-only coverage: kotlinc's primitive-array mapNotNull surface
 // is unavailable in the local reference toolchain, but the bundled source must
 // still compile and execute for signed and unsigned primitive arrays.
