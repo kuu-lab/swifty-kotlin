@@ -12,7 +12,7 @@ import Testing
 //
 // Implemented APIs tested here:
 //   AtomicBoolean  : kk_atomic_bool_create / load / store / exchange /
-//                    compareAndSet / compareAndExchange
+//                    compareAndExchange
 //   AtomicIntArray : kk_atomic_int_array_create / size / loadAt / storeAt /
 //                    exchangeAt / compareAndSetAt / compareAndExchangeAt /
 //                    fetchAndAddAt / addAndFetchAt / fetchAndIncrementAt /
@@ -59,20 +59,6 @@ struct RuntimeAtomicBooleanTests {
         #expect(kk_atomic_bool_load(handle) == 0, "exchange must store new value")
     }
 
-    @Test func compareAndSetSuccess() {
-        let handle = kk_atomic_bool_create(0)
-        let result = kk_atomic_bool_compareAndSet(handle, 0, 1)
-        #expect(result == 1, "CAS must succeed (return 1) when expect matches")
-        #expect(kk_atomic_bool_load(handle) == 1)
-    }
-
-    @Test func compareAndSetFailure() {
-        let handle = kk_atomic_bool_create(0)
-        let result = kk_atomic_bool_compareAndSet(handle, 1, 1)
-        #expect(result == 0, "CAS must fail (return 0) when expect does not match")
-        #expect(kk_atomic_bool_load(handle) == 0, "Value must not change on failed CAS")
-    }
-
     @Test func compareAndExchangeSuccess() {
         let handle = kk_atomic_bool_create(1)
         let old = kk_atomic_bool_compareAndExchange(handle, 1, 0)
@@ -91,7 +77,6 @@ struct RuntimeAtomicBooleanTests {
         #expect(kk_atomic_bool_load(0) == 0)
         #expect(kk_atomic_bool_store(0, 1) == 0)
         #expect(kk_atomic_bool_exchange(0, 1) == 0)
-        #expect(kk_atomic_bool_compareAndSet(0, 0, 1) == 0)
         #expect(kk_atomic_bool_compareAndExchange(0, 0, 1) == 0)
     }
 }
