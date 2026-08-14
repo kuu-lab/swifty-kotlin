@@ -201,7 +201,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_path_reader_default",
             "kk_path_readAttributes_string",
             "kk_path_writeText_options",
-            "kk_uri_toPath",
         ]
     }
 
