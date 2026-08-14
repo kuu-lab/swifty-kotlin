@@ -407,6 +407,7 @@
   - 対象例: `EnumAPISurfaceInventoryTests.swift` (9), `MathSyntheticTopLevelLinkTests.swift` (6), `ContinuationSyntheticStubTests.swift` (6), `ExceptionSyntheticStubTests.swift` (6), `ReflectK*` 系 (3-6 件×多数)
 - [~] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約
   - 対象例: `KotlinIOCommonEdgeCaseTests.swift` (33), `RegexSemaLoweringTests.swift` (31), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+LocalFunctionCaptureAndScope.swift` (16), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` (10), `BuildKIRRegressionTests.swift` (15), `BuildKIRRegressionTests+NativePlatform.swift` (14), `LibMetadataImportIntegrationTests.swift` (12), `LibraryMetadataManifestValidationTests.swift` (11), `BuildKIRRegressionTests+PrimitiveArrayCreationAndConversion.swift` (10, PR #5761 対応済み)
-- [ ] REFACT-TEST-004: 複数 `runToLowering` / `runFrontend` を呼んでいる Lowering / Frontend テストを共有コンテキストに集約
-  - 対象例: `BoxingIntegrationTests.swift` (`runToLowering` 12), `CompilerCoreTests+TrailingLambdaParsing.swift` (`runFrontend` 9), `BuildASTBodyParsingRegressionTests.swift` (`runFrontend` 9), `ValueClassUnboxingTests+EdgeCases.swift` (`runToLowering` 18), `ScriptModeTests.swift` (`runFrontend` 5)
+- [x] REFACT-TEST-004: 複数 `runToLowering` / `runFrontend` を呼んでいる Lowering / Frontend テストを共有コンテキストに集約
+  - 対象5 suite の直接 pipeline 呼出を 38 回から 5 回へ集約し、fixture ごとの AST/KIR assertion、path 別 diagnostics、ValueClass の対象シンボル境界を維持
+  - `FrontendParallelBenchmarkTests` は測定用 fixture のため対象外とし、AST/Driver/Lexer の異なる入力・状態依存 suite は安全な共有条件を満たさないため変更しない
 - [ ] REFACT-TEST-005: 集約後に不要になった per-test pipeline ヘルパー・重複 `source` 文字列・個別 `withTemporaryFile` ブロックを削除し、migration スクリプト群を整理
