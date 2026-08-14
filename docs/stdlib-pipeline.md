@@ -291,7 +291,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticNativeInteropHelpers.swift` | 1292 | (c) | Kotlin/Native interop helper surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticNativeInteropStubs.swift` | 386 | (c) | Kotlin/Native interop annotations/types. |
 | `HeaderHelpers+SyntheticNativeRefRuntimeStubs.swift` | 759 | (c) | Native ref runtime support; constructor/member/property surface moved to `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` for RF-STUB-003. |
-| `HeaderHelpers+SyntheticOnErrorActionStubs.swift` | 120 | (a) | File-tree walk support; cleanup with file-walk surface. |
+| `HeaderHelpers+SyntheticOnErrorActionStubs.swift` | 120 | (a) | ~~File-tree walk support; cleanup with file-walk surface.~~ **完了・ファイル削除済み**（CLEANUP-STUB-114, 2026-08-14）。OnErrorAction は synthetic enum / 登録以外に参照がなく、`copyRecursively` の既存 FileIO bridge は保持。 |
 | `HeaderHelpers+SyntheticPairTripleStubs.swift` | 409 | (b) | Public `Pair`/`Triple` source migration candidate. |
 | `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` | 548 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |
 | `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` | 488 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |

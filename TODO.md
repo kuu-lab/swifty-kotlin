@@ -337,7 +337,7 @@
 - [ ] CLEANUP-STUB-107: `HeaderHelpers+SyntheticFileIOStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`（2319行）
   - 削除内容: `registerSyntheticFileIOStubs(...)` および `java.io.File` クラス・コンストラクタ・`readText`/`writeText`/`readLines`/`appendText`/`forEachLine`/`bufferedReader`/`delete`/`mkdirs`/`listFiles`/`walk`/`name`/`path`/`exists`/`isFile`/`isDirectory` 等の登録を削除
-  - 呼び出し元: `HeaderHelpers.swift:1241`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:201`（`name: "FileIO"`）、`HeaderHelpers+SyntheticFileTreeWalkStubs.swift` / `HeaderHelpers+SyntheticOnErrorActionStubs.swift` 内のコメント参照を整理
+  - 呼び出し元: `HeaderHelpers.swift:1241`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:201`（`name: "FileIO"`）、`HeaderHelpers+SyntheticFileTreeWalkStubs.swift` 内のコメント参照を整理
   - 連動整理: bundled `Stdlib/kotlin/io/FileIO.kt`（および `FileStreamExtensions.kt`/`FileTraversal.kt`）の出番確認、Runtime `Sources/Runtime/RuntimeFileIO.swift`（`kk_file_*`/`kk_files_*` 等）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`
   - テスト影響: `Tests/CompilerCoreTests/GoldenCases/Sema/file_*.golden`・`file_tree_walk.golden`、`Tests/CompilerBackendTests/Codegen/*File*` テスト群、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、`Scripts/diff_cases/file_*.kt` 等の整理
 - [ ] CLEANUP-STUB-109: `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` を削除する
@@ -351,12 +351,13 @@
   - 呼び出し元: `HeaderHelpers.swift:1246`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:215`（`name: "FilesUtility"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 `kk_files_*`（48件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`/`RuntimeABISpec+Path.swift` 該当 ABI
   - テスト影響: diff case `files_utility.kt`、`file_isDirectory_test.kt` 等の整理
-- [ ] CLEANUP-STUB-114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift` を削除する
+- [x] CLEANUP-STUB-114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticOnErrorActionStubs.swift`（120行）
   - 削除内容: `registerSyntheticOnErrorActionStubs(...)` および `kotlin.io.OnErrorAction` enum（`SKIP`/`TERMINATE`）の登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1245`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:213`（`name: "OnErrorAction"`）を削除
   - 連動整理: `RuntimeFileIO.swift` 内 `copyTo` 再帰処理で使われる OnErrorAction ordinal（`kk_file_copy_*`）があれば整理
   - テスト影響: `Tests/RuntimeTests/RuntimeFileCopyRecursivelyTests.swift` の確認
+  - 完了 (2026-08-14): OnErrorAction は synthetic enum / 登録以外に参照がなく、`copyRecursively` の既存 bridge は `(target, overwrite)` の4引数 ABI と既定の再 throw 挙動のみを使うため、Runtime/RuntimeABI/既存テスト/diff ケースは保持
 - [ ] CLEANUP-STUB-115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs.swift`（2102行）
   - 削除内容: `registerSyntheticPathStubs(...)` および `kotlin.io.path.Path` クラス・companion `createTempFile`/`createTempDirectory`/`list`/`walk`/`readBytes`/`readText`/`writeText`/`writeBytes`/`copyTo`/`resolve`/`parent`/`fileName`/`extension` 等の登録を削除
