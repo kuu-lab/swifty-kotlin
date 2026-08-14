@@ -243,7 +243,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
-| `HeaderHelpers+SyntheticComparisonStubs.swift` | 1083 | (b) | M5 `maxOf`/`minOf` and comparison helpers. |
+| `HeaderHelpers+SyntheticComparisonStubs.swift` | 157 | (b) | **完了・ファイル削除済み**（KSP-684）。トップレベル `maxWith`/`minWith` は `Stdlib/kotlin/comparisons/Comparisons.kt` へ移行し、残る比較ヘルパーは source-backed または Comparator anchor 側で管理する。 |
 | `HeaderHelpers+SyntheticCoroutineRegistry.swift` | 3552 | (c) | RF-STUB-005 consolidated coroutine package, ABI, and helper registry. |
 | `HeaderHelpers+SyntheticDeepRecursiveStubs.swift` | 324 | (b) | ~~Public stdlib surface; source migration before removal.~~ **完了・ファイル削除済み**（KSP-612, `Stdlib/kotlin/DeepRecursive.kt`）。 |
 | `HeaderHelpers+SyntheticDurationStubs.swift` | 1390 | (b) | M8 duration source migration; bridge-only `__kk_*` declarations may remain private. |

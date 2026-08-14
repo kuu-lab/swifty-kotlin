@@ -188,6 +188,7 @@ struct NativeEmitter {
                 rawSymbols.insert(function.symbol)
             }
         }
+
         return rawSymbols
     }
 

@@ -207,55 +207,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // --- STDLIB-SEQ-022: sequence destination-collection mapping variants ---
-    if callee == lookup.mapToName || callee == lookup.mapNotNullToName
-        || callee == lookup.mapIndexedToName || callee == lookup.mapIndexedNotNullToName,
-       arguments.count == 3 || arguments.count == 4,
-       state.sequenceExprIDs.contains(arguments[0].rawValue)
-    {
-        let receiverID = arguments[0]
-        let destID = arguments[1]
-        let lambdaID = arguments[2]
-        let closureRawID: KIRExprID
-        if arguments.count == 4 {
-            closureRawID = arguments[3]
-        } else {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            closureRawID = zeroExpr
-        }
-        let kkName: InternedString = if callee == lookup.mapToName {
-            lookup.kkSequenceMapToName
-        } else if callee == lookup.mapNotNullToName {
-            lookup.kkSequenceMapNotNullToName
-        } else if callee == lookup.mapIndexedToName {
-            lookup.kkSequenceMapIndexedToName
-        } else {
-            lookup.kkSequenceMapIndexedNotNullToName
-        }
-        let hofResult = module.arena.appendTemporary(type: nil
-        )
-        loweredBody.append(.call(
-            symbol: nil,
-            callee: kkName,
-            arguments: [receiverID, destID, lambdaID, closureRawID],
-            result: hofResult,
-            canThrow: canThrow,
-            thrownResult: thrownResult
-        ))
-        if let result {
-            if state.listExprIDs.contains(destID.rawValue) {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(hofResult.rawValue)
-            } else if state.setExprIDs.contains(destID.rawValue) {
-                state.setExprIDs.insert(result.rawValue)
-                state.setExprIDs.insert(hofResult.rawValue)
-            }
-            loweredBody.append(.copy(from: hofResult, to: result))
-        }
-        return true
-    }
-
     // --- STDLIB-021: destination collection variants with [receiver, dest, lambda, closureRaw?] ---
     if callee == lookup.mapToName || callee == lookup.flatMapToName
         || callee == lookup.mapNotNullToName || callee == lookup.mapIndexedToName
@@ -265,7 +216,6 @@ extension CollectionLiteralLoweringSupport {
         if arguments.count == 3 || arguments.count == 4,
            state.listExprIDs.contains(arguments[0].rawValue)
             || state.setExprIDs.contains(arguments[0].rawValue)
-            || state.sequenceExprIDs.contains(arguments[0].rawValue)
             || state.arrayExprIDs.contains(arguments[0].rawValue)
         {
             let receiverID = arguments[0]
@@ -279,8 +229,7 @@ extension CollectionLiteralLoweringSupport {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let ownerKind: StdlibSurfaceOwnerKind = state.sequenceExprIDs.contains(receiverID.rawValue) ? .sequence : .list
-            guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: ownerKind, callee: callee, arity: 2) else {
+            guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 2) else {
                 return false
             }
             let hofResult = module.arena.appendTemporary(type: nil

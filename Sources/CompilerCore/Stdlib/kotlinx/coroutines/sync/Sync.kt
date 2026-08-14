@@ -26,7 +26,7 @@ public val Mutex.isLocked: Boolean
 
 public fun Mutex.tryLock(): Boolean = __kkMutexTryLock(this)
 
-public suspend fun <T> Mutex.withLock(action: () -> T): T {
+public suspend fun <T> Mutex.withLock(action: suspend () -> T): T {
     lock()
     try {
         return action()
@@ -53,7 +53,7 @@ public val Semaphore.availablePermits: Int
 
 public fun Semaphore.tryAcquire(): Boolean = __kkSemaphoreTryAcquire(this)
 
-public suspend fun <T> Semaphore.withPermit(action: () -> T): T {
+public suspend fun <T> Semaphore.withPermit(action: suspend () -> T): T {
     acquire()
     try {
         return action()

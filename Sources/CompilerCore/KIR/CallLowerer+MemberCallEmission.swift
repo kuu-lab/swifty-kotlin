@@ -352,6 +352,34 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + producerArgs + jobArgs
         }
+        let isComparatorBinarySearch: Bool = {
+            guard loweredCallee == interner.intern("binarySearch"),
+                  let chosenCallee,
+                  let signature = sema.symbols.functionSignature(for: chosenCallee)
+            else {
+                return false
+            }
+            return signature.parameterTypes.contains { parameterType in
+                guard let (_, symbol) = resolveClassTypeSymbol(parameterType, sema: sema)
+                else {
+                    return false
+                }
+                return interner.resolve(symbol.name) == "Comparator"
+            }
+        }()
+        if isComparatorBinarySearch {
+            materializeBinarySearchDefaultArguments(
+                normalized.defaultMask,
+                receiverExpr: receiver.expr,
+                loweredReceiverID: receiver.loweredID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArguments,
+                sourceArgLabels: sourceArgLabels
+            )
+        }
         if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
            finalArguments.count >= 3
         {
@@ -431,23 +459,6 @@ extension CallLowerer {
                 finalArguments.insert(exprID, at: lambdaArgIndex + offset)
             }
         }
-        if (loweredCallee == interner.intern("kk_string_zipTransform")
-            || loweredCallee == interner.intern("kk_string_zipTransform_flat")),
-           finalArguments.count == 3
-        {
-            // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
-            // (parameterMapping only covers 2 original args; the extra closureBox at index 2 is not mapped).
-            // Re-split finalArguments[2] (the already-extracted fnPtr) to restore (fnPtr, closureRaw).
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[2] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
         if loweredCallee == interner.intern("kk_list_zip_transform"),
            finalArguments.count == 3
         {
@@ -459,20 +470,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments[2] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
-        if (loweredCallee == interner.intern("kk_string_zipWithNextTransform")
-            || loweredCallee == interner.intern("kk_string_zipWithNextTransform_flat")),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[1] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
@@ -509,55 +506,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
-        if loweredCallee == interner.intern("kk_sequence_filterTo")
-            || loweredCallee == interner.intern("kk_sequence_filterNotTo")
-            || loweredCallee == interner.intern("kk_sequence_filterIndexedTo")
-            || loweredCallee == interner.intern("kk_sequence_mapNotNullTo")
-            || loweredCallee == interner.intern("kk_sequence_mapTo")
-            || loweredCallee == interner.intern("kk_sequence_mapIndexedTo")
-            || loweredCallee == interner.intern("kk_sequence_mapIndexedNotNullTo")
-        {
-            if finalArguments.count == 2 {
-                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                    finalArguments[1],
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArguments = [receiver.loweredID, finalArguments[0], fnPtrExpr, envPtrExpr]
-            } else if finalArguments.count == 3, finalArguments[0] == receiver.loweredID {
-                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                    finalArguments[2],
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
-            } else if finalArguments.count == 3 {
-                finalArguments = [receiver.loweredID] + finalArguments
-            }
-        }
-        if loweredCallee == interner.intern("kk_sequence_filterIndexedTo"),
-           finalArguments.count == 2 || finalArguments.count == 3
-        {
-            // finalArguments is already normalized to parameter order (destination=0, predicate=1)
-            // by normalizedCallArguments, so use fixed indices regardless of named-arg source order.
-            let includesReceiver = finalArguments.count == 3
-            let argumentOffset = includesReceiver ? 1 : 0
-            let receiverArg = includesReceiver ? finalArguments[0] : receiver.loweredID
-            let destinationArgIndex = argumentOffset + 0
-            let lambdaArgIndex = argumentOffset + 1
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[lambdaArgIndex],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [receiverArg, finalArguments[destinationArgIndex], fnPtrExpr, envPtrExpr]
         }
         if loweredCallee == interner.intern("kk_sequence_elementAtOrElse"),
            finalArguments.count == 3
@@ -599,39 +547,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
-        if loweredCallee == interner.intern("kk_sequence_flatMapIndexedTo"),
-           finalArguments.count == 3
-        {
-            let firstArg = finalArguments[1]
-            let secondArg = finalArguments[2]
-            let lambdaArg: KIRExprID
-            let destinationArg: KIRExprID
-            if sourceArgExprs.count >= 2,
-               sema.bindings.isCollectionHOFLambdaExpr(sourceArgExprs[0])
-            {
-                lambdaArg = firstArg
-                destinationArg = secondArg
-            } else if sourceArgExprs.count >= 2,
-                      sema.bindings.isCollectionHOFLambdaExpr(sourceArgExprs[1])
-            {
-                destinationArg = firstArg
-                lambdaArg = secondArg
-            } else if driver.ctx.callableValueInfo(for: firstArg) != nil {
-                lambdaArg = firstArg
-                destinationArg = secondArg
-            } else {
-                destinationArg = firstArg
-                lambdaArg = secondArg
-            }
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                lambdaArg,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], destinationArg, fnPtrExpr, envPtrExpr]
         }
         if loweredCallee == interner.intern("kk_array_copyOf_newSize_init"),
            finalArguments.count == 3
@@ -910,8 +825,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_findLast"),
             interner.intern("kk_sequence_elementAt"),
             interner.intern("kk_sequence_min"),
-            interner.intern("kk_sequence_flatMapIndexedTo"),
-            interner.intern("kk_sequence_flatMapTo"),
             interner.intern("kk_sequence_ifEmpty"),
             interner.intern("kk_sequence_first"),
             interner.intern("kk_sequence_random"),
@@ -922,10 +835,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_zipTransform"),
-            interner.intern("kk_string_zipWithNextTransform"),
-            interner.intern("kk_string_chunked_sequence_transform"),
-            interner.intern("kk_string_windowedSequence_transform"),
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),

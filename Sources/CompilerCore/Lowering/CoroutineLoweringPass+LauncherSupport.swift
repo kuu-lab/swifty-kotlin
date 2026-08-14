@@ -248,6 +248,30 @@ extension CoroutineLoweringPass {
         return package == "kotlinx.coroutines" || package == "kotlinx.coroutines.channels"
     }
 
+    /// STDLIB-CORO-001: Detect whether an expression has the synthetic
+    /// `kotlinx.coroutines.CoroutineStart` enum type, used to disambiguate
+    /// `launch(start = CoroutineStart.LAZY)` from `launch(Dispatchers.Default)`.
+    func isCoroutineStartExpression(
+        _ exprID: KIRExprID,
+        using rewrite: SuspendRewriteContext
+    ) -> Bool {
+        guard let sema = rewrite.ctx.sema,
+              let type = rewrite.module.arena.exprType(exprID),
+              case let .classType(classType) = sema.types.kind(of: type)
+        else {
+            return false
+        }
+        guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+            return false
+        }
+        let interner = rewrite.ctx.interner
+        let fqName = symbol.fqName
+        guard fqName.count >= 3 else { return false }
+        return interner.resolve(fqName[fqName.count - 1]) == "CoroutineStart"
+            && interner.resolve(fqName[fqName.count - 3]) == "kotlinx"
+            && interner.resolve(fqName[fqName.count - 2]) == "coroutines"
+    }
+
     func rewriteLauncherCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -297,7 +321,6 @@ extension CoroutineLoweringPass {
         let firstLowered = firstArgSymbol.flatMap { rewrite.loweredBySymbol[$0] }
 
         if firstLowered == nil && call.arguments.count >= 2 {
-            // First argument is not a suspend function. Try to interpret it as a dispatcher.
             let launchCallee = rewrite.ctx.interner.intern("launch")
             guard call.callee == launchCallee else {
                 // Dispatcher-aware pattern is only valid for `launch`.
@@ -309,6 +332,19 @@ extension CoroutineLoweringPass {
                 return [call.instruction]
             }
 
+            // STDLIB-CORO-001: CoroutineStart.LAZY overload.
+            if isCoroutineStartExpression(call.arguments[0], using: rewrite) {
+                return rewriteLazyLauncherCall(
+                    startExpr: call.arguments[0],
+                    suspendArgExpr: call.arguments[1],
+                    extraArgs: Array(call.arguments.dropFirst(2)),
+                    call: call,
+                    symbolByExprRaw: symbolByExprRaw,
+                    using: rewrite
+                )
+            }
+
+            // First argument is not a suspend function. Try to interpret it as a dispatcher.
             let dispatcherExpr = call.arguments[0]
             let suspendArgExpr = call.arguments[1]
 
@@ -514,6 +550,145 @@ extension CoroutineLoweringPass {
                 symbol: nil,
                 callee: runtimeCallee,
                 arguments: [thunkRefExpr, continuationExpr, dispatcherExpr],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: nil
+            )
+        )
+        return rewritten
+    }
+
+    // STDLIB-CORO-001: Rewrite launch(start = CoroutineStart.LAZY) { block }.
+    func rewriteLazyLauncherCall(
+        startExpr: KIRExprID,
+        suspendArgExpr: KIRExprID,
+        extraArgs: [KIRExprID],
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        guard let suspendSymbol = symbolReference(
+            for: suspendArgExpr,
+            module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        ), let loweredTarget = rewrite.loweredBySymbol[suspendSymbol] else {
+            rewrite.ctx.diagnostics.error(
+                "KSWIFTK-CORO-0002",
+                "Coroutine launcher 'launch' requires a suspend function reference argument.",
+                range: nil
+            )
+            return [call.instruction]
+        }
+
+        let targetArity = rewrite.suspendFunctionArityBySymbol[suspendSymbol] ?? 0
+        guard extraArgs.count == targetArity else {
+            rewrite.ctx.diagnostics.error(
+                "KSWIFTK-CORO-0003",
+                "Coroutine launcher 'launch' passed \(extraArgs.count) capture argument(s) but referenced suspend function expects \(targetArity).",
+                range: nil
+            )
+            return [call.instruction]
+        }
+
+        if targetArity == 0 {
+            return rewriteZeroArgLazyLauncherCall(
+                loweredTarget: loweredTarget,
+                call: call,
+                using: rewrite
+            )
+        }
+
+        guard let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol] else {
+            assertionFailure("Internal compiler error: launcher thunk missing for lazy launch")
+            return [call.instruction]
+        }
+        return rewriteArgBearingLazyLauncherCall(
+            loweredTarget: loweredTarget,
+            thunk: thunk,
+            extraArgs: extraArgs,
+            call: call,
+            using: rewrite
+        )
+    }
+
+    // STDLIB-CORO-001: launch(start = CoroutineStart.LAZY) { } with no captures.
+    func rewriteZeroArgLazyLauncherCall(
+        loweredTarget: LoweredSuspendFunction,
+        call: CallRewriteInput,
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let entryFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let runtimeCallee = rewrite.ctx.interner.intern("kk_kxmini_launch_lazy")
+
+        return [
+            .constValue(result: entryPointExpr, value: .symbolRef(loweredTarget.symbol)),
+            .constValue(result: entryFunctionID, value: .intLiteral(Int64(loweredTarget.symbol.rawValue))),
+            .call(
+                symbol: nil,
+                callee: runtimeCallee,
+                arguments: [entryPointExpr, entryFunctionID],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult
+            ),
+        ]
+    }
+
+    // STDLIB-CORO-001: launch(start = CoroutineStart.LAZY) { captures } with captures.
+    func rewriteArgBearingLazyLauncherCall(
+        loweredTarget: LoweredSuspendFunction,
+        thunk: LoweredSuspendFunction,
+        extraArgs: [KIRExprID],
+        call: CallRewriteInput,
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let runtimeCallee = rewrite.ctx.interner.intern("kk_kxmini_launch_lazy_with_cont")
+
+        var rewritten: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: rewrite.continuationFactory,
+                arguments: [loweredFunctionIDExpr],
+                result: continuationExpr,
+                canThrow: false,
+                thrownResult: nil
+            ),
+        ]
+
+        for (index, argExpr) in extraArgs.enumerated() {
+            let slotExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(Int64(index)),
+                type: rewrite.intType
+            )
+            rewritten.append(
+                .call(
+                    symbol: nil,
+                    callee: rewrite.launcherArgSetCallee,
+                    arguments: [continuationExpr, slotExpr, argExpr],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        }
+
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
+        rewritten.append(
+            .call(
+                symbol: nil,
+                callee: runtimeCallee,
+                arguments: [thunkRefExpr, continuationExpr],
                 result: call.result,
                 canThrow: call.canThrow,
                 thrownResult: nil

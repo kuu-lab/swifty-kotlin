@@ -216,7 +216,7 @@ public fun <T> Set<T>.containsAll(elements: Collection<out T>): Boolean {
 /**
  * Returns a set containing all elements that are contained by both this set and [other].
  */
-public infix fun <T> Set<T>.intersect(other: Collection<T>): Set<T> {
+public infix fun <T> Set<T>.intersect(other: Iterable<T>): Set<T> {
     val result = mutableSetOf<T>()
     for (element in this) {
         if (other.contains(element)) result.add(element)
@@ -227,7 +227,7 @@ public infix fun <T> Set<T>.intersect(other: Collection<T>): Set<T> {
 /**
  * Returns a set containing all elements of this set and then all elements of [other].
  */
-public infix fun <T> Set<T>.union(other: Collection<T>): Set<T> {
+public infix fun <T> Set<T>.union(other: Iterable<T>): Set<T> {
     val result = mutableSetOf<T>()
     for (element in this) {
         result.add(element)
@@ -241,7 +241,7 @@ public infix fun <T> Set<T>.union(other: Collection<T>): Set<T> {
 /**
  * Returns a set containing all elements of this set except those contained in [other].
  */
-public infix fun <T> Set<T>.subtract(other: Collection<T>): Set<T> {
+public infix fun <T> Set<T>.subtract(other: Iterable<T>): Set<T> {
     val result = mutableSetOf<T>()
     for (element in this) {
         if (!other.contains(element)) result.add(element)

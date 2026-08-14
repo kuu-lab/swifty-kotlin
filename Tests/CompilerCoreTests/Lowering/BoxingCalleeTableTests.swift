@@ -71,11 +71,15 @@ struct BoxingCalleeTableTests {
         }
 
         let stringType = types.make(.stringStruct(.nonNull))
-        if let callee = table.boxCallee(for: stringType, types: types, requireNonNull: true) {
-            Issue.record("String is not primitive-boxed by the runtime table: \(interner.resolve(callee))")
+        #expect(table.boxCallee(for: stringType, types: types, requireNonNull: true).map(interner.resolve) == "kk_string_from_flat")
+        #expect(table.unboxCallee(for: stringType, types: types, requireNonNull: true).map(interner.resolve) == "kk_string_to_flat")
+
+        let nullableString = types.make(.stringStruct(.nullable))
+        if let callee = table.boxCallee(for: nullableString, types: types, requireNonNull: true) {
+            Issue.record("Nullable String should not satisfy requireNonNull boxing lookup: \(interner.resolve(callee))")
         }
-        if let callee = table.unboxCallee(for: stringType, types: types, requireNonNull: true) {
-            Issue.record("String is not primitive-unboxed by the runtime table: \(interner.resolve(callee))")
+        if let callee = table.unboxCallee(for: nullableString, types: types, requireNonNull: true) {
+            Issue.record("Nullable String should not satisfy requireNonNull unboxing lookup: \(interner.resolve(callee))")
         }
     }
 }

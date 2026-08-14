@@ -32,7 +32,17 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.filterIndexedName
             || callee == lookup.associateName
             || callee == lookup.associateByName
+            || callee == lookup.associateWithName
+            || callee == lookup.associateToName
+            || callee == lookup.associateByToName
+            || callee == lookup.associateWithToName
             || callee == lookup.groupByName
+            || callee == lookup.groupByToName
+            || callee == lookup.partitionName
+            || callee == lookup.unzipName
+            || callee == lookup.withIndexName
+            || callee == lookup.onEachName
+            || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName

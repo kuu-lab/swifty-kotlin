@@ -4,18 +4,18 @@ import Foundation
 import Testing
 
 /// Tests that collection HOF type inference works correctly even when external
-/// library metadata is missing or unavailable — the compiler's built-in
-/// synthetic stubs must serve as a reliable fallback.
+/// library metadata is missing or unavailable — bundled Kotlin declarations
+/// must remain available without external metadata.
 @Suite
 struct CollectionHOFManifestDecodeErrorTests {
 
-    /// Verify that collection HOF members are available via synthetic stubs
+    /// Verify that collection HOF members are available via bundled declarations
     /// without any external library metadata loaded.
 
     /// Verify that invalid/non-existent search paths do not cause crashes
-    /// and that the compiler falls back to synthetic stubs gracefully.
+    /// and that the compiler falls back to bundled declarations gracefully.
 
-    /// Verify that all collection HOF stubs carry the expected inline+synthetic flags.
+    /// Verify that migrated collection HOF declarations are not synthetic stubs.
 
     // MARK: - Per-source diagnostic helpers
 
@@ -224,32 +224,35 @@ struct CollectionHOFManifestDecodeErrorTests {
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-                // No searchPaths — purely relying on bundled stdlib / synthetic stubs.
+                // No searchPaths — purely relying on bundled Kotlin declarations.
 
-                    let collectionsFQ: [InternedString] = [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                    ]
-                    let listFQ: [InternedString] = collectionsFQ + [interner.intern("List")]
+                let collectionsFQ: [InternedString] = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                ]
 
-                    // mapIndexed is now provided by bundled Kotlin source (top-level extension).
-                    let mapIndexedSource = sema.symbols.lookup(
-                        fqName: collectionsFQ + [interner.intern("mapIndexed")]
-                    )
-                    #expect(mapIndexedSource != nil, "mapIndexed bundled source must exist without external metadata")
-                    if let mapIndexedSource {
-                        let symbol = try #require(sema.symbols.symbol(mapIndexedSource))
-                        #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
-                    }
+                // mapIndexed is now provided by bundled Kotlin source (top-level extension).
+                let mapIndexedSource = sema.symbols.lookup(
+                    fqName: collectionsFQ + [interner.intern("mapIndexed")]
+                )
+                #expect(mapIndexedSource != nil, "mapIndexed bundled source must exist without external metadata")
+                if let mapIndexedSource {
+                    let symbol = try #require(sema.symbols.symbol(mapIndexedSource))
+                    #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
+                }
 
-                    // partition still uses a synthetic member stub.
-                    let partitionSymbolID = sema.symbols.lookup(
-                        fqName: listFQ + [interner.intern("partition")]
-                    )
-                    #expect(partitionSymbolID != nil, "Synthetic stub for 'partition' must exist without external metadata")
+                let partitionSymbolID = sema.symbols.lookup(
+                    fqName: collectionsFQ + [interner.intern("partition")]
+                )
+                #expect(partitionSymbolID != nil, "Bundled source for 'partition' must exist without external metadata")
+                if let partitionSymbolID {
+                    let partitionSymbol = try #require(sema.symbols.symbol(partitionSymbolID))
+                    #expect(!partitionSymbol.flags.contains(.synthetic), "partition must be a real bundled source declaration")
+                    #expect(sema.symbols.externalLinkName(for: partitionSymbolID) == nil)
+                }
 
-                    // No type-constraint errors expected.
-                    assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sample0Diagnostics)
+                // No type-constraint errors expected.
+                assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sample0Diagnostics)
 
             }
 
@@ -290,7 +293,7 @@ struct CollectionHOFManifestDecodeErrorTests {
 
             }
 
-            // === testCollectionHOFStubsFlagsAreCorrect ===
+            // === testCollectionHOFSourceFlagsAreCorrect ===
 
             do {
 
@@ -300,10 +303,9 @@ struct CollectionHOFManifestDecodeErrorTests {
 
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
-                let listFQ: [InternedString] = [
+                let collectionsFQ: [InternedString] = [
                     interner.intern("kotlin"),
                     interner.intern("collections"),
-                    interner.intern("List"),
                 ]
 
                 let hofMembers = [
@@ -313,14 +315,15 @@ struct CollectionHOFManifestDecodeErrorTests {
                 ]
 
                 for memberName in hofMembers {
-                    guard let symbolID = sema.symbols.lookup(
-                        fqName: listFQ + [interner.intern(memberName)]
-                    ) else {
-                        // Stubs not registered — covered by other tests.
-                        continue
+                    let symbolIDs = sema.symbols.lookupAll(
+                        fqName: collectionsFQ + [interner.intern(memberName)]
+                    )
+                    #expect(!symbolIDs.isEmpty, "Expected bundled source declaration for '\(memberName)'")
+                    for symbolID in symbolIDs {
+                        let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
+                        #expect(!flags.contains(.synthetic), "Expected '\(memberName)' to be backed by bundled Kotlin source")
+                        #expect(sema.symbols.externalLinkName(for: symbolID) == nil)
                     }
-                    let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
-                    #expect(flags.contains(.synthetic), "Expected '\(memberName)' to be marked synthetic")
                 }
 
             }

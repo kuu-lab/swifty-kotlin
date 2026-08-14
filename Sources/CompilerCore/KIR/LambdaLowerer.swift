@@ -19,10 +19,19 @@ final class LambdaLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        isRawCallbackParameter: Bool = false
     ) -> KIRExprID {
+        let kind = sema.types.kind(of: type)
+        // String parameters of raw-callback lambdas are bridged from raw handle
+        // to flat aggregate by the backend at function entry. Unboxing them here
+        // again would pass an already-flat aggregate to kk_string_to_flat and
+        // crash, so skip the KIR-level unboxing only for those parameters.
+        if isRawCallbackParameter, isNonNullableStringStruct(kind) {
+            return exprID
+        }
         let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
-            for: sema.types.kind(of: type),
+            for: kind,
             requireNonNull: true
         )
         guard let unboxCallee else {
@@ -36,6 +45,13 @@ final class LambdaLowerer {
             into: &instructions
         )
         return normalizedExpr
+    }
+
+    private func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
+        guard case let .stringStruct(nullability) = kind else {
+            return false
+        }
+        return nullability == .nonNull
     }
 
     /// Best-effort scan for whether a lowered lambda body performs a call that
@@ -306,7 +322,8 @@ final class LambdaLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    instructions: &lambdaBody
+                    instructions: &lambdaBody,
+                    isRawCallbackParameter: true
                 )
             } else {
                 normalizedParamExpr = paramExpr
@@ -589,7 +606,8 @@ final class LambdaLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                instructions: &body
+                instructions: &body,
+                isRawCallbackParameter: true
             )
             callArguments.append(normalizedLoadedExpr)
         }
@@ -1246,7 +1264,8 @@ final class LambdaLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    instructions: &body
+                    instructions: &body,
+                    isRawCallbackParameter: true
                 )
                 callArgExprs.append(normalizedParamExpr)
             }
