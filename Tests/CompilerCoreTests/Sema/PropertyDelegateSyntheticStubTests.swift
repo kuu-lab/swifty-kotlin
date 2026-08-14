@@ -31,9 +31,14 @@ struct PropertyDelegateSyntheticStubTests {
         let readOnlySymbol = try #require(sema.symbols.lookup(fqName: readOnlyFQName))
         let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
         let observableInfo = try #require(sema.symbols.symbol(observableSymbol))
+        let readWriteInfo = try #require(sema.symbols.symbol(readWriteSymbol))
+        let readOnlyInfo = try #require(sema.symbols.symbol(readOnlySymbol))
         #expect(observableInfo.kind == .class)
         #expect(observableInfo.flags.contains(.abstractType))
         #expect(sema.symbols.directSupertypes(for: observableSymbol) == [readWriteSymbol])
+        #expect(!readWriteInfo.flags.contains(.synthetic))
+        #expect(!readOnlyInfo.flags.contains(.synthetic))
+        #expect(readOnlyInfo.declSite != nil)
         try assertNominalTypeParameters(
             for: readWriteSymbol,
             names: ["T", "V"],

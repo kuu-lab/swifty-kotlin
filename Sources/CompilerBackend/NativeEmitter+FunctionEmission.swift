@@ -2753,24 +2753,32 @@ extension NativeEmitter {
 
                 let lookupFunction: LLVMFunction?
                 var lookupArgs: [LLVMCAPIBindings.LLVMValueRef] = []
+                // The receiver used for the lookup must have the same runtime
+                // representation as the indirect getter call. A bundled
+                // CharSequence extension may still carry a flat String
+                // aggregate at this point; `virtualCallArguments` performs the
+                // required boxing before the getter is invoked, while using the
+                // original aggregate here makes the runtime look up a bogus
+                // object address and report a missing itable entry.
+                let lookupReceiver = virtualCallArguments.first ?? resolveValue(receiver)
                 switch dispatch {
                 case let .vtable(slot):
                     lookupFunction = declareExternalFunction(named: "kk_vtable_lookup", argumentCount: 2, appendThrownChannel: false)
                     lookupArgs = [
-                        resolveValue(receiver),
+                        lookupReceiver,
                         bindings.constInt(int64Type, value: UInt64(slot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]
                 case let .itable(interfaceSlot, methodSlot):
                     lookupFunction = declareExternalFunction(named: "kk_itable_lookup", argumentCount: 3, appendThrownChannel: false)
                     lookupArgs = [
-                        resolveValue(receiver),
+                        lookupReceiver,
                         bindings.constInt(int64Type, value: UInt64(interfaceSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                         bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]
                 case let .itableDynamic(interfaceTypeID, methodSlot):
                     lookupFunction = declareExternalFunction(named: "kk_itable_lookup_dynamic", argumentCount: 3, appendThrownChannel: false)
                     lookupArgs = [
-                        resolveValue(receiver),
+                        lookupReceiver,
                         bindings.constInt(int64Type, value: UInt64(bitPattern: interfaceTypeID)) ?? bindings.constInt(int64Type, value: 0)!,
                         bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]

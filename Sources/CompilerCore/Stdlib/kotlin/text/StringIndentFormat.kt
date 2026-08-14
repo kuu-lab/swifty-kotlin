@@ -1,7 +1,5 @@
 package kotlin.text
 
-import kswiftk.internal.*
-
 // String indent and format functions migrated from Swift Runtime.
 // MIGRATION-TEXT-006
 //
@@ -11,11 +9,11 @@ import kswiftk.internal.*
 private fun String.normalizeLineSeparators(): String {
     val sb = StringBuilder()
     var i = 0
-    while (i < __kk_string_struct_get_length(this)) {
+    while (i < this.length) {
         val c = this[i]
         if (c == '\r') {
             sb.append('\n')
-            if (i + 1 < __kk_string_struct_get_length(this) && this[i + 1] == '\n') {
+            if (i + 1 < this.length && this[i + 1] == '\n') {
                 i++
             }
         } else {
@@ -30,7 +28,7 @@ private fun String.splitIntoLines(): List<String> {
     val src = normalizeLineSeparators()
     val result = mutableListOf<String>()
     var start = 0
-    while (start <= __kk_string_struct_get_length(src)) {
+    while (start <= src.length) {
         val idx = src.indexOf("\n", start)
         if (idx == -1) {
             result.add(src.substring(start))
