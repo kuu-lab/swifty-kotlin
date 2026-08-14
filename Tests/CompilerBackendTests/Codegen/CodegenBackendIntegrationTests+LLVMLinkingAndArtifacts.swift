@@ -1757,24 +1757,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         appendScalarCall("kk_string_split_flat", [textExpr, delimiterExpr])
         appendScalarCall("kk_string_split_limit_flat", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall("kk_string_splitToSequence_flat", [textExpr, delimiterExpr])
-        appendScalarCall("kk_string_chunked_flat", [textExpr, sizeExpr])
-        appendScalarCall("kk_string_chunked_sequence_flat", [textExpr, sizeExpr])
-        appendThrowingScalarCall(
-            "kk_string_chunked_sequence_transform_flat",
-            [textExpr, sizeExpr, fnPtrExpr, closureExpr]
-        )
-        appendScalarCall("kk_string_windowed_default_flat", [textExpr, sizeExpr])
-        appendScalarCall("kk_string_windowed_flat", [textExpr, sizeExpr, stepExpr])
-        appendScalarCall("kk_string_windowed_partial_flat", [textExpr, sizeExpr, stepExpr, partialExpr])
-        appendScalarCall("kk_string_windowedSequence_partial_flat", [textExpr, sizeExpr, stepExpr, partialExpr])
-        appendThrowingScalarCall(
-            "kk_string_windowedSequence_transform_flat",
-            [textExpr, sizeExpr, stepExpr, partialExpr, fnPtrExpr, closureExpr]
-        )
-        appendScalarCall("kk_string_zipWithNext_flat", [textExpr])
-        appendThrowingScalarCall("kk_string_zipWithNextTransform_flat", [textExpr, fnPtrExpr, closureExpr])
-        appendScalarCall("kk_string_zip_flat", [textExpr, otherExpr])
-        appendThrowingScalarCall("kk_string_zipTransform_flat", [textExpr, otherExpr, fnPtrExpr, closureExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1816,18 +1798,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             "kk_string_split",
             "kk_string_split_limit",
             "kk_string_splitToSequence",
-            "kk_string_chunked",
-            "kk_string_chunked_sequence",
-            "kk_string_chunked_sequence_transform",
-            "kk_string_windowed_default",
-            "kk_string_windowed",
-            "kk_string_windowed_partial",
-            "kk_string_windowedSequence_partial",
-            "kk_string_windowedSequence_transform",
-            "kk_string_zipWithNext",
-            "kk_string_zipWithNextTransform",
-            "kk_string_zip",
-            "kk_string_zipTransform",
         ]
         for rawName in rawNames {
             #expect(!ir.contains("@\(rawName)("), "Unexpected raw String list/sequence call: \(rawName)")

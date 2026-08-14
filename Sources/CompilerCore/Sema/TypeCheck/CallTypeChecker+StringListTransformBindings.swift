@@ -1,15 +1,14 @@
 /// Binding for `String.chunked(size, transform)` and
 /// `String.windowed(size, step, partialWindows, transform)` overloads: the
 /// `List<R>`-returning counterparts of `chunkedSequence`/`windowedSequence`
-/// (see `CallTypeChecker+StringSequenceTransformBindings.swift`). Both are
-/// implemented as bundled Kotlin source under uniquely-named internal
-/// functions (`Stdlib/kotlin/text/StringWindowChunkTransform.kt`) rather than
-/// as functions literally named `chunked`/`windowed` — the KIR lowering layer
-/// still has legacy by-name dispatch for those two names (see
-/// `CallLowerer+LegacyMemberLikeCalls.swift`) that predates this migration and
-/// would otherwise misroute calls to this new overload shape. The resolved
-/// callee is identified by having a real `declSite` and no external link
-/// name, instead of by `externalLinkName`.
+/// source overloads. The sequence overloads are resolved directly from the
+/// bundled declarations in `StringWindowChunkTransform.kt`.
+///
+/// The list transform overloads use uniquely named bundled functions rather
+/// than declarations literally named `chunked`/`windowed`, because the KIR
+/// lowering layer still has legacy by-name dispatch for those two names. The
+/// resolved callee is identified by its real `declSite` and no external link
+/// name.
 ///
 /// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {
