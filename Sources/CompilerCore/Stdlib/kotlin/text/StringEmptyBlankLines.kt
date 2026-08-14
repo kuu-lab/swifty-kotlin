@@ -1,13 +1,11 @@
 package kotlin.text
 
-import kswiftk.internal.*
-
 // KSP-401: empty/blank/line helpers migrated from Swift Runtime.
 
 private fun ksp401StringFromCharSequence(value: CharSequence): String {
     val builder = StringBuilder()
     var i = 0
-    while (i < __kk_string_struct_get_length(value)) {
+    while (i < value.length) {
         builder.append(value[i])
         i++
     }
@@ -18,13 +16,13 @@ private fun ksp401IsWhitespace(value: Char): Boolean {
     return value == ' ' || value == '\t' || value == '\n' || value == '\r'
 }
 
-public fun CharSequence.isEmpty(): Boolean = __kk_string_struct_get_length(this) == 0
+public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
-public fun CharSequence.isNotEmpty(): Boolean = __kk_string_struct_get_length(this) != 0
+public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
 
 public fun CharSequence.isBlank(): Boolean {
     var i = 0
-    while (i < __kk_string_struct_get_length(this)) {
+    while (i < this.length) {
         if (!ksp401IsWhitespace(this[i])) return false
         i++
     }
