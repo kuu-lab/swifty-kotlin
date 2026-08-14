@@ -624,35 +624,6 @@ public func __kk_string_toUIntOrNull_radix_flat(
     __kk_string_toUIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-@_cdecl("kk_string_windowedSequence_partial_flat")
-public func kk_string_windowedSequence_partial_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int,
-    _ step: Int,
-    _ partialWindows: Int
-) -> Int {
-    kk_string_windowedSequence_partial(kk_string_from_flat(data, length, byteCount, hash), size, step, partialWindows)
-}
-
-@_cdecl("kk_string_windowedSequence_transform_flat")
-public func kk_string_windowedSequence_transform_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int,
-    _ step: Int,
-    _ partialWindows: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_windowedSequence_transform(kk_string_from_flat(data, length, byteCount, hash), size, step, partialWindows, fnPtr, closureRaw, outThrown)
-}
-
 @_cdecl("kk_string_trimStart_flat")
 public func kk_string_trimStart_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -756,79 +727,6 @@ public func kk_string_trimEnd_predicate_flat(
 }
 
 // KSP-404: kk_string_endsWith_flat removed; endsWith is bundled Kotlin source.
-
-@_cdecl("kk_string_chunked_flat")
-public func kk_string_chunked_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int
-) -> Int {
-    runtimeStringChunkedList(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), size: size)
-}
-
-@_cdecl("kk_string_chunked_sequence_flat")
-public func kk_string_chunked_sequence_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int
-) -> Int {
-    runtimeStringChunkedSequence(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), size: size)
-}
-
-@_cdecl("kk_string_chunked_sequence_transform_flat")
-public func kk_string_chunked_sequence_transform_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    return kk_string_chunked_sequence_transform(kk_string_from_flat(data, length, byteCount, hash), size, fnPtr, closureRaw, outThrown)
-}
-
-@_cdecl("kk_string_windowed_default_flat")
-public func kk_string_windowed_default_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int
-) -> Int {
-    runtimeStringWindowedList(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), size: size, step: 1)
-}
-
-@_cdecl("kk_string_windowed_flat")
-public func kk_string_windowed_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int,
-    _ step: Int
-) -> Int {
-    runtimeStringWindowedList(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), size: size, step: step)
-}
-
-@_cdecl("kk_string_windowed_partial_flat")
-public func kk_string_windowed_partial_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ size: Int,
-    _ step: Int,
-    _ partialWindows: Int
-) -> Int {
-    runtimeStringWindowedPartialList(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), size: size, step: step, partialWindows: partialWindows)
-}
 
 // KSP-406: substring/subSequence flat bridges removed with the bundled Kotlin
 // source migration (StringSubstringSlice.kt).
