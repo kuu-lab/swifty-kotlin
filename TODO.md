@@ -285,7 +285,9 @@
 
 - [ ] KSP-636: kotlin.math の丸め系を Kotlin 化する（ceil/floor/round/truncate/withSign — Foundation 依存の有無を着手時確認し、純ロジック化できない分のみ `__kk_` 降格。対象 kk_* 約12）
 - [ ] KSP-637: kotlin.math の超越関数を `__kk_math_*` 降格する（sin/cos/tan/asin/acos/atan/atan2/exp/expm1/ln/ln1p/log/log2/log10/sinh/cosh/tanh/acosh/asinh/atanh/cbrt/hypot/pow/sqrt/IEEErem/nextTowards の Double/Float 版 — libm 窓口の改名 + 公開層 .kt 化。約52 kk_*。`rg -o '@_cdecl\("kk_math_[a-zA-Z0-9_]*"\)' Sources/Runtime` で着手時固定）
-- [ ] KSP-638: roundToInt/roundToLong/ulp/nextUp/nextDown を整理する（**`HeaderHelpers+SyntheticMathStubs.swift` と `+SyntheticCoercionStubs.swift` の二重登録を一本化**した上で `__kk_` 降格。kk_* 10）
+- [x] KSP-638: roundToInt/roundToLong/ulp/nextUp/nextDown を整理する（**`HeaderHelpers+SyntheticMathStubs.swift` と `+SyntheticCoercionStubs.swift` の二重登録を一本化**した上で `__kk_` 降格。kk_* 10）
+  - 完了（2026-08-14）: `Math.kt` に公開 extension/property 層を追加し、10件の Runtime/ABI 窓口を `__kk_*` に統一。Sema の二重登録、不要な name-string 特例、旧 `kk_*` リンクを撤去し、Runtime/ABI parity と regression tests を更新。
+  - 検証: `swift build --jobs 2`、focused Sema/KIR/Codegen、`RuntimeMath`（`SWIFT_TEST_PARALLEL=0`）、Sema Golden 36件、Runtime ABI link 4件、対象 `diff_kotlinc` 2件が PASS。全体 diff は 857件中856 PASS/36 SKIPで、唯一の `coroutine_edge_cases.kt` 差分（KSP-638変更範囲外）は単独再実行で PASS となる非決定的な既存ケースだった。定義行の TODO ID 重複と `git diff --check` は PASS。
 - [ ] KSP-641: coerce の Comparable 総称版・ClosedFloatingPointRange range 版を**新規実装**する（本家 API `T.coerceIn(min?, max?)` / `coerceIn(ClosedFloatingPointRange)` が現状全く存在しない。前提: KSP-639, KSP-652）
 - [x] KSP-643: countOneBits/countLeadingZeroBits/countTrailingZeroBits を Kotlin 化する（**BUG-015 修正込み: Long 版は Sema 通過後に KIR で握りつぶされる壊れたパス** — Kotlin 実装で Int/Long 両対応に。Int 版 kk_* 3 削除。diff: count 系新規）
 - [ ] KSP-644: takeHighestOneBit/takeLowestOneBit/highestOneBit/lowestOneBit を Kotlin 化する（Int/Long 版 kk_* 8 削除・残留ゼロ）

@@ -694,7 +694,7 @@ extension CallTypeChecker {
                     // Extension functions are excluded from scope by the scope
                     // builder so they don't shadow top-level calls.  Fall back
                     // to a direct symbol-table lookup by short name to find
-                    // synthetic extension functions (e.g. Double.pow, roundToInt).
+                    // synthetic extension functions (e.g. Double.pow).
                     if scopeCandidates.isEmpty {
                         let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
                         scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
