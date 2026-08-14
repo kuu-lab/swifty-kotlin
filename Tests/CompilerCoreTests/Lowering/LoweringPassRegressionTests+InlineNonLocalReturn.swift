@@ -5,6 +5,85 @@ import Testing
 
 extension LoweringPassRegressionTests {
 
+    // MARK: - BUG-209: source lambda returns
+
+    @Test
+    func testBug209LowersUnlabeledLambdaReturnAsNonLocalReturn() throws {
+        let source = """
+            inline fun myRepeat(times: Int, action: (Int) -> Unit) {
+                var i = 0
+                while (i < times) {
+                    action(i)
+                    i += 1
+                }
+            }
+
+            inline fun cross(crossinline action: () -> Unit) { action() }
+            inline fun no(noinline action: () -> Unit) { action() }
+
+            fun unlabeled(): Int {
+                myRepeat(10) { i -> if (i == 3) return i }
+                return -1
+            }
+
+            fun labeled(): Int {
+                myRepeat(10) { i -> if (i == 3) return@myRepeat }
+                return 42
+            }
+            """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        guard let module = ctx.kir else {
+            Issue.record("expected KIR module")
+            return
+        }
+        let crossSymbol = ctx.sema?.symbols.lookupByShortName(ctx.interner.intern("cross")).first
+        let noSymbol = ctx.sema?.symbols.lookupByShortName(ctx.interner.intern("no")).first
+        #expect(ctx.sema?.symbols.functionSignature(for: crossSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
+        #expect(ctx.sema?.symbols.functionSignature(for: noSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
+        let lambdaFunctions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration,
+                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda")
+            else {
+                return nil
+            }
+            return function
+        }
+        let lambdasWithNonLocalReturn = lambdaFunctions.filter { function in
+            function.body.contains { instruction in
+                if case .nonLocalReturn = instruction { return true }
+                return false
+            }
+        }
+        #expect(lambdasWithNonLocalReturn.count == 1)
+        #expect(lambdasWithNonLocalReturn.first?.isInlineOnly == true,
+                "A lambda carrying nonLocalReturn must never be emitted standalone")
+        #expect(lambdasWithNonLocalReturn.first?.body.contains { instruction in
+            if case .returnValue = instruction { return true }
+            return false
+        } == true, "The implicit lambda tail return must remain a normal return")
+
+        try LoweringPhase().run(ctx)
+
+        let loweredFunctions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration else { return nil }
+            return function
+        }
+        let unlabeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "unlabeled" }
+        let labeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "labeled" }
+        #expect(unlabeledFunction != nil)
+        #expect(labeledFunction != nil)
+        #expect(unlabeledFunction?.body.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        } == false, "InlineLowering must consume BUG-209 nonLocalReturn instructions")
+        #expect(labeledFunction?.body.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        } == false, "return@myRepeat must stay lambda-local")
+    }
+
     // MARK: - Non-local return: basic conversion
 
     /// When an inline function body contains a `nonLocalReturn`, the inline

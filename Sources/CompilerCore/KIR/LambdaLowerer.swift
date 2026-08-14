@@ -110,6 +110,7 @@ final class LambdaLowerer {
         _ exprID: ExprID,
         params: [InternedString],
         bodyExpr: ExprID,
+        allowsNonLocalReturn: Bool = false,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -212,6 +213,7 @@ final class LambdaLowerer {
                 exprID: exprID,
                 params: params,
                 bodyExpr: bodyExpr,
+                allowsNonLocalReturn: allowsNonLocalReturn,
                 effectiveParamCount: effectiveParamCount,
                 hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
@@ -292,6 +294,7 @@ final class LambdaLowerer {
         let savedReceiverSymbol = scopeSnapshot.currentImplicitReceiverSymbol
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
+        driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -452,7 +455,8 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: false
+                    isInline: false,
+                    isInlineOnly: allowsNonLocalReturn
                 )
             )
         )
@@ -1478,6 +1482,7 @@ final class LambdaLowerer {
         exprID: ExprID,
         params: [InternedString],
         bodyExpr: ExprID,
+        allowsNonLocalReturn: Bool,
         effectiveParamCount: Int,
         hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
@@ -1510,6 +1515,7 @@ final class LambdaLowerer {
         let scopeSnapshot = driver.ctx.saveScope()
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
+        driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 
@@ -1575,7 +1581,8 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: true // Mark as inline for better optimization
+                    isInline: true, // Mark as inline for better optimization
+                    isInlineOnly: allowsNonLocalReturn
                 )
             )
         )

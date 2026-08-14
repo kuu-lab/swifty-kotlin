@@ -1428,7 +1428,7 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
-        case let .returnExpr(value, _, _):
+        case let .returnExpr(value, label, _):
             if let value {
                 let lowered = lowerExpr(
                     value,
@@ -1445,7 +1445,11 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                instructions.append(.returnValue(lowered))
+                if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                    instructions.append(.nonLocalReturn(lowered))
+                } else {
+                    instructions.append(.returnValue(lowered))
+                }
             } else {
                 // CODE-001: Inline all enclosing finally blocks before return.
                 inlineAllEnclosingFinallyBlocks(
@@ -1453,7 +1457,11 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                instructions.append(.returnUnit)
+                if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                    instructions.append(.nonLocalReturn(nil))
+                } else {
+                    instructions.append(.returnUnit)
+                }
             }
             let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -2182,10 +2190,13 @@ extension ExprLowerer {
             return unit
 
         case let .lambdaLiteral(params, bodyExpr, _, _):
+            let allowsNonLocalReturn = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = false
             return driver.lambdaLowerer.lowerLambdaLiteralExpr(
                 exprID,
                 params: params,
                 bodyExpr: bodyExpr,
+                allowsNonLocalReturn: allowsNonLocalReturn,
                 ast: ast,
                 sema: sema,
                 arena: arena,
