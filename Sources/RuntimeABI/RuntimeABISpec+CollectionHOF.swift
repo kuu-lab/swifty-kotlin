@@ -208,15 +208,6 @@ public extension RuntimeABISpec {
                 section: "Collection"
             ),
         ]
-        let unzipSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_unzip",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
         let asReversedSpec = RuntimeABIFunctionSpec(
             name: "__kk_list_as_reversed",
             parameters: [
@@ -349,7 +340,7 @@ public extension RuntimeABISpec {
         functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                unzipSpec, asReversedSpec,
+                asReversedSpec,
                 maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 sortedSpec,
