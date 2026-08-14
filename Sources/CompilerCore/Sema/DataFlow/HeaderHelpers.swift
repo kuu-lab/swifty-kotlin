@@ -891,7 +891,8 @@ extension DataFlowSemaPhase {
                 returnType: ownerType,
                 valueParameterSymbols: copyParams.paramSymbols,
                 valueParameterHasDefaultValues: Array(repeating: true, count: copyParams.paramSymbols.count),
-                valueParameterIsVararg: copyParams.paramIsVararg
+                valueParameterIsVararg: copyParams.paramIsVararg,
+                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn
             ),
             for: copySymbol
         )
@@ -975,7 +976,8 @@ extension DataFlowSemaPhase {
     }
 
     /// Collects value parameters into parallel arrays of types, symbols, default-value flags,
-    /// and vararg flags.  Shared by constructor and function header collection.
+    /// vararg flags, and non-local-return permissions. Shared by constructor and function
+    /// header collection.
     func collectValueParameters(
         _ valueParams: [ValueParamDecl],
         localNamespaceFQName: [InternedString],
@@ -990,11 +992,12 @@ extension DataFlowSemaPhase {
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
         fallbackType: TypeID
-    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool]) {
+    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool], paramAllowsNonLocalReturn: [Bool]) {
         var paramTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         var paramHasDefaultValues: [Bool] = []
         var paramIsVararg: [Bool] = []
+        var paramAllowsNonLocalReturn: [Bool] = []
         for valueParam in valueParams {
             let paramFQName = localNamespaceFQName + [valueParam.name]
             let paramSymbol = symbols.define(
@@ -1022,8 +1025,9 @@ extension DataFlowSemaPhase {
             paramSymbols.append(paramSymbol)
             paramHasDefaultValues.append(valueParam.hasDefaultValue)
             paramIsVararg.append(valueParam.isVararg)
+            paramAllowsNonLocalReturn.append(!valueParam.isCrossinline && !valueParam.isNoinline)
         }
-        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg)
+        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg, paramAllowsNonLocalReturn)
     }
 
     /// Collects type parameters from a function declaration, defining symbols and resolving

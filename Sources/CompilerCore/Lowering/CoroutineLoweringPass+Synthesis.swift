@@ -244,6 +244,7 @@ extension CoroutineLoweringPass {
         let loweredValueSymbols = (originalSignature?.valueParameterSymbols ?? []) + [continuationParameterSymbol]
         let loweredDefaults = (originalSignature?.valueParameterHasDefaultValues ?? []) + [false]
         let loweredVararg = (originalSignature?.valueParameterIsVararg ?? []) + [false]
+        let loweredNonLocalReturn = (originalSignature?.valueParameterAllowsNonLocalReturn ?? []) + [true]
         sema.symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: originalSignature?.receiverType,
@@ -253,6 +254,7 @@ extension CoroutineLoweringPass {
                 valueParameterSymbols: loweredValueSymbols,
                 valueParameterHasDefaultValues: loweredDefaults,
                 valueParameterIsVararg: loweredVararg,
+                valueParameterAllowsNonLocalReturn: loweredNonLocalReturn,
                 typeParameterSymbols: originalSignature?.typeParameterSymbols ?? [],
                 reifiedTypeParameterIndices: originalSignature?.reifiedTypeParameterIndices ?? []
             ),
