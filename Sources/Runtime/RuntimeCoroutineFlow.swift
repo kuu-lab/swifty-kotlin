@@ -1178,7 +1178,11 @@ private func runtimeFlowCollectStreaming(
                 switch result {
                 case .emit(let value):
                     let delivered = runtimeFlowDeliverValue(
-                        value, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation
+                        value,
+                        collectorFnPtr: collectorFnPtr,
+                        collectorEnvPtr: collectorEnvPtr,
+                        continuation: continuation,
+                        owningContext: context
                     )
                     if !delivered || runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
                         stop = true
@@ -1206,7 +1210,8 @@ private func runtimeFlowCollectStreaming(
                 value,
                 collectorFnPtr: collectorFnPtr,
                 collectorEnvPtr: collectorEnvPtr,
-                continuation: continuation
+                continuation: continuation,
+                owningContext: context
             )
             if !delivered || runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
                 return runtimeFlowStopSentinel
@@ -1232,13 +1237,13 @@ private func runtimeFlowDeliverValue(
     _ value: Int,
     collectorFnPtr: Int,
     collectorEnvPtr: Int,
-    continuation: Int
+    continuation: Int,
+    owningContext: RuntimeFlowCollectContext? = nil
 ) -> Bool {
     guard collectorFnPtr != 0 else {
         return true
     }
-
-    let currentContext = runtimeFlowCurrentCollectContext()
+    let currentContext = owningContext ?? runtimeFlowCurrentCollectContext()
     currentContext?.invokingCollector = true
     defer { currentContext?.invokingCollector = false }
 

@@ -71,13 +71,20 @@ struct FlowLoweringNames {
 }
 
 extension CoroutineLoweringPass {
-    /// Returns true when `symbol` resolves to a real, non-synthetic declaration.
-    /// Unresolved (`nil`) and synthetic-stub symbols are treated as flow intrinsics.
+    /// Returns true when `symbol` resolves to a real Kotlin declaration.
+    /// Bundled Kotlin declarations imported from a stdlib artifact carry both
+    /// `importedLibrary` and `synthetic`, so provenance is checked together
+    /// with the compiler-generated `kk_fn_` link name. Runtime bridge stubs
+    /// remain intrinsics even when they are source-backed metadata records.
     func hasRealDeclaration(_ symbol: SymbolID?, in ctx: KIRContext) -> Bool {
         guard let symbol, let sema = ctx.sema, let resolvedSymbol = sema.symbols.symbol(symbol) else {
             return false
         }
-        return !resolvedSymbol.flags.contains(.synthetic)
+        if !resolvedSymbol.flags.contains(.synthetic) {
+            return true
+        }
+        return sema.symbols.isSourceBackedSymbol(symbol)
+            && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
     }
 
     /// Lower `flow { }`, `emit`, `map`, `filter`, `take`, `collect` calls to their

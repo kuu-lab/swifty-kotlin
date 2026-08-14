@@ -240,6 +240,30 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testNestedFlowCollectorsDoNotReenterTheInnerCollector() throws {
+        let source = """
+        fun main() {
+            runBlocking {
+                flow { emit(1); emit(2) }
+                    .map { it * 2 }
+                    .collect { println(it) }
+
+                val values = flow { emit(1); emit(2); emit(3) }
+                    .map { it * 10 }
+                    .filter { it > 10 }
+                    .toList()
+                println(values)
+            }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "FlowNestedCollectorOwnership",
+            expectedStdout: "2\n4\n[20, 30]\n"
+        )
+    }
+
+    @Test
     func testFlowCollectTwiceLowersBothCollectCalls() throws {
         let source = """
         suspend fun runFlowCollectTwice() {

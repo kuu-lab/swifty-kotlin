@@ -1615,10 +1615,19 @@ extension CoroutineLoweringPass {
         arity: Int,
         using rewrite: SuspendRewriteContext
     ) -> LoweredSuspendFunction? {
-        if let symbol,
-           let loweredBySymbol = rewrite.loweredBySymbol[symbol]
-        {
-            return loweredBySymbol
+        if let symbol {
+            if let loweredBySymbol = rewrite.loweredBySymbol[symbol] {
+                return loweredBySymbol
+            }
+            // Name/arity fallback is only valid for unresolved/runtime calls.
+            // A resolved non-suspend declaration must not be rebound to the
+            // unique suspend function with the same name (for example,
+            // kotlin.ranges.toList versus Flow.toList after KSP-499).
+            if let signature = rewrite.ctx.sema?.symbols.functionSignature(for: symbol),
+               !signature.isSuspend
+            {
+                return nil
+            }
         }
         let byNameArityKey = SuspendCallLookupKey(name: callee, arity: arity)
         if let loweredByNameArity = rewrite.loweredByUniqueNameArity[byNameArityKey] {
