@@ -277,36 +277,7 @@ extension CallLowerer {
             return true
         }()
 
-        if args.count == 1,
-           interner.resolve(calleeName) == "sortedWith"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let isComparatorLambdaArg = ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef ?? false
-            if isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isComparatorLambdaArg
-            {
-                let sortedWithArguments = adaptComparatorBackedCollectionArguments(
-                    loweredCallee: interner.intern("kk_list_sortedWith"),
-                    finalArguments: [loweredReceiverID] + normalizedArgIDs,
-                    sourceArgExprs: args.map(\.expr),
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_sortedWith"),
-                    arguments: sortedWithArguments,
-                    result: result,
-                    canThrow: true,
-                    thrownResult: arena.appendTemporary(type: sema.types.nullableAnyType
-                    )
-                ))
-                return result
-            }
-        }
+        // KSP-426: List.sortedWith is source-backed and accepts Comparator<T>.
 
         // BUG-167: reduceRightOrNull's bundled Kotlin-source declaration
         // (ListAggregateHOF.kt) is scoped to `List<T>` specifically (its body

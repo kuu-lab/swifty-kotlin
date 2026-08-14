@@ -66,7 +66,7 @@ struct ListSyntheticMemberLinkTests {
                 ("take", 1, nil as String?),
                 ("drop", 1, nil as String?),
                 ("reversed", 0, "kk_list_reversed" as String?),
-                ("sorted", 0, "kk_list_sorted" as String?),
+                ("sorted", 0, nil),
                 ("distinct", 0, "kk_list_distinct" as String?),
                 ("shuffled", 0, "kk_list_shuffled" as String?),
                 ("shuffled", 1, "kk_list_shuffled_random" as String?),
@@ -454,34 +454,45 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let expectedExternalLinks = [
+            let expectedExternalLinks: [String: String?] = [
                 "sum": "kk_list_sum",
-                // sumOf / minByOrNull / maxByOrNull are bundled Kotlin source (KSP-002).
-                "maxOfWith": "kk_list_maxOfWith",
-                "minOfWith": "kk_list_minOfWith",
-                "minBy": "kk_list_minBy",
-                "maxOfWithOrNull": "kk_list_maxOfWithOrNull",
-                "maxWithOrNull": "kk_list_maxWithOrNull",
-                "min": "kk_list_min",
-                "maxWith": "kk_list_maxWith",
-                "maxOrNull": "kk_list_maxOrNull",
-                "minOrNull": "kk_list_minOrNull",
-                "minOf": "kk_list_minOf",
-                "maxBy": "kk_list_maxBy",
-                "minOfWithOrNull": "kk_list_minOfWithOrNull",
-                "maxOfOrNull": "kk_list_maxOfOrNull",
+                // KSP-426: sort/max/min family is source-backed in ListSortingHOF.kt
+                // and ListExtremaHOF.kt, so synthetic stubs have no external link.
+                "max": nil,
+                "maxBy": nil,
+                "maxByOrNull": nil,
+                "maxOf": nil,
+                "maxOfOrNull": nil,
+                "maxOfWith": nil,
+                "maxOfWithOrNull": nil,
+                "maxOrNull": nil,
+                "maxWith": nil,
+                "maxWithOrNull": nil,
+                "min": nil,
+                "minBy": nil,
+                "minByOrNull": nil,
+                "minOf": nil,
+                "minOfOrNull": nil,
+                "minOfWith": nil,
+                "minOfWithOrNull": nil,
+                "minOrNull": nil,
+                "minWith": nil,
+                "minWithOrNull": nil,
+                "sorted": nil,
+                "sortedBy": nil,
+                "sortedByDescending": nil,
+                "sortedDescending": nil,
+                "sortedWith": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let symbolID = try #require(sema.symbols.lookup(
-                        fqName: [
-                            ctx.interner.intern("kotlin"),
-                            ctx.interner.intern("collections"),
-                            ctx.interner.intern("List"),
-                            ctx.interner.intern(memberName),
-                        ]
-                    ))
-                #expect(sema.symbols.externalLinkName(for: symbolID) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+                let symbolID = try #require(listBackedFunctionSymbol(
+                    memberName: memberName,
+                    sema: sema,
+                    interner: ctx.interner,
+                    sourceManager: ctx.sourceManager
+                ), "Expected List.\(memberName) to resolve")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == externalLinkName, "Expected \(memberName) externalLinkName to be \(String(describing: externalLinkName))")
             }
 
             // find / findLast are source-backed in ListSearchHOF.kt (KSP-423)
@@ -2706,6 +2717,39 @@ func assertListType(
     let elementType = try projectedType(try #require(listType.args.first), file: file, line: line)
     #expect(elementType == expectedElementType)
 }
+
+/// Resolves a List member from either a source-backed extension or a synthetic stub.
+func listBackedFunctionSymbol(
+    memberName: String,
+    sema: SemaModule,
+    interner: StringInterner,
+    sourceManager: SourceManager
+) -> SymbolID? {
+    let listFQName: [InternedString] = [
+        interner.intern("kotlin"),
+        interner.intern("collections"),
+        interner.intern("List"),
+        interner.intern(memberName),
+    ]
+    if let synthetic = sema.symbols.lookup(fqName: listFQName) {
+        return synthetic
+    }
+
+    let packageFQName = listFQName.dropLast(2) + [interner.intern(memberName)]
+    return sema.symbols.lookupAll(fqName: Array(packageFQName)).first { symbolID in
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .function,
+              !symbol.flags.contains(.synthetic),
+              let fileID = sema.symbols.sourceFileID(for: symbolID),
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let receiverType = signature.receiverType,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+        else { return false }
+        return interner.resolve(receiverSymbol.name) == "List"
+            && sourceManager.path(of: fileID).hasPrefix("__bundled_")
+    }
+}
+
 private func sourceBackedIterableExtensionSymbol(
     named name: String,
     sema: SemaModule,
@@ -2727,5 +2771,4 @@ private func sourceBackedIterableExtensionSymbol(
         return classType.classSymbol == iterableSymbol
     }
 }
-
 #endif

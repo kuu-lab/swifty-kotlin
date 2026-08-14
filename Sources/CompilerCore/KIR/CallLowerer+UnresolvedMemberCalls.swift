@@ -38,6 +38,25 @@ extension CallLowerer {
             receiverType: receiverType,
             sema: sema,
             interner: interner
+        ) {
+            switch collectionKind {
+            case .set, .collection, .iterable:
+                // List sorting is source-backed, but Iterable/Collection/Set
+                // receivers still use the collection-compatible runtime ABI.
+                switch memberName {
+                case "sortedBy":
+                    return interner.intern("kk_list_sortedBy")
+                default:
+                    break
+                }
+            default:
+                break
+            }
+        }
+        if let collectionKind = MemberRuntimeDispatch.collectionReceiverKind(
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
         ),
            // Only allow the early-return for kinds that map cleanly to their own
            // surface-spec entries (.list, .map, .sequence).  .set, .collection,
@@ -94,20 +113,7 @@ extension CallLowerer {
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
-            // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
-            case "sorted":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sorted_primitive")
-                }
-                return interner.intern("kk_list_sorted")
-            case "sortedDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sortedDescending_primitive")
-                }
-                return interner.intern("kk_list_sortedDescending")
-            case "sortedBy":
-                return interner.intern("kk_list_sortedBy")
+            // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
             case "distinctBy":
                 return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
@@ -167,22 +173,7 @@ extension CallLowerer {
 
         if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "sort":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("__kk_mutable_list_sort_primitive")
-                }
-                return interner.intern("__kk_mutable_list_sort")
-            case "sortWith":
-                return interner.intern("__kk_mutable_list_sortWith")
-            case "sortBy":
-                return interner.intern("__kk_mutable_list_sortBy")
-            case "sortByDescending":
-                return interner.intern("__kk_mutable_list_sortByDescending")
-            case "sortDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("__kk_mutable_list_sortDescending_primitive")
-                }
-                return interner.intern("__kk_mutable_list_sortDescending")
+            // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
             case "addAll":
@@ -248,12 +239,7 @@ extension CallLowerer {
         }
 
         switch memberName {
-        case "sorted":
-            return interner.intern("kk_list_sorted")
-        case "sortedDescending":
-            return interner.intern("kk_list_sortedDescending")
-        case "sortedBy":
-            return interner.intern("kk_list_sortedBy")
+        // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
         case "distinctBy":
             return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
