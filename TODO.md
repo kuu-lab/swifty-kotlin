@@ -317,12 +317,13 @@
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
   - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
-- [ ] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
+- [x] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
   - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:257`（`name: "URI"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeURI.swift`（`kk_uri_*` 29件）、`Sources/Runtime/RuntimePath.swift` 内 URI 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URI ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURITests.swift`、`Tests/RuntimeTests/RuntimeURITests.swift`/`RuntimeURLTests.swift`、diff case `url_basic.kt` 内 URI 使用箇所の確認
+  - 完了 (2026-08-14): URL 本体と Network の HTTP request builder 用 URI handoff は CLEANUP-STUB-124 の責務境界として保持し、Java URI の公開 Sema/runtime surface のみ除去
 - [ ] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURLStubs.swift`（332行）
   - 削除内容: `registerSyntheticURLStubs(...)` および `java.net.URL` クラス・コンストラクタ / `readText` / `readBytes` / `openConnection` 等の登録を削除

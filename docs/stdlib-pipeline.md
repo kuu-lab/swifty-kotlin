@@ -322,7 +322,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
-| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | `java.net.URI`; cleanup candidate. |
+| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | `java.net.URL`; cleanup candidate. |
 | `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
