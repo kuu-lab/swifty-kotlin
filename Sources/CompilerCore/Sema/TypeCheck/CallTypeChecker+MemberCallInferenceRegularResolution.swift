@@ -863,6 +863,25 @@ extension CallTypeChecker {
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
         if interner.resolve(calleeName) == "coerceIn",
+           !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
+        {
+            // The generic ClosedFloatingPointRange overload must not turn a
+            // scalar call with the wrong arity or argument type into a type
+            // constraint failure. Kotlin reports those calls as no overload.
+            candidates.removeAll { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      signature.parameterTypes.count == 1,
+                      let (_, parameterSymbol) = resolveClassTypeSymbol(
+                          signature.parameterTypes[0], sema: sema
+                      )
+                else {
+                    return false
+                }
+                return interner.resolve(parameterSymbol.name) == "ClosedFloatingPointRange"
+            }
+        }
+        if interner.resolve(calleeName) == "coerceIn",
            args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
             // Imported `.kklib` metadata does not make a generic extension whose
