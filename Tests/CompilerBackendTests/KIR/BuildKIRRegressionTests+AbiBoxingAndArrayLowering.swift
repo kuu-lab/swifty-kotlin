@@ -364,8 +364,8 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             let flatNames = [
-                "kk_string_byteInputStream_flat",
-                "kk_string_byteInputStream_charset_flat",
+                "__kk_string_byteInputStream_flat",
+                "__kk_string_byteInputStream_charset_flat",
             ]
             for flatName in flatNames {
                 #expect(callNames.contains(flatName), "Missing \(flatName)")
@@ -384,8 +384,8 @@ struct BuildKIRCodegenRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         for flatName in [
-            "kk_string_byteInputStream_flat",
-            "kk_string_byteInputStream_charset_flat",
+            "__kk_string_byteInputStream_flat",
+            "__kk_string_byteInputStream_charset_flat",
         ] {
             #expect(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
         }

@@ -1405,13 +1405,13 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_flat",
+                "__kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_charset_flat",
+                "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
