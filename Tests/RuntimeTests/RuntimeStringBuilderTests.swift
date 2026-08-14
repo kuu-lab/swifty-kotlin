@@ -37,6 +37,28 @@ struct RuntimeStringBuilderTests {
         #expect(thrown == 0)
     }
 
+    // BUG-211: temporary String boxes created through the low-level UTF-8
+    // constructor must also participate in CharSequence.length dispatch.
+    @Test
+    func testUTF8StringConstructorRegistersCharSequenceLengthItable() {
+        let bytes = Array("window".utf8)
+        let raw = bytes.withUnsafeBufferPointer { buffer in
+            Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
+        }
+        let interfaceTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
+        let getterRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, 0)
+
+        #expect(getterRaw != 0)
+
+        let getter = unsafeBitCast(
+            getterRaw,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var thrown = 0
+        #expect(getter(raw, &thrown) == 6)
+        #expect(thrown == 0)
+    }
+
     @Test
     func testFlatConstructorAndFlatAppendUseFlattenedStringFields() {
         let builder = withFlatString("ab") { data, length, byteCount, hash in
