@@ -240,11 +240,12 @@
 - [ ] KSP-621: joinToString/joinTo の Iterable/Sequence 版を統一する（前提: KSP-620。削除 kk_* 4: `kk_iterable_joinTo`, `kk_iterable_joinToString`, `kk_sequence_joinTo`, `kk_sequence_joinToString` + `CallLowerer+UnresolvedMemberCalls.swift` の収束特例。diff: Iterable 版・joinTo 単独ケース追加）
 - [ ] KSP-624: buildString を Kotlin 化する（前提: KSP-622, KSP-311。`builderDSLKind`（`CallTypeChecker+BuilderDSL.swift`）の該当分岐 + `CallLowerer.swift` の append 引数ボクシング特例撤去。`kk_build_string` 系 4 → `__kk_` 降格 or StringBuilder 経由化）
 - [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
-- [ ] KSP-687: primitive array（IntArray/LongArray/DoubleArray/FloatArray/CharArray 等）の HOF を Kotlin 化する（KSP-433 完了メモが「`kk_array_*` ブリッジ削除には primitive array HOF の Kotlin 化（**別タスク**）が前提」と明記したまま未起票だった — 2026-08-12 追補）
+- [x] KSP-687: primitive array（IntArray/LongArray/DoubleArray/FloatArray/CharArray 等）の HOF を Kotlin 化する（KSP-433 完了メモが「`kk_array_*` ブリッジ削除には primitive array HOF の Kotlin 化（**別タスク**）が前提」と明記したまま未起票だった — 2026-08-12 追補、2026-08-14 完了）
   - 対象: `RuntimeCollectionHOFArray.swift` の 40 関数（2026-08-12 実測。generic `Array<T>` 経路は KSP-433 で source 化済みだが、primitive レシーバは `CallTypeChecker+ArrayMemberFallback.swift` の合成フォールバック経由で今も全ブリッジへ到達する）と、`CollectionLiteralLoweringPass+LookupTables+Array.swift` / `CallLowerer+UnresolvedMemberCalls.swift` の未解決メンバ fallback 表の該当分
   - 併せて解消: `Array<T>.joinToString(..., transform)` が synthetic メンバ優先で `kk_array_joinToString_transform` に残る問題（KSP-433 記載・BUG-158 と共有）、fold アキュムレータの raw 表現規約（KSP-433 の同 PR 修正参照）の source 実装への引き継ぎ
   - 注意: 旧制約「`Byte`/`Short` が独立プリミティブでない」（KSP-645 調査記録）は BUG-199 解消（#5665 の Byte/Short 独立プリミティブ化、`ByteShortOverloadResolutionTests` で固定）により撤廃済み — ByteArray/ShortArray 系も本タスクの対象に含める（着手時に `byte_short_array.kt` 等の既存 diff で現状挙動を確認）
   - 前提: KSP-433（完了済み）/ 手順: T / diff: `array_hof_source_backed.kt` の primitive 版を新規追加
+  - 完了: 12 primitive array 型のHOFを `PrimitiveArrayHOF.kt` へ移し、source優先解決・fold accumulator raw表現・`Array<T>.joinToString(transform)` のsynthetic優先問題を回帰固定。40 runtime関数、旧fallback/ABI表、synthetic join登録を削除し、allocation/element bridgeは維持。全primitiveのsource実行、probe、diff_kotlinc、Golden、ABI、Runtime focused testを確認済み。
 
 #### math / numbers
 

@@ -638,8 +638,19 @@ extension CallTypeChecker {
             } else {
                 []
             }
+            let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            )
             let memberCandidates: [SymbolID]
-            if !rangeSourceCandidates.isEmpty {
+            if !primitiveArraySourceCandidates.isEmpty {
+                // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
+                // exact source receiver over synthetic member stubs, including
+                // joinToString(transform), whose legacy stub shares the same name.
+                memberCandidates = primitiveArraySourceCandidates
+            } else if !rangeSourceCandidates.isEmpty {
                 memberCandidates = rangeSourceCandidates
             } else if !atomicSourceCandidates.isEmpty {
                 memberCandidates = atomicSourceCandidates
@@ -690,6 +701,20 @@ extension CallTypeChecker {
                             return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
                         }
                         return true
+                    }
+                    // Primitive-array HOFs are top-level extensions in
+                    // kotlin.collections. Default-import lookup may stop at a
+                    // same-named Sequence extension first (notably for
+                    // UByteArray/UShortArray), so prefer the exact source
+                    // receiver overload when one is present.
+                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                        named: calleeName,
+                        receiverType: nonNullReceiverForScope,
+                        sema: sema,
+                        interner: interner
+                    )
+                    if !primitiveArraySourceCandidates.isEmpty {
+                        scopeCandidates = primitiveArraySourceCandidates
                     }
                     // Extension functions are excluded from scope by the scope
                     // builder so they don't shadow top-level calls.  Fall back

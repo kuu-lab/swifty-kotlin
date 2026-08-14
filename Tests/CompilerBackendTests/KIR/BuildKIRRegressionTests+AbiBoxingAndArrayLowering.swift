@@ -642,6 +642,35 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testPrimitiveArrayHOFsRemainBundledSourceCalls() throws {
+        let source = """
+        fun main(): Any? {
+            val values = intArrayOf(1, 2, 3)
+            val mapped = values.map { it * 2 }
+            val total = values.fold(0) { accumulator, value -> accumulator + value }
+            val rendered = values.joinToString(transform = { it.toString() })
+            return listOf(mapped, total, rendered)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callNames.contains("map"))
+            #expect(callNames.contains("fold"))
+            #expect(callNames.contains("joinToString$default"))
+            #expect(!callNames.contains("kk_array_map"))
+            #expect(!callNames.contains("kk_array_fold"))
+            #expect(!callNames.contains("kk_array_joinToString_transform"))
+        }
+    }
+
+    @Test
     func testUShortArrayLoweringUsesSharedArrayRuntimeCalls() throws {
         let source = """
         fun main(): UShort {

@@ -99,6 +99,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // must go through kk_sequence_map/filter.
         if let receiverID = arguments.first,
            state.sequenceExprIDs.contains(receiverID.rawValue),
+           !state.arrayExprIDs.contains(receiverID.rawValue),
            callee == lookup.mapName
             || callee == lookup.filterName
         {

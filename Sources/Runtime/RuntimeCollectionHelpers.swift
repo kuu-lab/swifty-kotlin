@@ -510,7 +510,7 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
         return nil
     }
     // `raw` is a transform's return value, already boxed by KIR's ABILoweringPass
-    // for its Any-typed return (see kk_array_map's comment). Callers store or
+    // for its Any-typed return. Callers store or
     // forward this verbatim into a generically-typed collection/result, so it
     // must stay boxed here too — unboxing would strip the type tag a later
     // Boolean/Char render depends on.
