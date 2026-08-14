@@ -154,3 +154,20 @@ JDK / kotlinx ライブラリのクラスは「Kotlin stdlib ではない」も�
 - `swift build` 成功（ベースライン）。
 - 除去後は `bash Scripts/swift_test.sh` 全テスト + `UPDATE_GOLDEN=1 ... matchesGolden` で
   ゴールデン再生成（フルダンプ golden は 5 件）+ `bash Scripts/diff_kotlinc.sh` スポット確認。
+
+## 2026-08-14 CLEANUP-STUB-109（`kotlin.io.FileWalkDirection` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+変更前後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 変更前 | `.synthetic` フラグ付き残留サーフェス | 3105 | `kotlin=2607`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+| 2026-08-14 CLEANUP-STUB-109 | `.synthetic` フラグ付き残留サーフェス | 3102 | `kotlin=2604`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+
+`kotlin.io.FileWalkDirection` の enum と `TOP_DOWN`/`BOTTOM_UP` の synthetic symbol 3件を削除した。File IO/FileTreeWalk の別 surface は対象外として保持した。
