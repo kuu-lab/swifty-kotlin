@@ -19,10 +19,3 @@ public fun String.split(delimiter: String, ignoreCase: Boolean, limit: Int): Lis
 
 public fun String.splitToSequence(delimiter: String): Sequence<String> =
     this.__kk_string_splitToSequence(delimiter)
-
-public fun <T> List<T>.joinToString(
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
-): String =
-    this.__kk_string_joinToString(separator, prefix, postfix)

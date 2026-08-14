@@ -1582,29 +1582,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_joinToString",
-            parameters: [
-                RuntimeABIParameter(name: "strListRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_joinToString",
-            parameters: [
-                RuntimeABIParameter(name: "strListRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         // STDLIB-TEXT-FN-077: String.substringBeforeLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-FN-075: String.substringAfterLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart

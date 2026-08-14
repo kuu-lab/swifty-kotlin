@@ -968,26 +968,6 @@ struct RuntimeStringArrayTests {
         #expect(list?.elements.map(runtimeStringValue) == ["1", "2", "3"])
     }
 
-
-
-    @Test
-    func testStringJoinToStringUsesAggregateListStorageWithoutLegacyStringBoxes() {
-        let listRaw = makeRuntimeValueList([
-            runtimeStringAggregateValue("red"),
-            runtimeStringAggregateValue("green"),
-            runtimeStringAggregateValue("blue"),
-        ])
-        let separatorRaw = rawFromRuntimeString("|")
-        let prefixRaw = rawFromRuntimeString("<")
-        let postfixRaw = rawFromRuntimeString(">")
-        let baselineObjectCount = kk_debugging_global_object_count()
-
-        let resultRaw = kk_string_joinToString(listRaw, separatorRaw, prefixRaw, postfixRaw)
-
-        #expect(runtimeStringValue(resultRaw) == "<red|green|blue>")
-        #expect(kk_debugging_global_object_count() == baselineObjectCount + 1, "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage")
-    }
-
     @Test
     func testStringCodePointCountUsesUTF16Ranges() {
         let textRaw = rawFromRuntimeString("a😀b")

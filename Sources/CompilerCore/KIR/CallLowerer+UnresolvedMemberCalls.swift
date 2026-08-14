@@ -669,13 +669,6 @@ extension CallLowerer {
             default:
                 break
             }
-        case "isNotEmpty":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .collection?:
-                return interner.intern("kk_list_is_not_empty")
-            default:
-                break
-            }
         case "iterator":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:

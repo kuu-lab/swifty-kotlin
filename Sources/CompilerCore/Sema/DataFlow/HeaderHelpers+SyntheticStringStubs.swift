@@ -517,12 +517,6 @@ extension DataFlowSemaPhase {
         // KSP-406: replaceRange/removeRange/slice are bundled Kotlin source
         // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
-        let listAnyType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: types.anyType
-        )
         let sequenceStringType = makeSequenceType(
             symbols: symbols,
             types: types,
@@ -571,24 +565,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_string_joinToString",
-            // KSP-INF-011: Route the source List<T>.joinToString bridge through the
-            // generic collection runtime entry so non-String element types (e.g.
-            // Int) are rendered by runtimeElementToString instead of being dropped.
-            externalLinkName: "kk_list_joinToString",
-            receiverType: listAnyType,
-            parameters: [
-                ("separator", stringType, false, false),
-                ("prefix", stringType, false, false),
-                ("postfix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // KSP-402: Public String query APIs are bundled Kotlin wrappers. These
         // private bridges keep UTF-16 string indexing semantics in the runtime.
         registerSyntheticStringExtensionFunction(
