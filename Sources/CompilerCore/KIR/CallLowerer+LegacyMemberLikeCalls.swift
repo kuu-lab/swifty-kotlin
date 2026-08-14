@@ -1675,8 +1675,7 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCallee = rawRuntimeCallee {
-                    let canThrow = runtimeCallee == "kk_list_partition"
-                        || runtimeCallee == "__kk_iterable_firstNotNullOf"
+                    let canThrow = runtimeCallee == "__kk_iterable_firstNotNullOf"
                         || runtimeCallee == "__kk_iterable_firstNotNullOfOrNull"
                     let thrownResult = canThrow
                         ? arena.appendExpr(
