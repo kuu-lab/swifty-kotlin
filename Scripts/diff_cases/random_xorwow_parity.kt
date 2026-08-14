@@ -1,8 +1,9 @@
 import kotlin.random.Random
 
-// KSP-466: locks in bit-exact parity between KSwiftK's Kotlin-source XorWow
+// KSP-685: locks in bit-exact parity between KSwiftK's Kotlin-source XorWow
 // implementation (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt) and
-// kotlinc's own XorWowRandom for several fixed seeds. Unlike the other
+// kotlinc's own XorWowRandom for several fixed seeds after restoring the
+// upstream Random/XorWowRandom/factory structure. Unlike the other
 // random_*.kt cases (which only assert range membership or seed-to-seed
 // self-consistency), this prints raw generated values so diff_kotlinc.sh's
 // stdout comparison against the real kotlinc reference fails immediately if
@@ -12,6 +13,7 @@ import kotlin.random.Random
 fun printSequenceFor(seed: Int) {
     val r = Random(seed)
     println(r.nextInt())
+    println(r.nextInt(10))
     println(r.nextLong())
     println(r.nextBits(20))
     println(r.nextDouble())

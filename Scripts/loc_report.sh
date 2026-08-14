@@ -18,6 +18,8 @@ Metrics:
   call_lowerer_legacy_total_lines          Physical lines in CallLowerer+Legacy*.swift files
   kir_lowering_todo_fixme_count            TODO/FIXME markers remaining in KIR and Lowering Swift sources
   kk_literal_count                         Occurrences of string literals beginning with "kk_ in Swift/Kotlin sources
+  kk_cdecl_count                            Distinct Runtime @_cdecl("kk_*") bridge definitions
+  __kk_cdecl_count                          Distinct Runtime @_cdecl("__kk_*") bridge definitions
   interner_resolve_literal_comparison_count Occurrences of interner.resolve(...) == "..." in Swift sources
   typecheck_interner_resolve_literal_comparison_count
                                             Same as above, scoped to Sources/CompilerCore/Sema/TypeCheck
@@ -55,6 +57,33 @@ count_regex_occurrences() {
   fi
 
   { printf '%s\0' "$@" | xargs -0 grep -hEo "$pattern" || true; } \
+    | awk 'END { print NR + 0 }'
+}
+
+count_runtime_cdecl_bridges() {
+  local prefix="$1"
+  local pattern
+
+  case "$prefix" in
+    kk_)
+      pattern='@_cdecl\("kk_[A-Za-z0-9_]+"\)'
+      ;;
+    __kk_)
+      pattern='@_cdecl\("__kk_[A-Za-z0-9_]+"\)'
+      ;;
+    *)
+      printf 'Unsupported bridge prefix: %s\n' "$prefix" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ $# -eq 1 && ${#RUNTIME_SWIFT_FILES[@]} -eq 0 ]]; then
+    printf '0\n'
+    return
+  fi
+
+  { printf '%s\0' "${RUNTIME_SWIFT_FILES[@]}" | xargs -0 grep -hEo "$pattern" || true; } \
+    | LC_ALL=C sort -u \
     | awk 'END { print NR + 0 }'
 }
 
@@ -123,6 +152,11 @@ while IFS= read -r file; do
   SEMA_TYPECHECK_FILES+=("$file")
 done < <(git ls-files 'Sources/CompilerCore/Sema/TypeCheck/*.swift' | LC_ALL=C sort)
 
+RUNTIME_SWIFT_FILES=()
+while IFS= read -r file; do
+  RUNTIME_SWIFT_FILES+=("$file")
+done < <(git ls-files 'Sources/Runtime' | awk '/\.swift$/ { print }' | LC_ALL=C sort)
+
 CALL_LOWERER_LEGACY_FILES=()
 while IFS= read -r file; do
   CALL_LOWERER_LEGACY_FILES+=("$file")
@@ -142,6 +176,10 @@ printf 'kir_lowering_todo_fixme_count\tSources/CompilerCore/{KIR,Lowering}/*.swi
   "$(count_regex_occurrences 'TODO|FIXME' "${KIR_LOWERING_FILES[@]}")"
 printf 'kk_literal_count\tSwift/Kotlin sources\t%s\n' \
   "$(count_regex_occurrences '"kk_[^"]*"' "${SWIFT_AND_KOTLIN_FILES[@]}")"
+printf 'kk_cdecl_count\tSources/Runtime/@_cdecl("kk_*")\t%s\n' \
+  "$(count_runtime_cdecl_bridges 'kk_')"
+printf '__kk_cdecl_count\tSources/Runtime/@_cdecl("__kk_*")\t%s\n' \
+  "$(count_runtime_cdecl_bridges '__kk_')"
 printf 'interner_resolve_literal_comparison_count\tSwift sources\t%s\n' \
   "$(count_regex_occurrences 'interner\.resolve[^=]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"
 printf 'typecheck_interner_resolve_literal_comparison_count\tSources/CompilerCore/Sema/TypeCheck\t%s\n' \
