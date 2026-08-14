@@ -593,9 +593,6 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
         return kk_list_iterator(rangeRaw)
     }
-    if runtimeIndexingIterableBox(from: rangeRaw) != nil {
-        return kk_indexing_iterable_iterator(rangeRaw)
-    }
     // BUG-167: A source-implemented `Iterable` (e.g. `class C : Iterable<Int>`)
     // reaches this entry point too, since its `iterator()` is only known
     // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable

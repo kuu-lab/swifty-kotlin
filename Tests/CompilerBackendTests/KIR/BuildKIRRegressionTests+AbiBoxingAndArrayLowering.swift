@@ -94,7 +94,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersListUnzipToCollectionRuntimeCall() throws {
+    func testBuildKIRKeepsListUnzipSourceBacked() throws {
         let source = """
         fun main(values: List<Pair<Int, String>>) {
             values.unzip()
@@ -109,8 +109,31 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_list_unzip"))
-            #expect(!(callNames.contains("unzip")))
+            #expect(callNames.contains("unzip"))
+            #expect(!(callNames.contains("kk_list_unzip")))
+        }
+    }
+
+    @Test
+    func testBuildKIRKeepsSequenceAssociateToSourceBacked() throws {
+        let source = """
+        fun main() {
+            val source = sequenceOf("a", "bb")
+            val destination = mutableMapOf<String, Int>()
+            source.associateTo(destination) { it to it.length }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callNames.contains("associateTo"))
+            #expect(!(callNames.contains("kk_list_associateTo")))
         }
     }
 
@@ -187,7 +210,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersStringZipOverloadsToRuntimeCalls() throws {
+    func testBuildKIRLowersStringZipOverloadsToBundledKotlinCalls() throws {
         let source = """
         fun main(left: String, right: CharSequence) {
             left.zip(right)
@@ -203,14 +226,19 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_string_zip_flat"))
-            #expect(callNames.contains("kk_string_zipTransform_flat"))
-            #expect(!(callNames.contains("zip")))
+            for removedName in [
+                "kk_string_zip",
+                "kk_string_zipTransform",
+                "kk_string_zip_flat",
+                "kk_string_zipTransform_flat",
+            ] {
+                #expect(!(callNames.contains(removedName)))
+            }
         }
     }
 
     @Test
-    func testBuildKIRLowersCharSequenceCollectionSequenceMembersToFlatRuntimeCalls() throws {
+    func testBuildKIRLowersCharSequenceCollectionSequenceMembersToBundledKotlinCalls() throws {
         let source = """
         fun main(value: CharSequence, other: CharSequence) {
             value.toSortedSet()
@@ -235,32 +263,21 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            let flatNames = [
-                "kk_string_zipWithNext_flat",
-                "kk_string_zipWithNextTransform_flat",
-                "kk_string_zip_flat",
-                "kk_string_zipTransform_flat",
-                "kk_string_chunked_sequence_flat",
-                "kk_string_chunked_sequence_transform_flat",
-                "kk_string_windowedSequence_partial_flat",
-                "kk_string_windowedSequence_transform_flat",
+            let removedNames = [
+                "kk_string_toSortedSet", "kk_string_toSortedSet_flat",
+                "kk_string_toCollection", "kk_string_toCollection_flat",
+                "kk_string_withIndex", "kk_string_withIndex_flat",
+                "kk_string_zipWithNext", "kk_string_zipWithNext_flat",
+                "kk_string_zipWithNextTransform", "kk_string_zipWithNextTransform_flat",
+                "kk_string_zip", "kk_string_zip_flat",
+                "kk_string_zipTransform", "kk_string_zipTransform_flat",
+                "kk_string_chunked_sequence", "kk_string_chunked_sequence_flat",
+                "kk_string_chunked_sequence_transform", "kk_string_chunked_sequence_transform_flat",
+                "kk_string_windowedSequence_partial", "kk_string_windowedSequence_partial_flat",
+                "kk_string_windowedSequence_transform", "kk_string_windowedSequence_transform_flat",
             ]
-            for flatName in flatNames {
-                #expect(callNames.contains(flatName), "Missing \(flatName)")
-            }
-
-            let rawNames = [
-                "kk_string_zipWithNext",
-                "kk_string_zipWithNextTransform",
-                "kk_string_zip",
-                "kk_string_zipTransform",
-                "kk_string_chunked_sequence",
-                "kk_string_chunked_sequence_transform",
-                "kk_string_windowedSequence_partial",
-                "kk_string_windowedSequence_transform",
-            ]
-            for rawName in rawNames {
-                #expect(!(callNames.contains(rawName)), "Unexpected raw CharSequence String call \(rawName)")
+            for removedName in removedNames {
+                #expect(!(callNames.contains(removedName)), "Unexpected String runtime call \(removedName)")
             }
         }
     }

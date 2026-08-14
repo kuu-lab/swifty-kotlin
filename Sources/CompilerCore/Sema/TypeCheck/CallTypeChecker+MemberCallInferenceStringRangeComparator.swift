@@ -59,32 +59,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
-        if let boundType = tryBindStringChunkedSequenceTransform(
-            id,
-            calleeName: calleeName,
-            receiverType: stringHOFReceiverType,
-            args: args,
-            safeCall: safeCall,
-            ast: ast,
-            ctx: ctx,
-            locals: &locals,
-            explicitTypeArgs: explicitTypeArgs
-        ) {
-            return boundType
-        }
-        if let boundType = tryBindStringWindowedSequenceTransform(
-            id,
-            calleeName: calleeName,
-            receiverType: stringHOFReceiverType,
-            args: args,
-            safeCall: safeCall,
-            ast: ast,
-            ctx: ctx,
-            locals: &locals,
-            explicitTypeArgs: explicitTypeArgs
-        ) {
-            return boundType
-        }
         if let boundType = tryBindStringChunkedTransform(
             id,
             calleeName: calleeName,
@@ -112,28 +86,6 @@ extension CallTypeChecker {
             return boundType
         }
 
-        // Early String HOF fallback: String HOF members need lambda inference with
-        // expected types so the implicit `it` parameter (Char) gets bound correctly.
-        // lambda inference with expectedType so the implicit `it` parameter (Char)
-        // gets bound correctly.  Must run before argument pre-inference below.
-        if args.count == 2, interner.resolve(calleeName) == "chunkedSequence" {
-            let stringHOFReceiverType = safeCall
-                ? sema.types.makeNonNullable(receiverType)
-                : receiverType
-            if let result = tryInferStringChunkedSequenceTransform(
-                id,
-                calleeName: calleeName,
-                receiverType: stringHOFReceiverType,
-                args: args,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: expectedType,
-                explicitTypeArgs: explicitTypeArgs,
-                safeCall: safeCall
-            ) {
-                return result
-            }
-        }
         if args.count == 1 {
             let stringHOFCalleeStr = interner.resolve(calleeName)
             let isStringHOFReceiver = sema.types.isSubtype(stringHOFReceiverType, sema.types.stringType)

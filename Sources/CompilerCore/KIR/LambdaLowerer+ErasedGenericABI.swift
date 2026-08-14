@@ -60,14 +60,14 @@ extension LambdaLowerer {
         interner: StringInterner
     ) -> InternedString? {
         guard returnsErasedGeneric,
-              case .primitive(_, .nonNull) = sema.types.kind(of: returnType)
+              let callee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: sema.types.kind(of: returnType),
+                  requireNonNull: true
+              )
         else {
             return nil
         }
-        return BoxingCalleeTable(interner: interner).boxCallee(
-            for: sema.types.kind(of: returnType),
-            requireNonNull: true
-        )
+        return callee
     }
 }
 

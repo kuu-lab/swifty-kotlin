@@ -1,6 +1,7 @@
 
 struct StateMachineTypeContext {
     let continuationType: TypeID
+    let anyType: TypeID
     let intType: TypeID?
     let unitType: TypeID?
 }
@@ -16,11 +17,14 @@ extension CoroutineLoweringPass {
         suspendFunctionNames: Set<InternedString>,
         runtimeSuspendCallNames: Set<InternedString>,
         runtimeDelayCallee: InternedString,
+        runtimeYieldCallee: InternedString,
+        sourceYieldCallee: InternedString,
         suspendPlan: SuspendLoweringPlan,
         spillSlotByExpr: [KIRExprID: Int64],
         smTypes: StateMachineTypeContext
     ) -> [KIRInstruction] {
         let continuationType = smTypes.continuationType
+        let anyType = smTypes.anyType
         let intType = smTypes.intType
         let unitType = smTypes.unitType
         let enterCallee = interner.intern("kk_coroutine_state_enter")
@@ -118,16 +122,19 @@ extension CoroutineLoweringPass {
                     )
                 }
                 if let callResultExpr = transition.callResultExpr {
+                    let completionTokenExpr = module.arena.appendTemporary(type: anyType
+                    )
                     lowered.append(
                         .call(
                             symbol: nil,
                             callee: getCompletionCallee,
                             arguments: [continuationExpr],
-                            result: callResultExpr,
+                            result: completionTokenExpr,
                             canThrow: false,
                             thrownResult: nil
                         )
                     )
+                    lowered.append(.copy(from: completionTokenExpr, to: callResultExpr))
                 }
 
                 let thrownExceptionExpr = module.arena.appendTemporary(type: intType
@@ -252,7 +259,8 @@ extension CoroutineLoweringPass {
                         )
                     )
 
-                    let suspensionResult = suspendCallInfo.result ?? module.arena.appendTemporary(type: continuationType
+                    let userResultExpr = suspendCallInfo.result
+                    let suspendTokenResult = module.arena.appendTemporary(type: anyType
                     )
                     let loweredSuspendCallee: InternedString
                     var loweredSuspendArguments: [KIRExprID]
@@ -263,6 +271,10 @@ extension CoroutineLoweringPass {
                         }
                         loweredSuspendCallee = interner.intern("kk_function_invoke")
                         loweredSuspendArguments = [blockExpr, continuationExpr]
+                    } else if suspendCallInfo.callee == sourceYieldCallee {
+                        loweredSuspendCallee = runtimeYieldCallee
+                        loweredSuspendArguments = suspendCallInfo.arguments
+                        loweredSuspendArguments.append(continuationExpr)
                     } else {
                         loweredSuspendCallee = suspendCallInfo.callee == sourceDelayCallee ? runtimeDelayCallee : suspendCallInfo.callee
                         loweredSuspendArguments = suspendCallInfo.arguments
@@ -286,7 +298,7 @@ extension CoroutineLoweringPass {
                                 callee: loweredSuspendCallee,
                                 receiver: receiver,
                                 arguments: loweredSuspendArguments,
-                                result: suspensionResult,
+                                result: suspendTokenResult,
                                 canThrow: suspendCallInfo.canThrow,
                                 thrownResult: suspendCallInfo.thrownResult,
                                 dispatch: dispatch
@@ -298,7 +310,7 @@ extension CoroutineLoweringPass {
                                 symbol: suspendCallInfo.symbol,
                                 callee: loweredSuspendCallee,
                                 arguments: loweredSuspendArguments,
-                                result: suspensionResult,
+                                result: suspendTokenResult,
                                 canThrow: suspendCallInfo.canThrow,
                                 thrownResult: suspendCallInfo.thrownResult,
                                 isSuperCall: suspendCallInfo.isSuperCall
@@ -306,7 +318,7 @@ extension CoroutineLoweringPass {
                         )
                     }
 
-                    let suspendedExpr = module.arena.appendTemporary(type: continuationType
+                    let suspendedExpr = module.arena.appendTemporary(type: anyType
                     )
                     lowered.append(
                         .call(
@@ -318,17 +330,20 @@ extension CoroutineLoweringPass {
                             thrownResult: nil
                         )
                     )
-                    lowered.append(.returnIfEqual(lhs: suspensionResult, rhs: suspendedExpr))
+                    lowered.append(.returnIfEqual(lhs: suspendTokenResult, rhs: suspendedExpr))
                     lowered.append(
                         .call(
                             symbol: nil,
                             callee: setCompletionCallee,
-                            arguments: [continuationExpr, suspensionResult],
+                            arguments: [continuationExpr, suspendTokenResult],
                             result: nil,
                             canThrow: false,
                             thrownResult: nil
                         )
                     )
+                    if let userResultExpr {
+                        lowered.append(.copy(from: suspendTokenResult, to: userResultExpr))
+                    }
                     continue
                 }
 

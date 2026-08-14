@@ -77,18 +77,11 @@ struct ABIMismatchRuntimeExportParityTests {
         [
             "kk_regex_create_with_option",
             "kk_regex_create_with_options",
-            "kk_string_chunked_sequence",
-            "kk_string_chunked_sequence_transform",
-            "__kk_string_toByte",
-            "__kk_string_toByte_radix",
-            "__kk_string_toRegex_with_option",
-            "__kk_string_toRegex_with_options",
-            "__kk_string_toShort",
-            "kk_string_windowed",
-            "kk_string_windowed_default",
-            "kk_string_windowed_partial",
-            "kk_string_windowedSequence_partial",
-            "kk_string_windowedSequence_transform",
+            "kk_string_toByte",
+            "kk_string_toByte_radix",
+            "kk_string_toRegex_with_option",
+            "kk_string_toRegex_with_options",
+            "kk_string_toShort",
         ]
     }
 

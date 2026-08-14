@@ -478,11 +478,13 @@ public struct EnumEntryDecl: Codable {
     public let range: SourceRange
     public let name: InternedString
     public let annotations: [AnnotationNode]
+    public let constructorArgs: [CallArgument]
 
-    public init(range: SourceRange, name: InternedString, annotations: [AnnotationNode] = []) {
+    public init(range: SourceRange, name: InternedString, annotations: [AnnotationNode] = [], constructorArgs: [CallArgument] = []) {
         self.range = range
         self.name = name
         self.annotations = annotations
+        self.constructorArgs = constructorArgs
     }
 }
 

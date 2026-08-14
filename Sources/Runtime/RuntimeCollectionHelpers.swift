@@ -42,16 +42,15 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
-let mapRuntimeTypeID: Int64 = {
-    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-    for byte in "kotlin.collections.Map".utf8 {
-        hash ^= UInt64(byte)
-        hash &*= 0x100_0000_01B3
-    }
-    let payloadMask: Int64 = (1 << 55) - 1
-    let payload = Int64(bitPattern: hash) & payloadMask
-    return payload == 0 ? 1 : payload
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64) = {
+    let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
+    let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
+    runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
+    return (mapID, mutableMapID)
 }()
+
+let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
+let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
 
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
@@ -423,22 +422,6 @@ private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoi
 func registerRuntimeObject(_ box: RuntimeRangeIteratorBox) -> Int {
     let raw = registerRuntimeObject(box as AnyObject)
     registerIteratorItable(raw: raw, hasNext: runtimeRangeIteratorHasNextThunk, next: runtimeRangeIteratorNextThunk)
-    return raw
-}
-
-private let runtimeIndexingIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_indexing_iterable_hasNext(iterRaw)
-}
-
-private let runtimeIndexingIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_indexing_iterable_next(iterRaw)
-}
-
-func registerRuntimeObject(_ box: RuntimeIndexingIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    registerIteratorItable(raw: raw, hasNext: runtimeIndexingIteratorHasNextThunk, next: runtimeIndexingIteratorNextThunk)
     return raw
 }
 

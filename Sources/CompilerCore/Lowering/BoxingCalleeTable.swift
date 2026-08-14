@@ -89,6 +89,7 @@ struct BoxingCalleeTable {
 
     private let calleesByPrimitive: [PrimitiveType: InternedPrimitiveCallees]
     private let nonNullOnlyBoxOverridesByPrimitive: [PrimitiveType: InternedString]
+    private let stringCallees: InternedPrimitiveCallees
 
     init(interner: StringInterner) {
         var internedByName: [String: InternedString] = [:]
@@ -113,6 +114,10 @@ struct BoxingCalleeTable {
             }
         }
         calleesByPrimitive = callees
+        stringCallees = InternedPrimitiveCallees(
+            box: intern("kk_string_from_flat"),
+            unbox: intern("kk_string_to_flat")
+        )
 
         var nonNullOverrides: [PrimitiveType: InternedString] = [:]
         for (primitive, name) in Self.nonNullOnlyBoxCalleeOverridesByPrimitive {
@@ -138,6 +143,9 @@ struct BoxingCalleeTable {
     }
 
     func boxCallee(for kind: TypeKind, requireNonNull: Bool) -> InternedString? {
+        if requireNonNull, Self.isNonNullableStringStruct(kind) {
+            return stringCallees.box
+        }
         guard let primitive = Self.primitive(for: kind, requireNonNull: requireNonNull) else {
             return nil
         }
@@ -148,6 +156,9 @@ struct BoxingCalleeTable {
     }
 
     func unboxCallee(for kind: TypeKind, requireNonNull: Bool) -> InternedString? {
+        if requireNonNull, Self.isNonNullableStringStruct(kind) {
+            return stringCallees.unbox
+        }
         guard let primitive = Self.primitive(for: kind, requireNonNull: requireNonNull) else {
             return nil
         }
@@ -164,6 +175,13 @@ struct BoxingCalleeTable {
 
     private static func isProvablyNonNull(_ kind: TypeKind) -> Bool {
         guard case let .primitive(_, nullability) = kind else {
+            return false
+        }
+        return nullability == .nonNull
+    }
+
+    private static func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
+        guard case let .stringStruct(nullability) = kind else {
             return false
         }
         return nullability == .nonNull

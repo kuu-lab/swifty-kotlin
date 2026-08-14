@@ -2813,7 +2813,7 @@ public func kk_sequence_contains(_ seqRaw: Int, _ element: Int) -> Int {
         let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
         found = elements.contains { runtimeValuesEqual($0, element) }
     }
-    return kk_box_bool(found ? 1 : 0)
+    return found ? 1 : 0
 }
 
 @_cdecl("kk_sequence_indexOf")

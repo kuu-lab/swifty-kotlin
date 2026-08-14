@@ -248,6 +248,13 @@ extension ABILoweringPass {
         return false
     }
 
+    func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
+        if case let .stringStruct(nullability) = kind {
+            return nullability == .nonNull
+        }
+        return false
+    }
+
     func isNonValueClassReference(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
         guard case let .classType(classType) = kind else { return false }
         // Non-null enum values use their raw ordinal representation outside
@@ -274,6 +281,9 @@ extension ABILoweringPass {
     ) -> Bool {
         if isAnyOrNullableAny(sourceKind) {
             if case .primitive(_, .nonNull) = targetKind {
+                return true
+            }
+            if isNonNullableStringStruct(targetKind) {
                 return true
             }
             return false
