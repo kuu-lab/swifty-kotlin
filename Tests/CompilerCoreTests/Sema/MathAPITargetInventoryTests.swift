@@ -68,7 +68,7 @@ struct MathAPITargetInventoryTests {
     private static let targetSignatures = Set(targetSignatureList)
 
     // KSP-635: migrated to Sources/CompilerCore/Stdlib/kotlin/math/Math.kt.
-    private static let sourceBackedSignatures: Set<String> = [
+    private static let sourceBackedSignatures: Set<String> = Set([
         "val E: Double",
         "val PI: Double",
         "val Double.absoluteValue: Double",
@@ -109,64 +109,40 @@ struct MathAPITargetInventoryTests {
         "fun Double.withSign(Int): Double",
         "fun Float.withSign(Float): Float",
         "fun Float.withSign(Int): Float",
+        "fun Double.IEEErem(Double): Double",
+        "fun Float.IEEErem(Float): Float",
+        "fun Double.nextTowards(Double): Double",
+        "fun Float.nextTowards(Float): Float",
+        "fun Double.pow(Double): Double",
+        "fun Float.pow(Float): Float",
+        "fun Double.pow(Int): Double",
+        "fun Float.pow(Int): Float",
+        "fun expm1(Double): Double",
+        "fun expm1(Float): Float",
+        "fun ln1p(Double): Double",
+        "fun ln1p(Float): Float",
     ]
+    + unaryFloatingSignatures([
+        "acos", "acosh", "asin", "asinh", "atan", "atanh",
+        "cbrt", "cos", "cosh", "exp", "ln", "log10", "log2",
+        "sin", "sinh", "sqrt", "tan", "tanh",
+    ])
+    + binaryFloatingSignatures(["atan2", "hypot", "log"])
+    )
 
     private static let implementedLinksBySignature: [String: String] = {
         var result: [String: String] = [
             "val Double.ulp: Double": "kk_double_ulp",
             "val Float.ulp: Float": "kk_float_ulp",
-            "fun Double.IEEErem(Double): Double": "kk_math_IEEErem",
-            "fun Float.IEEErem(Float): Float": "kk_math_IEEErem_float",
             "fun Double.nextDown(): Double": "kk_double_nextDown",
             "fun Float.nextDown(): Float": "kk_float_nextDown",
-            "fun Double.nextTowards(Double): Double": "kk_math_nextTowards",
-            "fun Float.nextTowards(Float): Float": "kk_math_nextTowards_float",
             "fun Double.nextUp(): Double": "kk_double_nextUp",
             "fun Float.nextUp(): Float": "kk_float_nextUp",
-            "fun Double.pow(Double): Double": "kk_math_pow",
-            "fun Float.pow(Float): Float": "kk_math_pow_float",
-            "fun Double.pow(Int): Double": "kk_math_pow_int",
-            "fun Float.pow(Int): Float": "kk_math_pow_float_int",
-            "fun expm1(Double): Double": "kk_math_expm1",
-            "fun expm1(Float): Float": "kk_math_expm1_float",
-            "fun ln1p(Double): Double": "kk_math_ln1p",
-            "fun ln1p(Float): Float": "kk_math_ln1p_float",
             "fun Double.roundToInt(): Int": "kk_double_roundToInt",
             "fun Float.roundToInt(): Int": "kk_float_roundToInt",
             "fun Double.roundToLong(): Long": "kk_double_roundToLong",
             "fun Float.roundToLong(): Long": "kk_float_roundToLong",
         ]
-        for (name, doubleLink, floatLink) in unaryFloatingLinks([
-            ("acos", "kk_math_acos", "kk_math_acos_float"),
-            ("acosh", "kk_math_acosh", "kk_math_acosh_float"),
-            ("asin", "kk_math_asin", "kk_math_asin_float"),
-            ("asinh", "kk_math_asinh", "kk_math_asinh_float"),
-            ("atan", "kk_math_atan", "kk_math_atan_float"),
-            ("atanh", "kk_math_atanh", "kk_math_atanh_float"),
-            ("cbrt", "kk_math_cbrt", "kk_math_cbrt_float"),
-            ("cos", "kk_math_cos", "kk_math_cos_float"),
-            ("cosh", "kk_math_cosh", "kk_math_cosh_float"),
-            ("exp", "kk_math_exp", "kk_math_exp_float"),
-            ("ln", "kk_math_ln", "kk_math_ln_float"),
-            ("log10", "kk_math_log10", "kk_math_log10_float"),
-            ("log2", "kk_math_log2", "kk_math_log2_float"),
-            ("sin", "kk_math_sin", "kk_math_sin_float"),
-            ("sinh", "kk_math_sinh", "kk_math_sinh_float"),
-            ("sqrt", "kk_math_sqrt", "kk_math_sqrt_float"),
-            ("tan", "kk_math_tan", "kk_math_tan_float"),
-            ("tanh", "kk_math_tanh", "kk_math_tanh_float"),
-        ]) {
-            result["fun \(name)(Double): Double"] = doubleLink
-            result["fun \(name)(Float): Float"] = floatLink
-        }
-        for (name, doubleLink, floatLink) in [
-            ("atan2", "kk_math_atan2", "kk_math_atan2_float"),
-            ("hypot", "kk_math_hypot", "kk_math_hypot_float"),
-            ("log", "kk_math_log", "kk_math_log_float"),
-        ] {
-            result["fun \(name)(Double, Double): Double"] = doubleLink
-            result["fun \(name)(Float, Float): Float"] = floatLink
-        }
         return result
     }()
 
@@ -248,7 +224,7 @@ struct MathAPITargetInventoryTests {
             #expect(!symbols.isEmpty, "Expected \(signature) to be declared by kotlin/math/Math.kt")
             let mathRuntimeLinks = symbols
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
-                .filter { $0.hasPrefix("kk_math_") }
+                .filter { $0.hasPrefix("__kk_math_") }
             #expect(
                 mathRuntimeLinks.isEmpty,
                 "Expected \(signature) to stay Kotlin-source backed, got \(mathRuntimeLinks.sorted())"

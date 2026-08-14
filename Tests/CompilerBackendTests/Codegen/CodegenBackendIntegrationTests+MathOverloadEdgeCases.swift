@@ -151,14 +151,14 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             for removedHelper in [
-                "kk_math_abs_int",
-                "kk_math_abs_long",
-                "kk_math_abs_float",
-                "kk_math_abs",
-                "kk_math_sign_int",
-                "kk_math_sign_long",
-                "kk_math_sign_float",
-                "kk_math_sign",
+                "__kk_math_abs_int",
+                "__kk_math_abs_long",
+                "__kk_math_abs_float",
+                "__kk_math_abs",
+                "__kk_math_sign_int",
+                "__kk_math_sign_long",
+                "__kk_math_sign_float",
+                "__kk_math_sign",
             ] {
                 #expect(
                     !calls.contains(where: { $0.0 == removedHelper }),
@@ -217,13 +217,13 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.0.hasPrefix("kk_math_max") || $0.0.hasPrefix("kk_math_min") }),
-                "min/max are Kotlin-source backed and must not call kk_math_* helpers, got \(calls)"
+                !calls.contains(where: { $0.0.hasPrefix("__kk_math_max") || $0.0.hasPrefix("__kk_math_min") }),
+                "min/max are Kotlin-source backed and must not call __kk_math_* helpers, got \(calls)"
             )
         }
     }
 
-    // TEST-MATH-024: atan2・cbrt・双曲線関数の lowering を検証する
+    // TEST-MATH-024: atan2・cbrt・双曲線関数の source-wrapper lowering を検証する
     // (既存の IEEErem/nextTowards/pow/withSign テストに対する対称性ギャップを補完)
     @Test
     func testCodegenMathSignedZeroSymmetryFunctionsLowerToRuntimeHelpers() throws {
@@ -257,25 +257,19 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 return ctx.interner.resolve(callee)
             }
 
-            for expected in [
-                "kk_math_atan2",
-                "kk_math_atan2_float",
-                "kk_math_cbrt",
-                "kk_math_cbrt_float",
-                "kk_math_sinh",
-                "kk_math_sinh_float",
-                "kk_math_cosh",
-                "kk_math_cosh_float",
-                "kk_math_tanh",
-                "kk_math_tanh_float",
-                "kk_math_atanh",
-                "kk_math_atanh_float",
+            for sourceFunction in [
+                "atan2", "cbrt", "sinh", "cosh", "tanh", "atanh",
             ] {
                 #expect(
-                    calls.contains(expected),
-                    "Expected \(expected) in lowered KIR, got \(calls)"
+                    calls.contains(sourceFunction),
+                    "Expected the consumer call to remain source-backed as \(sourceFunction), got \(calls)"
                 )
             }
+
+            #expect(
+                !calls.contains(where: { $0.hasPrefix("__kk_math_") }),
+                "Consumer calls must use source-backed math declarations, got \(calls)"
+            )
         }
     }
 
@@ -308,20 +302,17 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 return (ctx.interner.resolve(callee), arguments.count)
             }
 
-            for expected in [
-                "kk_math_IEEErem",
-                "kk_math_IEEErem_float",
-                "kk_math_nextTowards",
-                "kk_math_nextTowards_float",
-                "kk_math_pow_float",
-                "kk_math_pow_int",
-                "kk_math_pow_float_int",
-            ] {
+            for sourceFunction in ["IEEErem", "nextTowards", "pow"] {
                 #expect(
-                    calls.contains(where: { $0 == expected && $1 == 2 }),
-                    "Expected \(expected) to lower with two arguments, got \(calls)"
+                    calls.contains(where: { $0 == (sourceFunction, 2) }),
+                    "Expected the consumer call to remain source-backed as \(sourceFunction), got \(calls)"
                 )
             }
+
+            #expect(
+                !calls.contains(where: { $0.0.hasPrefix("__kk_math_") }),
+                "Consumer calls must use source-backed math declarations, got \(calls)"
+            )
         }
     }
 
@@ -351,7 +342,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 callees.filter { $0 == "abs" }.count == 2,
                 "FQN abs(Int)/abs(Double) must lower to the Kotlin-source abs, got \(callees)"
             )
-            #expect(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
+            #expect(callees.contains("sqrt"), "FQN sqrt(Double) must lower to source-backed sqrt, got \(callees)")
+            #expect(
+                !callees.contains(where: { $0.hasPrefix("__kk_math_") }),
+                "FQN consumer calls must not bypass source-backed math declarations, got \(callees)"
+            )
         }
     }
 

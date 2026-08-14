@@ -44,56 +44,42 @@ struct MathSyntheticTopLevelLinkTests {
         return nil
     }
 
-    @Test func testMathTopLevelSymbolsLinkToRuntimeFunctions() throws {
+    @Test func testMathTopLevelSymbolsAreKotlinSourceBacked() throws {
         let (sema, interner) = try sharedSema()
 
-        let expected: [String: String] = [
-            "sqrt": "kk_math_sqrt",
-            "pow": "kk_math_pow",
+        let expected: [String: String?] = [
+            "sqrt": nil,
         ]
 
         for (name, expectedLink) in expected {
             #expect(
                 externalLink(for: name, sema: sema, interner: interner) == expectedLink,
-                "\(name) in kotlin.math should link to runtime"
+                "\(name) in kotlin.math should be Kotlin-source backed"
             )
         }
     }
 
-    // STDLIB-500..509: Float overloads resolve alongside Double overloads
-    @Test func testFloatMathOverloadsHaveExternalLinks() throws {
+    // KSP-637: Float overloads resolve alongside Double overloads without
+    // exposing the internal native bridge as the public symbol link.
+    @Test func testFloatMathOverloadsAreKotlinSourceBacked() throws {
         let (sema, interner) = try sharedSema()
 
-        // Each of these names should have at least two overloads registered
-        // (Double and Float). Verify the Float variant has a link name.
-        let floatOverloads: [(String, String)] = [
-            ("sin", "kk_math_sin_float"),
-            ("cos", "kk_math_cos_float"),
-            ("tan", "kk_math_tan_float"),
-            ("asin", "kk_math_asin_float"),
-            ("acos", "kk_math_acos_float"),
-            ("atan", "kk_math_atan_float"),
-            ("atan2", "kk_math_atan2_float"),
-            ("sqrt", "kk_math_sqrt_float"),
-            ("exp", "kk_math_exp_float"),
-            ("expm1", "kk_math_expm1_float"),
-            ("ln", "kk_math_ln_float"),
-            ("ln1p", "kk_math_ln1p_float"),
-            ("log2", "kk_math_log2_float"),
-            ("log10", "kk_math_log10_float"),
-            ("log", "kk_math_log_float"),
-            ("hypot", "kk_math_hypot_float"),
-        ]
-
-        for (name, expectedLink) in floatOverloads {
+        for name in [
+            "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt",
+            "exp", "expm1", "ln", "ln1p", "log2", "log10", "log", "hypot",
+        ] {
             let fq = ["kotlin", "math", name].map { interner.intern($0) }
             let allSymbols = sema.symbols.lookupAll(fqName: fq)
-            let hasFloatLink = allSymbols.contains { sym in
-                sema.symbols.externalLinkName(for: sym) == expectedLink
+            let publicSymbols = allSymbols.filter { symbolID in
+                sema.symbols.symbol(symbolID)?.visibility == .public
             }
             #expect(
-                hasFloatLink,
-                "Float overload for \(name) should link to \(expectedLink)"
+                publicSymbols.count >= 2,
+                "Expected Double and Float source overloads for \(name)"
+            )
+            #expect(
+                publicSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+                "Public \(name) overloads must not carry a runtime link"
             )
         }
     }
@@ -105,7 +91,7 @@ struct MathSyntheticTopLevelLinkTests {
         fun sample(x: Int, y: Double): Double {
             val ai = abs(-x)
             val ad = abs(y)
-            return sqrt(ad * ad) + pow(ad, 2.0) + ceil(ad) + floor(ad) + round(ad)
+            return sqrt(ad * ad) + ad.pow(2.0) + ceil(ad) + floor(ad) + round(ad)
         }
         """
 
@@ -148,8 +134,7 @@ struct MathSyntheticTopLevelLinkTests {
             }
 
             let expectedOrder: [(String, String?)] = [
-                ("sqrt", "kk_math_sqrt"),
-                ("pow", "kk_math_pow"),
+                ("sqrt", nil),
                 ("ceil", nil),
                 ("floor", nil),
                 ("round", nil),
@@ -304,13 +289,13 @@ struct MathSyntheticTopLevelLinkTests {
                 #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
             }
             #expect(
-                !resolvedLinks.contains { $0.hasPrefix("kk_math_") },
+                !resolvedLinks.contains { $0.hasPrefix("__kk_math_") },
                 "absoluteValue/sign are Kotlin-source backed, got \(resolvedLinks)"
             )
         }
     }
 
-    @Test func testDoublePowMemberCallResolvesViaMathExtensionStub() throws {
+    @Test func testDoublePowMemberCallResolvesViaKotlinSource() throws {
         let source = """
         import kotlin.math.*
 
@@ -339,9 +324,7 @@ struct MathSyntheticTopLevelLinkTests {
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected chosen callee for Double.pow"
             )
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_math_pow"
-            )
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 
@@ -368,31 +351,20 @@ struct MathSyntheticTopLevelLinkTests {
             let sema = try #require(ctx.sema)
             #expect(!(ctx.diagnostics.hasError), "Expected remaining math member calls to resolve without diagnostics.")
 
-            var resolvedLinks: [String] = []
+            var resolvedCount = 0
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
                       case let .memberCall(_, calleeName, _, _, _) = expr,
                       ["IEEErem", "nextTowards", "pow"].contains(ctx.interner.resolve(calleeName)),
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
+                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
                 else {
                     continue
                 }
-                resolvedLinks.append(link)
+                resolvedCount += 1
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             }
-
-            for expectedLink in [
-                "kk_math_IEEErem",
-                "kk_math_IEEErem_float",
-                "kk_math_nextTowards",
-                "kk_math_nextTowards_float",
-                "kk_math_pow_float",
-                "kk_math_pow_int",
-                "kk_math_pow_float_int",
-            ] {
-                #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
-            }
+            #expect(resolvedCount == 7, "Expected all seven migrated member calls to resolve")
         }
     }
 }
