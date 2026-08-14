@@ -93,6 +93,13 @@ import Testing
         """)
     }
 
+    @Test func testCompile_bundledExceptionHierarchyPrefersPackageLocalSupertype() throws {
+        try assertKotlinCompilesToKIR("""
+        class Error
+        fun main() {}
+        """)
+    }
+
     @Test func testCompile_class_abstractInheritanceChain() throws {
         try assertKotlinCompilesToKIR("""
         abstract class Animal {
