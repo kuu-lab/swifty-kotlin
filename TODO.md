@@ -125,8 +125,9 @@
   - 完了 (2026-08-14): `Stdlib/kotlin/sequences/SequenceDestinationHOF.kt` に11関数を追加し、Sequence の Sema source binding、synthetic member、lowering 特例、Runtime/RuntimeABI の STDLIB-SEQ-021 ブリッジを整理。`sequence_destination_to.kt` で全11関数の Kotlin/JVM と kswiftc の実行結果を照合
 #### kotlin.ranges [M6 実行体]（前提: KSP-312）
 
-- [ ] KSP-451: Range プロパティ・membership を完遂（`first`, `last`, `start`, `endInclusive/Exclusive`, `count`, `isEmpty`, `contains`, `sum`, `reversed` の Int/Long/Char 版）
+- [x] KSP-451: Range プロパティ・membership を完遂（`first`, `last`, `start`, `endInclusive/Exclusive`, `count`, `isEmpty`, `contains`, `sum`, `reversed` の Int/Long/Char 版）
   - 削除 kk_*: `kk_range_first`, `kk_range_last`, `kk_range_start`, `kk_range_end`, `kk_range_endExclusive`, `kk_range_count`, `kk_range_isEmpty`, `kk_range_contains`, `kk_range_sum`, `kk_range_reversed`, `kk_long_range_*` 同系, `kk_char_range_isEmpty`
+  - 完了確認（2026-08-14再監査）: #5018/#5026 で Kotlin source-backed 実装、#5670 で Int/Long/Char の旧 `kk_*` property/membership/aggregate export を共有 `__kk_range_*` bridge へ整理済み。`range_properties.kt`、`long_range.kt`、`ksp652_range_interfaces.kt`、`progression.kt`、Range Sema/KIR 回帰、Runtime ABI external-link 検証が全て green。
 - [ ] KSP-456: progression 構築系を Kotlin 化（`step`, `downTo`, `until`, `*_progression_fromClosedRange`）
   - 削除 kk_*: `kk_op_step`, `kk_op_downTo`, `kk_op_rangeUntil`, `kk_int/long/uint/ulong/char_progression_fromClosedRange` ほか（`kk_op_rangeTo` は演算子コアのため残留可）
 - [ ] KSP-457: range random 系を Kotlin 化（前提: KSP-466。`kk_range_random*`, `kk_long_range_random*`, `kk_char_range_random*`, `kk_uint/ulong_range_random*`, `kk_random_nextInt/nextLong_rangeObject`）
