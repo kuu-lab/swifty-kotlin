@@ -93,81 +93,8 @@ public extension RuntimeABISpec {
             section: "Bitwise",
             isThrowing: false
         ),
-        // STDLIB-BIT-007: Additional bit manipulation functions
-        // KSP-642: rotateLeft / rotateRight moved to bundled Kotlin source.
-        RuntimeABIFunctionSpec(
-            name: "kk_int_highestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_lowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_takeHighestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_takeLowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        // Long bit manipulation functions
-        RuntimeABIFunctionSpec(
-            name: "kk_long_highestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_lowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_takeHighestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_takeLowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
+        // STDLIB-BIT-007: One-bit functions are source-backed in
+        // `Stdlib/kotlin/BitOperations.kt` since KSP-644.
         // Int/Long comparison operators
         RuntimeABIFunctionSpec(
             name: "kk_op_eq",

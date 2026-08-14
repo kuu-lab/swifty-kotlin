@@ -209,26 +209,6 @@ extension CallTypeChecker {
         // Unsigned coercion (UByte/UShort/UInt/ULong) is handled by bundled Kotlin source
         // (RangeCoercion.kt); no primitive fast-path is needed.
 
-        // Int/Long bit extraction functions preserve the receiver type (STDLIB-BIT-007).
-        // count* are resolved as bundled Kotlin extensions (KSP-643).
-        if args.isEmpty {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit"
-                || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit"
-            {
-                let intType = sema.types.intType
-                let longType = sema.types.longType
-                let receiverForCheck = safeCall
-                    ? sema.types.makeNonNullable(lookupReceiverType)
-                    : lookupReceiverType
-                if receiverForCheck == intType || receiverForCheck == longType {
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-
         // KSP-642: Int/Long rotateLeft / rotateRight resolve through the bundled Kotlin
         // declarations in `Stdlib/kotlin/Numbers.kt`, so no special inference is needed.
 
