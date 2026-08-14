@@ -381,6 +381,10 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
+    // Native string construction is also used for temporary CharSequence
+    // windows created by bundled text helpers. Keep those boxes on the same
+    // interface-property itable path as registerRuntimeObject.
+    runtimeRegisterCharSequenceLengthItable(Int(bitPattern: opaque))
     return opaque
 }
 
