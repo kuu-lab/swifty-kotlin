@@ -111,8 +111,6 @@ struct FlowSemaTests {
                 flowOf(1, 2, 3).collect { println(it) }
                 emptyFlow<Int>().collect { println(it) }
                 listOf(1, 2, 3).asFlow().collect { println(it) }
-                channelFlow<Int> { emit(1); emit(2) }.collect { println(it) }
-                callbackFlow<Int> { emit(3); emit(4) }.collect { println(it) }
             }
         }
         """,
@@ -355,6 +353,38 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+    }
+
+    @Test func testChannelFlowAndCallbackFlowAreExplicitlyUnsupported() throws {
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: [
+            """
+            package unsupported_flow_builders
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() {
+                runBlocking {
+                    channelFlow<Int> { send(1) }.collect { println(it) }
+                    callbackFlow<Int> { trySend(1); close() }.collect { println(it) }
+                }
+            }
+            """
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        let unresolvedBuilderDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+            diagnostic.code == "KSWIFTK-SEMA-0023"
+                && (diagnostic.message.contains("channelFlow") || diagnostic.message.contains("callbackFlow"))
+        }
+        #expect(
+            unresolvedBuilderDiagnostics.count == 2,
+            "channelFlow/callbackFlow should remain explicit unresolved APIs: \(ctx.diagnostics.diagnostics)"
+        )
     }
 }
 #endif

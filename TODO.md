@@ -202,9 +202,10 @@
     4. **bundled Stdlib に `suspend` の前例が無い** — 🟢 **検証済み（2026-07-08）**: `Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/` に一時ファイルを置いて実機確認。bundled ソースでの `suspend fun`（ジェネリック含む）は正常にコンパイル・実行できる（`suspend fun <T, R> f(v: T, g: suspend (T) -> R): R` 相当が動作）。前例が無かっただけで、経路自体に問題は無い。
     - 対応が必要な前段作業（いずれも本タスクの想定規模を超える別タスク相当・進行中）: (a) 上記 Lowering パスを「bundled/実体宣言優先」に改修 — **完了 (PR #4988)** (b) ジェネリック高階関数のラムダ内演算子/メンバ解決バグの修正 — 演算子部分は修正済み、メンバー呼び出し部分は既知の限界として残存 (c) KSP-498 の正式な分類表作成 — 未着手。
 
-- [ ] KSP-686: channelFlow/callbackFlow の (b)/(c) 分類を確定し fiction を解消する（KSP-498 棚卸しの「未分類」残り。2026-08-12 実測: `channelFlow`/`callbackFlow` は Sema 登録（`HeaderHelpers+SyntheticCoroutineRegistry.swift`）と特例（`CallTypeChecker.swift` / `CoroutineLoweringPass.swift` / `FlowLoweringPass.swift` / `TypeCheck/Helpers.swift`）のみで **`Sources/Runtime` に対応実装が 0 件** — 宣言だけコンパイルが通り、実体はリンク/実行が成立しない fiction 状態）
-  - 対応: 着手時にまず最小 .kt（`channelFlow { send(1) }.collect { }`）の実挙動（リンクエラー / クラッシュ / 動作）を実測して分類を確定する。(i) (b) 化 = Channel (c) コア（KSP-678 の `kk_channel_*` ブリッジ）+ `kk_flow_create` の合成で bundled Kotlin 実装する、(ii) (a) 化 = Sema 登録・Lowering 特例ごと削除し未実装 API として明示する、のどちらかへ倒す
-  - 前提: KSP-676 / 手順: T（(b) の場合）or RF-STUB-002 レシピ（(a) の場合）
+- [x] KSP-686: channelFlow/callbackFlow の (b)/(c) 分類を確定し fiction を解消する（KSP-498 棚卸しの「未分類」残り。前提 KSP-676 は master の PR #5713 で完了済み。2026-08-14 実測で (a)（未実装 API）に分類）
+  - 実測: `channelFlow<Int> { send(1) }.collect { println(it) }` は `KSWIFTK-SEMA-0023: Unresolved function 'send'`、`callbackFlow<Int> { trySend(1); close() }.collect { println(it) }` は `trySend`/`close` 未解決でコンパイル終了（リンク・実行には到達しない）。一方、fiction の `emit` alias は両 builder とも compile/run して `1` を出力したが、real `ProducerScope` API の動作ではない。
+  - 対応: `HeaderHelpers+SyntheticCoroutineRegistry.swift` の合成登録、`CallTypeChecker`/`TypeCheck/Helpers` の fallback、`FlowLoweringPass`/`CoroutineLoweringPass` の特例、および未実装 `kk_channel_flow_*`/`kk_callback_flow_*` ABI allowlist を削除。Sema 回帰テストで両 API を明示的な未解決診断として固定し、`flow_builders.kt` は real API 形へ更新した。
+  - 残課題: real `ProducerScope` を用いた channelFlow/callbackFlow の (b) 実装は別タスクで設計する。
 
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 

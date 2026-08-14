@@ -305,7 +305,7 @@ RuntimeJobHandle 状態が要る。scheduler の分岐が広いため、単発�
 | case | root cause | 次アクション |
 | --- | --- | --- |
 | `flow_advanced_operators.kt` | `.transform { it * 10 }`が`emit()`を呼ばずmapのように誤用(real Kotlinでも無効)。修正後は`Flow.zip`/`Flow.combine`が同名の`Collection.zip`/`combine`と衝突し"Ambiguous overload resolution"になる実バグが残る | テストの`transform`誤用を修正。`Flow.zip`/`combine`のオーバーロード衝突は別途調査(`Helpers.swift:457`付近) |
-| `flow_builders.kt` | `channelFlow{}`/`callbackFlow{}`内で`emit()`を使うテスト自体が実Kotlinでは無効(`ProducerScope`は`send`/`trySend`のみ)。kswiftcは意図的にchannelFlow/callbackFlowを`flow{}`にエイリアスしており`emit`を受理してしまうため、`send`に直すと今度は未実装で失敗する | DEBT-DIFF-003のChannel/produce未実装まわりと合わせて解消する。channelFlow/callbackFlowを real ProducerScope としてモデル化する設計が必要 |
+| `flow_builders.kt` | `channelFlow{}`/`callbackFlow{}`は実Kotlinの`ProducerScope`（`send`/`trySend`/`close`）を要求するが、KSP-686でkswiftcはこれらをfictionとして受理しない方針にした。real API形へ更新したため、candidateは未実装APIのSema診断で失敗する | channelFlow/callbackFlowのreal ProducerScope実装を別タスクで設計・実装する |
 | `flow_error_handling.kt` | `onErrorReturn`/`onErrorResume`(real Kotlinでは`ERROR`レベルでdeprecated、`catch{emit()}`/`catch{emitAll()}`推奨)をkswiftcが誤って受理。修正すると`onCompletion`(非推奨でない実オペレーター)が未実装で失敗する | テストを`catch{}`形式に書き換え。`Flow.onCompletion`を実装 |
 
 ### グループ5: reflection(残り2件)
