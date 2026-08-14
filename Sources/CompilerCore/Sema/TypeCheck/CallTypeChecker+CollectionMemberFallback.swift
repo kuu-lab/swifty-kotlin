@@ -2869,7 +2869,7 @@ extension CallTypeChecker {
                 case .nothing:
                     sema.types.nullableAnyType
                 default:
-                    sema.types.makeNullable(keyType)
+                        sema.types.makeNonNullable(keyType)
                 }
             }
             let expectedType = sema.types.make(.functionType(FunctionType(

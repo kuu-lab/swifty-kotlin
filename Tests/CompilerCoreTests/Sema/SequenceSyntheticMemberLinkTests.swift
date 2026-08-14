@@ -960,8 +960,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameFilterTo).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksFilterTo.contains("kk_sequence_filterTo"),
-                "Expected Sequence.filterTo to link to kk_sequence_filterTo, got \(linksFilterTo.sorted())"
+                linksFilterTo.isEmpty,
+                "Expected Sequence.filterTo to be backed by source"
             )
         }
 
@@ -986,8 +986,8 @@ struct SequenceSyntheticMemberLinkTests {
                 sema.symbols.lookupAll(fqName: memberFQNameFilterNotTo).compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             #expect(
-                linksFilterNotTo.contains("kk_sequence_filterNotTo"),
-                "Expected Sequence.filterNotTo to link to kk_sequence_filterNotTo, got \(linksFilterNotTo.sorted())"
+                linksFilterNotTo.isEmpty,
+                "Expected Sequence.filterNotTo to be backed by source"
             )
         }
 
@@ -1234,9 +1234,10 @@ struct SequenceSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected Sequence.filterIsInstanceTo to bind to its synthetic runtime callee"
+                    "Expected Sequence.filterIsInstanceTo to bind to its bundled source callee"
                 )
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_filterIsInstanceTo")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
                 #expect(
                     sema.bindings.isCollectionExpr(callExpr),
                     "Expected filterIsInstanceTo result to be tracked as a collection expression"

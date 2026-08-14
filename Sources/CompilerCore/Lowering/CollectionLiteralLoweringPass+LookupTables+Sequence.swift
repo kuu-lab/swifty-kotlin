@@ -52,19 +52,6 @@ struct SequenceLookupNames {
     let kkSequenceMinusName: InternedString
     let kkSequenceOfSingleName: InternedString
     // STDLIB-SEQ-012: Sequence partition
-    // STDLIB-SEQ-021: Sequence destination-collection filter operations
-    let kkSequenceFilterToName: InternedString
-    let kkSequenceFilterNotToName: InternedString
-    // STDLIB-SEQ-022: Sequence destination-collection mapping operations
-    let kkSequenceMapToName: InternedString
-    let kkSequenceMapNotNullToName: InternedString
-    let kkSequenceMapIndexedToName: InternedString
-    let kkSequenceFlatMapToName: InternedString
-    let kkSequenceMapIndexedNotNullToName: InternedString
-    let kkSequenceFlatMapIndexedToName: InternedString
-    let kkSequenceFilterIndexedToName: InternedString
-    let kkSequenceFilterNotNullToName: InternedString
-    let kkSequenceFilterIsInstanceToName: InternedString
     // Sequence plus/minus member names (STDLIB-561/562)
     let plusMemberName: InternedString
     let plusElementName: InternedString
@@ -141,18 +128,6 @@ struct SequenceLookupNames {
         kkSequencePlusElementName = interner.intern("kk_sequence_plus_element")
         kkSequenceMinusName = interner.intern("kk_sequence_minus")
         kkSequenceOfSingleName = interner.intern("kk_sequence_of_single")
-        // STDLIB-SEQ-021: Sequence destination-collection filter operations
-        kkSequenceFilterToName = interner.intern("kk_sequence_filterTo")
-        kkSequenceFilterNotToName = interner.intern("kk_sequence_filterNotTo")
-        kkSequenceMapToName = interner.intern("kk_sequence_mapTo")
-        kkSequenceMapNotNullToName = interner.intern("kk_sequence_mapNotNullTo")
-        kkSequenceMapIndexedToName = interner.intern("kk_sequence_mapIndexedTo")
-        kkSequenceFlatMapToName = interner.intern("kk_sequence_flatMapTo")
-        kkSequenceMapIndexedNotNullToName = interner.intern("kk_sequence_mapIndexedNotNullTo")
-        kkSequenceFlatMapIndexedToName = interner.intern("kk_sequence_flatMapIndexedTo")
-        kkSequenceFilterIndexedToName = interner.intern("kk_sequence_filterIndexedTo")
-        kkSequenceFilterNotNullToName = interner.intern("kk_sequence_filterNotNullTo")
-        kkSequenceFilterIsInstanceToName = interner.intern("kk_sequence_filterIsInstanceTo")
         plusMemberName = interner.intern("plus")
         plusElementName = interner.intern("plusElement")
         minusElementName = interner.intern("minusElement")

@@ -274,6 +274,7 @@ extension DataFlowSemaPhase {
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
+                    parameterTypes: memberMeta.parameterTypes,
                     returnType: memberMeta.returnType,
                     ctx: ctx
                 )
@@ -308,6 +309,7 @@ extension DataFlowSemaPhase {
         let range: SourceRange
         let hasOverride: Bool
         let hasOpen: Bool
+        let parameterTypes: [TypeID]?
         let returnType: TypeID?
         let hasAbstract: Bool
         let hasFinal: Bool
@@ -335,11 +337,14 @@ extension DataFlowSemaPhase {
             } else {
                 nil
             }
+            let parameterTypes = ctx.bindings.declSymbols[declID]
+                .flatMap { ctx.symbols.functionSignature(for: $0)?.parameterTypes }
             return MemberMeta(
                 name: fun.name,
                 range: fun.range,
                 hasOverride: fun.modifiers.contains(.override),
                 hasOpen: fun.modifiers.contains(.open),
+                parameterTypes: parameterTypes,
                 returnType: returnType,
                 hasAbstract: fun.modifiers.contains(.abstract),
                 hasFinal: fun.modifiers.contains(.final),
@@ -351,6 +356,7 @@ extension DataFlowSemaPhase {
                 range: prop.range,
                 hasOverride: prop.modifiers.contains(.override),
                 hasOpen: prop.modifiers.contains(.open),
+                parameterTypes: nil,
                 returnType: nil,
                 hasAbstract: prop.modifiers.contains(.abstract),
                 hasFinal: prop.modifiers.contains(.final),
@@ -381,7 +387,8 @@ extension DataFlowSemaPhase {
         let parent = findInheritedMember(
             named: memberMeta.name,
             for: ownerSymbol,
-            symbols: ctx.symbols
+            symbols: ctx.symbols,
+            parameterTypes: memberMeta.parameterTypes
         )
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return }
@@ -593,13 +600,15 @@ extension DataFlowSemaPhase {
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
+        parameterTypes: [TypeID]?,
         returnType: TypeID?,
         ctx: OpenFinalOverrideContext
     ) {
         let parent = findInheritedMember(
             named: memberName,
             for: ownerSymbol,
-            symbols: ctx.symbols
+            symbols: ctx.symbols,
+            parameterTypes: parameterTypes
         )
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else {
@@ -1309,7 +1318,8 @@ extension DataFlowSemaPhase {
     private func findInheritedMember(
         named memberName: InternedString,
         for classSymbol: SymbolID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        parameterTypes: [TypeID]? = nil
     ) -> OFOInheritedMember? {
         var visited: Set<SymbolID> = [classSymbol]
         var queue = symbols.directSupertypes(for: classSymbol)
@@ -1325,7 +1335,20 @@ extension DataFlowSemaPhase {
                 }
                 let isMatch = child.kind == .function
                     || child.kind == .property
-                if isMatch, child.name == memberName {
+                guard isMatch, child.name == memberName else {
+                    continue
+                }
+                // Function overloads must be matched by their parameter types;
+                // name-only lookup can select a synthetic range overload before
+                // the real member being overridden.
+                if let parameterTypes {
+                    guard child.kind == .function,
+                          symbols.functionSignature(for: childID)?.parameterTypes == parameterTypes
+                    else {
+                        continue
+                    }
+                }
+                if isMatch {
                     return OFOInheritedMember(
                         memberID: childID,
                         ownerName: sym.name,

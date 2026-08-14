@@ -547,18 +547,44 @@ struct LoweringPassRegressionTests {
             }
             let printlnArg = printlnArgs[0]
 
+            let uppercaseResult = try #require(mainBody[..<printlnCallIndex!].lazy.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                      let result,
+                      ctx.interner.resolve(callee) == "kk_string_uppercase_flat"
+                else {
+                    return nil
+                }
+                return result
+            }.last, "expected kk_string_uppercase_flat call before println")
+
             let hasCopyFromUppercase = mainBody[..<printlnCallIndex!].contains { instruction in
-                guard case let .copy(from, to) = instruction, to == printlnArg else {
-                    return false
-                }
-                return mainBody[..<printlnCallIndex!].contains { earlier in
-                    guard case let .call(_, callee, _, result, _, _, _, _) = earlier, result == from else {
-                        return false
+                if case let .copy(from, to) = instruction, to == printlnArg {
+                    if from == uppercaseResult {
+                        return true
                     }
-                    return ctx.interner.resolve(callee) == "kk_string_uppercase_flat"
+                    // String results may be boxed through kk_string_from_flat before the copy.
+                    return mainBody[..<printlnCallIndex!].contains { earlier in
+                        guard case let .call(_, callee, args, result, _, _, _, _) = earlier,
+                              let result,
+                              result == from,
+                              args.contains(uppercaseResult)
+                        else {
+                            return false
+                        }
+                        let name = ctx.interner.resolve(callee)
+                        return name == "kk_string_from_flat" || name == "kk_string_to_flat"
+                    }
                 }
+                if case let .call(_, callee, args, result, _, _, _, _) = instruction,
+                   let result,
+                   result == printlnArg,
+                   args.contains(uppercaseResult) {
+                    let name = ctx.interner.resolve(callee)
+                    return name == "kk_string_from_flat" || name == "kk_string_to_flat"
+                }
+                return false
             }
-            #expect(hasCopyFromUppercase, "safe-call inline result must be copied to the merge register before println")
+            #expect(hasCopyFromUppercase, "safe-call inline result must be materialized before println")
         }
     }
 }

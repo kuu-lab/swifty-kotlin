@@ -23,8 +23,8 @@ run the baseline command above to get the current value for the HEAD you are on.
 | `typeOf<T>()` | CInterop/typeOf synthetic stub and `.typeOf` lowering | Yes after typeOf stub carries kind and reified type result metadata. |
 | `suspendCoroutineUninterceptedOrReturn` | `HeaderHelpers+SyntheticCoroutineRegistry`; already resolves visible synthetic symbol by FQ name | Yes after stub carries special kind. |
 | `enumValues`, `enumValueOf`, `enumEntries` | `HeaderHelpers+SyntheticEnumStubs` plus `CallTypeChecker+EnumStdlib` | Mostly. Existing helper is already symbol-aware; remaining enum name checks can become metadata filters. |
-| `maxOf` / `minOf` primitive fixed-arity fast path | `HeaderHelpers+SyntheticComparisonStubs`; `CallTypeChecker+Comparisons` | Yes after comparison stubs carry numeric-family metadata instead of switching on resolved name. |
-| `compareBy`, `compareByDescending`, `compareValuesBy` | `HeaderHelpers+SyntheticComparisonStubs` | Yes after selector/vararg metadata is registered; source stdlib may remove some inference scaffolding. |
+| `maxOf` / `minOf` primitive fixed-arity fast path | `Stdlib/kotlin/comparisons/Comparisons.kt`; `CallTypeChecker+Comparisons` | Yes after comparison source declarations carry numeric-family metadata instead of switching on resolved name. |
+| `compareBy`, `compareByDescending`, `compareValuesBy` | `Stdlib/kotlin/comparisons/Comparators.kt` | Yes after selector/vararg metadata is registered; source stdlib may remove some inference scaffolding. |
 | `contract`, `implies`, `returns`, `returnsNotNull`, `callsInPlace`, `InvocationKind` | Contract DSL synthetic declarations / source DSL model | No until contract DSL is declaration-driven. Then callable IDs and enum constants can replace all string checks. |
 | `sequence`, `iterator`, `generateSequence` | Sequence builder/source stdlib stubs | Partially. Lambda expected types and sequence element binding still need semantic metadata. |
 | `delay`, coroutine launchers, flow factories, `asFlow` | Coroutine/Flow synthetic stubs | Yes after coroutine/flow factory metadata describes builder kind, receiver family, and lambda role. |

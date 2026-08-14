@@ -147,12 +147,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_minOfWith")
             case "minOfWithOrNull":
                 return interner.intern("kk_list_minOfWithOrNull")
-            case "onEach":
-                return interner.intern("kk_list_onEach")
-            case "onEachIndexed":
-                return interner.intern("kk_list_onEachIndexed")
-            case "partition":
-                return interner.intern("kk_list_partition")
             default:
                 break
             }
@@ -334,8 +328,6 @@ extension CallLowerer {
             return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
-        case "partition":
-            return interner.intern("kk_list_partition")
         case "maxBy":
             return interner.intern("kk_list_maxBy")
         case "maxByOrNull":
@@ -368,10 +360,6 @@ extension CallLowerer {
             return interner.intern("kk_list_minOfWith")
         case "minOfWithOrNull":
             return interner.intern("kk_list_minOfWithOrNull")
-        case "onEach":
-            return interner.intern("kk_list_onEach")
-        case "onEachIndexed":
-            return interner.intern("kk_list_onEachIndexed")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
         default:
@@ -450,10 +438,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_firstNotNullOf")
             case firstNotNullOfOrNullName:
                 return interner.intern("kk_sequence_firstNotNullOfOrNull")
-            case interner.intern("flatMapIndexedTo"):
-                return interner.intern("kk_sequence_flatMapIndexedTo")
-            case interner.intern("flatMapTo"):
-                return interner.intern("kk_sequence_flatMapTo")
             case interner.intern("contains"):
                 return interner.intern("kk_sequence_contains")
             case interner.intern("indexOf"):
