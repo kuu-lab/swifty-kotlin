@@ -1,7 +1,8 @@
 
 /// Synthetic stdlib stubs for kotlin.concurrent atomic and lock types.
-/// Registers constructors, load/store/exchange/compareAndSet/compareAndExchange methods,
-/// arithmetic methods (AtomicInt/AtomicLong), and the `value` property.
+/// Registers constructors, load/store/exchange/compareAndExchange methods,
+/// compareAndSet only for runtime-shared scalar families, arithmetic methods
+/// (AtomicInt/AtomicLong), and the `value` property.
 extension DataFlowSemaPhase {
     func registerSyntheticAtomicStubs(
         symbols: SymbolTable,
@@ -76,6 +77,7 @@ extension DataFlowSemaPhase {
             prefix: "kk_atomic_bool",
             includeArithmetic: false,
             includeGetAndSetAlias: true,
+            includeCompareAndSet: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -379,6 +381,7 @@ extension DataFlowSemaPhase {
         includeGetAndAddAlias: Bool = false,
         includeDecrementAndGetAlias: Bool = false,
         includeAddAndGetAlias: Bool = false,
+        includeCompareAndSet: Bool = true,
         symbols: SymbolTable,
         interner: StringInterner,
         types: TypeSystem
@@ -421,6 +424,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: prefix,
             includeGetAndSetAlias: includeGetAndSetAlias,
+            includeCompareAndSet: includeCompareAndSet,
             symbols: symbols,
             interner: interner
         )
@@ -1459,6 +1463,7 @@ extension DataFlowSemaPhase {
         typeParameterSymbols: [SymbolID] = [],
         classTypeParameterCount: Int = 0,
         includeGetAndSetAlias: Bool = false,
+        includeCompareAndSet: Bool = true,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1515,19 +1520,21 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // compareAndSet(expect: T, update: T) -> Boolean
-        registerAtomicMember(
-            ownerSymbol: ownerSymbol, ownerType: ownerType,
-            name: "compareAndSet", externalLinkName: "\(prefix)_compareAndSet",
-            returnType: boolType,
-            parameters: [
-                (name: "expect", type: valueType),
-                (name: "update", type: valueType),
-            ],
-            typeParameterSymbols: typeParameterSymbols,
-            classTypeParameterCount: classTypeParameterCount,
-            symbols: symbols, interner: interner
-        )
+        if includeCompareAndSet {
+            // compareAndSet(expect: T, update: T) -> Boolean
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol, ownerType: ownerType,
+                name: "compareAndSet", externalLinkName: "\(prefix)_compareAndSet",
+                returnType: boolType,
+                parameters: [
+                    (name: "expect", type: valueType),
+                    (name: "update", type: valueType),
+                ],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols, interner: interner
+            )
+        }
         // compareAndExchange(expect: T, update: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
@@ -1749,6 +1756,7 @@ extension DataFlowSemaPhase {
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
             includeGetAndSetAlias: true,
+            includeCompareAndSet: false,
             symbols: symbols,
             interner: interner
         )
