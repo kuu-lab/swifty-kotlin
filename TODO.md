@@ -268,7 +268,7 @@
 
 #### コア util（kotlin 直下）
 
-- [ ] KSP-601: let/also/takeIf/takeUnless を Kotlin 化する（非レシーバ形ラムダのみで CAP 不要。実装先 `kotlin/Standard.kt` 新設。kk_* ゼロ（全インライン特例）— 削除対象は `HeaderHelpers+SyntheticScopeFunctionStubs.swift` の該当登録と `ScopeFunctionKind` 該当分岐。インライン特例の撤去可否は KSP-INF-007 の実測とセットで判断）
+- [x] KSP-601: let/also/takeIf/takeUnless を Kotlin 化する（非レシーバ形ラムダのみで CAP 不要。実装先 `kotlin/Standard.kt` 新設。kk_* ゼロ（全インライン特例）— 削除対象は `HeaderHelpers+SyntheticScopeFunctionStubs.swift` の該当登録と `ScopeFunctionKind` 該当分岐。インライン特例の撤去可否は KSP-INF-007 の実測とセットで判断）。完了確認（2026-08-14、PR #5698 / merge commit `7b3e7cc47`）：`Standard.kt` の bundled Kotlin 実装、合成登録削除、Sema/KIR の通常解決・汎用インライン展開への移行を現行masterで確認。旧 `scopeLet`/`scopeAlso`/`TakeIfTakeUnlessKind`/`tryTakeIfTakeUnlessLowering` 特例と `kk_(let|also|takeIf|takeUnless)` ABI名は残留なし。回帰根拠は `scope_functions` / `take_if_take_unless` Sema golden、`Scripts/diff_cases/take_if_take_unless.kt`/`takeif_takeunless*.kt`、ScopeFunction/TakeIf codegen・integration tests、および `LoweringPassRegressionTests.testSafeCallInlineResultIsMaterializedBeforeMerge`。現行masterの関連150テスト（6 suites）とPR #5698の全CIがgreen。
 - [ ] KSP-602: run/with/apply を Kotlin 化する（前提: KSP-CAP-008。`apply` は**スタブ未登録・名前特例のみ**で動作中のため宣言を新設。削除対象は同スタブの with/run 登録 + `CallLowerer+ScopeFunctionLowering.swift` の該当分岐）
 #### io / system
 
