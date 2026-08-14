@@ -279,57 +279,7 @@ extension CallLowerer {
         {
             finalArguments.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        let receiverIsRandom = isRandomType(
-            sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema, interner: interner
-        )
-        // KSP-466: nextInt(until: Int)/nextLong(until: Long) are now real Kotlin
-        // members (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt), so Sema
-        // resolves `r.nextInt(someIntRange)` to that (wrong) overload's real,
-        // internally-compiled symbol with loweredCallee == "nextInt"/"nextLong"
-        // (never the old synthetic-stub names "kk_random_nextInt_until"/
-        // "kk_random_nextLong_until", which no longer exist anywhere in Sema's
-        // registration since Random stopped being a synthetic object). loweredCallee
-        // gets corrected to the range-object bridge name below, but
-        // emitFunctionBody's call emission path prefers calling
-        // `symbol`'s own internal compiled body over `callee`'s name whenever
-        // `symbol` resolves to a known internal function — so without also
-        // clearing the symbol here, the corrected callee *name* is silently
-        // ignored and the wrong (real Int-arity) overload's compiled body still
-        // runs with the range handle reinterpreted as an Int. Confirmed via a
-        // hung/garbage-value repro before this fix (Random(7).nextInt(10..15)
-        // returned an out-of-range value). Resetting callSymbol to nil restores
-        // the originally-intended "chosenCallee == nil" fallback path so codegen
-        // resolves purely by the (corrected) external ABI name.
-        var callSymbol = chosenCallee
-        if receiverIsRandom, loweredCallee == interner.intern("nextLong"),
-           sourceArgExprs.count == 1,
-           sema.bindings.isRangeExpr(sourceArgExprs[0])
-        {
-            loweredCallee = interner.intern("kk_random_nextLong_rangeObject")
-            callSymbol = nil
-        }
-        if receiverIsRandom, loweredCallee == interner.intern("nextInt"),
-           sourceArgExprs.count == 1,
-           sema.bindings.isRangeExpr(sourceArgExprs[0])
-            || nominalRangeElementType(
-                for: sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) == sema.types.intType
-        {
-            loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
-            callSymbol = nil
-        }
-        // When Sema failed to resolve nextLong/nextInt on Random (chosenCallee == nil),
-        // appendReceiverToMemberArguments skips the receiver. Insert it now so the
-        // runtime ABI (randomRaw, rangeRaw, outThrown) is satisfied.
-        if (loweredCallee == interner.intern("kk_random_nextLong_rangeObject")
-            || loweredCallee == interner.intern("kk_random_nextInt_rangeObject")),
-           finalArguments.count == 1
-        {
-            finalArguments.insert(receiver.loweredID, at: 0)
-        }
+        let callSymbol = chosenCallee
         // Array.count() with no predicate: kk_array_count's native signature always
         // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
         // lambda argument, finalArguments only has the receiver. Without this padding,
@@ -789,18 +739,20 @@ extension CallLowerer {
             interner.intern("__kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
-            interner.intern("kk_range_random"),
-            interner.intern("kk_range_random_random"),
-            interner.intern("kk_random_nextInt_rangeObject"),
-            interner.intern("kk_random_nextLong_rangeObject"),
+            interner.intern("__kk_range_random"),
+            interner.intern("__kk_range_random_random"),
+            interner.intern("__kk_char_range_random"),
+            interner.intern("__kk_char_range_random_random"),
+            interner.intern("__kk_random_nextInt_rangeObject"),
+            interner.intern("__kk_random_nextLong_rangeObject"),
             interner.intern("kk_range_reduce"),
             interner.intern("kk_range_reduceIndexed"),
-            interner.intern("kk_long_range_random"),
-            interner.intern("kk_long_range_random_random"),
-            interner.intern("kk_uint_range_random"),
-            interner.intern("kk_uint_range_random_random"),
-            interner.intern("kk_ulong_range_random"),
-            interner.intern("kk_ulong_range_random_random"),
+            interner.intern("__kk_long_range_random"),
+            interner.intern("__kk_long_range_random_random"),
+            interner.intern("__kk_uint_range_random"),
+            interner.intern("__kk_uint_range_random_random"),
+            interner.intern("__kk_ulong_range_random"),
+            interner.intern("__kk_ulong_range_random_random"),
             interner.intern("__kk_int_progression_fromClosedRange"),
             interner.intern("__kk_long_progression_fromClosedRange"),
             interner.intern("__kk_uint_progression_fromClosedRange"),

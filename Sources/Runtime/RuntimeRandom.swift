@@ -136,11 +136,7 @@ private func ulongPayload(_ raw: Int) -> UInt64 {
 }
 
 private func runtimeRandomULongBits(receiver: Int) -> UInt64 {
-    if let box = seededBox(from: receiver) {
-        return box.nextBits()
-    }
-    var rng = SystemRandomNumberGenerator()
-    return rng.next()
+    return runtimeRandomNextBits64(receiver)
 }
 
 private func runtimeRandomULongBelow(_ upperBound: UInt64, receiver: Int) -> UInt64 {
@@ -148,11 +144,15 @@ private func runtimeRandomULongBelow(_ upperBound: UInt64, receiver: Int) -> UIn
     if let box = seededBox(from: receiver) {
         return box.nextBits() % upperBound
     }
-    if upperBound == UInt64.max {
-        var rng = SystemRandomNumberGenerator()
-        return rng.next() % upperBound
+    if upperBound == 1 {
+        return 0
     }
-    return UInt64.random(in: 0 ..< upperBound)
+    let rejectionLimit = UInt64.max - (UInt64.max % upperBound)
+    var candidate = runtimeRandomULongBits(receiver: receiver)
+    while candidate >= rejectionLimit {
+        candidate = runtimeRandomULongBits(receiver: receiver)
+    }
+    return candidate % upperBound
 }
 
 private func runtimeRandomULongRange(receiver: Int, from: UInt64, until: UInt64) -> UInt64 {
@@ -165,10 +165,10 @@ private func uint32Payload(_ raw: Int) -> UInt64 {
 }
 
 private func runtimeRandomUInt32Bits(receiver: Int) -> UInt64 {
-    if let box = seededBox(from: receiver) {
-        return box.nextBits() & UInt64(UInt32.max)
-    }
-    return UInt64(UInt32.random(in: UInt32.min ... UInt32.max))
+    // Kotlin Random instances, including source-backed XorWowRandom, expose
+    // their state through RandomLongSource. Falling back directly to system
+    // entropy here would make UInt range overloads ignore an explicit seed.
+    return runtimeRandomNextBits64(receiver) & UInt64(UInt32.max)
 }
 
 private func runtimeRandomUIntBelow(_ upperBound: UInt64, receiver: Int) -> UInt64 {
@@ -304,8 +304,8 @@ public func kk_random_nextULong_range(_ receiver: Int, _ from: Int, _ until: Int
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_random_nextULong_ulongRange")
-public func kk_random_nextULong_ulongRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_random_nextULong_ulongRange")
+public func __kk_random_nextULong_ulongRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
@@ -353,8 +353,8 @@ public func kk_random_nextUInt_range(_ receiver: Int, _ from: Int, _ until: Int,
     return Int(runtimeRandomUIntRange(receiver: receiver, from: lower, until: upper))
 }
 
-@_cdecl("kk_random_nextUInt_uintRange")
-public func kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_random_nextUInt_uintRange")
+public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Random.nextUInt expected a UIntRange.")

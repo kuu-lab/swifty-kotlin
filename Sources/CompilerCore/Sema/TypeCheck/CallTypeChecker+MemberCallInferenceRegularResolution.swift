@@ -1574,7 +1574,7 @@ extension CallTypeChecker {
         switch interner.resolve(calleeName) {
         case "contains", "isEmpty", "iterator",
              "toList", "forEach", "map", "filter",
-             "take", "drop", "sorted", "average":
+             "take", "drop", "sorted", "average", "random", "randomOrNull":
             return true
         default:
             return false

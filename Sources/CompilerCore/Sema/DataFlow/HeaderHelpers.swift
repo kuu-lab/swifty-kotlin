@@ -1179,7 +1179,7 @@ extension DataFlowSemaPhase {
             skipStats.logIfEnabled()
         }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRandomStubs(symbols: symbols, interner: interner)
         registerSyntheticCollectionStubs(
             symbols: symbols,
             types: types,
