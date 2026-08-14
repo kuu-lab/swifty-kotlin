@@ -2,7 +2,7 @@ package kotlin.concurrent
 
 import java.util.concurrent.atomic.AtomicInteger
 
-// MIGRATION-ATOMIC-001 / KSP-670
+// MIGRATION-ATOMIC-001 / KSP-670 / KSP-688
 // AtomicInt / AtomicLong / AtomicReference / AtomicBoolean API migrated to
 // Kotlin source.
 // get/set/getAndSet delegate to load/store/exchange bridge members;
@@ -12,6 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger
 // same retained bridge members (addAndFetch/incrementAndFetch/
 // decrementAndFetch/compareAndExchange). The CPU-instruction cores
 // (compareAndExchange and the *Fetch arithmetic ops) stay as bridges.
+// KSP-688: AtomicBoolean and AtomicReference compareAndSet use the same
+// compareAndExchange delegation. AtomicReference compares references by
+// identity, so its wrapper uses referential equality (===).
 // getAndUpdate/updateAndGet/fetchAndUpdate/updateAndFetch are CAS retry loops
 // built on the load/compareAndSet members (KSP-CAP-004 / KSP-673).
 // java.util.concurrent.atomic.AtomicInteger shares the same kk_atomic_int_*
@@ -114,14 +117,18 @@ public fun AtomicLong.fetchAndUpdate(transform: (Long) -> Long): Long {
 }
 
 // ── AtomicBoolean ──────────────────────────────────────────────────────────
-// KSP-670: get/set/getAndSet delegate to the load/store/exchange bridge members.
-// compareAndSet/compareAndExchange remain Swift bridges (kk_atomic_bool_*).
+// KSP-670/KSP-688: get/set/getAndSet and compareAndSet delegate to the
+// load/store/exchange/compareAndExchange bridge members. The compareAndExchange
+// operation remains the runtime CAS core (kk_atomic_bool_*).
 
 public fun AtomicBoolean.get(): Boolean = load()
 
 public fun AtomicBoolean.set(value: Boolean): Unit = store(value)
 
 public fun AtomicBoolean.getAndSet(newValue: Boolean): Boolean = exchange(newValue)
+
+public fun AtomicBoolean.compareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
+    compareAndExchange(expectedValue, newValue) == expectedValue
 
 public fun AtomicBoolean.getAndUpdate(transform: (Boolean) -> Boolean): Boolean {
     while (true) {
@@ -154,6 +161,9 @@ public fun <T> AtomicReference<T>.get(): T = load()
 public fun <T> AtomicReference<T>.set(value: T): Unit = store(value)
 
 public fun <T> AtomicReference<T>.getAndSet(newValue: T): T = exchange(newValue)
+
+public fun <T> AtomicReference<T>.compareAndSet(expectedValue: T, newValue: T): Boolean =
+    compareAndExchange(expectedValue, newValue) === expectedValue
 
 public fun <T> AtomicReference<T>.getAndUpdate(transform: (T) -> T): T {
     while (true) {
