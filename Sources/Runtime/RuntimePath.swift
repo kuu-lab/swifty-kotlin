@@ -1286,53 +1286,6 @@ public func kk_path_toFile(_ pathRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeFileBox(path.pathString))
 }
 
-@_cdecl("kk_path_toUri")
-public func kk_path_toUri(_ pathRaw: Int) -> Int {
-    guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_toUri received invalid Path handle")
-    }
-    let absolutePath: String
-    if path.pathString.hasPrefix("/") {
-        absolutePath = path.pathString
-    } else {
-        absolutePath = (FileManager.default.currentDirectoryPath as NSString)
-            .appendingPathComponent(path.pathString)
-    }
-    let uriString = "file://" + absolutePath
-    if var components = URLComponents(string: uriString) {
-        components.scheme = "file"
-        return registerRuntimeObject(RuntimeURIBox(components: components))
-    }
-    // Fallback: create from raw string
-    var fallback = URLComponents()
-    fallback.scheme = "file"
-    fallback.path = absolutePath
-    return registerRuntimeObject(RuntimeURIBox(components: fallback))
-}
-
-/// kotlin.io.path.toPath() extension on java.net.URI.
-///
-/// Maps the URI (which must have a "file" scheme) to a Path instance. The
-/// implementation mirrors `Paths.get(URI)` in semantics: only file: URIs are
-/// supported, and the resulting Path is the URI's decoded path component.
-@_cdecl("kk_uri_toPath")
-public func kk_uri_toPath(_ uriRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: uriRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_uri_toPath received invalid URI handle")
-    }
-    guard let uriBox = tryCast(ptr, to: RuntimeURIBox.self) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_uri_toPath received invalid URI handle")
-    }
-    // Prefer URL-based decoding when available so percent-encoded path
-    // characters are translated back to their literal form, matching JVM
-    // Paths.get(URI) behaviour for "file" URIs.
-    if let url = uriBox.components.url, url.isFileURL {
-        return registerRuntimeObject(RuntimePathBox(url.path))
-    }
-    let path = uriBox.components.path
-    return registerRuntimeObject(RuntimePathBox(path))
-}
-
 // MARK: - Path.get() / Paths.get() top-level factory
 
 @_cdecl("kk_path_get")

@@ -382,6 +382,10 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
+    // Native string construction is also used for temporary CharSequence
+    // windows created by bundled text helpers. Keep those boxes on the same
+    // interface-property itable path as registerRuntimeObject.
+    runtimeRegisterCharSequenceLengthItable(Int(bitPattern: opaque))
     return opaque
 }
 
@@ -896,11 +900,8 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return cached
     }
     let box = RuntimeKClassBox(typeToken: typeToken, nameHint: nameHint)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    let result = Int(bitPattern: opaque)
+    registerReflectionRuntimeTypeMetadata()
+    let result = registerRuntimeObject(box, typeID: kClassRuntimeTypeID)
     let winner = runtimeStorage.withMetadataLock { state -> Int in
         if let existing = state.kClassBoxCache[cacheKey] {
             return existing
@@ -909,8 +910,14 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return result
     }
     if winner != result {
+        guard let opaque = UnsafeMutableRawPointer(bitPattern: result) else {
+            return winner
+        }
         runtimeStorage.withGCLock { state in
             state.objectPointers.remove(UInt(bitPattern: opaque))
+        }
+        runtimeStorage.withMetadataLock { state in
+            state.objectTypeByPointer.removeValue(forKey: UInt(bitPattern: opaque))
         }
         Unmanaged<RuntimeKClassBox>.fromOpaque(opaque).release()
     }
@@ -1412,7 +1419,8 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
         argumentRaws: argumentRaws,
         isMarkedNullable: isNullable != 0
     )
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kTypeRuntimeTypeID)
 }
 
 /// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
@@ -1453,7 +1461,8 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
 }
 
 /// Implements `typeOf<T>()` — creates a KType for the given type token.

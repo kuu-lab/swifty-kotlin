@@ -334,17 +334,6 @@ final class AtomicBooleanBox {
         return old
     }
 
-    func compareAndSet(expect: Bool, update: Bool) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        let expectInt = expect ? 1 : 0
-        if storage == expectInt {
-            storage = update ? 1 : 0
-            return true
-        }
-        return false
-    }
-
     func compareAndExchange(expect: Bool, update: Bool) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -392,12 +381,6 @@ public func kk_atomic_bool_exchange(_ receiver: Int, _ new: Int) -> Int {
     return box.exchange(new != 0) ? 1 : 0
 }
 
-@_cdecl("kk_atomic_bool_compareAndSet")
-public func kk_atomic_bool_compareAndSet(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
-    guard let box = atomicBoolBox(from: receiver) else { return 0 }
-    return box.compareAndSet(expect: expect != 0, update: update != 0) ? 1 : 0
-}
-
 @_cdecl("kk_atomic_bool_compareAndExchange")
 public func kk_atomic_bool_compareAndExchange(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicBoolBox(from: receiver) else { return 0 }
@@ -436,23 +419,13 @@ final class AtomicRefBox {
         return old
     }
 
-    /// Kotlin `AtomicReference` CAS uses value equality (e.g. same string contents),
-    /// not pointer identity — match JVM `kotlin.concurrent.atomics` behaviour.
-    func compareAndSet(expect: Int, update: Int) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        if runtimeValuesEqual(storage, expect) {
-            storage = update
-            return true
-        }
-        return false
-    }
-
+    /// Kotlin `AtomicReference` CAS uses reference identity, so raw handles
+    /// are compared rather than their structural values.
     func compareAndExchange(expect: Int, update: Int) -> Int {
         lock.lock()
         defer { lock.unlock() }
         let old = storage
-        if runtimeValuesEqual(old, expect) {
+        if old == expect {
             storage = update
         }
         return old
@@ -493,12 +466,6 @@ public func kk_atomic_ref_store(_ receiver: Int, _ value: Int) -> Int {
 public func kk_atomic_ref_exchange(_ receiver: Int, _ new: Int) -> Int {
     guard let box = atomicRefBox(from: receiver) else { return 0 }
     return box.exchange(new)
-}
-
-@_cdecl("kk_atomic_ref_compareAndSet")
-public func kk_atomic_ref_compareAndSet(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
-    guard let box = atomicRefBox(from: receiver) else { return 0 }
-    return box.compareAndSet(expect: expect, update: update) ? 1 : 0
 }
 
 @_cdecl("kk_atomic_ref_compareAndExchange")

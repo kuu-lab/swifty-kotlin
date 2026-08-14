@@ -1794,26 +1794,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "channelFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "callbackFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
         // KSP-674: flowOf / emptyFlow / Iterable.asFlow are now Kotlin source
         // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
         // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.

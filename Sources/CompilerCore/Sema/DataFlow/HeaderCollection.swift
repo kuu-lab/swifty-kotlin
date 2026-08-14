@@ -1185,6 +1185,8 @@ extension DataFlowSemaPhase {
                 ["kotlin", "NoWhenBranchMatchedException"],
                 ["kotlin", "UninitializedPropertyAccessException"],
             ]
+        case "__bundled_kotlin/properties/Interfaces.kt":
+            [["kotlin", "properties", "ReadWriteProperty"]]
         case "__bundled_kotlin/time/TimeSource.kt":
             [
                 ["kotlin", "time", "TimeSource"],

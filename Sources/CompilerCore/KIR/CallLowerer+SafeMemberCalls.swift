@@ -783,6 +783,22 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        // KCallable.name is shared by KFunction, KConstructor, and KProperty
+        // boxes. Handle the safe-call form here after the receiver null check;
+        // otherwise the generic fallback emits an undefined `name` symbol.
+        if tryLowerKCallableNameAccess(
+            receiverType: nonNullSafeReceiverType,
+            receiverID: loweredReceiverID,
+            result: result,
+            calleeName: effectiveCalleeName,
+            sema: sema,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // External member property read (e.g. Duration?.inWholeNanoseconds →
         // kk_duration_inWholeNanoseconds).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
@@ -865,6 +881,40 @@ extension CallLowerer {
             if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver {
                 finalArguments.insert(loweredReceiverID, at: 0)
             }
+        }
+
+        // Safe-call collection fallback can resolve the source-backed
+        // joinToString declaration without retaining its default-value flags.
+        // In that case normalizedCallArguments leaves zero sentinels for the
+        // omitted String parameters, which become literal `null` at runtime.
+        // Recover the mask from the source call labels and materialize the
+        // Kotlin defaults before emitting the direct source-backed call.
+        let sourceBackedJoinToStringMask: Int64 = {
+            guard interner.resolve(effectiveCalleeName) == "joinToString",
+                  let chosen,
+                  sema.symbols.isSourceBackedSymbol(chosen),
+                  finalArguments.count >= 4,
+                  !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true })
+            else {
+                return 0
+            }
+            return joinToStringDefaultMask(sourceArguments: args, interner: interner)
+        }()
+        let joinToStringMask = safeNormalized.defaultMask | sourceBackedJoinToStringMask
+        if joinToStringMask != 0,
+           interner.resolve(effectiveCalleeName) == "joinToString",
+           let chosen,
+           sema.symbols.isSourceBackedSymbol(chosen),
+           finalArguments.count >= 4
+        {
+            materializeJoinToStringDefaultArguments(
+                joinToStringMask,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions,
+                arguments: &finalArguments
+            )
         }
 
         if safeNormalized.defaultMask != 0,
