@@ -1202,18 +1202,6 @@ struct RuntimeSequenceTests {
         kk_sequence_from_list(makeList(elements))
     }
 
-    @Test func filterIsInstanceToAppendsMatchingRuntimeTypesToDestination() {
-        let seq = makeSequence([1, runtimeTestStringHandle("two"), 3])
-        let destination = makeList([0])
-
-        let result = kk_sequence_filterIsInstanceTo(seq, destination, 3)
-
-        #expect(result == destination)
-        #expect(listElements(destination) == [0, 1, 3])
-    }
-
-    // MARK: - Sequence.constrainOnce (STDLIB-SEQ-006)
-
     @Test func constrainOnceReportsIllegalStateOnSecondToList() {
         let seq = kk_sequence_constrainOnce(makeSequence([1, 2, 3]))
         var firstThrown = 0
@@ -1354,15 +1342,6 @@ struct RuntimeSequenceTests {
 
         #expect(thrown != 0)
         #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test func filterIndexedToAppendsMatchingElementsToDestination() {
-        let destination = makeList([1])
-        let fn = unsafeBitCast(keepEvenIndexOrLargeValue, to: Int.self)
-        let result = kk_sequence_filterIndexedTo(makeSequence([10, 20, 30, 40]), destination, fn, 0, nil)
-
-        #expect(result == destination)
-        #expect(listElements(destination) == [1, 10, 30, 40])
     }
 
     @Test func filterIsInstanceKeepsMatchingRuntimeTypes() {

@@ -438,10 +438,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_firstNotNullOf")
             case firstNotNullOfOrNullName:
                 return interner.intern("kk_sequence_firstNotNullOfOrNull")
-            case interner.intern("flatMapIndexedTo"):
-                return interner.intern("kk_sequence_flatMapIndexedTo")
-            case interner.intern("flatMapTo"):
-                return interner.intern("kk_sequence_flatMapTo")
             case interner.intern("contains"):
                 return interner.intern("kk_sequence_contains")
             case interner.intern("indexOf"):

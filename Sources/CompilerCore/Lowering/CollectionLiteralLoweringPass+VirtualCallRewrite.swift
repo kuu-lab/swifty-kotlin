@@ -736,7 +736,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         guard arguments.count == 2 || arguments.count == 3,
-              listExprIDs.contains(receiver.rawValue) || sequenceExprIDs.contains(receiver.rawValue)
+              listExprIDs.contains(receiver.rawValue)
         else {
             return false
         }
@@ -752,8 +752,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             closureRawExpr = zeroExpr
         }
 
-        let ownerKind: StdlibSurfaceOwnerKind = sequenceExprIDs.contains(receiver.rawValue) ? .sequence : .list
-        guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: ownerKind, callee: callee, arity: 2) else {
+        guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 2) else {
             return false
         }
 
