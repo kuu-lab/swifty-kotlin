@@ -415,7 +415,8 @@ package final class MetadataEncoder {
             expandedType,
             symbols: symbols,
             types: types,
-            nameResolver: nameResolver
+            nameResolver: nameResolver,
+            unboxValueClasses: false
         )
     }
 
@@ -688,7 +689,8 @@ package final class MetadataEncoder {
                 for: symbol,
                 symbols: symbols,
                 types: types,
-                nameResolver: { interner.resolve($0) }
+                nameResolver: { interner.resolve($0) },
+                unboxValueClasses: false
             )
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             if signature.valueParameterHasDefaultValues.contains(true) {

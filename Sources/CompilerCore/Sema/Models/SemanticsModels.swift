@@ -68,7 +68,7 @@ public struct SemanticSymbol: Sendable {
     public let kind: SymbolKind
     public let name: InternedString
     public let fqName: [InternedString]
-    public let declSite: SourceRange?
+    public var declSite: SourceRange?
     public let visibility: Visibility
     public var flags: SymbolFlags
 }
@@ -486,6 +486,14 @@ public final class SymbolTable {
             return
         }
         symbolsStorage[index].flags.subtract(flags)
+    }
+
+    public func setDeclSite(_ declSite: SourceRange?, for symbol: SymbolID) {
+        let index = Int(symbol.rawValue)
+        guard index >= 0, index < symbolsStorage.count else {
+            return
+        }
+        symbolsStorage[index].declSite = declSite
     }
 
     public func lookup(fqName: [InternedString]) -> SymbolID? {
