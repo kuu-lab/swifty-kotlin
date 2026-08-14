@@ -105,8 +105,9 @@
   - 削除 kk_*: `RuntimeCollectionHOFMaxMin.swift` の sorted 系 18 + max/min 系 20（rg で列挙）。比較コアは KSP-309 の Comparator Kotlin 実装を利用
 - [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
-- [ ] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
-  - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
+- [x] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
+  - 完了: `Iterables.kt` / `ListConversions.kt` に汎用変換・join・nullable・destructuring・index 実装を移し、List 固有の synthetic 登録・call lowering・公開ランタイム ABI を削除。`isEmpty` は抽象 Collection の型タグ dispatch コアとして保持し、`isNotEmpty` は Kotlin source から `isEmpty` を利用する。
+  - 回帰: `Scripts/diff_cases/list_ksp429_surface.kt` と `CodegenBackendIntegrationTests` の実 kotlinc 比較・実行ケースで固定。
 #### kotlin.sequences [M4 実行体]（KSP-441 が先頭。他は 441 完了後に並列可）
 
 - [x] KSP-441: Sequence 遅延 transform 基盤を Kotlin 化（`Sequence`/`Iterator` インターフェース + `map`, `filter` 系 transform）

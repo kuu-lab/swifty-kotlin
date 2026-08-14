@@ -997,20 +997,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testListToMapKeepsLastValueForDuplicateKeys() {
-        let pairs = makeList([
-            kk_pair_new(1, 10),
-            kk_pair_new(2, 20),
-            kk_pair_new(1, 99),
-        ])
-
-        let map = kk_list_toMap(pairs)
-        #expect(mapKeys(map) == [1, 2])
-        #expect(kk_map_get(map, 1) == 99)
-        #expect(kk_map_get(map, 2) == 20)
-    }
-
-    @Test
     func testCollectionToListCopiesListAndSetElements() {
         let listSource = makeList([1, 2, 3])
         let listCopy = kk_collection_toList(listSource)
@@ -1273,15 +1259,6 @@ struct RuntimeCollectionHOFTests {
         #expect(listElements(second) == [10, 20, 30])
     }
 
-    @Test
-    func testListToHashSetDeduplicatesAndCopiesElements() {
-        let source = makeList([1, 2, 2, 3])
-        let copied = kk_list_toHashSet(source)
-
-        #expect(setElements(copied) == [1, 2, 3])
-        #expect(listElements(source) == [1, 2, 2, 3])
-    }
-
     private func makeArray(_ elements: [Int]) -> Int {
         let arrayRaw = kk_array_new(elements.count)
         var thrown = 0
@@ -1345,8 +1322,6 @@ struct RuntimeCollectionHOFTests {
             }
         }
     }
-
-    // MARK: - associateByTo / associateWithTo / groupByTo tests
 
     @Test
     func testListAssociateBuildsMapAndOverwritesDuplicateKeys() {

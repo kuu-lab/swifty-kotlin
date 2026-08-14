@@ -6,7 +6,7 @@ import Testing
 @Suite
 struct ListSyntheticMemberLinkTests {
     @Test
-    func testListLastIndexExtensionPropertyResolvesToRuntimeGetter() throws {
+    func testListLastIndexExtensionFunctionResolvesToBundledSource() throws {
         let source = """
         import kotlin.collections.lastIndex
 
@@ -31,11 +31,10 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.bindings.exprType(for: propertyExpr) == sema.types.intType)
 
             let getter = try #require(sema.bindings.callBinding(for: propertyExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: getter) == "kk_list_lastIndex")
+            #expect(sema.symbols.externalLinkName(for: getter) == nil)
+            #expect(sema.symbols.isSourceBackedSymbol(getter))
 
-            let property = try #require(sema.bindings.identifierSymbol(for: propertyExpr))
-            #expect(sema.symbols.externalLinkName(for: property) == "kk_list_lastIndex")
-            #expect(sema.symbols.propertyType(for: property) == sema.types.intType)
+            #expect(sema.symbols.functionSignature(for: getter)?.returnType == sema.types.intType)
         }
     }
 
@@ -98,7 +97,7 @@ struct ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toMap",
-                expectedExternalLink: "kk_list_toMap",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("Map")
             ),
             .init(
@@ -108,7 +107,7 @@ struct ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toHashSet",
-                expectedExternalLink: "kk_list_toHashSet",
+                expectedExternalLink: nil,
                 expectedTypeShape: nil
             ),
         ]
@@ -119,7 +118,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListIndicesExtensionPropertyResolvesToRuntimeGetter() throws {
+    func testListIndicesExtensionFunctionResolvesToBundledSource() throws {
         let source = """
         import kotlin.collections.indices
         import kotlin.ranges.IntRange
@@ -149,11 +148,10 @@ struct ListSyntheticMemberLinkTests {
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(rangeType.classSymbol)?.name)) == "IntRange")
 
             let getter = try #require(sema.bindings.callBinding(for: propertyExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: getter) == "kk_list_indices")
+            #expect(sema.symbols.externalLinkName(for: getter) == nil)
+            #expect(sema.symbols.isSourceBackedSymbol(getter))
 
-            let property = try #require(sema.bindings.identifierSymbol(for: propertyExpr))
-            #expect(sema.symbols.externalLinkName(for: property) == "kk_list_indices")
-            #expect(sema.symbols.propertyType(for: property) == propertyType)
+            #expect(sema.symbols.functionSignature(for: getter)?.returnType == propertyType)
         }
     }
 

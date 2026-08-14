@@ -45,10 +45,11 @@ extension CallLowerer {
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
-        "last", "requireNoNulls", "toCollection", "toHashSet", "toList", "toMutableList",
-        "toMutableSet", "toTypedArray", "distinct", "distinctBy", "intersect", "union", "subtract",
-        "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull",
-        "sumBy", "sumByDouble", "plusElement", "minusElement", "minus",
+        "isNotEmpty", "intersect", "last", "minus", "minusElement", "plusElement",
+        "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
+        "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
+        "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
+        "distinct", "distinctBy",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -1198,21 +1199,10 @@ extension CallLowerer {
                     return result
                 }
             }
-            // STDLIB-532/533/534, STDLIB-SEQ-011: orEmpty() on nullable receivers
+            // STDLIB-532/534, STDLIB-SEQ-011: orEmpty() on nullable receivers
             if sema.bindings.callBindings[exprID] == nil, calleeStr == "orEmpty" {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_list_orEmpty"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     instructions.append(.call(
                         symbol: nil,
