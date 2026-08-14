@@ -212,7 +212,7 @@ extension CallLowerer {
                 instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_flow_single"),
+                    callee: interner.intern("__kk_flow_single"),
                     arguments: [loweredReceiver, zeroExpr],
                     result: result,
                     canThrow: true,

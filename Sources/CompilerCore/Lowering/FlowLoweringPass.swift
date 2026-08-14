@@ -65,9 +65,9 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         let kkFlowCreateName = interner.intern("kk_flow_create")
         let kkFlowEmitName = interner.intern("kk_flow_emit")
         let kkFlowCollectName = interner.intern("kk_flow_collect")
-        let kkFlowToListName = interner.intern("kk_flow_to_list")
-        let kkFlowFirstName = interner.intern("kk_flow_first")
-        let kkFlowSingleName = interner.intern("kk_flow_single")
+        let kkFlowToListName = interner.intern("__kk_flow_to_list")
+        let kkFlowFirstName = interner.intern("__kk_flow_first")
+        let kkFlowSingleName = interner.intern("__kk_flow_single")
 
         let intType = ctx.sema?.types.intType
 

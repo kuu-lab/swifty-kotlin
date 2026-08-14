@@ -78,11 +78,12 @@ final class LambdaLowerer {
             "__kk_iterator_builder_yield",
             "kk_suspend_function_invoke_0",
             "kk_suspend_function_invoke",
+            "kk_suspend_function_invoke_2",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null",
             "kk_flow_collect",
-            "kk_flow_collectLatest",
+            "__kk_flow_collectLatest",
             "kk_flow_emit",
         ]
         for instruction in body {

@@ -2349,7 +2349,17 @@ extension NativeEmitter {
                     continue
                 }
 
-                let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
+                // Function-value invokes carry the callable value as their first
+                // argument.  The KIR symbol is intentionally retained for
+                // InlineLoweringPass to match an inline function parameter, but
+                // it must not be treated as a direct callee here: doing so turns
+                // a captured parameter such as `transform` into an undefined
+                // external `_transform` symbol (KSP-499 compiler regression).
+                let isFunctionValueInvoke = Self.functionValueInvokeCallees.contains(calleeName)
+                let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
+                                                       let symbol,
+                                                       symbol != .invalid
+                {
                     symbol
                 } else {
                     SymbolID?.none

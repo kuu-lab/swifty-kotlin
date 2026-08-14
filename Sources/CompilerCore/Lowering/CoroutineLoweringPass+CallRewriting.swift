@@ -180,6 +180,33 @@ extension CoroutineLoweringPass {
             for: function,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
         )
+        // A callable value which is materialized by LambdaLowerer is normally
+        // recorded in callableValueInfoByExprID.  Closure conversion can
+        // leave only the `kk_function_create_N` instruction in the body,
+        // however, so recover that ABI information from the producer as well.
+        // Flow builders need the original adapter symbol and its packed
+        // closure object to rebuild the launcher continuation below.
+        var functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo] = [:]
+        for instruction in function.body {
+            guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
+                  rewrite.ctx.interner.resolve(callee).hasPrefix("kk_function_create_"),
+                  let result,
+                  arguments.count >= 2,
+                  let functionSymbol = symbolReference(
+                      for: arguments[0],
+                      module: rewrite.module,
+                      propagatedSymbols: symbolByExprRaw
+                  )
+            else {
+                continue
+            }
+            functionValueInfoByExprRaw[result.rawValue] = KIRCallableValueInfo(
+                symbol: functionSymbol,
+                callee: callee,
+                captureArguments: [arguments[1]],
+                hasClosureParam: false
+            )
+        }
         // STDLIB-CORO-BUG-01: a lowered suspend function's own continuation is
         // always its last parameter (see CoroutineLoweringPass.run appending
         // continuationParameterSymbol). rewriteDirectSuspendCall needs it to
@@ -236,6 +263,7 @@ extension CoroutineLoweringPass {
             if let flowCreateInstructions = rewriteFlowCreateCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             ) {
                 loweredBody.append(contentsOf: flowCreateInstructions)
@@ -578,11 +606,13 @@ extension CoroutineLoweringPass {
     func rewriteFlowCreateCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.ctx.interner.intern("kk_flow_create"),
               call.arguments.count == 2,
-              let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0]),
+              let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0])
+                  ?? functionValueInfoByExprRaw[call.arguments[0].rawValue],
               !callableInfo.captureArguments.isEmpty,
               let loweredTarget = rewrite.loweredBySymbol[callableInfo.symbol],
               let thunk = rewrite.launcherThunkByOriginalSymbol[callableInfo.symbol]

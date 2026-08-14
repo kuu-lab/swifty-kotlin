@@ -122,7 +122,7 @@ private let minMaxFloatDoubleBridgeFunctions: [RuntimeABIFunctionSpec] =
     }
 
 private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_flow_stopped", section: "Coroutine"),
+    bridgeSpec("__kk_flow_stopped", section: "Coroutine"),
     bridgeSpec("kk_supervisor_scope_new", section: "Coroutine"),
 ]
 

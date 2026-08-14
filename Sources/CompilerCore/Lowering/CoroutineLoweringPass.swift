@@ -55,6 +55,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("delayEach"),
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
+            ctx.interner.intern("kk_suspend_function_invoke_2"),
             ctx.interner.intern("kk_flow_create"),
             ctx.interner.intern("kk_flow_emit"),
             ctx.interner.intern("kk_flow_collect"),
@@ -99,7 +100,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeWithTimeoutCallee = ctx.interner.intern("kk_with_timeout")
         let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null")
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
-        let flowCollectLatestCallee = ctx.interner.intern("kk_flow_collectLatest")
+        let flowCollectLatestCallee = ctx.interner.intern("__kk_flow_collectLatest")
         let runtimeSuspendCallNames: Set<InternedString> = [
             kxMiniDelayCallee,
             runtimeDelayCallee,
@@ -110,6 +111,7 @@ final class CoroutineLoweringPass: LoweringPass {
             suspendCoroutineUninterceptedOrReturnCallee,
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
+            ctx.interner.intern("kk_suspend_function_invoke_2"),
             ctx.interner.intern("kk_suspend_coroutine"),
             // CORO-004: await / join are real suspend points that consume the
             // caller continuation so the runtime can resume them without blocking.
