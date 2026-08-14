@@ -1739,7 +1739,7 @@ extension CallTypeChecker {
     ) -> Bool {
         switch interner.resolve(calleeName) {
         case "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
-             "fetchAndUpdateAt", "updateAt", "updateAndFetchAt":
+             "fetchAndUpdateAt", "updateAt", "updateAndFetchAt", "compareAndSet":
             return true
         default:
             return false

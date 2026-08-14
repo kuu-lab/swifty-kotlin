@@ -438,9 +438,7 @@ struct TypeCheckHelpers {
         // Member-like names such as `map`/`filter`/`take` stay conservative here
         // because this helper does not know whether the unresolved callee was
         // invoked on an actual Flow receiver.
-        case knownNames.flow,
-             interner.intern("channelFlow"),
-             interner.intern("callbackFlow"):
+        case knownNames.flow:
             guard argumentCount == 1 else { return nil }
             return makeFlowType(
                 elementType: sema.types.anyType,
