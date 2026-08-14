@@ -8,20 +8,11 @@ import kotlin.internal.KsSymbolName
 //
 // NOTE: `members`/`constructors`/`primaryConstructor`/`properties`/
 // `memberProperties`/`declaredMemberProperties`/`functions`/`memberFunctions`/
-// `declaredMemberFunctions`/`nestedClasses`/`supertypes` are intentionally NOT
-// covered here. Investigation for KSP-496 found that casting a runtime handle
-// returned by a bridge call to a `Collection<KCallable<*>>` / `KFunction<*>` /
-// `List<KType>` / `Collection<KClass<*>>`-shaped interface type throws at
-// runtime (`KFunction`/`KProperty`/`KType` handles are constructed directly by
-// Swift runtime code and are not wired for genuine Kotlin-level `is`/`as`
-// interface conformance checks — e.g. `KCallable.name` resolves to a single
-// fixed `kk_kproperty_stub_name` implementation regardless of whether the
-// underlying handle is actually a KFunction or a KProperty). Fixing this
-// requires deeper Runtime object-model work (proper interface-conformance
-// metadata / polymorphic dispatch for reflection handles) beyond this
-// ticket's "thin public layer" scope, so these members remain compiler
-// special cases in CallTypeChecker+KClassMemberCallInference.swift /
-// CallLowerer+KClassReflectMemberCalls.swift for now.
+// `declaredMemberFunctions`/`nestedClasses`/`supertypes` remain compiler
+// special cases because their generic public declarations are not yet bundled.
+// KSP-689 wires the returned runtime handles to stable reflection nominal IDs,
+// so `is`/`as` and shared `KCallable.name` dispatch are valid at the Kotlin
+// boundary.
 //
 // NOTE: `findAnnotation<T>()` / `findAssociatedObject<T>()` are also
 // intentionally NOT covered here — they take a reified type argument, which
