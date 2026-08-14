@@ -1781,47 +1781,5 @@ struct RuntimeCollectionHOFTests {
         #expect(thrown != 0)
     }
 
-    // MARK: - kk_array_joinToString (STDLIB-GAP-PH1)
-
-    @Test
-    func testArrayJoinToStringWithDefaultSeparator() {
-        let array = makeArray([runtimeStringRaw("a"), runtimeStringRaw("b"), runtimeStringRaw("c")])
-        let sep = runtimeStringRaw(", ")
-        let pre = runtimeStringRaw("")
-        let post = runtimeStringRaw("")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "a, b, c")
-    }
-
-    @Test
-    func testArrayJoinToStringWithCustomSeparatorAndWrappers() {
-        let array = makeArray([runtimeStringRaw("1"), runtimeStringRaw("2"), runtimeStringRaw("3")])
-        let sep = runtimeStringRaw("-")
-        let pre = runtimeStringRaw("[")
-        let post = runtimeStringRaw("]")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "[1-2-3]")
-    }
-
-    @Test
-    func testArrayJoinToStringEmptyArrayReturnsEmptyWithWrappers() {
-        let array = makeArray([])
-        let sep = runtimeStringRaw(", ")
-        let pre = runtimeStringRaw("(")
-        let post = runtimeStringRaw(")")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "()")
-    }
-
-    @Test
-    func testArrayJoinToStringSingleElement() {
-        let array = makeArray([runtimeStringRaw("only")])
-        let sep = runtimeStringRaw(", ")
-        let pre = runtimeStringRaw("")
-        let post = runtimeStringRaw("")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "only")
-    }
-
 }
 #endif

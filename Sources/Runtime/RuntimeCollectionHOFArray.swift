@@ -429,16 +429,6 @@ private func runtimeArrayJoinToString(
     }
 }
 
-@_cdecl("kk_array_joinToString")
-public func kk_array_joinToString(
-    _ arrayRaw: Int,
-    _ separatorRaw: Int,
-    _ prefixRaw: Int,
-    _ postfixRaw: Int
-) -> UnsafeMutableRawPointer {
-    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw, renderElement: runtimeElementToString)
-}
-
 @_cdecl("kk_array_joinToString_transform")
 public func kk_array_joinToString_transform(
     _ arrayRaw: Int,

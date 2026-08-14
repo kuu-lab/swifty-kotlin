@@ -153,14 +153,15 @@ extension CallLowerer {
     /// concrete array receiver.  Array elements are stored as raw unboxed
     /// bit patterns, so only a type-specific renderer can format
     /// Double/Float/Boolean/Char correctly; the generic iterator-based
-    /// `kk_sequence_joinToString` cannot recover that type information.
+    /// `__kk_iterable_joinToString` is used only as a legacy fallback for a
+    /// receiver that did not resolve to a source-backed Array extension.
     func arrayJoinToStringRuntimeCallee(
         for receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString {
         guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return interner.intern("kk_array_joinToString")
+            return interner.intern("__kk_iterable_joinToString")
         }
         let knownNames = KnownCompilerNames(interner: interner)
         switch symbol.name {
@@ -189,7 +190,7 @@ extension CallLowerer {
         case knownNames.ushortArray:
             return interner.intern("kk_uShortArray_joinToString")
         default:
-            return interner.intern("kk_array_joinToString")
+            return interner.intern("__kk_iterable_joinToString")
         }
     }
 

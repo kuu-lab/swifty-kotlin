@@ -87,28 +87,108 @@ public fun <T : Any> Iterable<T?>.requireNoNulls(): Iterable<T> {
     return this as Iterable<T>
 }
 
-public fun <T> Iterable<T>.joinTo(
+private fun <T> appendIterableJoinToPlain(
+    values: Iterable<T>,
     buffer: StringBuilder,
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
 ): StringBuilder {
     buffer.append(prefix)
-    var first = true
-    for (element in this) {
-        if (!first) buffer.append(separator)
+    var count = 0
+    var hasMore = false
+    val iterator = values.iterator()
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
         buffer.append(element.toString())
-        first = false
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
     }
     buffer.append(postfix)
     return buffer
 }
 
+private fun <T> appendIterableJoinTo(
+    values: Iterable<T>,
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): StringBuilder {
+    buffer.append(prefix)
+    var count = 0
+    var hasMore = false
+    val iterator = values.iterator()
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
+        buffer.append(transform(element).toString())
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
+    }
+    buffer.append(postfix)
+    return buffer
+}
+
+public fun <T> Iterable<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = ""
+): StringBuilder = appendIterableJoinToPlain(this, buffer, separator, prefix, postfix, -1, "...")
+
+public fun <T> Iterable<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): StringBuilder = appendIterableJoinToPlain(this, buffer, separator, prefix, postfix, limit, truncated)
+
+public fun <T> Iterable<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): StringBuilder = appendIterableJoinTo(this, buffer, separator, prefix, postfix, limit, truncated, transform)
+
 public fun <T> Iterable<T>.joinToString(
     separator: String = ", ",
     prefix: String = "",
     postfix: String = ""
-): String = joinTo(StringBuilder(), separator, prefix, postfix).toString()
+): String = appendIterableJoinToPlain(this, StringBuilder(), separator, prefix, postfix, -1, "...").toString()
+
+public fun <T> Iterable<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): String = appendIterableJoinToPlain(this, StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
 
 // The `transform` overloads are spelled per arity because a trailing lambda
 // cannot be bound to the defaulted `String` parameters above.
@@ -118,16 +198,7 @@ public fun <T> Iterable<T>.joinToString(
     postfix: String,
     transform: (T) -> Any
 ): String {
-    val buffer = StringBuilder()
-    buffer.append(prefix)
-    var first = true
-    for (element in this) {
-        if (!first) buffer.append(separator)
-        buffer.append(transform(element).toString())
-        first = false
-    }
-    buffer.append(postfix)
-    return buffer.toString()
+    return appendIterableJoinTo(this, StringBuilder(), separator, prefix, postfix, -1, "...", transform).toString()
 }
 
 public fun <T> Iterable<T>.joinToString(
@@ -140,6 +211,15 @@ public fun <T> Iterable<T>.joinToString(
     separator: String,
     transform: (T) -> Any
 ): String = joinToString(separator, "", "", transform)
+
+public fun <T> Iterable<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): String = appendIterableJoinTo(this, StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 
 // KSP-632: remaining Iterable HOFs migrated from the Swift runtime `kk_list_*`
 // bridges. These implementations rely only on `iterator()` / `toMutableList()`,
@@ -227,7 +307,7 @@ public operator fun <T> Iterable<T>.minus(element: T): List<T> = minusElement(el
 
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
-): String = joinToString(", ", "", "", transform)
+): String = appendIterableJoinTo(this, StringBuilder(), ", ", "", "", -1, "...", transform).toString()
 
 // Char.toString() is represented by its numeric code in the generic path;
 // keep the List<Char> overload aligned with Kotlin's character rendering.

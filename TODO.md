@@ -267,13 +267,13 @@
 
 #### collections
 
-- [ ] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
+- [x] KSP-620: joinToString/joinTo の List/Array 版を統一する（2026-08-14 完了: `Iterables.kt` の共通source helperと `ArrayHOF.kt` のArray adapterに separator/prefix/postfix/limit/truncated/transform/null/empty を統一。generic `kk_list_joinToString` / `kk_array_joinToString` と Array generic transform の合成経路・Runtime ABI を削除し、互換用 `__kk_string_joinToString` のみ保持。`CallLowerer+CollectionStdlibMemberCalls.swift` は現masterで既に参照・ファイルとも不在。KSP-INF-011 のガード回帰は既存テストで確認）
 - [ ] KSP-621: joinToString/joinTo の Iterable/Sequence 版を統一する（前提: KSP-620。削除 kk_* 4: `kk_iterable_joinTo`, `kk_iterable_joinToString`, `kk_sequence_joinTo`, `kk_sequence_joinToString` + `CallLowerer+UnresolvedMemberCalls.swift` の収束特例。diff: Iterable 版・joinTo 単独ケース追加）
 - [ ] KSP-624: buildString を Kotlin 化する（前提: KSP-622, KSP-311。`builderDSLKind`（`CallTypeChecker+BuilderDSL.swift`）の該当分岐 + `CallLowerer.swift` の append 引数ボクシング特例撤去。`kk_build_string` 系 4 → `__kk_` 降格 or StringBuilder 経由化）
 - [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
 - [ ] KSP-687: primitive array（IntArray/LongArray/DoubleArray/FloatArray/CharArray 等）の HOF を Kotlin 化する（KSP-433 完了メモが「`kk_array_*` ブリッジ削除には primitive array HOF の Kotlin 化（**別タスク**）が前提」と明記したまま未起票だった — 2026-08-12 追補）
   - 対象: `RuntimeCollectionHOFArray.swift` の 40 関数（2026-08-12 実測。generic `Array<T>` 経路は KSP-433 で source 化済みだが、primitive レシーバは `CallTypeChecker+ArrayMemberFallback.swift` の合成フォールバック経由で今も全ブリッジへ到達する）と、`CollectionLiteralLoweringPass+LookupTables+Array.swift` / `CallLowerer+UnresolvedMemberCalls.swift` の未解決メンバ fallback 表の該当分
-  - 併せて解消: `Array<T>.joinToString(..., transform)` が synthetic メンバ優先で `kk_array_joinToString_transform` に残る問題（KSP-433 記載・BUG-158 と共有）、fold アキュムレータの raw 表現規約（KSP-433 の同 PR 修正参照）の source 実装への引き継ぎ
+  - 併せて解消: generic `Array<T>.joinToString(..., transform)` の synthetic 優先は KSP-620 で source-backed 化済み。primitive array の `kk_*Array_joinToString_transform` と fold アキュムレータの raw 表現規約（KSP-433 の同 PR 修正参照）は本タスクの対象として引き継ぐ
   - 注意: 旧制約「`Byte`/`Short` が独立プリミティブでない」（KSP-645 調査記録）は BUG-199 解消（#5665 の Byte/Short 独立プリミティブ化、`ByteShortOverloadResolutionTests` で固定）により撤廃済み — ByteArray/ShortArray 系も本タスクの対象に含める（着手時に `byte_short_array.kt` 等の既存 diff で現状挙動を確認）
   - 前提: KSP-433（完了済み）/ 手順: T / diff: `array_hof_source_backed.kt` の primitive 版を新規追加
 

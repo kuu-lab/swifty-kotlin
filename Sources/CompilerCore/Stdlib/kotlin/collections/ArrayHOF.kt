@@ -64,12 +64,35 @@ public fun <T> Array<T>.forEach(action: (T) -> Unit) {
     }
 }
 
-// `joinToString` / `asSequence` delegate to the source-backed List
-// implementations so Array and List share one rendering and one Sequence
-// adapter. The `transform` overload keeps resolving to the synthetic
-// `kk_array_joinToString_transform` member (registered in
-// HeaderHelpers+SyntheticArrayStubs.swift and shared with the primitive arrays,
-// BUG-158), which wins over an extension.
+// `joinTo` / `joinToString` delegate to the source-backed Iterable
+// implementations so Array and List share one rendering path. Primitive
+// arrays retain their type-aware synthetic bridges until KSP-687.
+
+public fun <T> Array<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = ""
+): StringBuilder = this.toList().joinTo(buffer, separator, prefix, postfix)
+
+public fun <T> Array<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): StringBuilder = this.toList().joinTo(buffer, separator, prefix, postfix, limit, truncated)
+
+public fun <T> Array<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): StringBuilder = this.toList().joinTo(buffer, separator, prefix, postfix, limit, truncated, transform)
 
 public fun <T> Array<T>.joinToString(
     separator: String = ", ",
@@ -78,22 +101,36 @@ public fun <T> Array<T>.joinToString(
 ): String = this.toList().joinToString(separator, prefix, postfix)
 
 public fun <T> Array<T>.joinToString(
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = "",
-    transform: (T) -> String
-): String {
-    val sb = StringBuilder()
-    sb.append(prefix)
-    var i = 0
-    val sz = this.size
-    while (i < sz) {
-        if (i > 0) sb.append(separator)
-        sb.append(transform(this[i]))
-        i++
-    }
-    sb.append(postfix)
-    return sb.toString()
-}
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): String = this.toList().joinToString(separator, prefix, postfix, limit, truncated)
+
+public fun <T> Array<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    transform: (T) -> Any
+): String = this.toList().joinToString(separator, prefix, postfix) { transform(it) }
+
+public fun <T> Array<T>.joinToString(transform: (T) -> Any): String =
+    this.toList().joinToString(transform)
+
+public fun <T> Array<T>.joinToString(separator: String, transform: (T) -> Any): String =
+    this.toList().joinToString(separator, transform)
+
+public fun <T> Array<T>.joinToString(separator: String, prefix: String, transform: (T) -> Any): String =
+    this.toList().joinToString(separator, prefix, transform)
+
+public fun <T> Array<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): String = this.toList().joinToString(separator, prefix, postfix, limit, truncated, transform)
 
 public fun <T> Array<T>.asSequence(): Sequence<T> = this.toList().asSequence()

@@ -1224,20 +1224,21 @@ extension DataFlowSemaPhase {
                     )
                     symbols.setParentSymbol(arraySymbol, for: primJoinToStringSym)
 
-                    let externalLinkName: String = switch name {
-                    case "IntArray": "kk_intArray_joinToString"
-                    case "LongArray": "kk_longArray_joinToString"
-                    case "ByteArray": "kk_byteArray_joinToString"
-                    case "ShortArray": "kk_shortArray_joinToString"
-                    case "UIntArray": "kk_uIntArray_joinToString"
-                    case "ULongArray": "kk_uLongArray_joinToString"
-                    case "DoubleArray": "kk_doubleArray_joinToString"
-                    case "FloatArray": "kk_floatArray_joinToString"
-                    case "BooleanArray": "kk_booleanArray_joinToString"
-                    case "CharArray": "kk_charArray_joinToString"
-                    case "UByteArray": "kk_uByteArray_joinToString"
-                    case "UShortArray": "kk_uShortArray_joinToString"
-                    default: "kk_array_joinToString"
+                    let externalLinkName: String
+                    switch name {
+                    case "IntArray": externalLinkName = "kk_intArray_joinToString"
+                    case "LongArray": externalLinkName = "kk_longArray_joinToString"
+                    case "ByteArray": externalLinkName = "kk_byteArray_joinToString"
+                    case "ShortArray": externalLinkName = "kk_shortArray_joinToString"
+                    case "UIntArray": externalLinkName = "kk_uIntArray_joinToString"
+                    case "ULongArray": externalLinkName = "kk_uLongArray_joinToString"
+                    case "DoubleArray": externalLinkName = "kk_doubleArray_joinToString"
+                    case "FloatArray": externalLinkName = "kk_floatArray_joinToString"
+                    case "BooleanArray": externalLinkName = "kk_booleanArray_joinToString"
+                    case "CharArray": externalLinkName = "kk_charArray_joinToString"
+                    case "UByteArray": externalLinkName = "kk_uByteArray_joinToString"
+                    case "UShortArray": externalLinkName = "kk_uShortArray_joinToString"
+                    default: continue
                     }
                     symbols.setExternalLinkName(externalLinkName, for: primJoinToStringSym)
 
@@ -1293,116 +1294,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types
             )
-        }
-
-        // --- joinToString (STDLIB-GAP-PH1) ---
-        let joinToStringName = interner.intern("joinToString")
-        let joinToStringFQName = arrayFQName + [joinToStringName]
-        if symbols.lookup(fqName: joinToStringFQName) == nil {
-            let arrayReceiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParamType)],
-                nullability: .nonNull
-            )))
-
-            // KSP-INF-011: guard the default (non-transform) overload against
-            // bundled source definitions; transform overloads follow below.
-            if BundledSyntheticStubRegistration.shouldSkipRegistration(
-                declaredOwnerFQName: arrayFQName,
-                receiverType: arrayReceiverType,
-                name: joinToStringName,
-                arity: 3,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            ) {
-                skipStats?.recordSkip(ownerFQName: arrayFQName, name: joinToStringName, arity: 3, interner: interner)
-            } else {
-                let joinToStringSym = symbols.define(
-                    kind: .function,
-                    name: joinToStringName,
-                    fqName: joinToStringFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: joinToStringSym)
-                symbols.setExternalLinkName("kk_array_joinToString", for: joinToStringSym)
-
-                let joinParams: [(name: String, type: TypeID)] = [
-                    ("separator", types.stringType),
-                    ("prefix", types.stringType),
-                    ("postfix", types.stringType),
-                ]
-                var joinParamTypes: [TypeID] = []
-                var joinParamSymbols: [SymbolID] = []
-                for param in joinParams {
-                    let paramName = interner.intern(param.name)
-                    let paramSym = symbols.define(
-                        kind: .valueParameter,
-                        name: paramName,
-                        fqName: joinToStringFQName + [paramName],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(joinToStringSym, for: paramSym)
-                    joinParamTypes.append(param.type)
-                    joinParamSymbols.append(paramSym)
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: joinParamTypes,
-                        returnType: types.stringType,
-                        isSuspend: false,
-                        valueParameterSymbols: joinParamSymbols,
-                        valueParameterHasDefaultValues: [true, true, true],
-                        valueParameterIsVararg: [false, false, false],
-                        typeParameterSymbols: [tParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: joinToStringSym
-                )
-            }
-
-            // Register `Array<T>.joinToString(separator?, prefix?, postfix?, transform)` HOF
-            // overloads. See the matching comment in
-            // `HeaderHelpers+SyntheticIterableRegistry.swift`'s
-            // `registerIterableJoinToStringMember` for why these are four separate
-            // required-arity overloads rather than one signature with defaults.
-            let joinTransformType = types.make(.functionType(FunctionType(
-                params: [arrayTypeParamType],
-                returnType: types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            func registerJoinToStringTransformOverload(_ parameterTypes: [TypeID]) {
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: joinToStringName,
-                    fqName: joinToStringFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .inlineFunction]
-                )
-                symbols.setParentSymbol(arraySymbol, for: memberSymbol)
-                symbols.setExternalLinkName("kk_array_joinToString_transform", for: memberSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: parameterTypes,
-                        returnType: types.stringType,
-                        typeParameterSymbols: [tParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-            registerJoinToStringTransformOverload([joinTransformType])
-            registerJoinToStringTransformOverload([types.stringType, joinTransformType])
-            registerJoinToStringTransformOverload([types.stringType, types.stringType, joinTransformType])
-            registerJoinToStringTransformOverload([types.stringType, types.stringType, types.stringType, joinTransformType])
         }
 
     }

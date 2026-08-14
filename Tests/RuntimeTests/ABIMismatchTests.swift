@@ -184,6 +184,19 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func genericListAndArrayJoinToStringABIsAreSourceBacked() throws {
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_list_joinToString" }) == nil
+        )
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_array_joinToString" }) == nil
+        )
+        let privateBridge = try requireSpec("__kk_string_joinToString")
+        #expect(privateBridge.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr])
+        #expect(privateBridge.returnType == .intptr)
+    }
+
+    @Test
     func kkThrowableIsCancellationSignature() throws {
         let spec = try requireSpec("kk_throwable_is_cancellation")
         #expect(spec.returnType == .intptr)
