@@ -513,7 +513,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
     }
 
     @Test
-    func testCodegenCompilesRandomLongSeedConstructor() throws {
+    func testCodegenCompilesRandomLongSeedFactory() throws {
         let source = """
         import kotlin.random.Random
 
@@ -526,7 +526,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "RandomLongSeedConstructor",
+                moduleName: "RandomLongSeedFactory",
                 emit: .object,
                 outputPath: outputBase
             )

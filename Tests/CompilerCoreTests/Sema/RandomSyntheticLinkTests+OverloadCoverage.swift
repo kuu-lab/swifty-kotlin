@@ -12,51 +12,96 @@ import Testing
 
 extension RandomSyntheticLinkTests {
 
-    // MARK: - Random factory / seed constructors
-    // KSP-466: Random(seed: Int) / Random(seed: Long) are now real Kotlin secondary
-    // constructors (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt) parsed like
-    // any other bundled source, not synthetic stubs bridged to the deleted
-    // kk_random_create_seeded. externalLinkName is nil for a real constructor body.
+    // MARK: - Random factory / implementation structure
+    // KSP-685: Random(seed) is the upstream top-level factory function, and the
+    // concrete XorWowRandom implementation is internal to kotlin.random.
 
-    /// Random(seed: Int) secondary constructor is registered.
+    /// Random(seed: Int) top-level factory is registered with a Random return type.
     @Test
-    func testRandomIntSeedConstructorIsRegistered() throws {
+    func testRandomIntSeedFactoryIsRegistered() throws {
         let (sema, interner) = try sharedSema()
 
-        let ctorFQ = ["kotlin", "random", "Random", "<init>"].map { interner.intern($0) }
-        let ctors = sema.symbols.lookupAll(fqName: ctorFQ)
-        #expect(!(ctors.isEmpty), "Random <init> constructor must be registered")
+        let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
+        let randomSymbol = try #require(sema.symbols.lookupAll(fqName: randomFQ).first {
+            sema.symbols.symbol($0)?.kind == .class
+        })
+        let randomType = sema.types.make(.classType(ClassType(
+            classSymbol: randomSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
-        let intSeedCtor = ctors.first { id in
+        let intSeedFactory = sema.symbols.lookupAll(fqName: randomFQ).first { id in
             guard let sig = sema.symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes.count == 1 &&
-                sig.parameterTypes.first == sema.types.intType
+                sig.parameterTypes.first == sema.types.intType &&
+                sig.returnType == randomType
         }
-        #expect(intSeedCtor != nil, "Random(seed: Int) constructor must exist")
+        #expect(intSeedFactory != nil, "Random(seed: Int) top-level factory must exist")
 
-        if let ctor = intSeedCtor {
-            #expect(sema.symbols.externalLinkName(for: ctor) == nil, "Random(seed: Int) is real Kotlin, not a native bridge")
+        if let intSeedFactory {
+            #expect(sema.symbols.externalLinkName(for: intSeedFactory) == nil,
+                    "Random(seed: Int) must be a real Kotlin function, not a native bridge")
         }
     }
 
-    /// Random(seed: Long) secondary constructor is registered.
+    /// Random(seed: Long) top-level factory is registered with a Random return type.
     @Test
-    func testRandomLongSeedConstructorIsRegistered() throws {
+    func testRandomLongSeedFactoryIsRegistered() throws {
         let (sema, interner) = try sharedSema()
 
-        let ctorFQ = ["kotlin", "random", "Random", "<init>"].map { interner.intern($0) }
-        let ctors = sema.symbols.lookupAll(fqName: ctorFQ)
+        let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
+        let randomSymbol = try #require(sema.symbols.lookupAll(fqName: randomFQ).first {
+            sema.symbols.symbol($0)?.kind == .class
+        })
+        let randomType = sema.types.make(.classType(ClassType(
+            classSymbol: randomSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
-        let longSeedCtor = ctors.first { id in
+        let longSeedFactory = sema.symbols.lookupAll(fqName: randomFQ).first { id in
             guard let sig = sema.symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes.count == 1 &&
-                sig.parameterTypes.first == sema.types.longType
+                sig.parameterTypes.first == sema.types.longType &&
+                sig.returnType == randomType
         }
-        #expect(longSeedCtor != nil, "Random(seed: Long) constructor must exist")
+        #expect(longSeedFactory != nil, "Random(seed: Long) top-level factory must exist")
 
-        if let ctor = longSeedCtor {
-            #expect(sema.symbols.externalLinkName(for: ctor) == nil, "Random(seed: Long) is real Kotlin, not a native bridge")
+        if let longSeedFactory {
+            #expect(sema.symbols.externalLinkName(for: longSeedFactory) == nil,
+                    "Random(seed: Long) must be a real Kotlin function, not a native bridge")
         }
+    }
+
+    @Test
+    func testRandomIsAbstractAndXorWowRandomIsInternal() throws {
+        let (sema, interner) = try sharedSema()
+
+        #expect(!sema.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-FINAL" }),
+                "Random source must not report an invalid XorWowRandom override")
+
+        let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
+        let randomSymbol = try #require(sema.symbols.lookupAll(fqName: randomFQ).first {
+            sema.symbols.symbol($0)?.kind == .class
+        })
+        let randomInfo = try #require(sema.symbols.symbol(randomSymbol))
+        #expect(randomInfo.kind == .class)
+        #expect(randomInfo.flags.contains(.abstractType), "Random must be abstract")
+
+        let nextIntFQ = randomFQ + [interner.intern("nextInt")]
+        let nextInt = try #require(sema.symbols.lookupAll(fqName: nextIntFQ).first {
+            sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty == true
+        })
+        #expect(sema.symbols.symbol(nextInt)?.flags.contains(.openType) == true,
+                "Random.nextInt() must remain open for XorWowRandom")
+
+        let xorWowFQ = ["kotlin", "random", "XorWowRandom"].map { interner.intern($0) }
+        let xorWowSymbol = try #require(sema.symbols.lookup(fqName: xorWowFQ))
+        let xorWowInfo = try #require(sema.symbols.symbol(xorWowSymbol))
+        #expect(xorWowInfo.kind == .class)
+        #expect(xorWowInfo.visibility == .internal, "XorWowRandom must remain internal")
+        #expect(sema.symbols.directSupertypes(for: xorWowSymbol).contains(randomSymbol))
     }
 
     // MARK: - Random.Default singleton
