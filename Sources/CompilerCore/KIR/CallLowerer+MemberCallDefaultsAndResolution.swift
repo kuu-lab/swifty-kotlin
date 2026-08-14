@@ -2,6 +2,46 @@
 
 /// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
+    /// Returns the default mask for the three string parameters of the
+    /// source-backed Iterable.joinToString overload.
+    ///
+    /// Safe-call collection fallback can lose the declaration's default-value
+    /// metadata, so the generic argument normalizer may leave raw null
+    /// sentinels in the call. Recover the omitted parameters from the source
+    /// labels before emitting the source-backed call.
+    func joinToStringDefaultMask(
+        sourceArguments: [CallArgument],
+        interner: StringInterner
+    ) -> Int64 {
+        let parameterNames = ["separator", "prefix", "postfix"]
+        var suppliedParameters = Set<Int>()
+        var nextPositionalParameter = 0
+
+        for argument in sourceArguments {
+            if let label = argument.label,
+               let parameterIndex = parameterNames.firstIndex(of: interner.resolve(label))
+            {
+                suppliedParameters.insert(parameterIndex)
+                continue
+            }
+
+            while suppliedParameters.contains(nextPositionalParameter) {
+                nextPositionalParameter += 1
+            }
+            guard nextPositionalParameter < parameterNames.count else {
+                continue
+            }
+            suppliedParameters.insert(nextPositionalParameter)
+            nextPositionalParameter += 1
+        }
+
+        var defaultMask: Int64 = 0
+        for parameterIndex in parameterNames.indices where !suppliedParameters.contains(parameterIndex) {
+            defaultMask |= Int64(1) << parameterIndex
+        }
+        return defaultMask
+    }
+
     func materializeJoinToStringDefaultArguments(
         _ defaultMask: Int64,
         firstDefaultParameterIndex: Int = 0,
