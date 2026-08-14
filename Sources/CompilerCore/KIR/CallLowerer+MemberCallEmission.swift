@@ -432,8 +432,7 @@ extension CallLowerer {
                 arguments: &finalArguments
             )
         }
-        if loweredCallee == interner.intern("kk_list_joinToString_transform")
-            || loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
+        if loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
             let lambdaArgIndex = originalArgumentCount - 1

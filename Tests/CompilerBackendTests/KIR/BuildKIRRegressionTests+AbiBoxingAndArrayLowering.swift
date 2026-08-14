@@ -699,7 +699,9 @@ struct BuildKIRCodegenRegressionTests {
             #expect(callNames.contains("map"))
             #expect(callNames.contains("mapNotNull"))
             #expect(callNames.contains("fold"))
-            #expect(callNames.contains("joinToString$default"))
+            // Source-backed default lowering may retain the default suffix or
+            // emit the resolved source function name directly.
+            #expect(callNames.contains("joinToString") || callNames.contains("joinToString$default"))
             #expect(!callNames.contains("kk_array_map"))
             #expect(!callNames.contains("kk_array_fold"))
             #expect(!callNames.contains("kk_array_joinToString_transform"))

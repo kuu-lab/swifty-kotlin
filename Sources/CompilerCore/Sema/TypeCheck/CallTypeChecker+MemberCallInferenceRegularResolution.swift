@@ -1001,10 +1001,16 @@ extension CallTypeChecker {
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
         let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement"]
-        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed"]
+        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
         let memberNameText = interner.resolve(calleeName)
+        // KSP-687 resolves Array.joinToString through the dedicated primitive
+        // and generic-array source candidates. KSP-429's broad trailing-lambda
+        // gate is for List/Iterable source calls; applying it to Array receivers
+        // prevents the array resolver from binding the source overload.
+        let isArrayJoinToString = memberNameText == "joinToString"
+            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
-            || sourceBackedTrailingLambdaMemberNames.contains(memberNameText)
+            || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
