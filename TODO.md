@@ -399,22 +399,23 @@
 
 `Tests/CompilerCoreTests` 内の重複した `runSema` / `runToKIR` / `runToLowering` / `runFrontend` / `makeSema` 呼び出しを 1 つの共有コンテキスト（`withTemporaryFiles` / `sharedCtx` / `sharedSema`）に集約し、テスト実行コストと行数を削減する。
 
-> 現状（`origin/master`、Batch 78/79 PR マージ前）:
-> - `runSema(`: 702
-> - `runToKIR(`: 378
+> 現状（`origin/master`、Batch 82 マージ後、2026-08-03 時点）:
+> - `runSema(`: 652
+> - `runToKIR(`: 328
 > - `runToLowering(`: 37
 > - `runFrontend(`: 70
-> - `makeSema(`: 137
+> - `makeSema(`: 129
 >
 > 目標: 同一ファイル / 同一スイート内で同じ入力を使う箇所を 1 回の pipeline 呼び出しにまとめ、上記カウントを再び半減させる。
-> 進行中 PR: #5758 (Batch 76), #5760 (Batch 78), #5761 (Batch 79), #5762 (Batch 80), #5763 (Batch 81), #5764 (Batch 82)。
+> 進行中 PR: #5765 (Batch 83)。未 PR の作業ブランチ: `devin/consolidate-sema-api-tests-batch84` (Batch 84)。
 
 - [~] REFACT-TEST-001: 同一 Sema ソースで複数 `runSema(ctx)` を呼んでいる `Tests/CompilerCoreTests/Sema` テストを共有 `runSema(ctx)` に集約
-  - 対象例: `ListSyntheticMemberLinkTests+MutableAndAdvancedMembers.swift` (62), `ListSyntheticMemberLinkTests.swift` (60), `DataFlowAndSemaRegressionTests+TryCatchInitializationAndIsCheckRules.swift` (25), `DataFlowAndSemaRegressionTests.swift` (34), `CompilerCoreTests+P540Diagnostics.swift` (31), `DiagnosticCodeCoverageTests.swift` (29), `CompilerCoreTests.swift` (29)
+  - 対象例: `ListSyntheticMemberLinkTests+MutableAndAdvancedMembers.swift` (60), `ListSyntheticMemberLinkTests.swift` (58), `RegexSemaLoweringTests.swift` (13), `MathOverloadResolutionTests.swift` (8), `ContinuationSyntheticStubTests.swift` (6), `KotlinAnnotationAPIInventoryTests.swift` (6), `MatchResultTypeTests.swift` (6), `MathSyntheticTopLevelLinkTests.swift` (6), `CoroutineIntrinsicsSyntheticStubTests.swift` (5), `KotlinIOCommonEdgeCaseTests.swift` (5)
 - [ ] REFACT-TEST-002: 各テストで `makeSema()` を作り直している surface-inventory 系 Sema スイートに `sharedSema()` キャッシュを導入
-  - 対象例: `EnumAPISurfaceInventoryTests.swift` (9), `MathSyntheticTopLevelLinkTests.swift` (6), `ContinuationSyntheticStubTests.swift` (6), `ExceptionSyntheticStubTests.swift` (6), `ReflectK*` 系 (3-6 件×多数)
+  - 対象例: `IntegerNarrowingPassTests.swift` (8), `EnumAPISurfaceInventoryTests.swift` (8), `ExceptionSyntheticStubTests.swift` (4), `GenericInterfaceInheritanceTests.swift` (4), `ReflectKMutablePropertySyntheticTests.swift` (4), `ReflectKProperty2SyntheticTests.swift` (4), `ThrowableMemberSourceTests.swift` (4), `ReflectK*` 系・`NativeCInteropBetaInteropApiTests` など (2-3 件×多数)
 - [~] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約
-  - 対象例: `KotlinIOCommonEdgeCaseTests.swift` (33), `RegexSemaLoweringTests.swift` (31), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+LocalFunctionCaptureAndScope.swift` (16), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` (10), `BuildKIRRegressionTests.swift` (15), `BuildKIRRegressionTests+NativePlatform.swift` (14), `LibMetadataImportIntegrationTests.swift` (12), `LibraryMetadataManifestValidationTests.swift` (11), `BuildKIRRegressionTests+PrimitiveArrayCreationAndConversion.swift` (10, PR #5761 対応済み)
+  - 対象例: `KotlinIOCommonEdgeCaseTests.swift` (28), `RegexSemaLoweringTests.swift` (18), `BuildKIRRegressionTests+NativePlatform.swift` (14), `BuildKIRRegressionTests.swift` (12), `LibMetadataImportIntegrationTests.swift` (12), `BlockExpressionTests.swift` (11), `LoweringPassRegressionTests+FileRewrite.swift` (11), `LibraryMetadataManifestValidationTests.swift` (11), `PropertyDelegationTests+ProvideDelegateAndAccessorRewriting.swift` (11), `BuildASTBodyParsingRegressionTests.swift` (10), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` (10)
 - [ ] REFACT-TEST-004: 複数 `runToLowering` / `runFrontend` を呼んでいる Lowering / Frontend テストを共有コンテキストに集約
-  - 対象例: `BoxingIntegrationTests.swift` (`runToLowering` 12), `CompilerCoreTests+TrailingLambdaParsing.swift` (`runFrontend` 9), `BuildASTBodyParsingRegressionTests.swift` (`runFrontend` 9), `ValueClassUnboxingTests+EdgeCases.swift` (`runToLowering` 18), `ScriptModeTests.swift` (`runFrontend` 5)
+  - `runToLowering` 対象例: `BoxingIntegrationTests.swift` (12), `LoweringPassRegressionTests+EnumEntriesEdgeCases.swift` (5), `ValueClassUnboxingTests.swift` (4), `LocalDelegatePropertyKIRTests.swift` (3), `ValueClassUnboxingTests+EdgeCases.swift` (3)
+  - `runFrontend` 対象例: `BuildASTBodyParsingRegressionTests.swift` (9), `CompilerCoreTests+TrailingLambdaParsing.swift` (9), `CompilerCoreTests+ExpressionBodyWhenAndDiagnostics.swift` (7), `ScriptModeTests.swift` (5), `LexerParserEdgeCaseTests+FrontendBoundariesAndCharLiterals.swift` (5), `CompilerCoreTests+PropertyBlockBranchParsing.swift` (4)
 - [ ] REFACT-TEST-005: 集約後に不要になった per-test pipeline ヘルパー・重複 `source` 文字列・個別 `withTemporaryFile` ブロックを削除し、migration スクリプト群を整理
