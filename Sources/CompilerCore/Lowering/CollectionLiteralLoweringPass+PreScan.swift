@@ -321,7 +321,7 @@ extension CollectionLiteralLoweringSupport {
             }
         }
         // STDLIB-565: Classify File constructor calls.
-        // KNOWN LIMITATION: Only direct File("...") / kk_file_new constructor
+        // KNOWN LIMITATION: Only direct File("...") / __kk_file_new constructor
         // calls are seeded here.  File receivers originating from function
         // parameters, return values, or field loads are not tracked, so their
         // member calls will fall through to the default virtualCall path.  A

@@ -318,34 +318,28 @@ extension CollectionVirtualCallRewriteLoweringPass {
             kkCallee = lookup.kkFileReadTextName
         case lookup.writeTextName:
             kkCallee = lookup.kkFileWriteTextName
-        case lookup.readLinesName:
-            kkCallee = lookup.kkFileReadLinesName
         case lookup.existsName:
             kkCallee = lookup.kkFileExistsName
         case lookup.isFileName:
             kkCallee = lookup.kkFileIsFileName
         case lookup.isDirectoryName:
             kkCallee = lookup.kkFileIsDirectoryName
-        case lookup.forEachLineName:
-            kkCallee = lookup.kkFileForEachLineName
         // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch (virtual call path, args excludes receiver)
         case lookup.forEachBlockName:
             kkCallee = arguments.isEmpty
                 ? lookup.kkFileForEachBlockName
                 : lookup.kkFileForEachBlockBlockSizeName
-        case lookup.useLinesName:
-            kkCallee = lookup.kkFileUseLinesName
         case lookup.bufferedReaderName:
             // Only rewrite argument-less bufferedReader(); the runtime function
-            // kk_file_bufferedReader does not accept charset/bufferSize args.
+            // __kk_file_bufferedReader does not accept charset/bufferSize args.
             kkCallee = arguments.isEmpty ? lookup.kkFileBufferedReaderName : nil
         case lookup.bufferedWriterName:
             // Only rewrite argument-less bufferedWriter(); the runtime function
-            // kk_file_bufferedWriter does not accept charset/bufferSize args.
+            // __kk_file_bufferedWriter does not accept charset/bufferSize args.
             kkCallee = arguments.isEmpty ? lookup.kkFileBufferedWriterName : nil
         case lookup.printWriterName:
             // Only rewrite argument-less printWriter(); the runtime function
-            // kk_file_printWriter does not accept charset/bufferSize args.
+            // __kk_file_printWriter does not accept charset/bufferSize args.
             kkCallee = arguments.isEmpty ? lookup.kkFilePrintWriterName : nil
         case lookup.walkName:
             kkCallee = lookup.kkFileWalkName
@@ -366,9 +360,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         guard let target = kkCallee else { return false }
 
         // Methods that pass extra arguments beyond the receiver
-        let needsExtraArgs = callee == lookup.forEachLineName
-            || callee == lookup.forEachBlockName
-            || callee == lookup.useLinesName
+        let needsExtraArgs = callee == lookup.forEachBlockName
             || callee == lookup.writeTextName
             || callee == lookup.appendTextName
         let memberArgs = needsExtraArgs ?
@@ -385,7 +377,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         ))
 
         // Track results that produce lists (readLines/readBytes return List)
-        if callee == lookup.readLinesName || callee == lookup.readBytesName, let result {
+        if callee == lookup.readBytesName, let result {
             listExprIDs.insert(result.rawValue)
         }
 
