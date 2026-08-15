@@ -1,4 +1,4 @@
-/// Lowerings for the `apply` / `run` / `use` / `usePinned` / `useContents`
+/// Lowerings for the residual `use` / `usePinned` / `useContents`
 /// scope-function family.
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
@@ -6,7 +6,7 @@ extension CallLowerer {
 
     // MARK: - Scope Function Lowering (STDLIB-004)
 
-    /// Attempts to lower a scope function call (run/apply/use/usePinned/useContents).
+    /// Attempts to lower a residual scope function call (use/usePinned/useContents).
     /// Returns nil if the expression is not a scope function call.
     func tryScopeFunctionLowering(
         _ exprID: ExprID,
@@ -45,60 +45,6 @@ extension CallLowerer {
         )
 
         switch scopeKind {
-        case .scopeRun, .scopeApply:
-            // run/apply: lambda has `this` as implicit receiver.
-            // Set the implicit receiver to the lowered receiver before lowering
-            // the lambda so that the lambda captures it.
-            let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
-            instructions.append(.copy(from: loweredReceiverID, to: receiverSymExpr))
-
-            let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
-            let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
-            driver.ctx.setLocalValue(receiverSymExpr, for: receiverSymbol)
-            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverSymExpr)
-
-            let loweredLambdaID = driver.lowerExpr(
-                args[0].expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-
-            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
-
-            let result = arena.appendTemporary(type: boundType
-            )
-            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-                let lambdaResult = if scopeKind == .scopeApply {
-                    arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.unitType
-                    )
-                } else {
-                    result
-                }
-                instructions.append(.call(
-                    symbol: info.symbol,
-                    callee: info.callee,
-                    arguments: info.captureArguments,
-                    result: lambdaResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Non-lambda-literal argument (e.g. function reference);
-                // restore state and fall back to normal member call lowering.
-                driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
-                return nil
-            }
-            if scopeKind == .scopeApply {
-                // apply: result is the receiver, not the lambda return value.
-                instructions.append(.copy(from: loweredReceiverID, to: result))
-            }
-            return result
-
         case .scopeUseContents:
             // useContents: lambda has the contained C variable as implicit receiver.
             let contentType: TypeID? = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
@@ -466,14 +412,8 @@ extension CallLowerer {
             instructions.append(.label(endLabel))
             return result
 
-        case .scopeWith:
-            return nil // with is handled in lowerCallExpr
-
         case .scopeContext:
             return nil // context is handled in lowerCallExpr
-
-        case .scopeTopLevelRun:
-            return nil // top-level run is handled in lowerCallExpr
         }
     }
 }
