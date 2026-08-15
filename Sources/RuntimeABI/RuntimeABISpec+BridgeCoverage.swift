@@ -34,7 +34,6 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
 ]
 
 private let listClosureBridgeNames = [
-    "kk_list_distinctBy",
     "kk_list_maxOf",
     "kk_list_maxWith",
     "kk_list_maxWithOrNull",
@@ -79,13 +78,7 @@ private let listComparatorBridgeFunctions = [
 private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
 private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_list_intersect", section: "Collection", params: ["listRaw", "otherRaw"],
-            isThrowing: false),
     bridgeSpec("kk_list_of_not_null", section: "Collection", params: ["arrayRaw", "count"]),
-    bridgeSpec("kk_list_subtract", section: "Collection", params: ["listRaw", "otherRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_list_union", section: "Collection", params: ["listRaw", "otherRaw"],
-            isThrowing: false),
 ]
 
 private let mapBridgeFunctions = [

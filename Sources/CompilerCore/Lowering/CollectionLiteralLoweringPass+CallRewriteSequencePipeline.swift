@@ -343,38 +343,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // Iterable.minusElement(element) returns a List, even when
-    // the receiver's static type is the Iterable interface.
-    if callee == lookup.minusElementName, arguments.count == 2 {
-        let receiverID = arguments[0]
-        let isIterableMinusElementSymbol = symbol.flatMap { symbolID in
-            ctx.sema?.symbols.externalLinkName(for: symbolID)
-        } == "kk_list_minus_element"
-        let returnsList = result.flatMap { module.arena.exprType($0) }.map { resultType in
-            guard let sema = ctx.sema,
-                  let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
-            else { return false }
-            return ctx.interner.resolve(resultSymbol.name) == "List"
-        } ?? false
-        if isIterableMinusElementSymbol
-            || returnsList
-            || state.listExprIDs.contains(receiverID.rawValue)
-            || state.setExprIDs.contains(receiverID.rawValue)
-            || state.arrayExprIDs.contains(receiverID.rawValue)
-        {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListMinusElementName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { state.listExprIDs.insert(result.rawValue) }
-            return true
-        }
-    }
-
     // minus(element)/minusElement(element) on sequence → kk_sequence_minus
     if callee == lookup.minusMemberName || callee == lookup.minusElementName, arguments.count == 2 {
         let receiverID = arguments[0]

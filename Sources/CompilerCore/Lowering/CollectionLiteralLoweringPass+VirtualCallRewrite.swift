@@ -596,7 +596,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let lookup = context.lookup
         guard callee == lookup.groupByName
             || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
-            || callee == lookup.distinctByName
         else {
             return false
         }
@@ -609,7 +608,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         case lookup.associateByName: lookup.kkListAssociateByName
         case lookup.associateWithName: lookup.kkListAssociateWithName
         case lookup.associateName: lookup.kkListAssociateName
-        case lookup.distinctByName: lookup.kkListDistinctByName
         default: callee
         }
 
@@ -626,12 +624,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             origThrownResult: origThrownResult, module: module,
             loweredBody: &loweredBody
         )
-        if callee == lookup.distinctByName,
-           let result
-        {
-            listExprIDs.insert(result.rawValue)
-            listExprIDs.insert(hofResult.rawValue)
-        }
+
         if callee == lookup.groupByName, let result {
             mapExprIDs.insert(result.rawValue)
             mapExprIDs.insert(hofResult.rawValue)

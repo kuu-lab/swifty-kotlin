@@ -152,7 +152,6 @@ extension CollectionLiteralLoweringSupport {
     // 1-param lambda HOFs with [receiver, lambda, closureRaw?]
     if callee == lookup.groupByName
         || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
-        || callee == lookup.distinctByName
     {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
@@ -171,7 +170,6 @@ extension CollectionLiteralLoweringSupport {
                 case lookup.associateByName: lookup.kkListAssociateByName
                 case lookup.associateWithName: lookup.kkListAssociateWithName
                 case lookup.associateName: lookup.kkListAssociateName
-                case lookup.distinctByName: lookup.kkListDistinctByName
                 default: callee
                 }
                 let hofResult = module.arena.appendTemporary(type: nil
@@ -184,10 +182,7 @@ extension CollectionLiteralLoweringSupport {
                     canThrow: canThrow,
                     thrownResult: thrownResult
                 ))
-                if callee == lookup.distinctByName, let result {
-                    state.listExprIDs.insert(result.rawValue)
-                    state.listExprIDs.insert(hofResult.rawValue)
-                }
+
                 if callee == lookup.groupByName, let result {
                     state.mapExprIDs.insert(result.rawValue)
                     state.mapExprIDs.insert(hofResult.rawValue)

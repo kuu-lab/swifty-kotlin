@@ -301,29 +301,6 @@ extension CallLowerer {
                 return result
             }
         }
-        // STDLIB-345: List plus/minus operators
-        if op == .add || op == .subtract, sema.bindings.isCollectionExpr(exprID),
-           isConcreteListLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
-            let calleeName: String
-            if op == .subtract {
-                let rhsIsCollection = sema.bindings.isCollectionExpr(rhs)
-                calleeName = rhsIsCollection ? "kk_list_minus_collection" : "kk_list_minus_element"
-            } else {
-                let rhsIsCollection = sema.bindings.isCollectionExpr(rhs)
-                calleeName = rhsIsCollection ? "kk_list_plus_collection" : "kk_list_plus_element"
-            }
-            instructions.append(
-                .call(
-                    symbol: nil,
-                    callee: interner.intern(calleeName),
-                    arguments: [lhsID, rhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                )
-            )
-            return result
-        }
         if case .add = op, sema.bindings.exprTypes[exprID] == stringType {
             // Kotlin String.plus(other: Any?) calls toString() on the RHS
             // when it is not already a String. Insert a kk_any_to_string

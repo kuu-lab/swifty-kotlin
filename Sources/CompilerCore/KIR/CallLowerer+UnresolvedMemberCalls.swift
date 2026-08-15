@@ -114,8 +114,6 @@ extension CallLowerer {
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
-            case "distinctBy":
-                return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
             case "sortedWith":
@@ -240,8 +238,6 @@ extension CallLowerer {
 
         switch memberName {
         // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
-        case "distinctBy":
-            return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
         case "maxBy":

@@ -111,43 +111,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: callee == lookup.asReversedName ? lookup.kkListAsReversedName : lookup.kkListReversedName,
-                arguments: [receiver],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.distinctName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListDistinctName,
-                arguments: [receiver],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
 
         if callee == lookup.chunkedName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
             let transformResult = module.arena.appendTemporary(type: nil
@@ -622,31 +585,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         // Iterable.minusElement(element) returns a List, even when the receiver
         // is tracked through the generic Iterable interface.
-        let minusElementReturnsList = result.flatMap { module.arena.exprType($0) }.map { resultType in
-            guard let sema = context.sema,
-                  let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
-            else { return false }
-            return context.interner.resolve(resultSymbol.name) == "List"
-        } ?? false
-        if callee == lookup.minusElementName,
-           arguments.count == 1,
-           minusElementReturnsList
-            || listExprIDs.contains(receiver.rawValue)
-            || setExprIDs.contains(receiver.rawValue)
-            || arrayExprIDs.contains(receiver.rawValue)
-        {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListMinusElementName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { listExprIDs.insert(result.rawValue) }
-            return true
-        }
-
         // minus(element)/minusElement(element) on sequence → kk_sequence_minus
         if callee == lookup.minusMemberName || callee == lookup.minusElementName,
            arguments.count == 1,
