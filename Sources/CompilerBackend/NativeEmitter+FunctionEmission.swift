@@ -1405,13 +1405,13 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_flat",
+                "__kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_charset_flat",
+                "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
@@ -2349,7 +2349,17 @@ extension NativeEmitter {
                     continue
                 }
 
-                let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
+                // Function-value invokes carry the callable value as their first
+                // argument.  The KIR symbol is intentionally retained for
+                // InlineLoweringPass to match an inline function parameter, but
+                // it must not be treated as a direct callee here: doing so turns
+                // a captured parameter such as `transform` into an undefined
+                // external `_transform` symbol (KSP-499 compiler regression).
+                let isFunctionValueInvoke = Self.functionValueInvokeCallees.contains(calleeName)
+                let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
+                                                       let symbol,
+                                                       symbol != .invalid
+                {
                     symbol
                 } else {
                     SymbolID?.none
@@ -2753,24 +2763,32 @@ extension NativeEmitter {
 
                 let lookupFunction: LLVMFunction?
                 var lookupArgs: [LLVMCAPIBindings.LLVMValueRef] = []
+                // The receiver used for the lookup must have the same runtime
+                // representation as the indirect getter call. A bundled
+                // CharSequence extension may still carry a flat String
+                // aggregate at this point; `virtualCallArguments` performs the
+                // required boxing before the getter is invoked, while using the
+                // original aggregate here makes the runtime look up a bogus
+                // object address and report a missing itable entry.
+                let lookupReceiver = virtualCallArguments.first ?? resolveValue(receiver)
                 switch dispatch {
                 case let .vtable(slot):
                     lookupFunction = declareExternalFunction(named: "kk_vtable_lookup", argumentCount: 2, appendThrownChannel: false)
                     lookupArgs = [
-                        resolveValue(receiver),
+                        lookupReceiver,
                         bindings.constInt(int64Type, value: UInt64(slot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]
                 case let .itable(interfaceSlot, methodSlot):
                     lookupFunction = declareExternalFunction(named: "kk_itable_lookup", argumentCount: 3, appendThrownChannel: false)
                     lookupArgs = [
-                        resolveValue(receiver),
+                        lookupReceiver,
                         bindings.constInt(int64Type, value: UInt64(interfaceSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                         bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]
                 case let .itableDynamic(interfaceTypeID, methodSlot):
                     lookupFunction = declareExternalFunction(named: "kk_itable_lookup_dynamic", argumentCount: 3, appendThrownChannel: false)
                     lookupArgs = [
-                        resolveValue(receiver),
+                        lookupReceiver,
                         bindings.constInt(int64Type, value: UInt64(bitPattern: interfaceTypeID)) ?? bindings.constInt(int64Type, value: 0)!,
                         bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]

@@ -5,7 +5,7 @@ symbol fq=kotlin.properties.Delegates.vetoable kind=function vis=public flags=sy
 symbol fq=kotlin.properties.Delegates.vetoable.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.properties.Delegates.vetoable.initialValue kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.properties.Delegates.vetoable.onChange kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
+symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=_
 file fdelegate_vetoable package=golden.sema
   decl golden.sema.age property age var=1 sym=golden.sema.age
   decl golden.sema.main fun main sym=golden.sema.main

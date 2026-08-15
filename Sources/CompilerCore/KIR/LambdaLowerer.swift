@@ -78,11 +78,12 @@ final class LambdaLowerer {
             "__kk_iterator_builder_yield",
             "kk_suspend_function_invoke_0",
             "kk_suspend_function_invoke",
+            "kk_suspend_function_invoke_2",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null",
             "kk_flow_collect",
-            "kk_flow_collectLatest",
+            "__kk_flow_collectLatest",
             "kk_flow_emit",
         ]
         for instruction in body {
@@ -110,6 +111,7 @@ final class LambdaLowerer {
         _ exprID: ExprID,
         params: [InternedString],
         bodyExpr: ExprID,
+        allowsNonLocalReturn: Bool = false,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -212,6 +214,7 @@ final class LambdaLowerer {
                 exprID: exprID,
                 params: params,
                 bodyExpr: bodyExpr,
+                allowsNonLocalReturn: allowsNonLocalReturn,
                 effectiveParamCount: effectiveParamCount,
                 hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
@@ -292,6 +295,7 @@ final class LambdaLowerer {
         let savedReceiverSymbol = scopeSnapshot.currentImplicitReceiverSymbol
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
+        driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -442,6 +446,10 @@ final class LambdaLowerer {
         // the declared isSuspend always matches what the body actually needs.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
             || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+        let hasNonLocalReturn = lambdaBody.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        }
 
         let lambdaDecl = arena.appendDecl(
             .function(
@@ -452,7 +460,8 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: false
+                    isInline: false,
+                    isInlineOnly: hasNonLocalReturn
                 )
             )
         )
@@ -1188,6 +1197,29 @@ final class LambdaLowerer {
             sema: sema
         )
 
+        // BUG-162: KProperty0/1 references need a real object implementing the
+        // bundled KProperty and Function interfaces. A raw property symbol is
+        // sufficient for a direct getter call, but it has no itable entries for
+        // KProperty.get/invoke/set and cannot carry the bound receiver safely.
+        if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           let propertyValue = lowerPropertyReferenceWrapperValue(
+               exprID,
+               targetSymbol: targetSymbol,
+               memberName: memberName,
+               boundType: boundType,
+               isUnbound: isUnbound,
+               captureArguments: captureArguments,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers,
+               instructions: &instructions
+           )
+        {
+            return propertyValue
+        }
+
         // BUG-048: A callable reference in SAM-conversion position must become an
         // object implementing the functional interface (with an itable entry), the
         // same way a SAM-converted lambda literal does.  Lowering it as a bare
@@ -1478,6 +1510,7 @@ final class LambdaLowerer {
         exprID: ExprID,
         params: [InternedString],
         bodyExpr: ExprID,
+        allowsNonLocalReturn: Bool,
         effectiveParamCount: Int,
         hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
@@ -1510,6 +1543,7 @@ final class LambdaLowerer {
         let scopeSnapshot = driver.ctx.saveScope()
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
+        driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 
@@ -1564,6 +1598,10 @@ final class LambdaLowerer {
         // does, so trust the lowered body over a non-suspend contextual type.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
             || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+        let hasNonLocalReturn = lambdaBody.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        }
 
         // Create optimized function declaration
         let lambdaDecl = arena.appendDecl(
@@ -1575,7 +1613,8 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: true // Mark as inline for better optimization
+                    isInline: true, // Mark as inline for better optimization
+                    isInlineOnly: hasNonLocalReturn
                 )
             )
         )

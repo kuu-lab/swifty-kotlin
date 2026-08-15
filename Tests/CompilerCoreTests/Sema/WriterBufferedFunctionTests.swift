@@ -6,7 +6,7 @@ import Testing
 /// Verifies STDLIB-IO-FN-006 — the synthetic Sema stub registers both the
 /// no-argument and bufferSize overloads, resolves them on `java.io.Writer`,
 /// returns `java.io.BufferedWriter`, and binds them to the documented
-/// `kk_writer_buffered_default` / `kk_writer_buffered` runtime symbols.
+/// `__kk_writer_buffered_default` / `__kk_writer_buffered` runtime symbols.
 @Suite
 struct WriterBufferedFunctionTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
@@ -68,7 +68,7 @@ struct WriterBufferedFunctionTests {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == bufferedWriterType
         })
-        #expect(sema.symbols.externalLinkName(for: defaultOverload) == "kk_writer_buffered_default")
+        #expect(sema.symbols.externalLinkName(for: defaultOverload) == "__kk_writer_buffered_default")
 
         let bufferSizeOverload = try #require(functions.first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
@@ -76,7 +76,7 @@ struct WriterBufferedFunctionTests {
                 && signature.parameterTypes == [sema.types.intType]
                 && signature.returnType == bufferedWriterType
         })
-        #expect(sema.symbols.externalLinkName(for: bufferSizeOverload) == "kk_writer_buffered")
+        #expect(sema.symbols.externalLinkName(for: bufferSizeOverload) == "__kk_writer_buffered")
     }
 
     @Test

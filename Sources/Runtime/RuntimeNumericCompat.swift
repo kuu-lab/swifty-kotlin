@@ -853,8 +853,8 @@ private func roundDoubleJava7(_ raw: Double) -> Int64 {
 // throw IllegalArgumentException when the receiver is NaN. Infinity / out-of-range
 // still saturate to MIN/MAX (no exception). These are therefore throwing callees
 // (outThrown appended by ABILoweringPass — they must NOT be in nonThrowingCallees).
-@_cdecl("kk_float_roundToInt")
-public func kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_float_roundToInt")
+public func __kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -866,8 +866,8 @@ public func kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<
     return Int(Int32(r))
 }
 
-@_cdecl("kk_double_roundToInt")
-public func kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_double_roundToInt")
+public func __kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -879,8 +879,8 @@ public func kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer
     return Int(Int32(r))
 }
 
-@_cdecl("kk_float_roundToLong")
-public func kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_float_roundToLong")
+public func __kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -892,8 +892,8 @@ public func kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer
     return Int(r)
 }
 
-@_cdecl("kk_double_roundToLong")
-public func kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_double_roundToLong")
+public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -907,33 +907,33 @@ public func kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointe
 
 // MARK: - STDLIB-512~513: ulp / nextUp / nextDown extensions
 
-@_cdecl("kk_double_ulp")
-public func kk_double_ulp(_ value: Int) -> Int {
+@_cdecl("__kk_double_ulp")
+public func __kk_double_ulp(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).ulp)
 }
 
-@_cdecl("kk_double_nextUp")
-public func kk_double_nextUp(_ value: Int) -> Int {
+@_cdecl("__kk_double_nextUp")
+public func __kk_double_nextUp(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).nextUp)
 }
 
-@_cdecl("kk_double_nextDown")
-public func kk_double_nextDown(_ value: Int) -> Int {
+@_cdecl("__kk_double_nextDown")
+public func __kk_double_nextDown(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).nextDown)
 }
 
-@_cdecl("kk_float_ulp")
-public func kk_float_ulp(_ value: Int) -> Int {
+@_cdecl("__kk_float_ulp")
+public func __kk_float_ulp(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).ulp)
 }
 
-@_cdecl("kk_float_nextUp")
-public func kk_float_nextUp(_ value: Int) -> Int {
+@_cdecl("__kk_float_nextUp")
+public func __kk_float_nextUp(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextUp)
 }
 
-@_cdecl("kk_float_nextDown")
-public func kk_float_nextDown(_ value: Int) -> Int {
+@_cdecl("__kk_float_nextDown")
+public func __kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
