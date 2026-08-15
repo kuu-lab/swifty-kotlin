@@ -4,8 +4,8 @@ import Testing
 
 /// Verifies the STDLIB-IO-FN-011 synthetic stub for `String.byteInputStream(charset)`.
 /// Two overloads are exposed from `kotlin.io`:
-/// - `String.byteInputStream(): ByteArrayInputStream` → `kk_string_byteInputStream_flat`
-/// - `String.byteInputStream(charset: Charset): ByteArrayInputStream` → `kk_string_byteInputStream_charset_flat`
+/// - `String.byteInputStream(): ByteArrayInputStream` → `__kk_string_byteInputStream_flat`
+/// - `String.byteInputStream(charset: Charset): ByteArrayInputStream` → `__kk_string_byteInputStream_charset_flat`
 ///
 /// Both return `java.io.ByteArrayInputStream`, which is registered as an
 /// `InputStream` subtype so that resource-management surfaces (`.use {}`) work
@@ -93,14 +93,14 @@ struct StringByteInputStreamFunctionTests {
 
             if signature.parameterTypes.isEmpty {
                 #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_flat"
+                    sema.symbols.externalLinkName(for: chosenCallee) == "__kk_string_byteInputStream_flat"
                 )
                 #expect(
                     fqNameMatches(chosenCallee, expected: ["kotlin", "io", "byteInputStream"], sema: sema, interner: interner)
                 )
             } else if signature.parameterTypes.count == 1 {
                 #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_charset_flat"
+                    sema.symbols.externalLinkName(for: chosenCallee) == "__kk_string_byteInputStream_charset_flat"
                 )
                 guard case let .classType(paramClassType) = sema.types.kind(of: signature.parameterTypes[0]) else {
                     Issue.record("Expected charset parameter to be a class type")
@@ -121,7 +121,7 @@ struct StringByteInputStreamFunctionTests {
 
         let externalLinks = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            externalLinks == ["kk_string_byteInputStream_flat", "kk_string_byteInputStream_charset_flat"]
+            externalLinks == ["__kk_string_byteInputStream_flat", "__kk_string_byteInputStream_charset_flat"]
         )
 
         for symbolID in symbols {
