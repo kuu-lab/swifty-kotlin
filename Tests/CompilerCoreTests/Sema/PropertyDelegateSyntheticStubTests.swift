@@ -7,6 +7,7 @@ struct PropertyDelegateSyntheticStubTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -31,9 +32,14 @@ struct PropertyDelegateSyntheticStubTests {
         let readOnlySymbol = try #require(sema.symbols.lookup(fqName: readOnlyFQName))
         let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
         let observableInfo = try #require(sema.symbols.symbol(observableSymbol))
+        let readWriteInfo = try #require(sema.symbols.symbol(readWriteSymbol))
+        let readOnlyInfo = try #require(sema.symbols.symbol(readOnlySymbol))
         #expect(observableInfo.kind == .class)
         #expect(observableInfo.flags.contains(.abstractType))
         #expect(sema.symbols.directSupertypes(for: observableSymbol) == [readWriteSymbol])
+        #expect(!readWriteInfo.flags.contains(.synthetic))
+        #expect(!readOnlyInfo.flags.contains(.synthetic))
+        #expect(readOnlyInfo.declSite != nil)
         try assertNominalTypeParameters(
             for: readWriteSymbol,
             names: ["T", "V"],

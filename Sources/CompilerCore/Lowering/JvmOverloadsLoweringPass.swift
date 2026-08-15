@@ -79,6 +79,7 @@ final class JvmOverloadsLoweringPass: LoweringPass {
                         valueParameterSymbols: keptValueParameterSymbols,
                         valueParameterHasDefaultValues: Array(repeating: false, count: keepCount),
                         valueParameterIsVararg: keptVarargFlags,
+                        valueParameterAllowsNonLocalReturn: Array(originalSignature.valueParameterAllowsNonLocalReturn.prefix(keepCount)),
                         typeParameterSymbols: originalSignature.typeParameterSymbols,
                         reifiedTypeParameterIndices: originalSignature.reifiedTypeParameterIndices,
                         typeParameterUpperBounds: originalSignature.typeParameterUpperBounds,

@@ -56,6 +56,31 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
+            // KSP-426: List sorting/extrema are bundled Kotlin source.
+            || callee == lookup.sortedName
+            || callee == lookup.sortedByName
+            || callee == lookup.sortedByDescendingName
+            || callee == lookup.sortedDescendingName
+            || callee == lookup.sortedWithName
+            || callee == lookup.maxName
+            || callee == lookup.maxByName
+            || callee == lookup.maxOfName
+            || callee == lookup.maxOfOrNullName
+            || callee == lookup.maxOfWithName
+            || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.maxOrNullName
+            || callee == lookup.maxWithName
+            || callee == lookup.maxWithOrNullName
+            || callee == lookup.minName
+            || callee == lookup.minByName
+            || callee == lookup.minByOrNullName
+            || callee == lookup.minOfName
+            || callee == lookup.minOfOrNullName
+            || callee == lookup.minOfWithName
+            || callee == lookup.minOfWithOrNullName
+            || callee == lookup.minOrNullName
+            || callee == lookup.minWithName
+            || callee == lookup.minWithOrNullName
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
@@ -107,7 +132,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.chunkedName
             || callee == lookup.windowedName
             || callee == lookup.firstName
-            || callee == lookup.lastName,
+            || callee == lookup.lastName
+            || callee == context.interner.intern("random")
+            || callee == context.interner.intern("randomOrNull"),
             let symbol,
             let sema = context.sema,
             sema.symbols.symbol(symbol) != nil
@@ -293,34 +320,28 @@ extension CollectionVirtualCallRewriteLoweringPass {
             kkCallee = lookup.kkFileReadTextName
         case lookup.writeTextName:
             kkCallee = lookup.kkFileWriteTextName
-        case lookup.readLinesName:
-            kkCallee = lookup.kkFileReadLinesName
         case lookup.existsName:
             kkCallee = lookup.kkFileExistsName
         case lookup.isFileName:
             kkCallee = lookup.kkFileIsFileName
         case lookup.isDirectoryName:
             kkCallee = lookup.kkFileIsDirectoryName
-        case lookup.forEachLineName:
-            kkCallee = lookup.kkFileForEachLineName
         // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch (virtual call path, args excludes receiver)
         case lookup.forEachBlockName:
             kkCallee = arguments.isEmpty
                 ? lookup.kkFileForEachBlockName
                 : lookup.kkFileForEachBlockBlockSizeName
-        case lookup.useLinesName:
-            kkCallee = lookup.kkFileUseLinesName
         case lookup.bufferedReaderName:
             // Only rewrite argument-less bufferedReader(); the runtime function
-            // kk_file_bufferedReader does not accept charset/bufferSize args.
+            // __kk_file_bufferedReader does not accept charset/bufferSize args.
             kkCallee = arguments.isEmpty ? lookup.kkFileBufferedReaderName : nil
         case lookup.bufferedWriterName:
             // Only rewrite argument-less bufferedWriter(); the runtime function
-            // kk_file_bufferedWriter does not accept charset/bufferSize args.
+            // __kk_file_bufferedWriter does not accept charset/bufferSize args.
             kkCallee = arguments.isEmpty ? lookup.kkFileBufferedWriterName : nil
         case lookup.printWriterName:
             // Only rewrite argument-less printWriter(); the runtime function
-            // kk_file_printWriter does not accept charset/bufferSize args.
+            // __kk_file_printWriter does not accept charset/bufferSize args.
             kkCallee = arguments.isEmpty ? lookup.kkFilePrintWriterName : nil
         case lookup.walkName:
             kkCallee = lookup.kkFileWalkName
@@ -341,9 +362,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         guard let target = kkCallee else { return false }
 
         // Methods that pass extra arguments beyond the receiver
-        let needsExtraArgs = callee == lookup.forEachLineName
-            || callee == lookup.forEachBlockName
-            || callee == lookup.useLinesName
+        let needsExtraArgs = callee == lookup.forEachBlockName
             || callee == lookup.writeTextName
             || callee == lookup.appendTextName
         let memberArgs = needsExtraArgs ?
@@ -360,7 +379,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         ))
 
         // Track results that produce lists (readLines/readBytes return List)
-        if callee == lookup.readLinesName || callee == lookup.readBytesName, let result {
+        if callee == lookup.readBytesName, let result {
             listExprIDs.insert(result.rawValue)
         }
 
@@ -577,77 +596,25 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
-        guard callee == lookup.groupByName || callee == lookup.sortedByName
+        guard callee == lookup.groupByName
             || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
-            || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
-            || callee == lookup.maxByName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
-            || callee == lookup.maxOfOrNullName || callee == lookup.minOfOrNullName
-            || callee == lookup.maxOfName || callee == lookup.minOfName
-            || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
-            || callee == lookup.minWithName || callee == lookup.minWithOrNullName
-            || callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName
-            || callee == lookup.distinctByName
         else {
             return false
         }
-        let acceptsTwoArguments = callee == lookup.sortedWithName
-            || callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName
-        guard arguments.count == 1 || (acceptsTwoArguments && arguments.count == 2),
+        guard arguments.count == 1,
               listExprIDs.contains(receiver.rawValue)
         else { return false }
 
         let kkName: InternedString = switch callee {
         case lookup.groupByName: lookup.kkListGroupByName
-        case lookup.sortedByName: lookup.kkListSortedByName
-        case lookup.sortedByDescendingName: lookup.kkListSortedByDescendingName
-        case lookup.sortedWithName: lookup.kkListSortedWithName
         case lookup.associateByName: lookup.kkListAssociateByName
         case lookup.associateWithName: lookup.kkListAssociateWithName
         case lookup.associateName: lookup.kkListAssociateName
-        case lookup.maxByName: lookup.kkListMaxByName
-        case lookup.maxByOrNullName: lookup.kkListMaxByOrNullName
-        case lookup.minByOrNullName: lookup.kkListMinByOrNullName
-        case lookup.maxOfOrNullName: lookup.kkListMaxOfOrNullName
-        case lookup.minOfOrNullName: lookup.kkListMinOfOrNullName
-        case lookup.maxOfName: lookup.kkListMaxOfName
-        case lookup.minOfName: lookup.kkListMinOfName
-        case lookup.maxWithName: lookup.kkListMaxWithName
-        case lookup.maxWithOrNullName: lookup.kkListMaxWithOrNullName
-        case lookup.minWithName: lookup.kkListMinWithName
-        case lookup.minWithOrNullName: lookup.kkListMinWithOrNullName
-        case lookup.maxOfWithName: lookup.kkListMaxOfWithName
-        case lookup.maxOfWithOrNullName: lookup.kkListMaxOfWithOrNullName
-        case lookup.minOfWithName: lookup.kkListMinOfWithName
-        case lookup.minOfWithOrNullName: lookup.kkListMinOfWithOrNullName
-        case lookup.distinctByName: lookup.kkListDistinctByName
         default: callee
         }
 
-        var hofArgs: [KIRExprID]
-        if callee == lookup.sortedWithName || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
-            || callee == lookup.minWithName || callee == lookup.minWithOrNullName, arguments.count == 1 {
-            let comparatorExpr = arguments[0]
-            let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-            hofArgs = [comparatorExpr, zero]
-        } else if callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName, arguments.count == 2 {
-            let comparatorExpr = arguments[0]
-            let selectorExpr = arguments[1]
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            hofArgs = [comparatorExpr, zeroExpr, selectorExpr, zeroExpr]
-        } else {
-            hofArgs = arguments
-        }
-        let needsClosureRaw = callee != lookup.maxByName
-            && callee != lookup.maxByOrNullName && callee != lookup.minByOrNullName
-            && callee != lookup.maxOfOrNullName && callee != lookup.minOfOrNullName
-            && callee != lookup.maxOfWithName && callee != lookup.maxOfWithOrNullName
-            && callee != lookup.minOfWithName && callee != lookup.minOfWithOrNullName
-        if needsClosureRaw {
+        var hofArgs = arguments
+        if callee != lookup.groupByName {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             hofArgs.append(zeroExpr)
@@ -659,13 +626,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             origThrownResult: origThrownResult, module: module,
             loweredBody: &loweredBody
         )
-        if callee == lookup.sortedByName || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
-            || callee == lookup.distinctByName,
-           let result
-        {
-            listExprIDs.insert(result.rawValue)
-            listExprIDs.insert(hofResult.rawValue)
-        }
+
         if callee == lookup.groupByName, let result {
             mapExprIDs.insert(result.rawValue)
             mapExprIDs.insert(hofResult.rawValue)

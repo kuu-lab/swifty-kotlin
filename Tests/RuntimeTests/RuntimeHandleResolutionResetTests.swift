@@ -9,7 +9,7 @@ import Testing
 /// isolation reset from one suite used to clear `objectPointers` while another
 /// suite still owned live range / array / string handles, and the next use of
 /// such a handle aborted the whole test process with a KSWIFTK-RUNTIME-0001
-/// invalid-handle panic (`kk_range_random`, `kk_native_byteArray_getLongAt`,
+/// invalid-handle panic (`__kk_range_random`, `kk_native_byteArray_getLongAt`,
 /// `runtimeStringUTF16CodeUnits`).
 @Suite(.serialized, .runtimeIsolation(.all))
 struct RuntimeHandleResolutionResetTests {
@@ -21,7 +21,7 @@ struct RuntimeHandleResolutionResetTests {
 
         #expect(runtimeRangeBox(from: range) != nil)
         var thrown = 0
-        let value = kk_range_random(range, &thrown)
+        let value = __kk_range_random(range, &thrown)
         #expect(thrown == 0)
         #expect((1...5).contains(value))
     }
@@ -80,7 +80,7 @@ struct RuntimeHandleResolutionResetTests {
         for _ in 0..<500 {
             let range = kk_op_rangeTo(1, 5)
             var thrown = 0
-            let value = kk_range_random(range, &thrown)
+            let value = __kk_range_random(range, &thrown)
             #expect(thrown == 0)
             #expect((1...5).contains(value))
 

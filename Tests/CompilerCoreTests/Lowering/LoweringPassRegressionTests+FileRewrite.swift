@@ -5,79 +5,28 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
-    func testFileForEachLineRewriteAddsClosureRawArgument() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "FileForEachLineRewrite",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
+    func testFileForEachLineRemainsSourceBacked() throws {
+        let source = """
+        import java.io.File
 
-        let fileExpr = arena.appendExpr(.temporary(0))
-        let lambdaExpr = arena.appendExpr(.temporary(1))
-        let resultExpr = arena.appendExpr(.temporary(2))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_file_new"),
-                    arguments: [arena.appendExpr(.stringLiteral(interner.intern("demo.txt")), type: nil)],
-                    result: fileExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                // The KIR builder emits a .call with the already-rewritten callee
-                // name (from externalLinkName) rather than a .virtualCall.
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_file_forEachLine"),
-                    arguments: [fileExpr, lambdaExpr],
-                    result: resultExpr,
-                    canThrow: true,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(declID) else {
-            Issue.record("expected lowered function")
-            return
+        fun main() {
+            val f = File("/tmp/test.txt")
+            f.forEachLine { line -> println(line) }
         }
+        """
 
-        let forEachLineCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
-            guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  interner.resolve(callee) == "kk_file_forEachLine"
-            else {
-                return nil
-            }
-            return (arguments, canThrow)
-        }.first
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileForEachLineSourceBacked", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
 
-        guard let call = forEachLineCall else {
-            Issue.record("Expected kk_file_forEachLine call after collection literal lowering")
-            return
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("forEachLine"))
+            #expect(!callees.contains("__kk_file_forEachLine"))
         }
-        #expect(call.arguments.count == 3, "kk_file_forEachLine should receive fileRaw, fnPtr, and closureRaw")
-        #expect(call.canThrow)
     }
 
     // STDLIB-IO-FN-016: forEachBlock KIR rewrite adds closureRaw argument
@@ -109,7 +58,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_file_new"),
+                    callee: interner.intern("__kk_file_new"),
                     arguments: [arena.appendExpr(.stringLiteral(interner.intern("demo.bin")), type: nil)],
                     result: fileExpr,
                     canThrow: false,
@@ -117,7 +66,7 @@ extension LoweringPassRegressionTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_file_forEachBlock"),
+                    callee: interner.intern("__kk_file_forEachBlock"),
                     arguments: [fileExpr, lambdaExpr],
                     result: resultExpr,
                     canThrow: true,
@@ -140,7 +89,7 @@ extension LoweringPassRegressionTests {
 
         let forEachBlockCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  interner.resolve(callee) == "kk_file_forEachBlock"
+                  interner.resolve(callee) == "__kk_file_forEachBlock"
             else {
                 return nil
             }
@@ -148,10 +97,10 @@ extension LoweringPassRegressionTests {
         }.first
 
         guard let call = forEachBlockCall else {
-            Issue.record("Expected kk_file_forEachBlock call after collection literal lowering")
+            Issue.record("Expected __kk_file_forEachBlock call after collection literal lowering")
             return
         }
-        #expect(call.arguments.count == 3, "kk_file_forEachBlock should receive fileRaw, fnPtr, and closureRaw")
+        #expect(call.arguments.count == 3, "__kk_file_forEachBlock should receive fileRaw, fnPtr, and closureRaw")
         #expect(call.canThrow)
     }
 
@@ -178,7 +127,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_forEachBlock"))
+            #expect(callees.contains("__kk_file_forEachBlock"))
             #expect(!callees.contains("forEachBlock"))
         }
     }
@@ -206,7 +155,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_forEachBlock_blockSize"))
+            #expect(callees.contains("__kk_file_forEachBlock_blockSize"))
             #expect(!callees.contains("forEachBlock"))
         }
     }
@@ -230,7 +179,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_walk"))
+            #expect(callees.contains("__kk_file_walk"))
             #expect(callees.contains("kk_list_forEach"))
             #expect(!callees.contains("walk"))
         }
@@ -255,7 +204,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_mkdirs"))
+            #expect(callees.contains("__kk_file_mkdirs"))
             #expect(!callees.contains("mkdirs"))
         }
     }
@@ -281,8 +230,8 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_readText"))
+            #expect(callees.contains("__kk_file_new"))
+            #expect(callees.contains("__kk_file_readText"))
             #expect(!callees.contains("readText"))
         }
     }
@@ -306,7 +255,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_delete"))
+            #expect(callees.contains("__kk_file_delete"))
             #expect(!callees.contains("delete"))
         }
     }
@@ -331,8 +280,8 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_writeText"))
+            #expect(callees.contains("__kk_file_new"))
+            #expect(callees.contains("__kk_file_writeText"))
             #expect(!callees.contains("writeText"))
         }
     }
@@ -356,7 +305,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_listFiles"))
+            #expect(callees.contains("__kk_file_listFiles"))
             #expect(!callees.contains("listFiles"))
         }
     }
@@ -382,9 +331,9 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_readLines"))
-            #expect(!callees.contains("readLines"))
+            #expect(callees.contains("__kk_file_new"))
+            #expect(callees.contains("readLines"))
+            #expect(!callees.contains("__kk_file_readLines"))
         }
     }
 
@@ -407,7 +356,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_walk"))
+            #expect(callees.contains("__kk_file_walk"))
             #expect(!callees.contains("walk"))
         }
     }
@@ -564,9 +513,9 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_file_new"))
-            #expect(callees.contains("kk_file_writeText"))
-            #expect(callees.contains("kk_file_readText"))
+            #expect(callees.contains("__kk_file_new"))
+            #expect(callees.contains("__kk_file_writeText"))
+            #expect(callees.contains("__kk_file_readText"))
             #expect(!callees.contains("writeText"))
             #expect(!callees.contains("readText"))
         }

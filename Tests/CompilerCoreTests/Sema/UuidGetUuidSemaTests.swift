@@ -24,8 +24,11 @@ struct UuidGetUuidSemaTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         let (_, sema, interner) = try makeSemaWithContext()
-        return (sema, interner)
+        let pair = (sema, interner)
+        Self._sharedSema = pair
+        return pair
     }
 
     private func byteBufferSymbol(sema: SemaModule, interner: StringInterner) -> SymbolID? {

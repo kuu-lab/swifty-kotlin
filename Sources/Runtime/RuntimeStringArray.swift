@@ -27,7 +27,7 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
         return throwable.renderedMessage
     }
     if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
-        return cancellation.message
+        return cancellation.message ?? "CancellationException"
     }
     return ""
 }
@@ -102,7 +102,7 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
         return runtimeNullSentinelInt
     }
-    let message: String
+    let message: String?
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         message = throwable.message
     } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
@@ -110,6 +110,7 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     } else {
         return runtimeNullSentinelInt
     }
+    guard let message else { return runtimeNullSentinelInt }
     let box = RuntimeStringBox(message)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -899,11 +900,8 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return cached
     }
     let box = RuntimeKClassBox(typeToken: typeToken, nameHint: nameHint)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    let result = Int(bitPattern: opaque)
+    registerReflectionRuntimeTypeMetadata()
+    let result = registerRuntimeObject(box, typeID: kClassRuntimeTypeID)
     let winner = runtimeStorage.withMetadataLock { state -> Int in
         if let existing = state.kClassBoxCache[cacheKey] {
             return existing
@@ -912,8 +910,14 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return result
     }
     if winner != result {
+        guard let opaque = UnsafeMutableRawPointer(bitPattern: result) else {
+            return winner
+        }
         runtimeStorage.withGCLock { state in
             state.objectPointers.remove(UInt(bitPattern: opaque))
+        }
+        runtimeStorage.withMetadataLock { state in
+            state.objectTypeByPointer.removeValue(forKey: UInt(bitPattern: opaque))
         }
         Unmanaged<RuntimeKClassBox>.fromOpaque(opaque).release()
     }
@@ -1415,7 +1419,8 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
         argumentRaws: argumentRaws,
         isMarkedNullable: isNullable != 0
     )
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kTypeRuntimeTypeID)
 }
 
 /// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
@@ -1456,7 +1461,8 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
 }
 
 /// Implements `typeOf<T>()` — creates a KType for the given type token.

@@ -1102,7 +1102,6 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_plus_element", for: memberSymbol)
         let elementParameterName = interner.intern("element")
         let elementParameterSymbol = symbols.define(
             kind: .valueParameter,
@@ -1437,7 +1436,6 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_minus_element", for: memberSymbol)
         let elementParameterName = interner.intern("element")
         let elementParameterSymbol = symbols.define(
             kind: .valueParameter,
@@ -1517,7 +1515,6 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_minus_element", for: memberSymbol)
         let elementParameterName = interner.intern("element")
         let elementParameterSymbol = symbols.define(
             kind: .valueParameter,
@@ -1847,7 +1844,7 @@ extension DataFlowSemaPhase {
                 ownerKind: .list,
                 memberName: "sumBy",
                 arity: 1,
-                fallback: "kk_list_sumBy"
+                fallback: "sumBy"
             ),
             for: memberSymbol
         )
@@ -1944,7 +1941,7 @@ extension DataFlowSemaPhase {
                 ownerKind: .list,
                 memberName: "sumByDouble",
                 arity: 1,
-                fallback: "kk_list_sumByDouble"
+                fallback: "sumByDouble"
             ),
             for: memberSymbol
         )

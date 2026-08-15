@@ -638,8 +638,19 @@ extension CallTypeChecker {
             } else {
                 []
             }
+            let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            )
             let memberCandidates: [SymbolID]
-            if !rangeSourceCandidates.isEmpty {
+            if !primitiveArraySourceCandidates.isEmpty {
+                // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
+                // exact source receiver over synthetic member stubs, including
+                // joinToString(transform), whose legacy stub shares the same name.
+                memberCandidates = primitiveArraySourceCandidates
+            } else if !rangeSourceCandidates.isEmpty {
                 memberCandidates = rangeSourceCandidates
             } else if !atomicSourceCandidates.isEmpty {
                 memberCandidates = atomicSourceCandidates
@@ -691,10 +702,24 @@ extension CallTypeChecker {
                         }
                         return true
                     }
+                    // Primitive-array HOFs are top-level extensions in
+                    // kotlin.collections. Default-import lookup may stop at a
+                    // same-named Sequence extension first (notably for
+                    // UByteArray/UShortArray), so prefer the exact source
+                    // receiver overload when one is present.
+                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                        named: calleeName,
+                        receiverType: nonNullReceiverForScope,
+                        sema: sema,
+                        interner: interner
+                    )
+                    if !primitiveArraySourceCandidates.isEmpty {
+                        scopeCandidates = primitiveArraySourceCandidates
+                    }
                     // Extension functions are excluded from scope by the scope
                     // builder so they don't shadow top-level calls.  Fall back
                     // to a direct symbol-table lookup by short name to find
-                    // synthetic extension functions (e.g. Double.pow, roundToInt).
+                    // synthetic extension functions (e.g. Double.pow).
                     if scopeCandidates.isEmpty {
                         let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
                         scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -847,6 +872,14 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if interner.resolve(calleeName) == "toList" {
+            candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
         if ["sumBy", "sumByDouble", "sumOf"].contains(interner.resolve(calleeName)) {
             let desc = candidates.map { c in
                 let name = sema.symbols.symbol(c).map { interner.resolve($0.name) } ?? "?"
@@ -978,8 +1011,14 @@ extension CallTypeChecker {
         let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
         let memberNameText = interner.resolve(calleeName)
+        // KSP-687 resolves Array.joinToString through the dedicated primitive
+        // and generic-array source candidates. KSP-429's broad trailing-lambda
+        // gate is for List/Iterable source calls; applying it to Array receivers
+        // prevents the array resolver from binding the source overload.
+        let isArrayJoinToString = memberNameText == "joinToString"
+            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
-            || sourceBackedTrailingLambdaMemberNames.contains(memberNameText)
+            || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
@@ -1574,7 +1613,7 @@ extension CallTypeChecker {
         switch interner.resolve(calleeName) {
         case "contains", "isEmpty", "iterator",
              "toList", "forEach", "map", "filter",
-             "take", "drop", "sorted", "average":
+             "take", "drop", "sorted", "average", "random", "randomOrNull":
             return true
         default:
             return false
