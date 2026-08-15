@@ -33,63 +33,14 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // STDLIB-NUM-130: isNaN / isInfinite / isFinite / toBits / fromBits
+        // STDLIB-NUM-130: isNaN / isInfinite / isFinite
 
         // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
-        // STDLIB-BIT-007: Additional bit manipulation functions
-        // Use if-let instead of guard-return so future registrations below are not skipped.
-        if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use
-            // IEEE 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
-
-            // Double.toBits(): Long / Double.toRawBits(): Long
-            registerSyntheticCoercionFunction(
-                named: "toBits",
-                externalLinkName: "kk_double_toBits",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "toRawBits",
-                externalLinkName: "kk_double_toRawBits",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            // Float.toBits(): Int / Float.toRawBits(): Int
-            registerSyntheticCoercionFunction(
-                named: "toBits",
-                externalLinkName: "kk_float_toBits",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "toRawBits",
-                externalLinkName: "kk_float_toRawBits",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // STDLIB-BIT-007: Additional bit manipulation functions.
+        // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use IEEE
+        // 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
+        // KSP-647: toBits and toRawBits are bundled Kotlin extensions in the
+        // same source file, backed by __kk_* declarations there.
 
         // STDLIB-BIT-007: Additional bit manipulation functions.
         // countOneBits / countLeadingZeroBits / countTrailingZeroBits are declared in
@@ -725,14 +676,14 @@ extension DataFlowSemaPhase {
         }
 
         // STDLIB-NUM-130: Double.fromBits(bits: Long) and Float.fromBits(bits: Int)
-        // Registered as top-level kotlin package functions (no receiver) so that the
-        // numericCompanionFunction path in the type checker can resolve them.
+        // remain top-level synthetic registrations because primitive Double and
+        // Float do not expose a Companion type in the compiler's core model.
         registerSyntheticTopLevelFunction(
             named: "fromBits",
             packageFQName: kotlinPkg,
             parameters: [(name: "bits", type: types.longType)],
             returnType: types.doubleType,
-            externalLinkName: "kk_double_fromBits",
+            externalLinkName: "__kk_double_fromBits",
             symbols: symbols,
             interner: interner
         )
@@ -741,7 +692,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinPkg,
             parameters: [(name: "bits", type: types.intType)],
             returnType: types.floatType,
-            externalLinkName: "kk_float_fromBits",
+            externalLinkName: "__kk_float_fromBits",
             symbols: symbols,
             interner: interner
         )
