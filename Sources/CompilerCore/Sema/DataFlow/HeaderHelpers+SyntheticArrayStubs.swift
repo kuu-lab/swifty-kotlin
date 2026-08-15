@@ -41,11 +41,6 @@ extension DataFlowSemaPhase {
         )
         types.setNominalTypeParameterSymbols([tParamSymbol], for: arraySymbol)
         types.setNominalTypeParameterVariances([.invariant], for: arraySymbol)
-        let arrayTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol,
-            nullability: .nonNull
-        )))
-
         let sizeReturnType = types.intType
         let sizeName = interner.intern("size")
         let sizeFQName = arrayFQName + [sizeName]
@@ -1182,7 +1177,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-
         // Register joinToString(separator, prefix, postfix) for primitive arrays.
         // Each primitive array type gets its own external link name because the
         // Runtime stores primitive array elements as raw unboxed bit patterns

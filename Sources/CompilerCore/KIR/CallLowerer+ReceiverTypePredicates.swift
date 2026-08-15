@@ -193,7 +193,6 @@ extension CallLowerer {
             return interner.intern("__kk_iterable_joinToString")
         }
     }
-
     func collectionSelectorPrimitiveCompareKind(
         of selectorExpr: ExprID?,
         sema: SemaModule

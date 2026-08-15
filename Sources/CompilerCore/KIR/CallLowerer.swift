@@ -15,6 +15,40 @@ final class CallLowerer {
         return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
+    /// Returns whether a direct lambda argument may use a label-free return to
+    /// leave the caller. Kotlin permits this only for function-type parameters
+    /// of inline functions that are neither `crossinline` nor `noinline`.
+    func allowsNonLocalReturn(
+        argumentExpr: ExprID,
+        argumentIndex: Int,
+        ast: ASTModule,
+        sema: SemaModule,
+        callBinding: CallBinding?,
+        chosen: SymbolID?
+    ) -> Bool {
+        guard case .lambdaLiteral = ast.arena.expr(argumentExpr),
+              let chosen,
+              sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) == true,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return false
+        }
+        let parameterIndex = callBinding?.parameterMapping[argumentIndex] ?? argumentIndex
+        guard signature.parameterTypes.indices.contains(parameterIndex) else {
+            return false
+        }
+        let parameterType = signature.parameterTypes[parameterIndex]
+        guard case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) else {
+            return false
+        }
+        // Older synthetic/imported signatures may not carry the parallel flag
+        // array. Preserve their historical behavior conservatively.
+        guard signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex) else {
+            return true
+        }
+        return signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+    }
+
     /// True when the call resolved to the stdlib `kotlin.contextOf` intrinsic.
     /// A user-declared `contextOf()` resolves to its own symbol and must keep
     /// normal call lowering instead of being replaced by a context receiver.
@@ -444,57 +478,6 @@ final class CallLowerer {
             return fallback
         }
 
-        // --- Scope function: with(receiver, block) (STDLIB-004) ---
-        if let scopeKind = sema.bindings.scopeFunctionKind(for: exprID),
-           scopeKind == .scopeWith,
-           args.count == 2
-        {
-            let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-            let loweredReceiverID = driver.lowerExpr(
-                args[0].expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-            // Set up implicit receiver for the lambda body.
-            let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-            let receiverType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-            let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
-            instructions.append(.copy(from: loweredReceiverID, to: receiverSymExpr))
-
-            let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
-            let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
-            driver.ctx.setLocalValue(receiverSymExpr, for: receiverSymbol)
-            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverSymExpr)
-
-            let loweredLambdaID = driver.lowerExpr(
-                args[1].expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-
-            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
-
-            let result = arena.appendTemporary(type: boundType
-            )
-            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-                instructions.append(.call(
-                    symbol: info.symbol,
-                    callee: info.callee,
-                    arguments: info.captureArguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Non-lambda-literal argument; restore state and
-                // fall through to normal call lowering.
-                driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
-            }
-            return result
-        }
-
         // --- Context helper: context(with, block) (STDLIB-KOTLIN-ROOT-CTX-001) ---
         if let scopeKind = sema.bindings.scopeFunctionKind(for: exprID),
            scopeKind == .scopeContext,
@@ -526,12 +509,22 @@ final class CallLowerer {
                     )
                 }
             }
+            let previousLambdaAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: args[args.count - 1].expr,
+                argumentIndex: args.count - 1,
+                ast: ast,
+                sema: sema,
+                callBinding: sema.bindings.callBinding(for: exprID),
+                chosen: sema.bindings.callBinding(for: exprID)?.chosenCallee
+            )
             let loweredLambdaID = driver.lowerExpr(
                 args[args.count - 1].expr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = previousLambdaAllowance
 
             let result = arena.appendTemporary(type: boundType
             )
@@ -551,48 +544,6 @@ final class CallLowerer {
                     result: result,
                     into: &instructions
                 )
-            }
-            return result
-        }
-
-        // --- Scope function: top-level run(block) (STDLIB-401) ---
-        if let scopeKind = sema.bindings.scopeFunctionKind(for: exprID),
-           scopeKind == .scopeTopLevelRun,
-           args.count == 1
-        {
-            let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-            let loweredLambdaID = driver.lowerExpr(
-                args[0].expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-
-            let result = arena.appendTemporary(type: boundType
-            )
-            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-                instructions.append(.call(
-                    symbol: info.symbol,
-                    callee: info.callee,
-                    arguments: info.captureArguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Callable reference or other non-lambda callable: invoke it
-                // so that `run(::foo)` calls foo() rather than returning the
-                // reference itself.  Use the already-lowered ID to avoid
-                // double-lowering the lambda argument expression.
-                let invokeName = interner.intern("invoke")
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: invokeName,
-                    arguments: [loweredLambdaID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             }
             return result
         }
@@ -621,8 +572,20 @@ final class CallLowerer {
         } else {
             interner.intern("<unknown>")
         }
-        let loweredArgIDs = args.map { argument in
-            driver.lowerExpr(
+        let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
+            let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: argument.expr,
+                argumentIndex: argumentIndex,
+                ast: ast,
+                sema: sema,
+                callBinding: callBinding,
+                chosen: chosen
+            )
+            defer {
+                driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance
+            }
+            return driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -874,6 +837,18 @@ final class CallLowerer {
         }
         if callableInvokeCallee != nil {
             finalArgIDs.insert(loweredCalleeExprID, at: 0)
+            if let callableValueCallBinding,
+               case let .functionType(functionType) = sema.types.kind(
+                   of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
+               ),
+               functionType.receiver != nil,
+               let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+            {
+                // A receiver-function value invoked as `block()` inside a
+                // receiver scope uses the active implicit receiver as its
+                // dispatch receiver (e.g. the bodies of T.run and T.apply).
+                finalArgIDs.insert(implicitReceiver, at: 1)
+            }
         }
         if callableInvokeCallee == nil, let loweredCallable {
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
@@ -991,15 +966,33 @@ final class CallLowerer {
             finalArgIDs.insert(allocatedObj, at: 0)
         } else if let chosen,
                   let signature = sema.symbols.functionSignature(for: chosen),
-                  signature.receiverType != nil,
-                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                  signature.receiverType != nil
         {
-            finalArgIDs.insert(implicitReceiver, at: 0)
+            var implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+            if implicitReceiver == nil,
+               sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
+            {
+                let receiver = arena.appendTemporary(type: signature.receiverType ?? sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_coroutine_current_scope"),
+                    arguments: [],
+                    result: receiver,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                implicitReceiver = receiver
+            }
+            if let implicitReceiver {
+                finalArgIDs.insert(implicitReceiver, at: 0)
+            }
             // An unqualified `compute()` inside a member body is `this.compute()`
             // and must dispatch through the receiver's vtable/itable exactly like
             // the explicit form: a subclass override, or a base-class
             // implementation of an interface method, is otherwise bypassed.
-            if sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true {
+            if let implicitReceiver,
+               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+            {
                 implicitReceiverDispatch = resolveVirtualDispatch(
                     callee: chosen,
                     receiverTypeID: arena.exprType(implicitReceiver),
@@ -1288,6 +1281,8 @@ final class CallLowerer {
                 return interner.intern("kk_suspend_function_invoke_0")
             case 1:
                 return interner.intern("kk_suspend_function_invoke")
+            case 2:
+                return interner.intern("kk_suspend_function_invoke_2")
             default:
                 return nil
             }

@@ -336,47 +336,23 @@ struct ArraySyntheticMemberLinkTests {
                 }
             }
 
-            // === testPrimitiveArrayJoinToStringOverloadsUseRuntimeExternalLinks ===
+            // === testPrimitiveArrayJoinToStringSyntheticOverloadsAreRemoved ===
             do {
-                let expectedLinks = [
-                    "IntArray": "kk_intArray_joinToString",
-                    "LongArray": "kk_longArray_joinToString",
-                    "ByteArray": "kk_byteArray_joinToString",
-                    "ShortArray": "kk_shortArray_joinToString",
-                    "UIntArray": "kk_uIntArray_joinToString",
-                    "ULongArray": "kk_uLongArray_joinToString",
-                    "DoubleArray": "kk_doubleArray_joinToString",
-                    "FloatArray": "kk_floatArray_joinToString",
-                    "BooleanArray": "kk_booleanArray_joinToString",
-                    "CharArray": "kk_charArray_joinToString",
-                    "UByteArray": "kk_uByteArray_joinToString",
-                    "UShortArray": "kk_uShortArray_joinToString",
+                let primitiveArrayNames = [
+                    "IntArray", "LongArray", "ByteArray", "ShortArray",
+                    "UIntArray", "ULongArray", "DoubleArray", "FloatArray",
+                    "BooleanArray", "CharArray", "UByteArray", "UShortArray",
                 ]
-                for (arrayName, externalLink) in expectedLinks {
-                    let symbolID = try #require(
-                        sema.symbols.lookup(
-                            fqName: [
-                                ctx.interner.intern("kotlin"),
-                                ctx.interner.intern(arrayName),
-                                ctx.interner.intern("joinToString"),
-                            ]
-                        ),
-                        "Expected \(arrayName).joinToString to be registered"
+                for arrayName in primitiveArrayNames {
+                    let nestedFQName = [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern(arrayName),
+                        ctx.interner.intern("joinToString"),
+                    ]
+                    #expect(
+                        sema.symbols.lookupAll(fqName: nestedFQName).isEmpty,
+                        "Expected synthetic \(arrayName).joinToString overloads to be removed"
                     )
-                    #expect(sema.symbols.externalLinkName(for: symbolID) == externalLink)
-                    let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-                    #expect(signature.parameterTypes == [sema.types.stringType, sema.types.stringType, sema.types.stringType])
-                    #expect(signature.valueParameterHasDefaultValues == [true, true, true])
-                    #expect(signature.returnType == sema.types.stringType)
-                    guard let receiverType = signature.receiverType,
-                          case let .classType(receiverClass) = sema.types.kind(of: receiverType),
-                          let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
-                    else {
-                        Issue.record("Expected \(arrayName) receiver type")
-                        return
-                    }
-                    #expect(ctx.interner.resolve(receiverSymbol.name) == arrayName)
-                    #expect(receiverClass.args.count == 0)
                 }
             }
 
@@ -675,6 +651,142 @@ struct ArraySyntheticMemberLinkTests {
             },
             "The generic kk_array_joinToString bridge must be removed"
         )
+    }
+
+    @Test
+    func testPrimitiveArrayHOFsBindBundledKotlinSource() throws {
+        let sources: [(arrayName: String, expression: String)] = [
+            ("IntArray", "intArrayOf(1)"),
+            ("LongArray", "longArrayOf(1L)"),
+            ("ByteArray", "byteArrayOf(1)"),
+            ("ShortArray", "shortArrayOf(1)"),
+            ("UIntArray", "uintArrayOf(1u)"),
+            ("ULongArray", "ulongArrayOf(1uL)"),
+            ("DoubleArray", "doubleArrayOf(1.0)"),
+            ("FloatArray", "floatArrayOf(1.0f)"),
+            ("BooleanArray", "booleanArrayOf(true)"),
+            ("CharArray", "charArrayOf('a')"),
+            ("UByteArray", "UByteArray(1) { 1.toUByte() }"),
+            ("UShortArray", "UShortArray(1) { 1.toUShort() }"),
+        ]
+        let ctx = makeContextFromSources(sources.map { entry in
+            let transform = entry.arrayName == "UByteArray" || entry.arrayName == "UShortArray"
+                ? "(it * 2u).toString()"
+                : "it.toString()"
+            return "fun sample() { val values = \(entry.expression); println(values.map { \(transform) }) }"
+        })
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userPaths = ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.origin(of: $0) == .user }
+            .map { ctx.sourceManager.path(of: $0) }
+
+        for (index, entry) in sources.enumerated() {
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[index], ctx: ctx) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "map"
+            }, "Expected \(entry.arrayName).map call")
+            let chosen = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected \(entry.arrayName).map to bind a callee"
+            )
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(
+                symbol.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern("collections"), ctx.interner.intern("map")],
+                "Expected \(entry.arrayName).map to bind kotlin.collections.map, got \(symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: "."))"
+            )
+            #expect(
+                sema.symbols.externalLinkName(for: chosen) == nil,
+                "Expected \(entry.arrayName).map to have no runtime link, got \(sema.symbols.externalLinkName(for: chosen) ?? "nil")"
+            )
+            #expect(
+                !symbol.flags.contains(.synthetic),
+                "Expected \(entry.arrayName).map to bind bundled Kotlin source"
+            )
+        }
+    }
+
+    @Test
+    func testPrimitiveArrayJoinToStringTransformBindsBundledKotlinSource() throws {
+        let sources: [(arrayName: String, expression: String)] = [
+            ("IntArray", "intArrayOf(1)"),
+            ("LongArray", "longArrayOf(1L)"),
+            ("ByteArray", "byteArrayOf(1)"),
+            ("ShortArray", "shortArrayOf(1)"),
+            ("UIntArray", "uintArrayOf(1u)"),
+            ("ULongArray", "ulongArrayOf(1uL)"),
+            ("DoubleArray", "doubleArrayOf(1.0)"),
+            ("FloatArray", "floatArrayOf(1.0f)"),
+            ("BooleanArray", "booleanArrayOf(true)"),
+            ("CharArray", "charArrayOf('a')"),
+            ("UByteArray", "UByteArray(1) { 1.toUByte() }"),
+            ("UShortArray", "UShortArray(1) { 1.toUShort() }"),
+        ]
+        let ctx = makeContextFromSources(sources.map { entry in
+            "fun sample() { val values = \(entry.expression); println(values.joinToString(\"-\", transform = { it.toString() })) }"
+        })
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userPaths = ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.origin(of: $0) == .user }
+            .map { ctx.sourceManager.path(of: $0) }
+
+        for (index, entry) in sources.enumerated() {
+            let callExpr = try #require(firstExprID(in: ast, path: userPaths[index], ctx: ctx) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "joinToString"
+            }, "Expected \(entry.arrayName).joinToString call")
+            let chosen = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected \(entry.arrayName).joinToString to bind a callee"
+            )
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(
+                symbol.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern("collections"), ctx.interner.intern("joinToString")],
+                "Expected \(entry.arrayName).joinToString to bind bundled source, got \(symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: "."))"
+            )
+            #expect(sema.symbols.externalLinkName(for: chosen) == nil)
+            #expect(!symbol.flags.contains(.synthetic))
+        }
+    }
+
+    @Test
+    func testGenericArrayJoinToStringTransformBindsBundledKotlinSource() throws {
+        let ctx = makeContextFromSources([
+            """
+            fun sample() {
+                val values = arrayOf(1, 2, 3)
+                println(values.joinToString("-", transform = { it.toString() }))
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let path = ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.origin(of: $0) == .user }
+            .map { ctx.sourceManager.path(of: $0) }
+            .first ?? ""
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "joinToString"
+        }, "Expected generic Array.joinToString call")
+        let chosen = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected generic Array.joinToString to bind a callee"
+        )
+        let symbol = try #require(sema.symbols.symbol(chosen))
+        #expect(
+            symbol.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern("collections"), ctx.interner.intern("joinToString")],
+            "Expected generic Array.joinToString to bind bundled source, got \(symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: "."))"
+        )
+        #expect(sema.symbols.externalLinkName(for: chosen) == nil)
+        #expect(!symbol.flags.contains(.synthetic))
     }
 
 

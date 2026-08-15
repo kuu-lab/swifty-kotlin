@@ -6,10 +6,8 @@ import Testing
 /// collection receivers wired through the standard aggregate / HOF infrastructure
 /// — `List<T>` / `Set<T>` (no-arg), source-backed `List<T>` (predicate HOF),
 /// `Range` (no-arg and predicate overloads), and `Array<T>` (no-arg and
-/// predicate overloads, via the Array HOF gap fix).
-/// Runtime link names involved: `kk_list_firstOrNull`, `kk_list_find`, `kk_set_firstOrNull`,
-/// `kk_range_firstOrNull`, `kk_range_firstOrNull_predicate`, `kk_array_firstOrNull`,
-/// `kk_array_find`.
+/// predicate overloads, via bundled Kotlin source).
+/// Array calls are source-backed and therefore do not require an array HOF runtime link.
 @Suite
 struct CollectionsFirstOrNullFunctionTests {
     @Test func testFirstOrNullFunctionResolvesInSource() throws {

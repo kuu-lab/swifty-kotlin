@@ -761,9 +761,9 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         for (memberName, externName) in [
-            ("intersect", "kk_list_intersect"),
-            ("union", "kk_list_union"),
-            ("subtract", "kk_list_subtract"),
+            ("intersect", "intersect"),
+            ("union", "union"),
+            ("subtract", "subtract"),
         ] {
             let internedName = interner.intern(memberName)
             let memberFQName = listFQName + [internedName]

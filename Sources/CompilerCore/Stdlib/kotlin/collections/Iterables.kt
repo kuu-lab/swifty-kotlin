@@ -5,6 +5,12 @@ package kotlin.collections
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
 // so it works for List, Set and any user-defined Iterable alike.
 
+public fun <T> Iterable<T>.toList(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) result.add(element)
+    return result
+}
+
 public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
@@ -272,38 +278,6 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     }
     return accumulator
 }
-
-@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
-    var sum = 0
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
-
-@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double {
-    var sum = 0.0
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
-
-public fun <T> Iterable<T>.plusElement(element: T): List<T> {
-    val result = this.toMutableList()
-    result.add(element)
-    return result
-}
-
-public fun <T> Iterable<T>.minusElement(element: T): List<T> {
-    val result = this.toMutableList()
-    result.remove(element)
-    return result
-}
-
-public operator fun <T> Iterable<T>.minus(element: T): List<T> = minusElement(element)
 
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any

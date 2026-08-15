@@ -503,17 +503,7 @@ struct SequenceSyntheticMemberLinkTests {
 
         // testSequenceFlatMapResolvesInCallExpressions -> no additional link assertion (source only)
 
-        do {
-            // testSequenceAsSequenceResolvesInCallExpressions -> Sequence.asSequence
-            let memberFQNameAsSequence = ["kotlin", "sequences", "Sequence", "asSequence"].map { ctx.interner.intern($0) }
-            let linksAsSequence = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameAsSequence).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(
-                linksAsSequence.contains("kk_sequence_asSequence"),
-                "Expected Sequence.asSequence to link to kk_sequence_asSequence, got \(linksAsSequence.sorted())"
-            )
-        }
+        // testSequenceAsSequenceResolvesInCallExpressions -> source-backed identity conversion
 
         // testSequenceReduceOrNullResolvesInCallExpressions -> no additional link assertion (source only)
 

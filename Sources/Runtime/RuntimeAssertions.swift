@@ -25,7 +25,7 @@ final class RuntimeAssertionErrorBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "AssertionError: \(message)"
+        runtimeRenderedExceptionMessage("AssertionError", message)
     }
 }
 
@@ -44,7 +44,7 @@ final class RuntimeIllegalStateExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "IllegalStateException: \(message)"
+        runtimeRenderedExceptionMessage("IllegalStateException", message)
     }
 }
 
@@ -63,7 +63,7 @@ final class RuntimeIllegalArgumentExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "IllegalArgumentException: \(message)"
+        runtimeRenderedExceptionMessage("IllegalArgumentException", message)
     }
 }
 
@@ -82,7 +82,7 @@ final class RuntimeNoWhenBranchMatchedExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "NoWhenBranchMatchedException: \(message)"
+        runtimeRenderedExceptionMessage("NoWhenBranchMatchedException", message)
     }
 }
 
@@ -101,7 +101,7 @@ final class RuntimeConcurrentModificationExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "ConcurrentModificationException: \(message)"
+        runtimeRenderedExceptionMessage("ConcurrentModificationException", message)
     }
 }
 
@@ -121,7 +121,7 @@ final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "ArrayIndexOutOfBoundsException: \(message)"
+        runtimeRenderedExceptionMessage("ArrayIndexOutOfBoundsException", message)
     }
 }
 
@@ -141,7 +141,7 @@ final class RuntimeStringIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "StringIndexOutOfBoundsException: \(message)"
+        runtimeRenderedExceptionMessage("StringIndexOutOfBoundsException", message)
     }
 }
 
@@ -161,7 +161,7 @@ final class RuntimeNumberFormatExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "NumberFormatException: \(message)"
+        runtimeRenderedExceptionMessage("NumberFormatException", message)
     }
 }
 
@@ -180,7 +180,7 @@ final class RuntimeArithmeticExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "ArithmeticException: \(message)"
+        runtimeRenderedExceptionMessage("ArithmeticException", message)
     }
 }
 
@@ -199,7 +199,7 @@ final class RuntimeNegativeArraySizeExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "NegativeArraySizeException: \(message)"
+        runtimeRenderedExceptionMessage("NegativeArraySizeException", message)
     }
 }
 
@@ -224,7 +224,7 @@ final class RuntimeExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "Exception: \(message)"
+        runtimeRenderedExceptionMessage("Exception", message)
     }
 }
 
@@ -242,7 +242,7 @@ final class RuntimeRuntimeExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "RuntimeException: \(message)"
+        runtimeRenderedExceptionMessage("RuntimeException", message)
     }
 }
 
@@ -259,7 +259,7 @@ final class RuntimeErrorBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "Error: \(message)"
+        runtimeRenderedExceptionMessage("Error", message)
     }
 }
 
@@ -277,7 +277,7 @@ final class RuntimeNotImplementedErrorBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "NotImplementedError: \(message)"
+        runtimeRenderedExceptionMessage("NotImplementedError", message)
     }
 }
 
@@ -296,7 +296,7 @@ final class RuntimeIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "IndexOutOfBoundsException: \(message)"
+        runtimeRenderedExceptionMessage("IndexOutOfBoundsException", message)
     }
 }
 
@@ -315,7 +315,7 @@ final class RuntimeUnsupportedOperationExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "UnsupportedOperationException: \(message)"
+        runtimeRenderedExceptionMessage("UnsupportedOperationException", message)
     }
 }
 
@@ -334,7 +334,7 @@ final class RuntimeNoSuchElementExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "NoSuchElementException: \(message)"
+        runtimeRenderedExceptionMessage("NoSuchElementException", message)
     }
 }
 
@@ -353,7 +353,7 @@ final class RuntimeClassCastExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "ClassCastException: \(message)"
+        runtimeRenderedExceptionMessage("ClassCastException", message)
     }
 }
 
@@ -372,14 +372,14 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        "NullPointerException: \(message)"
+        runtimeRenderedExceptionMessage("NullPointerException", message)
     }
 }
 
 // MARK: - Typed Allocators
 
 /// Allocates an `AssertionError` with the given message.
-func runtimeAllocateAssertionError(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateAssertionError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeAssertionErrorBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -389,7 +389,7 @@ func runtimeAllocateAssertionError(message: String, cause: Int = 0) -> Int {
 }
 
 /// Allocates an `IllegalStateException` with the given message.
-func runtimeAllocateIllegalStateException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateIllegalStateException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeIllegalStateExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -399,7 +399,7 @@ func runtimeAllocateIllegalStateException(message: String, cause: Int = 0) -> In
 }
 
 /// Allocates an `IllegalArgumentException` with the given message.
-func runtimeAllocateIllegalArgumentException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateIllegalArgumentException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeIllegalArgumentExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -408,7 +408,7 @@ func runtimeAllocateIllegalArgumentException(message: String, cause: Int = 0) ->
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateNoWhenBranchMatchedException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateNoWhenBranchMatchedException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -417,7 +417,7 @@ func runtimeAllocateNoWhenBranchMatchedException(message: String, cause: Int = 0
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateConcurrentModificationException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateConcurrentModificationException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeConcurrentModificationExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -426,7 +426,7 @@ func runtimeAllocateConcurrentModificationException(message: String, cause: Int 
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateArrayIndexOutOfBoundsException(message: String) -> Int {
+func runtimeAllocateArrayIndexOutOfBoundsException(message: String?) -> Int {
     let throwable = RuntimeArrayIndexOutOfBoundsExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -435,7 +435,7 @@ func runtimeAllocateArrayIndexOutOfBoundsException(message: String) -> Int {
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateStringIndexOutOfBoundsException(message: String) -> Int {
+func runtimeAllocateStringIndexOutOfBoundsException(message: String?) -> Int {
     let throwable = RuntimeStringIndexOutOfBoundsExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -444,7 +444,7 @@ func runtimeAllocateStringIndexOutOfBoundsException(message: String) -> Int {
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateNumberFormatException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateNumberFormatException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeNumberFormatExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -453,7 +453,7 @@ func runtimeAllocateNumberFormatException(message: String, cause: Int = 0) -> In
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateArithmeticException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateArithmeticException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeArithmeticExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -463,7 +463,7 @@ func runtimeAllocateArithmeticException(message: String, cause: Int = 0) -> Int 
 }
 
 /// Allocates a `NegativeArraySizeException` with the given message.
-func runtimeAllocateNegativeArraySizeException(message: String) -> Int {
+func runtimeAllocateNegativeArraySizeException(message: String?) -> Int {
     let throwable = RuntimeNegativeArraySizeExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -473,7 +473,7 @@ func runtimeAllocateNegativeArraySizeException(message: String) -> Int {
 }
 
 /// Allocates an `Exception` with the given message.
-func runtimeAllocateException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -483,7 +483,7 @@ func runtimeAllocateException(message: String, cause: Int = 0) -> Int {
 }
 
 /// Allocates a `RuntimeException` with the given message.
-func runtimeAllocateRuntimeException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateRuntimeException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeRuntimeExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -493,7 +493,7 @@ func runtimeAllocateRuntimeException(message: String, cause: Int = 0) -> Int {
 }
 
 /// Allocates an `Error` with the given message.
-func runtimeAllocateError(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeErrorBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -516,7 +516,7 @@ func runtimeAllocateNotImplementedError(message: String, cause: Int = 0) -> Int 
 }
 
 /// Allocates an `IndexOutOfBoundsException` with the given message.
-func runtimeAllocateIndexOutOfBoundsException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateIndexOutOfBoundsException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeIndexOutOfBoundsExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -526,7 +526,7 @@ func runtimeAllocateIndexOutOfBoundsException(message: String, cause: Int = 0) -
 }
 
 /// Allocates an `UnsupportedOperationException` with the given message.
-func runtimeAllocateUnsupportedOperationException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateUnsupportedOperationException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeUnsupportedOperationExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -536,7 +536,7 @@ func runtimeAllocateUnsupportedOperationException(message: String, cause: Int = 
 }
 
 /// Allocates a `NoSuchElementException` with the given message.
-func runtimeAllocateNoSuchElementException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateNoSuchElementException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeNoSuchElementExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -546,7 +546,7 @@ func runtimeAllocateNoSuchElementException(message: String, cause: Int = 0) -> I
 }
 
 /// Allocates a `ClassCastException` with the given message.
-func runtimeAllocateClassCastException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateClassCastException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeClassCastExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -556,7 +556,7 @@ func runtimeAllocateClassCastException(message: String, cause: Int = 0) -> Int {
 }
 
 /// Allocates a `NullPointerException` with the given message.
-func runtimeAllocateNullPointerException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateNullPointerException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeNullPointerExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -565,26 +565,33 @@ func runtimeAllocateNullPointerException(message: String, cause: Int = 0) -> Int
     return Int(bitPattern: ptr)
 }
 
-private func runtimeExceptionMessage(from raw: Int, defaultMessage: String) -> String {
+private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> String? {
     if raw == 0 || raw == runtimeNullSentinelInt {
         return defaultMessage
     }
     return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? defaultMessage
 }
 
-@_cdecl("kk_no_when_branch_matched_exception_new")
+private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
+    if raw == 0 || raw == runtimeNullSentinelInt {
+        return nil
+    }
+    return runtimeRenderAnyForPrint(raw)
+}
+
+@_cdecl("__kk_no_when_branch_matched_exception_new")
 public func kk_no_when_branch_matched_exception_new() -> Int {
     runtimeAllocateNoWhenBranchMatchedException(message: "No when branch matched")
 }
 
-@_cdecl("kk_no_when_branch_matched_exception_new_message")
+@_cdecl("__kk_no_when_branch_matched_exception_new_message")
 public func kk_no_when_branch_matched_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "No when branch matched")
     )
 }
 
-@_cdecl("kk_no_when_branch_matched_exception_new_message_cause")
+@_cdecl("__kk_no_when_branch_matched_exception_new_message_cause")
 public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "No when branch matched"),
@@ -592,7 +599,7 @@ public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: 
     )
 }
 
-@_cdecl("kk_no_when_branch_matched_exception_new_cause")
+@_cdecl("__kk_no_when_branch_matched_exception_new_cause")
 public func kk_no_when_branch_matched_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
         message: "No when branch matched",
@@ -600,55 +607,55 @@ public func kk_no_when_branch_matched_exception_new_cause(_ causeRaw: Int) -> In
     )
 }
 
-@_cdecl("kk_concurrent_modification_exception_new")
+@_cdecl("__kk_concurrent_modification_exception_new")
 public func kk_concurrent_modification_exception_new() -> Int {
-    runtimeAllocateConcurrentModificationException(message: "")
+    runtimeAllocateConcurrentModificationException(message: nil)
 }
 
-@_cdecl("kk_concurrent_modification_exception_new_message")
+@_cdecl("__kk_concurrent_modification_exception_new_message")
 public func kk_concurrent_modification_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateConcurrentModificationException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
-@_cdecl("kk_concurrent_modification_exception_new_message_cause")
+@_cdecl("__kk_concurrent_modification_exception_new_message_cause")
 public func kk_concurrent_modification_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateConcurrentModificationException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_concurrent_modification_exception_new_cause")
+@_cdecl("__kk_concurrent_modification_exception_new_cause")
 public func kk_concurrent_modification_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateConcurrentModificationException(
-        message: "",
+        message: nil,
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
 @_cdecl("kk_array_index_out_of_bounds_exception_new")
 public func kk_array_index_out_of_bounds_exception_new() -> Int {
-    runtimeAllocateArrayIndexOutOfBoundsException(message: "")
+    runtimeAllocateArrayIndexOutOfBoundsException(message: nil)
 }
 
 @_cdecl("kk_array_index_out_of_bounds_exception_new_message")
 public func kk_array_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateArrayIndexOutOfBoundsException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
 @_cdecl("kk_negative_array_size_exception_new")
 public func kk_negative_array_size_exception_new() -> Int {
-    runtimeAllocateNegativeArraySizeException(message: "")
+    runtimeAllocateNegativeArraySizeException(message: nil)
 }
 
 @_cdecl("kk_negative_array_size_exception_new_message")
 public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateNegativeArraySizeException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
@@ -658,156 +665,201 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
 // own external symbol (instead of sharing the type-erased `__kk_throwable_new`/
 // `__kk_throwable_new_with_cause`), so the allocated box carries the correct
 // `exceptionHierarchyFQNames` and `kk_op_is`/catch-clause dispatch can tell sibling
-// exception types apart. See HeaderHelpers+SyntheticExceptionStubs.swift for the
-// constructor registrations that reference these link names.
+// exception types apart. See Stdlib/kotlin/Exceptions.kt for the source-backed
+// constructor declarations that reference these link names.
 
-@_cdecl("kk_illegal_state_exception_new")
+@_cdecl("__kk_illegal_state_exception_new")
 public func kk_illegal_state_exception_new() -> Int {
-    runtimeAllocateIllegalStateException(message: "")
+    runtimeAllocateIllegalStateException(message: nil)
 }
 
-@_cdecl("kk_illegal_state_exception_new_message")
+@_cdecl("__kk_illegal_state_exception_new_message")
 public func kk_illegal_state_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateIllegalStateException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateIllegalStateException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_illegal_state_exception_new_message_cause")
+@_cdecl("__kk_illegal_state_exception_new_message_cause")
 public func kk_illegal_state_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateIllegalStateException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_illegal_argument_exception_new")
+@_cdecl("__kk_illegal_state_exception_new_cause")
+public func kk_illegal_state_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateIllegalStateException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_illegal_argument_exception_new")
 public func kk_illegal_argument_exception_new() -> Int {
-    runtimeAllocateIllegalArgumentException(message: "")
+    runtimeAllocateIllegalArgumentException(message: nil)
 }
 
-@_cdecl("kk_illegal_argument_exception_new_message")
+@_cdecl("__kk_illegal_argument_exception_new_message")
 public func kk_illegal_argument_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateIllegalArgumentException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateIllegalArgumentException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_illegal_argument_exception_new_message_cause")
+@_cdecl("__kk_illegal_argument_exception_new_message_cause")
 public func kk_illegal_argument_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateIllegalArgumentException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_number_format_exception_new")
+@_cdecl("__kk_illegal_argument_exception_new_cause")
+public func kk_illegal_argument_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateIllegalArgumentException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_number_format_exception_new")
 public func kk_number_format_exception_new() -> Int {
-    runtimeAllocateNumberFormatException(message: "")
+    runtimeAllocateNumberFormatException(message: nil)
 }
 
-@_cdecl("kk_number_format_exception_new_message")
+@_cdecl("__kk_number_format_exception_new_message")
 public func kk_number_format_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateNumberFormatException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateNumberFormatException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_number_format_exception_new_message_cause")
-public func kk_number_format_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateNumberFormatException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("kk_arithmetic_exception_new")
+@_cdecl("__kk_arithmetic_exception_new")
 public func kk_arithmetic_exception_new() -> Int {
-    runtimeAllocateArithmeticException(message: "")
+    runtimeAllocateArithmeticException(message: nil)
 }
 
-@_cdecl("kk_arithmetic_exception_new_message")
+@_cdecl("__kk_arithmetic_exception_new_message")
 public func kk_arithmetic_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateArithmeticException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateArithmeticException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_arithmetic_exception_new_message_cause")
-public func kk_arithmetic_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateArithmeticException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("kk_assertion_error_new")
+@_cdecl("__kk_assertion_error_new")
 public func kk_assertion_error_new() -> Int {
-    runtimeAllocateAssertionError(message: "")
+    runtimeAllocateAssertionError(message: nil)
 }
 
-@_cdecl("kk_assertion_error_new_message")
+@_cdecl("__kk_assertion_error_new_message")
 public func kk_assertion_error_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateAssertionError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateAssertionError(message: runtimeAssertionErrorMessage(from: messageRaw))
 }
 
-@_cdecl("kk_assertion_error_new_message_cause")
+@_cdecl("__kk_assertion_error_new_message_cause")
 public func kk_assertion_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateAssertionError(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_uninitialized_property_access_exception_new")
+@_cdecl("__kk_uninitialized_property_access_exception_new")
 public func kk_uninitialized_property_access_exception_new() -> Int {
-    runtimeAllocateUninitializedPropertyAccessException(message: "")
+    runtimeAllocateUninitializedPropertyAccessException(message: nil)
 }
 
-@_cdecl("kk_uninitialized_property_access_exception_new_message")
+@_cdecl("__kk_uninitialized_property_access_exception_new_message")
 public func kk_uninitialized_property_access_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateUninitializedPropertyAccessException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
-@_cdecl("kk_uninitialized_property_access_exception_new_message_cause")
+@_cdecl("__kk_uninitialized_property_access_exception_new_message_cause")
 public func kk_uninitialized_property_access_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateUninitializedPropertyAccessException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_exception_new")
+@_cdecl("__kk_uninitialized_property_access_exception_new_cause")
+public func kk_uninitialized_property_access_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateUninitializedPropertyAccessException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_exception_new")
 public func kk_exception_new() -> Int {
-    runtimeAllocateException(message: "")
+    runtimeAllocateException(message: nil)
 }
 
-@_cdecl("kk_runtime_exception_new")
+@_cdecl("__kk_exception_new_message")
+public func kk_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_exception_new_message_cause")
+public func kk_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_exception_new_cause")
+public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_runtime_exception_new")
 public func kk_runtime_exception_new() -> Int {
-    runtimeAllocateRuntimeException(message: "")
+    runtimeAllocateRuntimeException(message: nil)
 }
 
-@_cdecl("kk_runtime_exception_new_message")
+@_cdecl("__kk_runtime_exception_new_message")
 public func kk_runtime_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateRuntimeException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateRuntimeException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_runtime_exception_new_message_cause")
+@_cdecl("__kk_runtime_exception_new_message_cause")
 public func kk_runtime_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateRuntimeException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_error_new")
+@_cdecl("__kk_runtime_exception_new_cause")
+public func kk_runtime_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateRuntimeException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_error_new")
 public func kk_error_new() -> Int {
-    runtimeAllocateError(message: "")
+    runtimeAllocateError(message: nil)
 }
 
-@_cdecl("kk_error_new_message")
+@_cdecl("__kk_error_new_message")
 public func kk_error_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_error_new_message_cause")
+@_cdecl("__kk_error_new_message_cause")
 public func kk_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateError(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_error_new_cause")
+public func kk_error_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateError(
+        message: nil,
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -821,84 +873,74 @@ public func __kk_not_implemented_error_new() -> Int {
 public func __kk_not_implemented_error_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateNotImplementedError(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: runtimeNotImplementedDefaultMessage)
+            ?? runtimeNotImplementedDefaultMessage
     )
 }
 
-@_cdecl("kk_index_out_of_bounds_exception_new")
+@_cdecl("__kk_index_out_of_bounds_exception_new")
 public func kk_index_out_of_bounds_exception_new() -> Int {
-    runtimeAllocateIndexOutOfBoundsException(message: "")
+    runtimeAllocateIndexOutOfBoundsException(message: nil)
 }
 
-@_cdecl("kk_index_out_of_bounds_exception_new_message")
+@_cdecl("__kk_index_out_of_bounds_exception_new_message")
 public func kk_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateIndexOutOfBoundsException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateIndexOutOfBoundsException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_index_out_of_bounds_exception_new_message_cause")
-public func kk_index_out_of_bounds_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateIndexOutOfBoundsException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("kk_unsupported_operation_exception_new")
+@_cdecl("__kk_unsupported_operation_exception_new")
 public func kk_unsupported_operation_exception_new() -> Int {
-    runtimeAllocateUnsupportedOperationException(message: "")
+    runtimeAllocateUnsupportedOperationException(message: nil)
 }
 
-@_cdecl("kk_unsupported_operation_exception_new_message")
+@_cdecl("__kk_unsupported_operation_exception_new_message")
 public func kk_unsupported_operation_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateUnsupportedOperationException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
-@_cdecl("kk_unsupported_operation_exception_new_message_cause")
+@_cdecl("__kk_unsupported_operation_exception_new_message_cause")
 public func kk_unsupported_operation_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateUnsupportedOperationException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
 
-@_cdecl("kk_no_such_element_exception_new")
+@_cdecl("__kk_unsupported_operation_exception_new_cause")
+public func kk_unsupported_operation_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateUnsupportedOperationException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_no_such_element_exception_new")
 public func kk_no_such_element_exception_new() -> Int {
-    runtimeAllocateNoSuchElementException(message: "")
+    runtimeAllocateNoSuchElementException(message: nil)
 }
 
-@_cdecl("kk_no_such_element_exception_new_message")
+@_cdecl("__kk_no_such_element_exception_new_message")
 public func kk_no_such_element_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateNoSuchElementException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateNoSuchElementException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_no_such_element_exception_new_message_cause")
-public func kk_no_such_element_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateNoSuchElementException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("kk_class_cast_exception_new")
+@_cdecl("__kk_class_cast_exception_new")
 public func kk_class_cast_exception_new() -> Int {
-    runtimeAllocateClassCastException(message: "")
+    runtimeAllocateClassCastException(message: nil)
 }
 
-@_cdecl("kk_class_cast_exception_new_message")
+@_cdecl("__kk_class_cast_exception_new_message")
 public func kk_class_cast_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateClassCastException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""))
+    runtimeAllocateClassCastException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
-@_cdecl("kk_class_cast_exception_new_message_cause")
-public func kk_class_cast_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateClassCastException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: ""),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("kk_null_pointer_exception_new")
+@_cdecl("__kk_null_pointer_exception_new")
 public func kk_null_pointer_exception_new() -> Int {
-    runtimeAllocateNullPointerException(message: "")
+    runtimeAllocateNullPointerException(message: nil)
+}
+
+@_cdecl("__kk_null_pointer_exception_new_message")
+public func kk_null_pointer_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateNullPointerException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }

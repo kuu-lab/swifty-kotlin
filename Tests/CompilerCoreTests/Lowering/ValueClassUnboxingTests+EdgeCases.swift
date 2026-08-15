@@ -93,36 +93,71 @@ extension ValueClassUnboxingTests {
     // MARK: - Unboxing lowering with different payload types
 
     @Test
-    func testValueClassStringPayloadNoHeapAllocation() throws {
-        let source = """
-        value class Name(val raw: String)
+    func testValueClassLoweringEdgeCases() throws {
+        let sources = [
+            """
+            package valueclass.edge0
+            value class Name(val raw: String)
 
-        fun greet(n: Name): String = n.raw
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
+            fun greet(n: Name): String = n.raw
+            """,
+            """
+            package valueclass.edge1
+            value class ConcreteMeter(val amount: Int)
 
-        let module = try #require(ctx.kir)
-        let interner = ctx.interner
-        let kk_object_new = interner.intern("kk_object_new")
+            fun getAmount(m: ConcreteMeter): Int = m.amount
+            """,
+            """
+            package valueclass.edge2
+            value class MemberMeter(val amount: Int) {
+                fun doubled(): Int = amount * 2
+            }
 
-        var hasValueClassAlloc = false
-        for function in findAllKIRFunctions(in: module) {
-            for instruction in function.body {
-                if case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                   callee == kk_object_new,
-                   let result,
-                   let resultType = module.arena.exprType(result),
-                   case let .classType(classType) = ctx.sema?.types.kind(of: resultType),
-                   let sym = ctx.sema?.symbols.symbol(classType.classSymbol),
-                   sym.flags.contains(.valueType)
-                {
-                    hasValueClassAlloc = true
+            fun compute(): Int {
+                val m = MemberMeter(5)
+                return m.doubled()
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runToLowering(ctx)
+
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "Shared value-class fixture should have no errors for \(path): \(errors.map(\.message))")
+            }
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let nameSymbol = try #require(sema.symbols.allSymbols().first { symbol in
+                symbol.kind == .class && interner.resolve(symbol.name) == "Name"
+            })
+            let kkObjectNew = interner.intern("kk_object_new")
+
+            var hasNameValueClassAlloc = false
+            for function in findAllKIRFunctions(in: module) {
+                for instruction in function.body {
+                    if case let .call(_, callee, _, result, _, _, _, _ ) = instruction,
+                       callee == kkObjectNew,
+                       let result,
+                       let resultType = module.arena.exprType(result),
+                       case let .classType(classType) = sema.types.kind(of: resultType),
+                       classType.classSymbol == nameSymbol.id
+                    {
+                        hasNameValueClassAlloc = true
+                    }
                 }
             }
-        }
 
-        #expect(!hasValueClassAlloc, "kk_object_new for String-payload value class should be eliminated by unboxing")
+            #expect(!hasNameValueClassAlloc, "String-payload value class should not allocate a heap object after lowering")
+            #expect(
+                module.executedLowerings.contains("ValueClassUnboxing"),
+                "ValueClassUnboxing pass should run for concrete value class parameters and member calls"
+            )
+        }
     }
 
     // MARK: - @JvmInline annotation is inert (no additional effects beyond valueType flag)
@@ -209,23 +244,6 @@ extension ValueClassUnboxingTests {
         #expect(errors.isEmpty, "Upcasting value class to Any should not produce errors; got: \(errors.map { $0.message })")
     }
 
-    @Test
-    func testValueClassPassedAsConcreteTypeNoBoxing() throws {
-        let source = """
-        value class Meter(val amount: Int)
-
-        fun getAmount(m: Meter): Int = m.amount
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        let module = try #require(ctx.kir)
-        #expect(
-            module.executedLowerings.contains("ValueClassUnboxing"),
-            "ValueClassUnboxing pass should run when value class is used as concrete parameter type"
-        )
-    }
-
     // MARK: - Nullable value class
 
     @Test
@@ -273,28 +291,6 @@ extension ValueClassUnboxingTests {
             symbol.kind == .function && interner.resolve(symbol.name) == "doubled"
         })
         #expect(doubledExists, "Member function 'doubled' should be registered in the symbol table for value class Meter")
-    }
-
-    @Test
-    func testValueClassMemberFunctionUnboxedCorrectly() throws {
-        let source = """
-        value class Meter(val amount: Int) {
-            fun doubled(): Int = amount * 2
-        }
-
-        fun compute(): Int {
-            val m = Meter(5)
-            return m.doubled()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-
-        let module = try #require(ctx.kir)
-        #expect(
-            module.executedLowerings.contains("ValueClassUnboxing"),
-            "ValueClassUnboxing pass should run for value class with member function call"
-        )
     }
 
     // MARK: - Value class implementing interface
