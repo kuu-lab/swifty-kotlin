@@ -254,7 +254,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` | 367 | (c) | Common opt-in markers stay; split JS/Wasm markers into (a) cleanup first. |
 | `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 828 | (b) | M8 experimental time source migration. |
 | `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` | 291 | (a) | JVM file-walk compatibility; cleanup candidate. |
-| `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | JVM file-walk support enum; cleanup with file-walk surface. |
+| `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | ~~JVM file-walk support enum; cleanup with file-walk surface.~~ **削除済み** (CLEANUP-STUB-109, 2026-08-14)。 |
 | `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | 520 | (a) | `java.nio.file` / files utility surface; target-out cleanup. |
 | `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 523 | (c) | Function interfaces are compiler-known. |
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
