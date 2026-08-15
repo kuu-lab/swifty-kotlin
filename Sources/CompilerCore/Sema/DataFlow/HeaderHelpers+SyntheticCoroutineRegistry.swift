@@ -630,6 +630,43 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
 
+        // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
+        // `collect` and `collectLatest` as synthetic source-visible members so
+        // bundled operator bodies lower them to the retained kk_flow_* ABI
+        // instead of emitting the parameter name as a native symbol.
+        let flowElementType = types.make(.typeParam(TypeParamType(
+            symbol: flowTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let flowCollectorType = types.make(.functionType(FunctionType(
+            params: [flowElementType],
+            returnType: types.unitType,
+            isSuspend: true,
+            nullability: .nonNull
+        )))
+        registerSyntheticCoroutineMember(
+            ownerSymbol: flowInterfaceSymbol,
+            ownerType: flowRawType,
+            name: "collect",
+            externalLinkName: "kk_flow_collect",
+            returnType: types.unitType,
+            parameters: [(name: "collector", type: flowCollectorType)],
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineMember(
+            ownerSymbol: flowInterfaceSymbol,
+            ownerType: flowRawType,
+            name: "collectLatest",
+            externalLinkName: "__kk_flow_collectLatest",
+            returnType: types.unitType,
+            parameters: [(name: "collector", type: flowCollectorType)],
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticCoroutineMember(
             ownerSymbol: flowInterfaceSymbol,
             ownerType: flowRawType,
@@ -714,7 +751,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticExceptionConstructors(
+        registerSyntheticPlatformExceptionConstructors(
             ownerSymbol: cancellationSymbol,
             ownerType: cancellationType,
             symbols: symbols,
@@ -728,7 +765,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nullable
         )))
-        registerSyntheticExceptionConstructor(
+        registerSyntheticPlatformExceptionConstructor(
             ownerSymbol: cancellationSymbol,
             ownerType: cancellationType,
             parameters: [("cause", nullableThrowableType)],
@@ -1786,26 +1823,6 @@ extension DataFlowSemaPhase {
         // Flow builders
         registerSyntheticCoroutineTopLevelFunction(
             named: "flow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "channelFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "callbackFlow",
             packageFQName: flowPkg,
             parameters: [(name: "block", type: flowBuilderLambdaType)],
             returnType: flowRawType,

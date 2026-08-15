@@ -20,8 +20,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         let calleeNames: Set<InternedString> = [
             ctx.interner.intern("flow"),
-            ctx.interner.intern("channelFlow"),
-            ctx.interner.intern("callbackFlow"),
             ctx.interner.intern("emit"),
             ctx.interner.intern("map"),
             ctx.interner.intern("filter"),
@@ -45,8 +43,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     func run(module: KIRModule, ctx: KIRContext) throws {
         let interner = ctx.interner
         let flowName = interner.intern("flow")
-        let channelFlowName = interner.intern("channelFlow")
-        let callbackFlowName = interner.intern("callbackFlow")
         let emitName = interner.intern("emit")
         let mapName = interner.intern("map")
         let filterName = interner.intern("filter")
@@ -65,9 +61,9 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         let kkFlowCreateName = interner.intern("kk_flow_create")
         let kkFlowEmitName = interner.intern("kk_flow_emit")
         let kkFlowCollectName = interner.intern("kk_flow_collect")
-        let kkFlowToListName = interner.intern("kk_flow_to_list")
-        let kkFlowFirstName = interner.intern("kk_flow_first")
-        let kkFlowSingleName = interner.intern("kk_flow_single")
+        let kkFlowToListName = interner.intern("__kk_flow_to_list")
+        let kkFlowFirstName = interner.intern("__kk_flow_first")
+        let kkFlowSingleName = interner.intern("__kk_flow_single")
 
         let intType = ctx.sema?.types.intType
 
@@ -115,7 +111,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
-                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    guard callee == flowName,
                           arguments.count == 1
                     else {
                         continue
@@ -131,7 +127,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     let fallbackLambdaName = interner.intern("kk_lambda_\(lambdaArg.rawValue)")
                     flowBuilderFunctionNames.insert(fallbackLambdaName)
                 case let .virtualCall(_, callee, _, arguments, _, _, _, _):
-                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    guard callee == flowName,
                           arguments.count == 1
                     else {
                         continue
@@ -172,7 +168,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
             // KSP-499 Stage 3: a call to a *source-level* operator name
             // (map/filter/toList/collect/flow/...) that Sema already resolved
-            // to a real, non-synthetic declared symbol is never one of this
+            // to a real declared symbol, including an imported bundled
+            // declaration with a `kk_fn_*` link name, is never one of this
             // pass's hard-coded Flow intrinsics — those are recognized purely
             // by literal callee name and never bind a symbol (see
             // CallTypeChecker+MemberCallInferenceCollectionFlow.swift). When a
@@ -195,7 +192,11 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                 else {
                     return false
                 }
-                return !resolvedSymbol.flags.contains(.synthetic)
+                if !resolvedSymbol.flags.contains(.synthetic) {
+                    return true
+                }
+                return sema.symbols.isSourceBackedSymbol(symbol)
+                    && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
             }
 
             for instruction in function.body {
@@ -236,7 +237,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    if callee == flowName,
                        arguments.count == 1
                     {
                         let continuation = appendIntConstant(0)

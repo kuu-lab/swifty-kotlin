@@ -12,65 +12,19 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let listE = kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
-        let mutableList = kotlinCollectionsPkg + [interner.intern("MutableList")]
-        let setSym = kotlinCollectionsPkg + [interner.intern("Set")]
-        let mutableSet = kotlinCollectionsPkg + [interner.intern("MutableSet")]
-        guard let listTypeParamSymbol = symbols.lookup(fqName: listE),
-            let mutableListSymbol = symbols.lookup(fqName: mutableList),
-            let setInterfaceSymbol = symbols.lookup(fqName: setSym),
-            let mutableSetInterfaceSymbol = symbols.lookup(fqName: mutableSet)
+        guard let listTypeParamSymbol = symbols.lookup(fqName: listE)
         else {
             return
         }
         let listTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: listTypeParamSymbol, nullability: .nonNull
         )))
-        registerListToMutableListMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            mutableListSymbol: mutableListSymbol
-        )
-        registerListToSetMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            setInterfaceSymbol: setInterfaceSymbol
-        )
         registerListToMapMember(
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             mapInterfaceSymbol: mapInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType
-        )
-        let iterableSymbolForOps = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("Iterable")]
-        ) ?? collectionInterfaceSymbol
-        registerListSetOperationMembers(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            setInterfaceSymbol: setInterfaceSymbol,
-            iterableInterfaceSymbol: iterableSymbolForOps
-        )
-        registerListToHashSetMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            mutableSetInterfaceSymbol: mutableSetInterfaceSymbol
-        )
-        // STDLIB-651: List.toMutableSet() → kk_list_to_mutable_set
-        registerListToMutableSetMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            mutableSetInterfaceSymbol: mutableSetInterfaceSymbol
         )
         registerListAsSequenceMember(
             symbols: symbols, types: types, interner: interner,

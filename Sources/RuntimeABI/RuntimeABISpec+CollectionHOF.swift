@@ -208,39 +208,61 @@ public extension RuntimeABISpec {
                 section: "Collection"
             ),
         ]
-        let sumOfSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sumOf",
+        let asReversedSpec = RuntimeABIFunctionSpec(
+            name: "__kk_list_as_reversed",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection"
+            section: "Collection",
+            isThrowing: false
         )
-        let sumBySpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sumBy",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let sumByDoubleSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sumByDouble",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
+        let listSliceTakeDropSpecs = [
+            RuntimeABIFunctionSpec(
+                name: "kk_list_take",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "kk_list_takeLast",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "kk_list_drop",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "kk_list_dropLast",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                ],
+                returnType: .intptr,
+                section: "Collection",
+                isThrowing: false
+            ),
+            hofSpec("kk_list_takeWhile"),
+            hofSpec("kk_list_takeLastWhile"),
+            hofSpec("kk_list_dropWhile"),
+            hofSpec("kk_list_dropLastWhile"),
+        ]
         let maxOrNullSpec = RuntimeABIFunctionSpec(
             name: "kk_list_maxOrNull",
             parameters: [
@@ -275,42 +297,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let sumSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sum",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let averageSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_average",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let reversedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let asReversedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_as_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
         let sortedSpec = RuntimeABIFunctionSpec(
             name: "kk_list_sorted",
             parameters: [
@@ -328,15 +314,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Collection"
-        )
-        let distinctSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_distinct",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
         )
         let shuffledSpec = RuntimeABIFunctionSpec(
             name: "kk_list_shuffled",
@@ -409,11 +386,15 @@ public extension RuntimeABISpec {
         functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
+                asReversedSpec,
+                maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
-                sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
+                sortedSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
+            ]
+            + listSliceTakeDropSpecs
+            + [
 
                 RuntimeABIFunctionSpec(
                     name: "kk_list_sortedDescending",
@@ -635,15 +616,6 @@ public extension RuntimeABISpec {
                     isThrowing: false
                 ),
                 // STDLIB-533: List?.orEmpty()
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_orEmpty",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
             ])
         return functions
     }()

@@ -111,8 +111,6 @@ struct FlowSemaTests {
                 flowOf(1, 2, 3).collect { println(it) }
                 emptyFlow<Int>().collect { println(it) }
                 listOf(1, 2, 3).asFlow().collect { println(it) }
-                channelFlow<Int> { emit(1); emit(2) }.collect { println(it) }
-                callbackFlow<Int> { emit(3); emit(4) }.collect { println(it) }
             }
         }
         """,
@@ -160,6 +158,21 @@ struct FlowSemaTests {
                     val y: Int = emit(1)
                     println(y)
                 }.collect { println(it) }
+            }
+        }
+        """,
+        """
+        package sample12
+        fun main() {
+            runBlocking {
+                val source = flow { emit(1); emit(2) }
+                source.map { it + 1 }
+                    .filter { it > 1 }
+                    .take(1)
+                    .toList()
+                source.first()
+                source.fold(0) { acc, value -> acc + value }
+                source.reduce { acc, value -> acc + value }
             }
         }
         """
@@ -340,6 +353,28 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
+    @Test func testBundledFlowOperatorsWinOverIntrinsicFallback() throws {
+        let ctx = try cleanCtx()
+        let sema = try #require(ctx.sema)
+        let migratedOperators: Set = ["map", "filter", "take", "toList", "first", "fold", "reduce"]
+
+        let chosenCallees = sema.bindings.callBindings.values.compactMap(\.chosenCallee).filter { callee in
+            guard let symbol = sema.symbols.symbol(callee) else { return false }
+            let fqName = symbol.fqName.map(ctx.interner.resolve).joined(separator: ".")
+            return migratedOperators.contains(ctx.interner.resolve(symbol.name))
+                && fqName.hasPrefix("kotlinx.coroutines.flow.")
+        }
+        let chosenNames = Set(chosenCallees.compactMap { callee in
+            sema.symbols.symbol(callee).map { ctx.interner.resolve($0.name) }
+        })
+        #expect(migratedOperators.isSubset(of: chosenNames),
+            "Expected every migrated Flow operator to be bound to bundled Kotlin")
+        for callee in chosenCallees {
+            #expect(sema.symbols.isSourceBackedSymbol(callee))
+            #expect(CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee)))
+        }
+    }
+
     @Test func testFlowErrorHandlingMembersTypeCheck() throws {
         let ctx = try cleanCtx()
 
@@ -355,6 +390,38 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+    }
+
+    @Test func testChannelFlowAndCallbackFlowAreExplicitlyUnsupported() throws {
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: [
+            """
+            package unsupported_flow_builders
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() {
+                runBlocking {
+                    channelFlow<Int> { send(1) }.collect { println(it) }
+                    callbackFlow<Int> { trySend(1); close() }.collect { println(it) }
+                }
+            }
+            """
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        let unresolvedBuilderDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+            diagnostic.code == "KSWIFTK-SEMA-0023"
+                && (diagnostic.message.contains("channelFlow") || diagnostic.message.contains("callbackFlow"))
+        }
+        #expect(
+            unresolvedBuilderDiagnostics.count == 2,
+            "channelFlow/callbackFlow should remain explicit unresolved APIs: \(ctx.diagnostics.diagnostics)"
+        )
     }
 }
 #endif

@@ -23,13 +23,6 @@ final class RuntimeListIteratorTests {
         return kk_list_iterator(listHandle)
     }
 
-    @Test
-    func testListLastIndexReturnsSizeMinusOne() {
-        #expect(kk_list_lastIndex(makeList([10, 20, 30])) == 2)
-        #expect(kk_list_lastIndex(makeList([10])) == 0)
-        #expect(kk_list_lastIndex(makeList([])) == -1)
-    }
-
     // MARK: - Basic Functionality Tests
 
     @Test

@@ -1,14 +1,5 @@
-/// Synthetic stubs for kotlin.time.Duration class, Companion extension properties,
-/// and inWhole* accessor properties (STDLIB-582/583/584).
-private let syntheticDurationUnitEntries = [
-    "NANOSECONDS",
-    "MICROSECONDS",
-    "MILLISECONDS",
-    "SECONDS",
-    "MINUTES",
-    "HOURS",
-    "DAYS",
-]
+/// Synthetic bridges retained for kotlin.time.Duration's native parsing and
+/// arithmetic compatibility surface.
 
 extension DataFlowSemaPhase {
     func registerSyntheticDurationStubs(
@@ -21,23 +12,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TIME-STABLE-008: DurationUnit enum surface ---
-        let durationUnitSymbol = ensureSyntheticDurationUnitEnumClass(
+        // --- STDLIB-TIME-STABLE-008: DurationUnit enum anchor ---
+        // The enum entries are declared by bundled DurationUnit.kt. Keep only
+        // the nominal shell here so source collection can reuse it.
+        _ = ensureSyntheticDurationUnitEnumClass(
             in: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
-        let durationUnitType = types.make(.classType(ClassType(
-            classSymbol: durationUnitSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        setSyntheticDurationUnitEntryTypes(
-            enumSymbol: durationUnitSymbol,
-            enumType: durationUnitType,
-            symbols: symbols
-        )
-
         // --- Duration class symbol ---
         let durationSymbol = ensureClassSymbol(
             named: "Duration",
@@ -60,44 +42,9 @@ extension DataFlowSemaPhase {
         )))
 
         let intType = types.intType
-        let longType = types.longType
         let doubleType = types.doubleType
         let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
-
-        // --- STDLIB-TIME-STABLE-009: Numeric.toDuration(unit) extension functions ---
-        registerDurationFactoryExtensionFunction(
-            named: "toDuration",
-            externalLinkName: "kk_duration_toDuration_int",
-            receiverType: intType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionFunction(
-            named: "toDuration",
-            externalLinkName: "kk_duration_toDuration_long",
-            receiverType: longType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionFunction(
-            named: "toDuration",
-            externalLinkName: "kk_duration_toDuration_double",
-            receiverType: doubleType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // --- STDLIB-TIME-STABLE-001: Duration companion constants ---
         // KSP-471: ZERO/INFINITE/parse* are Kotlin source Companion extension
@@ -166,19 +113,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [stringType],
             returnType: types.makeNullable(durationType),
             packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-582/583/584: Duration.inWhole* properties ---
-        // KSP-471: inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days are Kotlin
-        // source extension properties (Stdlib/kotlin/time/Duration.kt) built on top of
-        // inWholeNanoseconds, which stays native (base primitive) below.
-        registerDurationMemberProperty(
-            named: "inWholeNanoseconds",
-            externalLinkName: "kk_duration_inWholeNanoseconds",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
             symbols: symbols,
             interner: interner
         )
@@ -418,40 +352,7 @@ extension DataFlowSemaPhase {
             enumSymbol = symbol
         }
 
-        for entry in syntheticDurationUnitEntries {
-            let entryName = interner.intern(entry)
-            let entryFQName = enumFQName + [entryName]
-            let entrySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: entryFQName) {
-                entrySymbol = existing
-            } else {
-                entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entryName,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-        }
-
         return enumSymbol
-    }
-
-    private func setSyntheticDurationUnitEntryTypes(
-        enumSymbol: SymbolID,
-        enumType: TypeID,
-        symbols: SymbolTable
-    ) {
-        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        for child in symbols.children(ofFQName: enumInfo.fqName) {
-            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else {
-                continue
-            }
-            symbols.setPropertyType(enumType, for: child)
-        }
     }
 
     private func ensureDurationCompanionSymbol(

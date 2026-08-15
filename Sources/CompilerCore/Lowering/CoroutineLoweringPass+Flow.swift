@@ -71,13 +71,20 @@ struct FlowLoweringNames {
 }
 
 extension CoroutineLoweringPass {
-    /// Returns true when `symbol` resolves to a real, non-synthetic declaration.
-    /// Unresolved (`nil`) and synthetic-stub symbols are treated as flow intrinsics.
+    /// Returns true when `symbol` resolves to a real Kotlin declaration.
+    /// Bundled Kotlin declarations imported from a stdlib artifact carry both
+    /// `importedLibrary` and `synthetic`, so provenance is checked together
+    /// with the compiler-generated `kk_fn_` link name. Runtime bridge stubs
+    /// remain intrinsics even when they are source-backed metadata records.
     func hasRealDeclaration(_ symbol: SymbolID?, in ctx: KIRContext) -> Bool {
         guard let symbol, let sema = ctx.sema, let resolvedSymbol = sema.symbols.symbol(symbol) else {
             return false
         }
-        return !resolvedSymbol.flags.contains(.synthetic)
+        if !resolvedSymbol.flags.contains(.synthetic) {
+            return true
+        }
+        return sema.symbols.isSourceBackedSymbol(symbol)
+            && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
     }
 
     /// Lower `flow { }`, `emit`, `map`, `filter`, `take`, `collect` calls to their
@@ -85,8 +92,6 @@ extension CoroutineLoweringPass {
     /// `CollectionLiteralLoweringPass`.
     func lowerFlowExpressions(module: KIRModule, ctx: KIRContext) {
         let flowName = ctx.interner.intern("flow")
-        let channelFlowName = ctx.interner.intern("channelFlow")
-        let callbackFlowName = ctx.interner.intern("callbackFlow")
         let emitName = ctx.interner.intern("emit")
         let collectName = ctx.interner.intern("collect")
         let collectLatestName = ctx.interner.intern("collectLatest")
@@ -120,18 +125,18 @@ extension CoroutineLoweringPass {
         let kkFlowCreateName = ctx.interner.intern("kk_flow_create")
         let kkFlowEmitName = ctx.interner.intern("kk_flow_emit")
         let kkFlowCollectName = ctx.interner.intern("kk_flow_collect")
-        let kkFlowCollectLatestName = ctx.interner.intern("kk_flow_collectLatest")
-        let kkFlowRetainName = ctx.interner.intern("kk_flow_retain")
-        let kkFlowReleaseName = ctx.interner.intern("kk_flow_release")
-        let kkFlowToListName = ctx.interner.intern("kk_flow_to_list")
-        let kkFlowFirstName = ctx.interner.intern("kk_flow_first")
-        let kkFlowSingleName = ctx.interner.intern("kk_flow_single")
-        let kkFlowZipName = ctx.interner.intern("kk_flow_zip")
-        let kkFlowCombineName = ctx.interner.intern("kk_flow_combine")
-        let kkFlowMergeName = ctx.interner.intern("kk_flow_merge")
-        let kkFlowFlatMapConcatName = ctx.interner.intern("kk_flow_flat_map_concat")
-        let kkFlowFlatMapMergeName = ctx.interner.intern("kk_flow_flat_map_merge")
-        let kkFlowFlatMapLatestName = ctx.interner.intern("kk_flow_flat_map_latest")
+        let kkFlowCollectLatestName = ctx.interner.intern("__kk_flow_collectLatest")
+        let kkFlowRetainName = ctx.interner.intern("__kk_flow_retain")
+        let kkFlowReleaseName = ctx.interner.intern("__kk_flow_release")
+        let kkFlowToListName = ctx.interner.intern("__kk_flow_to_list")
+        let kkFlowFirstName = ctx.interner.intern("__kk_flow_first")
+        let kkFlowSingleName = ctx.interner.intern("__kk_flow_single")
+        let kkFlowZipName = ctx.interner.intern("__kk_flow_zip")
+        let kkFlowCombineName = ctx.interner.intern("__kk_flow_combine")
+        let kkFlowMergeName = ctx.interner.intern("__kk_flow_merge")
+        let kkFlowFlatMapConcatName = ctx.interner.intern("__kk_flow_flat_map_concat")
+        let kkFlowFlatMapMergeName = ctx.interner.intern("__kk_flow_flat_map_merge")
+        let kkFlowFlatMapLatestName = ctx.interner.intern("__kk_flow_flat_map_latest")
 
         // Fallback for call results whose Sema-inferred type is Flow<T> even
         // though the callee isn't a recognized builder name (e.g. a user
@@ -278,7 +283,7 @@ extension CoroutineLoweringPass {
                         if let result, !flowExprIDs.contains(result.rawValue), isFlowClassResultType(result) {
                             if markFlowExpr(result) { changed = true }
                         }
-                        if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                        if callee == flowName,
                            arguments.count == 1,
                            isFlowRewriteCandidate(symbol, callee)
                         {
@@ -439,7 +444,7 @@ extension CoroutineLoweringPass {
             let hasFlowLikeCalls = function.body.contains { instruction in
                 switch instruction {
                 case let .call(_, callee, _, _, _, _, _, _):
-                    callee == flowName || callee == channelFlowName || callee == callbackFlowName ||
+                    callee == flowName ||
                         callee == emitName || callee == collectName || callee == collectLatestName ||
                         callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||

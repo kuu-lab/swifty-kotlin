@@ -5,6 +5,12 @@ package kotlin.collections
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
 // so it works for List, Set and any user-defined Iterable alike.
 
+public fun <T> Iterable<T>.toList(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) result.add(element)
+    return result
+}
+
 public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
@@ -27,6 +33,8 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     for (element in this) destination.add(element)
     return destination
 }
+
+public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> Iterable<T>.last(): T {
@@ -191,38 +199,25 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     return accumulator
 }
 
-@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
-    var sum = 0
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
-
-@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double {
-    var sum = 0.0
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
-
-public fun <T> Iterable<T>.plusElement(element: T): List<T> {
-    val result = this.toMutableList()
-    result.add(element)
-    return result
-}
-
-public fun <T> Iterable<T>.minusElement(element: T): List<T> {
-    val result = this.toMutableList()
-    result.remove(element)
-    return result
-}
-
-public operator fun <T> Iterable<T>.minus(element: T): List<T> = minusElement(element)
-
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = joinToString(", ", "", "", transform)
+
+// Char.toString() is represented by its numeric code in the generic path;
+// keep the List<Char> overload aligned with Kotlin's character rendering.
+public fun List<Char>.joinToString(
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = ""
+): String {
+    val buffer = StringBuilder()
+    buffer.append(prefix)
+    var first = true
+    for (element in this) {
+        if (!first) buffer.append(separator)
+        buffer.append(element)
+        first = false
+    }
+    buffer.append(postfix)
+    return buffer.toString()
+}

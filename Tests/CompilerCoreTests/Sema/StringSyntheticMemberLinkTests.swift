@@ -42,6 +42,7 @@ struct StringSyntheticMemberLinkTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -65,6 +66,24 @@ struct StringSyntheticMemberLinkTests {
         }
         return results
     }
+
+    // BUG-211: CharSequence.length must be represented as an interface
+    // property so bundled Kotlin reads can use the normal itable path.
+    @Test
+    func testBug211CharSequenceLengthIsSyntheticInterfaceProperty() throws {
+        let (sema, interner) = try sharedSema()
+        let charSequenceFQ = ["kotlin", "CharSequence"].map { interner.intern($0) }
+        let lengthFQ = charSequenceFQ + [interner.intern("length")]
+        let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: charSequenceFQ))
+        let lengthSymbol = try #require(sema.symbols.lookup(fqName: lengthFQ))
+        let lengthInfo = try #require(sema.symbols.symbol(lengthSymbol))
+
+        #expect(lengthInfo.kind == .property)
+        #expect(lengthInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: lengthSymbol) == charSequenceSymbol)
+        #expect(sema.symbols.propertyType(for: lengthSymbol) == sema.types.intType)
+    }
+
     @Test func testStringSyntheticMemberLinkRegistrations() throws {
         let (sema, interner) = try sharedSema()
 

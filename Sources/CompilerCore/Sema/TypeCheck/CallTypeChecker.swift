@@ -305,46 +305,6 @@ final class CallTypeChecker {
             return refinedReturnType
         }
 
-        // --- Scope function: with(receiver, block) (STDLIB-004, STDLIB-061) ---
-        // Must intercept BEFORE eager arg inference so the lambda argument
-        // is inferred with the correct implicit receiver type.
-        // Intercept when no local or user-defined (non-synthetic) `with` shadows the stdlib helper.
-        if let calleeName, args.count == 2,
-           calleeName == knownNames.with,
-           locals[calleeName] == nil,
-           !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
-               guard let sym = ctx.cachedSymbol(candidate) else { return false }
-               return !sym.flags.contains(.synthetic)
-           })
-        {
-            // First arg is the receiver object
-            let withReceiverType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            // Second arg is the lambda with receiver
-            let receiverCtx = ctx.with(implicitReceiverType: withReceiverType)
-            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                receiver: withReceiverType,
-                params: [],
-                returnType: expectedType ?? sema.types.anyType
-            )))
-            let lambdaType = driver.inferExpr(
-                args[1].expr, ctx: receiverCtx, locals: &locals,
-                expectedType: lambdaExpectedType
-            )
-            let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                fnType.returnType
-            } else {
-                sema.bindings.exprTypes[args[1].expr].flatMap { typeID in
-                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                        return fnType.returnType
-                    }
-                    return nil
-                } ?? sema.types.anyType
-            }
-            sema.bindings.markScopeFunctionExpr(id, kind: .scopeWith)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-
         // --- Context helper: context(with, block) (STDLIB-KOTLIN-ROOT-CTX-001) ---
         // The helper makes the first argument available as a context receiver
         // for the block type, but does not make it an implicit receiver.
@@ -488,46 +448,6 @@ final class CallTypeChecker {
             return refinedChannelType
         }
 
-        // --- Scope function: top-level run(block) (STDLIB-401) ---
-        // `run { expr }` simply executes the block lambda and returns the result.
-        // Intercept when no local or user-defined (non-synthetic) `run` shadows the stdlib helper.
-        // The single argument must be a lambda literal or callable reference;
-        // otherwise (e.g. `run(123)`) fall through to normal call resolution.
-        if isTopLevelRunCandidate(
-            calleeName: calleeName,
-            args: args,
-            knownNames: knownNames,
-            ast: ast,
-            ctx: ctx,
-            locals: locals
-        ) {
-            let lambdaExpectedType: TypeID? = if let expectedType {
-                sema.types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: expectedType
-                )))
-            } else {
-                nil
-            }
-            let lambdaType = driver.inferExpr(
-                args[0].expr, ctx: ctx, locals: &locals,
-                expectedType: lambdaExpectedType
-            )
-            let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                fnType.returnType
-            } else {
-                sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
-                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                        return fnType.returnType
-                    }
-                    return nil
-                } ?? sema.types.anyType
-            }
-            sema.bindings.markScopeFunctionExpr(id, kind: .scopeTopLevelRun)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-
         // --- kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn ---
         // Special intrinsic used by coroutine lowering. The block is type-checked
         // as a regular function taking the current Continuation<T>.
@@ -635,8 +555,6 @@ final class CallTypeChecker {
         // resolves in Sema fallback.
         let flowFactoryNames: Set<InternedString> = [
             knownNames.flow,
-            interner.intern("channelFlow"),
-            interner.intern("callbackFlow"),
         ]
         if let calleeName,
            flowFactoryNames.contains(calleeName),
@@ -1801,6 +1719,16 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if interner.resolve(calleeName) == "toList",
+               let implicitReceiverType = ctx.implicitReceiverType
+            {
+                candidates = preferCollectionToListCandidates(
+                    candidates,
+                    receiverType: implicitReceiverType,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             // If all candidates were blocked by DslMarker, emit a specific diagnostic.
             if candidates.isEmpty, !dslBlockedCandidates.isEmpty {
                 ctx.semaCtx.diagnostics.error(
@@ -2064,10 +1992,17 @@ final class CallTypeChecker {
         }
 
         var expectedTypeOverrides: [Int: TypeID] = [:]
+        var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType
         {
             expectedTypeOverrides[launcherIndex] = coroutineLauncherExpectedLambdaType
+            var builderContext = ctx
+            builderContext.isCoroutineBuilderLambdaScope = true
+            if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
+                builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
+            }
+            lambdaContextOverrides[launcherIndex] = builderContext
         }
         if let withContextExpectedLambdaType, args.count > 1 {
             expectedTypeOverrides[1] = withContextExpectedLambdaType
@@ -2077,6 +2012,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
+            lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
         )
@@ -2558,6 +2494,14 @@ final class CallTypeChecker {
             {
                 adjustedReturnType = expectedType
             }
+            if let implicitReceiverType = ctx.implicitReceiverType {
+                markCoroutineScopeImplicitReceiverCallIfNeeded(
+                    id,
+                    chosenCallee: chosen,
+                    receiverType: implicitReceiverType,
+                    ctx: ctx
+                )
+            }
             applyContractEffects(
                 chosen: chosen,
                 args: args,
@@ -2794,12 +2738,20 @@ final class CallTypeChecker {
             }
 
             // General member function lookup via implicit receiver
-            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            var memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: nonNullReceiver,
                 sema: sema,
                 interner: interner
             )
+            if interner.resolve(calleeName) == "toList" {
+                memberCandidates = preferCollectionToListCandidates(
+                    memberCandidates,
+                    receiverType: nonNullReceiver,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             if !memberCandidates.isEmpty {
                 // Eagerly infer argument types for overload resolution.
                 let memberArgTypes = args.map { argument in
@@ -2823,6 +2775,12 @@ final class CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    markCoroutineScopeImplicitReceiverCallIfNeeded(
+                        id,
+                        chosenCallee: chosen,
+                        receiverType: receiverType,
+                        ctx: ctx
+                    )
                     sema.bindings.bindExprType(id, type: resultType)
                     return resultType
                 } else if memberCandidates.count == 1,

@@ -236,31 +236,3 @@ public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     while (i < size) { sum += selector(this[i]); i += 1 }
     return sum
 }
-
-public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
-    if (size == 0) return null
-    var bestElem = this[0]
-    var bestKey = selector(bestElem)
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        val key = selector(elem)
-        if (key > bestKey) { bestElem = elem; bestKey = key }
-        i += 1
-    }
-    return bestElem
-}
-
-public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
-    if (size == 0) return null
-    var bestElem = this[0]
-    var bestKey = selector(bestElem)
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        val key = selector(elem)
-        if (key < bestKey) { bestElem = elem; bestKey = key }
-        i += 1
-    }
-    return bestElem
-}

@@ -229,6 +229,7 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: params.paramSymbols,
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
+                    valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
                     typeParameterSymbols: allTypeParameterSymbols,
                     reifiedTypeParameterIndices: offsetReifiedIndices,
                     typeParameterUpperBoundsList: memberUpperBounds,
@@ -698,7 +699,8 @@ extension DataFlowSemaPhase {
                             returnType: nestedType,
                             valueParameterSymbols: params.paramSymbols,
                             valueParameterHasDefaultValues: params.paramHasDefaultValues,
-                            valueParameterIsVararg: params.paramIsVararg
+                            valueParameterIsVararg: params.paramIsVararg,
+                            valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn
                         ),
                         for: nestedPrimaryCtorSymbol
                     )
@@ -734,7 +736,8 @@ extension DataFlowSemaPhase {
                         returnType: nestedType,
                         valueParameterSymbols: params.paramSymbols,
                         valueParameterHasDefaultValues: params.paramHasDefaultValues,
-                        valueParameterIsVararg: params.paramIsVararg
+                        valueParameterIsVararg: params.paramIsVararg,
+                        valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn
                     ),
                     for: secCtorSymbol
                 )
