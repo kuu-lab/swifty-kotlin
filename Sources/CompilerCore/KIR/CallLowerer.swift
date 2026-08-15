@@ -966,15 +966,33 @@ final class CallLowerer {
             finalArgIDs.insert(allocatedObj, at: 0)
         } else if let chosen,
                   let signature = sema.symbols.functionSignature(for: chosen),
-                  signature.receiverType != nil,
-                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                  signature.receiverType != nil
         {
-            finalArgIDs.insert(implicitReceiver, at: 0)
+            var implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+            if implicitReceiver == nil,
+               sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
+            {
+                let receiver = arena.appendTemporary(type: signature.receiverType ?? sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_coroutine_current_scope"),
+                    arguments: [],
+                    result: receiver,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                implicitReceiver = receiver
+            }
+            if let implicitReceiver {
+                finalArgIDs.insert(implicitReceiver, at: 0)
+            }
             // An unqualified `compute()` inside a member body is `this.compute()`
             // and must dispatch through the receiver's vtable/itable exactly like
             // the explicit form: a subclass override, or a base-class
             // implementation of an interface method, is otherwise bypassed.
-            if sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true {
+            if let implicitReceiver,
+               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+            {
                 implicitReceiverDispatch = resolveVirtualDispatch(
                     callee: chosen,
                     receiverTypeID: arena.exprType(implicitReceiver),

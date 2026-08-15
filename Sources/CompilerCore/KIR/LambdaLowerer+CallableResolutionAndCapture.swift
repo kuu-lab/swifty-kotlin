@@ -170,7 +170,8 @@ extension LambdaLowerer {
         lambdaParamCount: Int,
         lambdaBodyExprID: ExprID,
         ast: ASTModule,
-        sema: SemaModule
+        sema: SemaModule,
+        hasExplicitReceiver: Bool = false
     ) -> [SymbolID] {
         let lexicalCaptures = lexicalCaptureSymbolsForLambda(
             lambdaExprID: lambdaExprID,
@@ -189,7 +190,15 @@ extension LambdaLowerer {
                     sema: sema
                 )
             }
-            if let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+            // A receiver-bearing lambda receives its own receiver explicitly;
+            // do not also forward the enclosing receiver as a closure capture.
+            if hasExplicitReceiver,
+               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+            {
+                captures.removeAll { $0 == receiverSymbol }
+            }
+            if !hasExplicitReceiver,
+               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
                containsImplicitReceiverReference(in: lambdaBodyExprID, ast: ast)
                || containsImplicitReceiverMemberAccess(in: lambdaBodyExprID, ast: ast, sema: sema),
                canCaptureSymbolForLambda(
