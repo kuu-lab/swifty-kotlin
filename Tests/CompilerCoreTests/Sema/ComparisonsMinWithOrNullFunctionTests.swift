@@ -5,7 +5,8 @@ import Testing
 /// STDLIB-COMP-FN-056: Validates that `minWithOrNull(comparator)` resolves
 /// through Sema for the comparator-based aggregate receivers wired through the
 /// standard List / Sequence synthetic-member infrastructure.
-/// Runtime link names involved: `kk_list_minWithOrNull` (Sequence minWithOrNull is source-backed and has no runtime link).
+/// Both List and Sequence implementations are source-backed and therefore have
+/// no direct runtime link.
 @Suite
 struct ComparisonsMinWithOrNullFunctionTests {
 
@@ -56,7 +57,7 @@ struct ComparisonsMinWithOrNullFunctionTests {
         #expect(errors.isEmpty, "Expected minWithOrNull to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 
-    /// `List<T>.minWithOrNull` must be registered with the `kk_list_minWithOrNull` external link.
+    /// `List<T>.minWithOrNull` is source-backed and must not have a `kk_list_*` external link.
     @Test func testListMinWithOrNullIsRegisteredWithRuntimeLink() throws {
 
         let ctx = try sharedCtx()
@@ -66,7 +67,7 @@ struct ComparisonsMinWithOrNullFunctionTests {
             sema.symbols.lookupAll(fqName: fq)
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        #expect(links.contains("kk_list_minWithOrNull"), "List.minWithOrNull must link to kk_list_minWithOrNull; found: \(links)")
+        #expect(links.isEmpty, "List.minWithOrNull must be source-backed; found external links: \(links)")
     }
 
     /// `Sequence<T>.minWithOrNull` is source-backed and therefore has no

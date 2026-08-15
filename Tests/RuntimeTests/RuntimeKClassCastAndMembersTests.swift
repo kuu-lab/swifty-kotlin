@@ -235,7 +235,7 @@ struct RuntimeKClassCastAndMembersTests {
                 "Message '\(box.renderedMessage)' should contain 'ClassCastException'"
             )
             #expect(
-                box.message.contains("Foo") || box.message.contains("com.example.Foo"),
+                box.message?.contains("Foo") == true || box.message?.contains("com.example.Foo") == true,
                 "Message '\(box.message)' should contain the type name"
             )
         }

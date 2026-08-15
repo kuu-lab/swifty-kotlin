@@ -46,6 +46,32 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
+            // KSP-426: List sorting/extrema are bundled Kotlin source and must
+            // not be redirected to the removed kk_list_* runtime exports.
+            || callee == lookup.sortedName
+            || callee == lookup.sortedByName
+            || callee == lookup.sortedByDescendingName
+            || callee == lookup.sortedDescendingName
+            || callee == lookup.sortedWithName
+            || callee == lookup.maxName
+            || callee == lookup.maxByName
+            || callee == lookup.maxOfName
+            || callee == lookup.maxOfOrNullName
+            || callee == lookup.maxOfWithName
+            || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.maxOrNullName
+            || callee == lookup.maxWithName
+            || callee == lookup.maxWithOrNullName
+            || callee == lookup.minName
+            || callee == lookup.minByName
+            || callee == lookup.minByOrNullName
+            || callee == lookup.minOfName
+            || callee == lookup.minOfOrNullName
+            || callee == lookup.minOfWithName
+            || callee == lookup.minOfWithOrNullName
+            || callee == lookup.minOrNullName
+            || callee == lookup.minWithName
+            || callee == lookup.minWithOrNullName
             // KSP-421: List transform HOFs have Kotlin source implementations.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
@@ -109,6 +135,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // must go through kk_sequence_map/filter.
         if let receiverID = arguments.first,
            state.sequenceExprIDs.contains(receiverID.rawValue),
+           !state.arrayExprIDs.contains(receiverID.rawValue),
            callee == lookup.mapName
             || callee == lookup.filterName
         {

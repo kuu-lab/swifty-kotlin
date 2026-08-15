@@ -95,9 +95,6 @@ struct CollectionLiteralLookupTables {
     var kkIndexingIterableNextName: InternedString { listLookup.kkIndexingIterableNextName }
     var kkListOnEachName: InternedString { listLookup.kkListOnEachName }
     var kkListOnEachIndexedName: InternedString { listLookup.kkListOnEachIndexedName }
-    var kkListSumOfName: InternedString { listLookup.kkListSumOfName }
-    var kkListSumByName: InternedString { listLookup.kkListSumByName }
-    var kkListSumByDoubleName: InternedString { listLookup.kkListSumByDoubleName }
     var kkListMaxOrNullName: InternedString { listLookup.kkListMaxOrNullName }
     var kkListMinOrNullName: InternedString { listLookup.kkListMinOrNullName }
     var kkListMaxByName: InternedString { listLookup.kkListMaxByName }
@@ -117,18 +114,9 @@ struct CollectionLiteralLookupTables {
     var kkListMaxOfWithOrNullName: InternedString { listLookup.kkListMaxOfWithOrNullName }
     var kkListMinOfWithName: InternedString { listLookup.kkListMinOfWithName }
     var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
-    var kkListSumName: InternedString { listLookup.kkListSumName }
-    var kkListReversedName: InternedString { listLookup.kkListReversedName }
-    var kkListAsReversedName: InternedString { listLookup.kkListAsReversedName }
     var kkListSortedName: InternedString { listLookup.kkListSortedName }
-    var kkListDistinctName: InternedString { listLookup.kkListDistinctName }
-    var kkListDistinctByName: InternedString { listLookup.kkListDistinctByName }
     var kkListShuffledName: InternedString { listLookup.kkListShuffledName }
     var kkListShuffledRandomName: InternedString { listLookup.kkListShuffledRandomName }
-    var kkListPlusElementName: InternedString { listLookup.kkListPlusElementName }
-    var kkListPlusCollectionName: InternedString { listLookup.kkListPlusCollectionName }
-    var kkListMinusElementName: InternedString { listLookup.kkListMinusElementName }
-    var kkListMinusCollectionName: InternedString { listLookup.kkListMinusCollectionName }
     var kkListChunkedBridgeName: InternedString { listLookup.kkListChunkedBridgeName }
     var kkListChunkedTransformBridgeName: InternedString { listLookup.kkListChunkedTransformBridgeName }
     var kkListWindowedBridgeName: InternedString { listLookup.kkListWindowedBridgeName }
@@ -294,40 +282,14 @@ struct CollectionLiteralLookupTables {
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
 
-    var kkArrayMapName: InternedString { arrayLookup.kkArrayMapName }
-    var kkArrayFilterName: InternedString { arrayLookup.kkArrayFilterName }
-    var kkArrayForEachName: InternedString { arrayLookup.kkArrayForEachName }
-    var kkArrayAnyName: InternedString { arrayLookup.kkArrayAnyName }
-    var kkArrayAllName: InternedString { arrayLookup.kkArrayAllName }
-    var kkArrayNoneName: InternedString { arrayLookup.kkArrayNoneName }
-    var kkArrayCountName: InternedString { arrayLookup.kkArrayCountName }
     var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
     var kkArrayCopyOfNewSizeName: InternedString { arrayLookup.kkArrayCopyOfNewSizeName }
     var kkArrayCopyOfNewSizeInitName: InternedString { arrayLookup.kkArrayCopyOfNewSizeInitName }
     var kkArrayCopyOfRangeName: InternedString { arrayLookup.kkArrayCopyOfRangeName }
     var kkArrayFillName: InternedString { arrayLookup.kkArrayFillName }
-    var kkArrayReduceName: InternedString { arrayLookup.kkArrayReduceName }
-    var kkArrayReduceOrNullName: InternedString { arrayLookup.kkArrayReduceOrNullName }
-    var kkArrayReduceIndexedName: InternedString { arrayLookup.kkArrayReduceIndexedName }
-    var kkArrayFoldName: InternedString { arrayLookup.kkArrayFoldName }
-    var kkArrayFoldIndexedName: InternedString { arrayLookup.kkArrayFoldIndexedName }
-    var kkArrayFlatMapName: InternedString { arrayLookup.kkArrayFlatMapName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
     var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
-    var kkArrayMapIndexedName: InternedString { arrayLookup.kkArrayMapIndexedName }
-    var kkArrayFilterIndexedName: InternedString { arrayLookup.kkArrayFilterIndexedName }
-    var kkArrayMapNotNullName: InternedString { arrayLookup.kkArrayMapNotNullName }
-    var kkArrayFilterNotName: InternedString { arrayLookup.kkArrayFilterNotName }
-    var kkArrayFilterNotNullName: InternedString { arrayLookup.kkArrayFilterNotNullName }
-    var kkArrayFirstName: InternedString { arrayLookup.kkArrayFirstName }
-    var kkArrayFirstOrNullName: InternedString { arrayLookup.kkArrayFirstOrNullName }
-    var kkArrayLastName: InternedString { arrayLookup.kkArrayLastName }
-    var kkArrayLastOrNullName: InternedString { arrayLookup.kkArrayLastOrNullName }
-    var kkArrayFirstPredicateName: InternedString { arrayLookup.kkArrayFirstPredicateName }
-    var kkArrayLastPredicateName: InternedString { arrayLookup.kkArrayLastPredicateName }
-    var kkArrayFindName: InternedString { arrayLookup.kkArrayFindName }
-    var kkArrayFindLastName: InternedString { arrayLookup.kkArrayFindLastName }
     var toMutableListName: InternedString { arrayLookup.toMutableListName }
     var toTypedArrayName: InternedString { arrayLookup.toTypedArrayName }
     var copyOfName: InternedString { arrayLookup.copyOfName }
@@ -439,22 +401,16 @@ struct CollectionLiteralLookupTables {
     var kkFileWriteTextName: InternedString { fileIOLookup.kkFileWriteTextName }
     var appendTextName: InternedString { fileIOLookup.appendTextName }
     var kkFileAppendTextName: InternedString { fileIOLookup.kkFileAppendTextName }
-    var readLinesName: InternedString { fileIOLookup.readLinesName }
-    var kkFileReadLinesName: InternedString { fileIOLookup.kkFileReadLinesName }
     var existsName: InternedString { fileIOLookup.existsName }
     var kkFileExistsName: InternedString { fileIOLookup.kkFileExistsName }
     var isFileName: InternedString { fileIOLookup.isFileName }
     var kkFileIsFileName: InternedString { fileIOLookup.kkFileIsFileName }
     var isDirectoryName: InternedString { fileIOLookup.isDirectoryName }
     var kkFileIsDirectoryName: InternedString { fileIOLookup.kkFileIsDirectoryName }
-    var forEachLineName: InternedString { fileIOLookup.forEachLineName }
-    var kkFileForEachLineName: InternedString { fileIOLookup.kkFileForEachLineName }
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
     var forEachBlockName: InternedString { fileIOLookup.forEachBlockName }
     var kkFileForEachBlockName: InternedString { fileIOLookup.kkFileForEachBlockName }
     var kkFileForEachBlockBlockSizeName: InternedString { fileIOLookup.kkFileForEachBlockBlockSizeName }
-    var useLinesName: InternedString { fileIOLookup.useLinesName }
-    var kkFileUseLinesName: InternedString { fileIOLookup.kkFileUseLinesName }
     var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
     var kkPathUseLinesName: InternedString { fileIOLookup.kkPathUseLinesName }
     var kkPathUseLinesDefaultName: InternedString { fileIOLookup.kkPathUseLinesDefaultName }
