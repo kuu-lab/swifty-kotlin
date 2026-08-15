@@ -448,6 +448,7 @@ extension DeclTypeChecker {
             valueParameterSymbols: signature.valueParameterSymbols,
             valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
             valueParameterIsVararg: signature.valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
             typeParameterSymbols: signature.typeParameterSymbols,
             reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
             typeParameterUpperBounds: signature.typeParameterUpperBounds,

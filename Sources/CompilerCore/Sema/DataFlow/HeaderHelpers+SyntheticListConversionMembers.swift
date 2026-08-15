@@ -16,29 +16,15 @@ extension DataFlowSemaPhase {
         let setSym = kotlinCollectionsPkg + [interner.intern("Set")]
         let mutableSet = kotlinCollectionsPkg + [interner.intern("MutableSet")]
         guard let listTypeParamSymbol = symbols.lookup(fqName: listE),
-            let mutableListSymbol = symbols.lookup(fqName: mutableList),
             let setInterfaceSymbol = symbols.lookup(fqName: setSym),
-            let mutableSetInterfaceSymbol = symbols.lookup(fqName: mutableSet)
+            symbols.lookup(fqName: mutableList) != nil,
+            symbols.lookup(fqName: mutableSet) != nil
         else {
             return
         }
         let listTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: listTypeParamSymbol, nullability: .nonNull
         )))
-        registerListToMutableListMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            mutableListSymbol: mutableListSymbol
-        )
-        registerListToSetMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            setInterfaceSymbol: setInterfaceSymbol
-        )
         registerListToMapMember(
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
@@ -56,21 +42,6 @@ extension DataFlowSemaPhase {
             listTypeParamType: listTypeParamType,
             setInterfaceSymbol: setInterfaceSymbol,
             iterableInterfaceSymbol: iterableSymbolForOps
-        )
-        registerListToHashSetMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            mutableSetInterfaceSymbol: mutableSetInterfaceSymbol
-        )
-        // STDLIB-651: List.toMutableSet() → kk_list_to_mutable_set
-        registerListToMutableSetMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            mutableSetInterfaceSymbol: mutableSetInterfaceSymbol
         )
         registerListAsSequenceMember(
             symbols: symbols, types: types, interner: interner,

@@ -111,28 +111,6 @@ public extension RuntimeABISpec {
             p("tagged", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_callback_flow_await_close", parameters: [
-            p("channelRaw", .intptr),
-            p("closeHandlerFnPtr", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callback_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_channel_flow_try_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-        ]),
         // KSP-678: these Channel residuals are bridged from bundled Kotlin
         // (Channels.kt) and return a plain Int handle/flag; they do not use the
         // outThrown ABI lowering path.
@@ -242,90 +220,90 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_copy", parameters: [
+        abiParitySpec("__kk_files_copy", parameters: [
             p("filesRaw", .intptr),
             p("sourceRaw", .intptr),
             p("targetRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_createDirectories", parameters: [
+        abiParitySpec("__kk_files_createDirectories", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_createDirectory", parameters: [
+        abiParitySpec("__kk_files_createDirectory", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_createFile", parameters: [
+        abiParitySpec("__kk_files_createFile", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_createTempDirectory", parameters: [
+        abiParitySpec("__kk_files_createTempDirectory", parameters: [
             p("filesRaw", .intptr),
             p("prefixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_createTempFile", parameters: [
+        abiParitySpec("__kk_files_createTempFile", parameters: [
             p("filesRaw", .intptr),
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_delete", parameters: [
+        abiParitySpec("__kk_files_delete", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_exists", parameters: [
+        abiParitySpec("__kk_files_exists", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_getLastModifiedTime", parameters: [
+        abiParitySpec("__kk_files_getLastModifiedTime", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_isDirectory", parameters: [
+        abiParitySpec("__kk_files_isDirectory", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_isRegularFile", parameters: [
+        abiParitySpec("__kk_files_isRegularFile", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_list", parameters: [
+        abiParitySpec("__kk_files_list", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_move", parameters: [
+        abiParitySpec("__kk_files_move", parameters: [
             p("filesRaw", .intptr),
             p("sourceRaw", .intptr),
             p("targetRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_newDirectoryStream", parameters: [
+        abiParitySpec("__kk_files_newDirectoryStream", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_size", parameters: [
+        abiParitySpec("__kk_files_size", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_walk", parameters: [
+        abiParitySpec("__kk_files_walk", parameters: [
             p("filesRaw", .intptr),
             p("pathRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_fileTime_toMillis", parameters: [
+        abiParitySpec("__kk_fileTime_toMillis", parameters: [
             p("fileTimeRaw", .intptr),
         ],
             isThrowing: false),
@@ -334,7 +312,7 @@ public extension RuntimeABISpec {
             p("handlerFnPtr", .intptr),
             p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_flow_emit_with_timestamp", parameters: [
+        abiParitySpec("__kk_flow_emit_with_timestamp", parameters: [
             p("flowHandle", .intptr),
             p("value", .intptr),
             p("tag", .intptr),
@@ -470,49 +448,49 @@ public extension RuntimeABISpec {
             p("responseRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_input_stream_mark", parameters: [
+        abiParitySpec("__kk_input_stream_mark", parameters: [
             p("streamRaw", .intptr),
             p("readLimitRaw", .intptr),
         ]),
-        abiParitySpec("kk_input_stream_mark_supported", parameters: [
+        abiParitySpec("__kk_input_stream_mark_supported", parameters: [
             p("streamRaw", .intptr),
         ]),
-        abiParitySpec("kk_input_stream_reset", parameters: [
+        abiParitySpec("__kk_input_stream_reset", parameters: [
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir", parameters: [
+        abiParitySpec("__kk_io_createTempDir", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("directoryRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir_default", parameters: [
+        abiParitySpec("__kk_io_createTempDir_default", parameters: [
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir_prefix", parameters: [
+        abiParitySpec("__kk_io_createTempDir_prefix", parameters: [
             p("prefixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir_prefix_suffix", parameters: [
+        abiParitySpec("__kk_io_createTempDir_prefix_suffix", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile", parameters: [
+        abiParitySpec("__kk_io_createTempFile", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("directoryRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile_default", parameters: [
+        abiParitySpec("__kk_io_createTempFile_default", parameters: [
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile_prefix", parameters: [
+        abiParitySpec("__kk_io_createTempFile_prefix", parameters: [
             p("prefixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile_prefix_suffix", parameters: [
+        abiParitySpec("__kk_io_createTempFile_prefix_suffix", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -650,17 +628,17 @@ public extension RuntimeABISpec {
             p("hash", .intptr),
         ]),
 
-        abiParitySpec("kk_sequence_input_stream_available", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_available", parameters: [
             p("streamRaw", .intptr),
         ]),
-        abiParitySpec("kk_sequence_input_stream_close", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_close", parameters: [
             p("streamRaw", .intptr),
         ]),
-        abiParitySpec("kk_sequence_input_stream_new", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_new", parameters: [
             p("firstRaw", .intptr),
             p("secondRaw", .intptr),
         ]),
-        abiParitySpec("kk_sequence_input_stream_read", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_read", parameters: [
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),

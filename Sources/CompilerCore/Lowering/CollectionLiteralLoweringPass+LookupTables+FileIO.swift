@@ -16,23 +16,17 @@ struct FileIOLookupNames {
     let kkFileWriteTextName: InternedString
     let appendTextName: InternedString
     let kkFileAppendTextName: InternedString
-    let readLinesName: InternedString
-    let kkFileReadLinesName: InternedString
     let existsName: InternedString
     let kkFileExistsName: InternedString
     let isFileName: InternedString
     let kkFileIsFileName: InternedString
     let isDirectoryName: InternedString
     let kkFileIsDirectoryName: InternedString
-    let forEachLineName: InternedString
-    let kkFileForEachLineName: InternedString
     let kkBufferedReaderForEachLineName: InternedString
     // STDLIB-IO-FN-016: File.forEachBlock
     let forEachBlockName: InternedString
     let kkFileForEachBlockName: InternedString
     let kkFileForEachBlockBlockSizeName: InternedString
-    let useLinesName: InternedString
-    let kkFileUseLinesName: InternedString
     let kkBufferedReaderUseLinesName: InternedString
     let kkPathUseLinesName: InternedString
     let kkPathUseLinesDefaultName: InternedString
@@ -84,74 +78,68 @@ struct FileIOLookupNames {
         lengthName = interner.intern("length")
         // File I/O names (STDLIB-565)
         fileConstructorName = interner.intern("File")
-        kkFileNewName = interner.intern("kk_file_new")
+        kkFileNewName = interner.intern("__kk_file_new")
         readTextName = interner.intern("readText")
-        kkFileReadTextName = interner.intern("kk_file_readText")
+        kkFileReadTextName = interner.intern("__kk_file_readText")
         writeTextName = interner.intern("writeText")
-        kkFileWriteTextName = interner.intern("kk_file_writeText")
+        kkFileWriteTextName = interner.intern("__kk_file_writeText")
         appendTextName = interner.intern("appendText")
-        kkFileAppendTextName = interner.intern("kk_file_appendText")
-        readLinesName = interner.intern("readLines")
-        kkFileReadLinesName = interner.intern("kk_file_readLines")
+        kkFileAppendTextName = interner.intern("__kk_file_appendText")
         existsName = interner.intern("exists")
-        kkFileExistsName = interner.intern("kk_file_exists")
+        kkFileExistsName = interner.intern("__kk_file_exists")
         isFileName = interner.intern("isFile")
-        kkFileIsFileName = interner.intern("kk_file_isFile")
+        kkFileIsFileName = interner.intern("__kk_file_isFile")
         isDirectoryName = interner.intern("isDirectory")
-        kkFileIsDirectoryName = interner.intern("kk_file_isDirectory")
-        forEachLineName = interner.intern("forEachLine")
-        kkFileForEachLineName = interner.intern("kk_file_forEachLine")
-        kkBufferedReaderForEachLineName = interner.intern("kk_buffered_reader_forEachLine")
+        kkFileIsDirectoryName = interner.intern("__kk_file_isDirectory")
+        kkBufferedReaderForEachLineName = interner.intern("__kk_buffered_reader_forEachLine")
         // STDLIB-IO-FN-016: File.forEachBlock
         forEachBlockName = interner.intern("forEachBlock")
-        kkFileForEachBlockName = interner.intern("kk_file_forEachBlock")
-        kkFileForEachBlockBlockSizeName = interner.intern("kk_file_forEachBlock_blockSize")
-        useLinesName = interner.intern("useLines")
-        kkFileUseLinesName = interner.intern("kk_file_useLines")
-        kkBufferedReaderUseLinesName = interner.intern("kk_buffered_reader_useLines")
+        kkFileForEachBlockName = interner.intern("__kk_file_forEachBlock")
+        kkFileForEachBlockBlockSizeName = interner.intern("__kk_file_forEachBlock_blockSize")
+        kkBufferedReaderUseLinesName = interner.intern("__kk_buffered_reader_useLines")
         kkPathUseLinesName = interner.intern("kk_path_useLines")
         kkPathUseLinesDefaultName = interner.intern("kk_path_useLines_default")
         // STDLIB-IO-PATH-FN-039
         kkPathWalkName = interner.intern("kk_path_walk")
         bufferedReaderName = interner.intern("bufferedReader")
-        kkFileBufferedReaderName = interner.intern("kk_file_bufferedReader")
+        kkFileBufferedReaderName = interner.intern("__kk_file_bufferedReader")
         bufferedWriterName = interner.intern("bufferedWriter")
-        kkFileBufferedWriterName = interner.intern("kk_file_bufferedWriter")
-        kkFileDeleteName = interner.intern("kk_file_delete")
+        kkFileBufferedWriterName = interner.intern("__kk_file_bufferedWriter")
+        kkFileDeleteName = interner.intern("__kk_file_delete")
         mkdirsName = interner.intern("mkdirs")
-        kkFileMkdirsName = interner.intern("kk_file_mkdirs")
+        kkFileMkdirsName = interner.intern("__kk_file_mkdirs")
         listFilesName = interner.intern("listFiles")
-        kkFileListFilesName = interner.intern("kk_file_listFiles")
+        kkFileListFilesName = interner.intern("__kk_file_listFiles")
         walkName = interner.intern("walk")
-        kkFileWalkName = interner.intern("kk_file_walk")
+        kkFileWalkName = interner.intern("__kk_file_walk")
         readBytesName = interner.intern("readBytes")
-        kkFileReadBytesName = interner.intern("kk_file_readBytes")
+        kkFileReadBytesName = interner.intern("__kk_file_readBytes")
         // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
         appendBytesName = interner.intern("appendBytes")
-        kkFileAppendBytesName = interner.intern("kk_file_appendBytes")
+        kkFileAppendBytesName = interner.intern("__kk_file_appendBytes")
         // MIGRATION-IO-001: File.writeBytes(array: ByteArray)
         writeBytesName = interner.intern("writeBytes")
-        kkFileWriteBytesName = interner.intern("kk_file_writeBytes")
+        kkFileWriteBytesName = interner.intern("__kk_file_writeBytes")
         // STDLIB-IO-087: Additional File operations
         absolutePathName = interner.intern("absolutePath")
-        kkFileAbsolutePathName = interner.intern("kk_file_absolutePath")
+        kkFileAbsolutePathName = interner.intern("__kk_file_absolutePath")
         canonicalPathName = interner.intern("canonicalPath")
-        kkFileCanonicalPathName = interner.intern("kk_file_canonicalPath")
+        kkFileCanonicalPathName = interner.intern("__kk_file_canonicalPath")
         // lengthName already initialized in StringBuilder section above
-        kkFileLengthName = interner.intern("kk_file_length")
+        kkFileLengthName = interner.intern("__kk_file_length")
         lastModifiedName = interner.intern("lastModified")
-        kkFileLastModifiedName = interner.intern("kk_file_lastModified")
+        kkFileLastModifiedName = interner.intern("__kk_file_lastModified")
         createNewFileName = interner.intern("createNewFile")
-        kkFileCreateNewFileName = interner.intern("kk_file_createNewFile")
+        kkFileCreateNewFileName = interner.intern("__kk_file_createNewFile")
         canReadName = interner.intern("canRead")
-        kkFileCanReadName = interner.intern("kk_file_canRead")
+        kkFileCanReadName = interner.intern("__kk_file_canRead")
         canWriteName = interner.intern("canWrite")
-        kkFileCanWriteName = interner.intern("kk_file_canWrite")
+        kkFileCanWriteName = interner.intern("__kk_file_canWrite")
         canExecuteName = interner.intern("canExecute")
-        kkFileCanExecuteName = interner.intern("kk_file_canExecute")
-        kkFileNewParentChildName = interner.intern("kk_file_new_parent_child")
+        kkFileCanExecuteName = interner.intern("__kk_file_canExecute")
+        kkFileNewParentChildName = interner.intern("__kk_file_new_parent_child")
         // STDLIB-IO-FN-027: PrintWriter
         printWriterName = interner.intern("printWriter")
-        kkFilePrintWriterName = interner.intern("kk_file_printWriter")
+        kkFilePrintWriterName = interner.intern("__kk_file_printWriter")
     }
 }

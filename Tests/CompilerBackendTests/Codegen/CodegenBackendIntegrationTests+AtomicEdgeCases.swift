@@ -61,15 +61,17 @@ struct CodegenBackendAtomicEdgeCasesTests {
         import kotlin.concurrent.atomics.AtomicInt
         import kotlin.concurrent.atomics.AtomicReference
 
+        data class Token(val value: String)
+
         fun main() {
-            val initial = "a"
-            val updated = "b"
+            val initial = Token("a")
+            val updated = Token("b")
             val ref = AtomicReference(initial)
-            println(ref.load())
-            println(ref.compareAndSet("x", updated))
+            println(ref.load().value)
+            println(ref.compareAndSet(Token("x"), updated))
             println(ref.compareAndSet(initial, updated))
-            println(ref.exchange("c"))
-            println(ref.load())
+            println(ref.exchange(Token("c")).value)
+            println(ref.load().value)
 
             val count = AtomicInt(1)
             println(count.load())

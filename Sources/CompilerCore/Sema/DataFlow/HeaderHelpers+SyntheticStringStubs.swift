@@ -22,6 +22,30 @@ extension DataFlowSemaPhase {
         if let kotlinRootPkgSymbol = symbols.lookup(fqName: kotlinRootPkg) {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
+
+        // `CharSequence.length` is an interface property, not an extension
+        // function. Keep a synthetic declaration in the interface so bundled
+        // Kotlin reads use the same itable path as user-defined implementations
+        // instead of forcing every receiver through a String-shaped runtime
+        // bridge. The extension stub below remains for String's legacy surface.
+        let charSequenceLengthName = interner.intern("length")
+        let charSequenceLengthFQName = charSequenceSymbol == .invalid
+            ? []
+            : (symbols.symbol(charSequenceSymbol)?.fqName ?? []) + [charSequenceLengthName]
+        if !charSequenceLengthFQName.isEmpty,
+           symbols.lookup(fqName: charSequenceLengthFQName) == nil
+        {
+            let lengthSymbol = symbols.define(
+                kind: .property,
+                name: charSequenceLengthName,
+                fqName: charSequenceLengthFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(charSequenceSymbol, for: lengthSymbol)
+            symbols.setPropertyType(types.intType, for: lengthSymbol)
+        }
         let appendableSymbol = ensureInterfaceSymbol(
             named: "Appendable",
             in: kotlinTextPkg,
@@ -716,12 +740,6 @@ extension DataFlowSemaPhase {
         // KSP-406: replaceRange/removeRange/slice are bundled Kotlin source
         // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
-        let listAnyType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: types.anyType
-        )
         let sequenceStringType = makeSequenceType(
             symbols: symbols,
             types: types,
@@ -770,24 +788,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_string_joinToString",
-            // KSP-INF-011: Route the source List<T>.joinToString bridge through the
-            // generic collection runtime entry so non-String element types (e.g.
-            // Int) are rendered by runtimeElementToString instead of being dropped.
-            externalLinkName: "kk_list_joinToString",
-            receiverType: listAnyType,
-            parameters: [
-                ("separator", stringType, false, false),
-                ("prefix", stringType, false, false),
-                ("postfix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // KSP-402: Public String query APIs are bundled Kotlin wrappers. These
         // private bridges keep UTF-16 string indexing semantics in the runtime.
         registerSyntheticStringExtensionFunction(
@@ -1405,6 +1405,7 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
+                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     typeParameterSymbols: signature.typeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
@@ -1469,6 +1470,7 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
+                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     typeParameterSymbols: signature.typeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,

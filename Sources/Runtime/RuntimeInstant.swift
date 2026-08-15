@@ -194,12 +194,10 @@ public func kk_instant_is_distant_future(_ instantRaw: Int) -> Int {
 @_cdecl("kk_instant_plus_duration")
 public func kk_instant_plus_duration(_ instantRaw: Int, _ durationRaw: Int) -> Int {
     guard let ibox = runtimeInstantBox(from: instantRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: durationRaw),
-          let dbox = tryCast(ptr, to: RuntimeDurationBox.self)
+          let durationNs = runtimeDurationNanosecondsValue(from: durationRaw)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_plus_duration received invalid handle")
     }
-    let durationNs = dbox.nanoseconds
     let addedSec = durationNs / 1_000_000_000
     let addedNano = Int32(durationNs % 1_000_000_000)
     let result = RuntimeInstantBox(
@@ -215,12 +213,10 @@ public func kk_instant_plus_duration(_ instantRaw: Int, _ durationRaw: Int) -> I
 @_cdecl("kk_instant_minus_duration")
 public func kk_instant_minus_duration(_ instantRaw: Int, _ durationRaw: Int) -> Int {
     guard let ibox = runtimeInstantBox(from: instantRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: durationRaw),
-          let dbox = tryCast(ptr, to: RuntimeDurationBox.self)
+          let durationNs = runtimeDurationNanosecondsValue(from: durationRaw)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_minus_duration received invalid handle")
     }
-    let durationNs = dbox.nanoseconds
     let subSec = durationNs / 1_000_000_000
     let subNano = Int32(durationNs % 1_000_000_000)
     let result = RuntimeInstantBox(
@@ -271,6 +267,5 @@ public func kk_instant_until(_ fromRaw: Int, _ toRaw: Int) -> Int {
     let nanoDiff = Int64(toBox.nanoOfSecond) - Int64(fromBox.nanoOfSecond)
     let secNs = saturatingMultiply(secDiff, 1_000_000_000)
     let totalNs = saturatingAdd(secNs, nanoDiff)
-    let durationBox = RuntimeDurationBox(nanoseconds: totalNs)
-    return registerRuntimeObject(durationBox)
+    return Int(truncatingIfNeeded: totalNs)
 }

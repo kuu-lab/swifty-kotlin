@@ -181,7 +181,7 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         let clientRaw = kk_http_client_newHttpClient()
         let responseHandlerRaw = kk_http_body_handlers_ofString(0)
 
-        let getURI = kk_uri_new(runtimeString("http://127.0.0.1:\(server.port)/get"), &thrown)
+        let getURI = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/get"), &thrown)
         #expect(thrown == 0)
         let getBuilderRaw = kk_http_request_newBuilder_uri(getURI)
         _ = kk_http_request_builder_header(getBuilderRaw, runtimeString("X-Test"), runtimeString("alpha"))
@@ -199,7 +199,7 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         let getHeaderMap = mapStringsToLists(kk_http_headers_map(getHeadersRaw))
         #expect(getHeaderMap["X-Echo"]?.first == "alpha")
 
-        let postURI = kk_uri_new(runtimeString("http://127.0.0.1:\(server.port)/post"), &thrown)
+        let postURI = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/post"), &thrown)
         #expect(thrown == 0)
         let postBuilderRaw = kk_http_request_newBuilder()
         _ = kk_http_request_builder_uri(postBuilderRaw, postURI)
@@ -223,7 +223,7 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
 
         var thrown = 0
         let responseHandlerRaw = kk_http_body_handlers_ofString(0)
-        let redirectURI = kk_uri_new(runtimeString("http://127.0.0.1:\(server.port)/redirect"), &thrown)
+        let redirectURI = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/redirect"), &thrown)
         #expect(thrown == 0)
 
         let disabledClientRaw = kk_http_client_newHttpClient()

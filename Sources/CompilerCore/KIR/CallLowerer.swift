@@ -15,6 +15,40 @@ final class CallLowerer {
         return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
+    /// Returns whether a direct lambda argument may use a label-free return to
+    /// leave the caller. Kotlin permits this only for function-type parameters
+    /// of inline functions that are neither `crossinline` nor `noinline`.
+    func allowsNonLocalReturn(
+        argumentExpr: ExprID,
+        argumentIndex: Int,
+        ast: ASTModule,
+        sema: SemaModule,
+        callBinding: CallBinding?,
+        chosen: SymbolID?
+    ) -> Bool {
+        guard case .lambdaLiteral = ast.arena.expr(argumentExpr),
+              let chosen,
+              sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) == true,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return false
+        }
+        let parameterIndex = callBinding?.parameterMapping[argumentIndex] ?? argumentIndex
+        guard signature.parameterTypes.indices.contains(parameterIndex) else {
+            return false
+        }
+        let parameterType = signature.parameterTypes[parameterIndex]
+        guard case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) else {
+            return false
+        }
+        // Older synthetic/imported signatures may not carry the parallel flag
+        // array. Preserve their historical behavior conservatively.
+        guard signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex) else {
+            return true
+        }
+        return signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+    }
+
     /// True when the call resolved to the stdlib `kotlin.contextOf` intrinsic.
     /// A user-declared `contextOf()` resolves to its own symbol and must keep
     /// normal call lowering instead of being replaced by a context receiver.
@@ -475,12 +509,22 @@ final class CallLowerer {
                     )
                 }
             }
+            let previousLambdaAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: args[args.count - 1].expr,
+                argumentIndex: args.count - 1,
+                ast: ast,
+                sema: sema,
+                callBinding: sema.bindings.callBinding(for: exprID),
+                chosen: sema.bindings.callBinding(for: exprID)?.chosenCallee
+            )
             let loweredLambdaID = driver.lowerExpr(
                 args[args.count - 1].expr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = previousLambdaAllowance
 
             let result = arena.appendTemporary(type: boundType
             )
@@ -528,8 +572,20 @@ final class CallLowerer {
         } else {
             interner.intern("<unknown>")
         }
-        let loweredArgIDs = args.map { argument in
-            driver.lowerExpr(
+        let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
+            let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: argument.expr,
+                argumentIndex: argumentIndex,
+                ast: ast,
+                sema: sema,
+                callBinding: callBinding,
+                chosen: chosen
+            )
+            defer {
+                driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance
+            }
+            return driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -1207,6 +1263,8 @@ final class CallLowerer {
                 return interner.intern("kk_suspend_function_invoke_0")
             case 1:
                 return interner.intern("kk_suspend_function_invoke")
+            case 2:
+                return interner.intern("kk_suspend_function_invoke_2")
             default:
                 return nil
             }

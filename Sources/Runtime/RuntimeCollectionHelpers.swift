@@ -195,6 +195,16 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeSequenceSourceValues(from: rawValue) {
         return values
     }
+    // Source-backed Iterable wrappers (for example Sequence.asIterable())
+    // expose only the Iterable itable, so materialise them through their
+    // iterator when a runtime bridge consumes an Iterable value directly.
+    if let iteratorRaw = runtimeSourceIterableIterator(rawValue) {
+        var values: [RuntimeValue] = []
+        while kk_iterator_hasNext(iteratorRaw) != 0 {
+            values.append(RuntimeValue(raw: kk_iterator_next(iteratorRaw)))
+        }
+        return values
+    }
     return nil
 }
 
@@ -299,6 +309,9 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     }
     let raw = Int(bitPattern: opaque)
     maybeRegisterCollectionIterableItable(raw: raw, box: box)
+    if box is RuntimeStringBox {
+        runtimeRegisterCharSequenceLengthItable(raw)
+    }
     return raw
 }
 
@@ -493,7 +506,7 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
         return nil
     }
     // `raw` is a transform's return value, already boxed by KIR's ABILoweringPass
-    // for its Any-typed return (see kk_array_map's comment). Callers store or
+    // for its Any-typed return. Callers store or
     // forward this verbatim into a generically-typed collection/result, so it
     // must stay boxed here too — unboxing would strip the type tag a later
     // Boolean/Char render depends on.

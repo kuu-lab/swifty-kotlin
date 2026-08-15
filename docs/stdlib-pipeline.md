@@ -291,7 +291,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticNativeInteropHelpers.swift` | 1292 | (c) | Kotlin/Native interop helper surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticNativeInteropStubs.swift` | 386 | (c) | Kotlin/Native interop annotations/types. |
 | `HeaderHelpers+SyntheticNativeRefRuntimeStubs.swift` | 759 | (c) | Native ref runtime support; constructor/member/property surface moved to `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` for RF-STUB-003. |
-| `HeaderHelpers+SyntheticOnErrorActionStubs.swift` | 120 | (a) | File-tree walk support; cleanup with file-walk surface. |
+| `HeaderHelpers+SyntheticOnErrorActionStubs.swift` | 120 | (a) | ~~File-tree walk support; cleanup with file-walk surface.~~ **完了・ファイル削除済み**（CLEANUP-STUB-114, 2026-08-14）。OnErrorAction は synthetic enum / 登録以外に参照がなく、`copyRecursively` の既存 FileIO bridge は保持。 |
 | `HeaderHelpers+SyntheticPairTripleStubs.swift` | 409 | (b) | Public `Pair`/`Triple` source migration candidate. |
 | `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` | 548 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |
 | `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` | 488 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |
@@ -322,7 +322,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
-| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | `java.net.URI`; cleanup candidate. |
+| `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | `java.net.URL`; cleanup candidate. |
 | `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
@@ -437,18 +437,27 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 行う経路は coroutine lowering の feature gap（`KSWIFTK-CORO-0003`, BUG-049）が残るため、`Scripts/diff_cases/coroutine_mutex_semaphore.kt`
 は引き続き SKIP-DIFF（DEBT-DIFF-003）。
 
-#### (b) 候補（KSP-499 以降で移行）— 103 関数 + 新規実装分
+#### (b) 候補と KSP-499 完了結果 — 103 関数 + 新規実装分
 
 | 系統 | 代表シンボル | 数 | ファイル | 備考 |
 |---|---|---:|---|---|
-| Flow terminal（到達可能・要 Lowering 変更） | `kk_flow_{to_list,first,single}` | 3 | Flow | 下記「Flow (b) 移行の前提条件」参照 |
-| Flow terminal（未到達・デッドコード） | `kk_flow_{fold,reduce,count}` | 3 | Flow | Sema 宣言・Lowering 書き換えのどちらの対象にもなっておらず、現状呼び出す経路が存在しない |
-| Flow 合成（到達可能・要 Lowering 変更） | `kk_flow_{merge,zip,combine,flat_map_concat,flat_map_latest,flat_map_merge}` | 6 | Flow | 下記「Flow (b) 移行の前提条件」参照 |
+| Flow terminal（KSP-499 完了） | `__kk_flow_{to_list,first,single}` | 3 | Flow | `Flow.kt` の suspend source implementation が `collect` bridge を合成する。旧 Runtime entry は内部互換用に降格 |
+| Flow terminal（KSP-499 完了） | `__kk_flow_{fold,reduce,count}` | 3 | Flow | bundled Kotlin source に実装し、旧 Runtime entry は `__kk_*` に降格 |
+| Flow 合成（KSP-499 完了） | `__kk_flow_{merge,zip,combine,flat_map_concat,flat_map_latest,flat_map_merge}` | 6 | Flow | bundled Kotlin source に実装し、旧 Runtime entry は `__kk_*` に降格 |
 | Atomic 全般 | `kk_atomic_{int,long,bool,ref}_*`（scalar + 配列 `*At`） | 91 | Atomic | 詳細は下記 |
 | `coroutineScope`/`supervisorScope`（公開ラッパー） | ― | 新規 | ― | 内部は (c) の `kk_coroutine_scope_*`/`kk_supervisor_scope_*` へ委譲する薄い Kotlin 関数にする。primitives 自体は (c) のまま |
-| Flow per-element | `map`/`filter`/`take`/`debounce` | 0（未実装） | ― | 既存 Swift 実装なし。移行ではなく KSP-499 での新規 Kotlin 実装（`collect`+`emit` 合成）として着手 |
+| Flow per-element（KSP-499 完了） | `map`/`filter`/`take`/`debounce` | 4 | `Stdlib/kotlinx/coroutines/flow/Flow.kt` | `collect`+`emit` 合成の bundled Kotlin implementation |
 
-**Flow (b) 移行の前提条件（要 verify、コード確認済み 2026-07-08）**: `Sources/CompilerCore/Lowering/CoroutineLoweringPass+Flow.swift`
+KSP-499 の (c)/(b) 境界は `kk_flow_create` / `kk_flow_emit` / `kk_flow_collect` の3 public bridgeに固定した。
+`collectLatest`、lifetime、timestamp、および旧 terminal/composition Runtime entry は `__kk_*` internal compatibility bridge として残し、
+bundled declaration が存在する operator call を name/provenance intrinsic rewrite が横取りしないことを
+`LoweringFlowCodegenTests.testBundledFlowOperatorsWinOverIntrinsicRewrite` で固定した。
+
+現時点の `RuntimeCoroutineFlow.swift` の Flow surface は `@_cdecl` 20件で、public bridge は `kk_flow_create` /
+`kk_flow_emit` / `kk_flow_collect` の3件、残る17件（stop/timestamp/collectLatest/lifetime、旧 terminal/composition）は
+`__kk_*` internal compatibility bridge である。
+
+**Flow (b) 移行の前提条件（KSP-499 で解決）**: `Sources/CompilerCore/Lowering/CoroutineLoweringPass+Flow.swift`
 の `lowerFlowExpressions` は `map`/`filter`/`take`/`transform`/`single`/`takeWhile`/`dropWhile`/`flatMapConcat`/`flatMapMerge`/
 `flatMapLatest`/`combine`/`zip`/`merge`/`buffer`/`conflate`/`flowOn`/`debounce`/`sample`/`delayEach`/`catch`/`retry`/`retryWhen`/
 `onErrorReturn`/`onErrorResume`/`toList`/`first` の呼び出しを、**Sema が解決した callee symbol を参照せず**、
@@ -461,20 +470,27 @@ Flow terminal/合成を (b) 化するには、このパスを「対象シンボ�
 差し替えテスト（例: `suspend fun <T> Flow<T>.toList(): List<T> = listOf()` を bundle し、実際の `flowOf(1,2,3).toList()`
 の戻り値がダミーの空リストになるかを確認）で再検証すること。
 
+上記の未解決判定は着手前の履歴であり、KSP-499 では解決済みである。現在の lowering は、Sema が解決した
+source-backed/bundled declaration を保持し、未解決または synthetic bridge の場合だけ `__kk_*` intrinsic に書き換える。
+`Flow.kt` の `map`/`filter`/`toList`/`first`/`fold`/`reduce` が name/provenance rewrite に横取りされないことは、
+`LoweringFlowCodegenTests.testBundledFlowOperatorsWinOverIntrinsicRewrite` で固定した。
+
 Atomic の内訳:
 
-- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet` に加えて、KSP-671 で
-  `fetchAndAdd`/`fetchAndIncrement`/`fetchAndDecrement`（reverse 変種）と `compareAndSet`（`AtomicInt`/`AtomicLong`）を
+- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet` に加えて、KSP-671/KSP-688 で
+  `fetchAndAdd`/`fetchAndIncrement`/`fetchAndDecrement`（reverse 変種）と `compareAndSet`（`AtomicInt`/`AtomicLong`/`AtomicBoolean`/`AtomicReference`）を
   `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt` で Kotlin 化済み。reverse 変種は
   `addAndFetch`/`incrementAndFetch`/`decrementAndFetch` に、`compareAndSet` は `compareAndExchange` に委譲する。
-  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}`
-  は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
+  `AtomicReference` は Kotlin API の契約どおり参照同一性（`===`）で委譲結果を判定する。
+  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}` と
+  `kk_atomic_bool_{load,store,exchange,compareAndExchange}` は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
   `java.util.concurrent.atomic.AtomicInteger` の直接構築サーフェスと同一ボックス/接頭辞を共有するため、これらの
   ブリッジは Java interop からも参照される＝削除不可。ただし KSP-672 で member-call / indexed access 解決が
   bundled 拡張を atomic レシーバに限り解決できるようになったため、これらの bundled 委譲ソースは休眠ではなく
-  **live**（重複合成スタブは登録スキップされ、`isRuntimeBackedAtomicSyntheticRetainedOverlap` による保持は廃止）
-- **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`/`AtomicReference`
-  の `compareAndSet` は get/set 委譲順序の都合で別タスク）。`updateAndGet`/`getAndUpdate` は `while(true)`
+  **live**（重複合成スタブは登録スキップされ、`isRuntimeBackedAtomicSyntheticRetainedOverlap` による保持は廃止）。KSP-688 では
+  `AtomicBoolean`/`AtomicReference` の `compareAndSet` synthetic stub と `kk_atomic_*_compareAndSet` 公開経路を削除し、
+  `compareAndExchange` の CAS コアだけを残した。
+- **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At` のうち未移行分）。`updateAndGet`/`getAndUpdate` は `while(true)`
   ループを要するため、`AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで
   **ブロック**。`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_` 残留になると想定される
 
@@ -493,12 +509,15 @@ Atomic の内訳:
   上の Kotlin 状態遷移。`StateFlow` は独立インターフェースとして定義し、`MutableStateFlow` が
   `value` / `replayCache` / `collect` / `tryEmit` / `emit` を実装する。
   `kk_mutable_state_flow_{create,emit,try_emit}` / `kk_state_flow_value` / `kk_flow_state_in` を削除。
-  `kk_flow_stopped` / `kk_flow_emit_with_timestamp` / `kk_flow_release` / `kk_flow_retain` は (c) 残留。
+  `__kk_flow_stopped` / `__kk_flow_emit_with_timestamp` / `__kk_flow_release` / `__kk_flow_retain` は (c) internal compatibility bridge として残留。
 - **Flow builder**: `kk_flow_{as_flow,empty,of}`（計3関数）。`kk_flow_create` + `kk_flow_emit` の合成で (b) 化できる
-  可能性が高い。なお `channelFlow`/`callbackFlow` は Sema 側のみ登録されており Runtime 実装は未確認（Channel 実体を
-  持つ可能性が高く (c) 濃厚）
-- `kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
-  KSP-499 着手時に再調査
+  可能性が高い。`channelFlow`/`callbackFlow` は KSP-686 で (a)（未実装 API）に分類した。最小実測では real API 形の
+  `channelFlow { send(1) }` が `KSWIFTK-SEMA-0023: Unresolved function 'send'`、
+  `callbackFlow { trySend(1); close() }` が `trySend`/`close` 未解決で止まり、実装済みの `emit` alias だけが `kk_flow_create`
+  経由で動作した（両者とも `1` を出力）。そのため合成 Flow 宣言・Flow/Coroutine lowering 特例・未実装 ABI allowlist を削除し、
+  fiction を通常の未解決 API として明示した。real `ProducerScope` 実装は別タスクで設計する。
+- `__kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
+  KSP-499 後も internal compatibility bridge として保持
 
 ## 10. モジュール移行プレイブック
 

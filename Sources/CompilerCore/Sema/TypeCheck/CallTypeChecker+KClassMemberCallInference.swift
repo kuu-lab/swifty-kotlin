@@ -93,9 +93,8 @@ extension CallTypeChecker {
         }
         // KSP-496: members/constructors/nestedClasses/properties/memberProperties/
         // declaredMemberProperties/functions/memberFunctions/
-        // declaredMemberFunctions/supertypes stay compiler special cases — see
-        // KClassMemberIntrospection.kt for why (runtime handles aren't wired
-        // for genuine interface-conformance checks).
+        // declaredMemberFunctions/supertypes remain compiler special cases
+        // because their bundled generic declarations are not yet present.
         let kclassMemberCollectionCallees: Set<InternedString> = [
             knownNames.membersName, knownNames.constructorsName,
             knownNames.nestedClassesName,
@@ -198,8 +197,9 @@ extension CallTypeChecker {
         }
         // KSP-496: members/constructors/nestedClasses/properties/memberProperties/
         // declaredMemberProperties/functions/memberFunctions/
-        // declaredMemberFunctions/supertypes stay compiler special cases (via
-        // variable receiver) — see KClassMemberIntrospection.kt for why.
+        // declaredMemberFunctions/supertypes remain compiler special cases (via
+        // variable receiver) because their bundled generic declarations are not
+        // yet present.
         let kclassVarMemberCollectionCallees: Set<InternedString> = [
             knownNames.membersName, knownNames.constructorsName,
             knownNames.nestedClassesName,

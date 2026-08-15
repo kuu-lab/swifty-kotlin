@@ -23,7 +23,8 @@ import Testing
 //   - AtomicInt (legacy kotlin.native.concurrent.AtomicInt / unified kotlin.concurrent.AtomicInt):
 //             compareAndSet semantics — already tested in isolation via AtomicInt cdecl wrappers
 //   - AtomicLong: compareAndSet semantics — ditto
-//   - AtomicReference: compareAndSet semantics — ditto
+//   - AtomicReference: compareAndExchange semantics — the public compareAndSet
+//             wrapper is covered by the compiler-backed atomic integration tests
 //   - @ThreadLocal: kk_thread_local_new / kk_thread_local_getOrSet — tested in RuntimeThreadLocalTests
 //
 // Remaining work / known limitations:
@@ -300,31 +301,11 @@ struct RuntimeAtomicLongNativeConcurrentTests {
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - AtomicReference compareAndSet semantics
+// MARK: - AtomicReference compareAndExchange semantics
 // ---------------------------------------------------------------------------
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeAtomicReferenceNativeConcurrentTests {
-
-    @Test func compareAndSetSucceedsWhenExpectMatches() {
-        let refA = kk_atomic_int_create(1) // use AtomicInt handle as a stable pointer
-        let refB = kk_atomic_int_create(2)
-        let atomicRef = kk_atomic_ref_create(refA)
-        let result = kk_atomic_ref_compareAndSet(atomicRef, refA, refB)
-        #expect(result == 1)
-        #expect(kk_atomic_ref_load(atomicRef) == refB)
-    }
-
-    @Test func compareAndSetFailsWhenExpectMismatches() {
-        let refA = kk_atomic_int_create(1)
-        let refB = kk_atomic_int_create(2)
-        let refC = kk_atomic_int_create(3)
-        let atomicRef = kk_atomic_ref_create(refA)
-        let result = kk_atomic_ref_compareAndSet(atomicRef, refC, refB)
-        #expect(result == 0, "compareAndSet must fail when expected != actual")
-        #expect(kk_atomic_ref_load(atomicRef) == refA,
-                "Value must not change on failed CAS")
-    }
 
     @Test func compareAndExchangeReturnsOldReference() {
         let refA = kk_atomic_int_create(10)
@@ -333,6 +314,28 @@ struct RuntimeAtomicReferenceNativeConcurrentTests {
         let old = kk_atomic_ref_compareAndExchange(atomicRef, refA, refB)
         #expect(old == refA)
         #expect(kk_atomic_ref_load(atomicRef) == refB)
+    }
+
+    @Test func compareAndExchangeFailsAndRetainsCurrentReference() {
+        let refA = kk_atomic_int_create(10)
+        let refB = kk_atomic_int_create(20)
+        let refC = kk_atomic_int_create(30)
+        let atomicRef = kk_atomic_ref_create(refA)
+        let old = kk_atomic_ref_compareAndExchange(atomicRef, refC, refB)
+        #expect(old == refA)
+        #expect(kk_atomic_ref_load(atomicRef) == refA,
+                "A failed compareAndExchange must retain the current reference")
+    }
+
+    @Test func compareAndExchangeUsesReferenceIdentity() {
+        let current = registerRuntimeObject(RuntimeStringBox("same"))
+        let equalButDistinct = registerRuntimeObject(RuntimeStringBox("same"))
+        let replacement = registerRuntimeObject(RuntimeStringBox("next"))
+        let atomicRef = kk_atomic_ref_create(current)
+        let old = kk_atomic_ref_compareAndExchange(atomicRef, equalButDistinct, replacement)
+        #expect(old == current)
+        #expect(kk_atomic_ref_load(atomicRef) == current,
+                "Equal but distinct references must not satisfy the CAS expectation")
     }
 
     @Test func nullReferenceRoundTrip() {
