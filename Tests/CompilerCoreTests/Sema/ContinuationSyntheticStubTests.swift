@@ -228,154 +228,68 @@ struct ContinuationSyntheticStubTests {
         #expect(signatures.contains(where: { $0.parameterTypes.count == 2 && $0.typeParameterSymbols.count == 2 }))
     }
 
-    @Test
-    func testContinuationInterceptedResolvesInSource() throws {
-        let source = """
+    // MARK: - Shared context for call-site tests
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedPaths: [String]?
+
+    private func sharedCtx() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedCtx, let paths = Self._sharedPaths {
+            return (cached, paths)
+        }
+        var result: CompilationContext?
+        var paths: [String] = []
+        try withTemporaryFiles(contents: Self.sharedSources) { p in
+            paths = p
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        Self._sharedPaths = paths
+        return (ctx, paths)
+    }
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import kotlin.coroutines.Continuation
         import kotlin.coroutines.intrinsics.intercepted
 
         fun probe(c: Continuation<Int>): Continuation<Int> {
             return c.intercepted()
         }
+        """,
         """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(ctx.diagnostics.diagnostics.isEmpty)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, calleeName, _, _, _) = expr else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "intercepted"
-            })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected intercepted() to resolve"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) ==
-                "kk_continuation_intercepted"
-            )
-        }
-    }
-
-    @Test
-    func testContinuationFactoryResolvesInSource() throws {
-        let source = """
+        package sample1
         import kotlin.coroutines.Continuation
         import kotlin.coroutines.CoroutineContext
 
         fun probe(context: CoroutineContext): Continuation<Int> {
             return Continuation<Int>(context = context, resumeWith = { result: Result<Int> -> println(result) })
         }
+        """,
         """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "Continuation"
-            })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected Continuation(context, resumeWith) to resolve"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) ==
-                "kk_coroutine_continuation_factory"
-            )
-        }
-    }
-
-    @Test
-    func testStartCoroutineNoReceiverResolvesInSource() throws {
-        let source = """
+        package sample2
         import kotlin.coroutines.Continuation
         import kotlin.coroutines.startCoroutine
 
         fun probe(block: suspend () -> Int, completion: Continuation<Int>) {
             block.startCoroutine(completion)
         }
+        """,
         """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, calleeName, _, _, _) = expr else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "startCoroutine"
-            })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected startCoroutine() to resolve"
-            )
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-            #expect(sema.bindings.exprTypes[callExpr] == sema.types.unitType)
-        }
-    }
-
-    @Test
-    func testCreateCoroutineNoReceiverResolvesInSource() throws {
-        let source = """
+        package sample3
         import kotlin.coroutines.Continuation
         import kotlin.coroutines.createCoroutine
 
         fun probe(block: suspend () -> Int, completion: Continuation<Int>): Continuation<Unit> {
             return block.createCoroutine(completion)
         }
+        """,
         """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, calleeName, _, _, _) = expr else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "createCoroutine"
-            })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected createCoroutine() to resolve"
-            )
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-        }
-    }
-
-    @Test
-    func testStartCoroutineWithReceiverResolvesInSource() throws {
-        let source = """
+        package sample4
         import kotlin.coroutines.Continuation
         import kotlin.coroutines.startCoroutine
 
@@ -383,29 +297,151 @@ struct ContinuationSyntheticStubTests {
             block.startCoroutine("swift", completion)
         }
         """
+    ]
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+    private func errorDiagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID && $0.severity == .error }
+    }
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, calleeName, _, _, _) = expr else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "startCoroutine"
-            })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected receiver startCoroutine() to resolve"
-            )
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-            #expect(sema.bindings.exprTypes[callExpr] == sema.types.unitType)
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { return exprID }
         }
+        return nil
+    }
+
+    @Test
+    func testContinuationInterceptedResolvesInSource() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[0]
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty)
+
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, calleeName, _, _, _) = expr else {
+                return false
+            }
+            return ctx.interner.resolve(calleeName) == "intercepted"
+        })
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected intercepted() to resolve"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) ==
+            "kk_continuation_intercepted"
+        )
+    }
+
+    @Test
+    func testContinuationFactoryResolvesInSource() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[1]
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .call(calleeExpr, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+            else {
+                return false
+            }
+            return ctx.interner.resolve(calleeName) == "Continuation"
+        })
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected Continuation(context, resumeWith) to resolve"
+        )
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) ==
+            "kk_coroutine_continuation_factory"
+        )
+    }
+
+    @Test
+    func testStartCoroutineNoReceiverResolvesInSource() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[2]
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, calleeName, _, _, _) = expr else {
+                return false
+            }
+            return ctx.interner.resolve(calleeName) == "startCoroutine"
+        })
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected startCoroutine() to resolve"
+        )
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+        #expect(sema.bindings.exprTypes[callExpr] == sema.types.unitType)
+    }
+
+    @Test
+    func testCreateCoroutineNoReceiverResolvesInSource() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[3]
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, calleeName, _, _, _) = expr else {
+                return false
+            }
+            return ctx.interner.resolve(calleeName) == "createCoroutine"
+        })
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected createCoroutine() to resolve"
+        )
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+    }
+
+    @Test
+    func testStartCoroutineWithReceiverResolvesInSource() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[4]
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .memberCall(_, calleeName, _, _, _) = expr else {
+                return false
+            }
+            return ctx.interner.resolve(calleeName) == "startCoroutine"
+        })
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected receiver startCoroutine() to resolve"
+        )
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+        #expect(sema.bindings.exprTypes[callExpr] == sema.types.unitType)
     }
 }
 #endif

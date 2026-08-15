@@ -25,7 +25,6 @@ extension DataFlowSemaPhase {
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
-        let listReturnType = receiverType
         if types.comparableInterfaceSymbol == nil {
             registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
         }
@@ -167,18 +166,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerMember(name: "sum", parameterTypes: [], externalLinkName: "kk_list_sum", returnTypeOverride: types.intType)
-        registerMember(name: "average", parameterTypes: [], externalLinkName: "kk_list_average", returnTypeOverride: types.doubleType)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-004+). Keep these stubs until then.
-        registerMember(name: "reversed", parameterTypes: [], externalLinkName: "kk_list_reversed")
-        registerMember(name: "asReversed", parameterTypes: [], externalLinkName: "kk_list_as_reversed")
         registerMember(
             name: "sorted",
             parameterTypes: [],
             externalLinkName: "kk_list_sorted",
             typeParameterUpperBoundsList: [comparableElementBounds]
         )
-        registerMember(name: "distinct", parameterTypes: [], externalLinkName: "kk_list_distinct")
         registerMember(name: "shuffled", parameterTypes: [], externalLinkName: "kk_list_shuffled")
 
         // shuffled(random: Random) overload (STDLIB-531)
@@ -213,47 +206,5 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_sortedDescending",
             typeParameterUpperBoundsList: [comparableElementBounds]
         )
-        // distinctBy (HOF, selector lambda)
-        // Kotlin's `distinctBy` is declared as an extension on Iterable<T>:
-        //   fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T>
-        // The compiler models this as a synthetic member on List (not Iterable) because
-        // the stub system registers members on concrete collection interfaces.
-        // We use `Any?` as the selector return type (erasing K) so that selectors
-        // returning nullable keys (e.g., `{ it.name }` where `name` is `String?`)
-        // are accepted without a type error.  The runtime compares keys by
-        // handle/unboxed-value identity, so nullable vs non-null makes no behavioural
-        // difference at the ABI level.
-        // NOTE: The selector type `(T) -> Any?` must stay in sync with the expected
-        // type in CallTypeChecker+MemberCallInference.swift (case "distinctBy").
-        let distinctByName = interner.intern("distinctBy")
-        let distinctByFQName = listFQName + [distinctByName]
-        if symbols.lookup(fqName: distinctByFQName) == nil {
-            let selectorType = types.make(.functionType(FunctionType(
-                params: [listTypeParamType],
-                returnType: types.nullableAnyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: distinctByName,
-                fqName: distinctByFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_distinctBy", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [selectorType],
-                    returnType: listReturnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
     }
 }

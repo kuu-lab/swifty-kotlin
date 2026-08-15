@@ -227,11 +227,19 @@ extension DataFlowSemaPhase {
             return nil
         }
 
-        var candidatePaths: [[InternedString]] = [path]
-        if !currentPackage.isEmpty {
-            // Allow nested/package-relative supertypes such as
-            // `TimeSource.WithComparableMarks` inside `kotlin.time`.
-            candidatePaths.append(currentPackage + path)
+        var candidatePaths: [[InternedString]]
+        if path.count == 1, !currentPackage.isEmpty {
+            // An unqualified name resolves in the current package before the
+            // root package. This matters when bundled `kotlin` declarations
+            // coexist with a root-package declaration of the same name.
+            candidatePaths = [currentPackage + path, path]
+        } else {
+            candidatePaths = [path]
+            if !currentPackage.isEmpty {
+                // Allow nested/package-relative supertypes such as
+                // `TimeSource.WithComparableMarks` inside `kotlin.time`.
+                candidatePaths.append(currentPackage + path)
+            }
         }
         // Also try matching against imports: if the simple name matches
         // the last component of an import path, use the full import path.
@@ -359,10 +367,16 @@ extension DataFlowSemaPhase {
                     nullability: nullability
                 )))
             }
-            // Try both raw path and package-qualified path (same as resolveNominalSymbolAndTypeArgs)
-            var candidatePaths: [[InternedString]] = [path]
+            // Resolve an unqualified name in the current package before the
+            // root package, matching resolveNominalSymbolAndTypeArgs.
+            var candidatePaths: [[InternedString]]
             if path.count == 1, !currentPackage.isEmpty {
-                candidatePaths.append(currentPackage + path)
+                candidatePaths = [currentPackage + path, path]
+            } else {
+                candidatePaths = [path]
+                if !currentPackage.isEmpty {
+                    candidatePaths.append(currentPackage + path)
+                }
             }
             for candidatePath in candidatePaths {
                 if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)

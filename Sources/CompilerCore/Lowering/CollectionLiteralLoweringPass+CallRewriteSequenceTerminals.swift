@@ -125,24 +125,6 @@ extension CollectionLiteralConstructionLoweringPass {
 
     if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.count == 1 {
         let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: callee == lookup.asReversedName ? lookup.kkListAsReversedName : lookup.kkListReversedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
         if callee == lookup.reversedName, state.rangeExprIDs.contains(receiverID.rawValue) {
             let isUIntRange = isUIntRangeExpr(receiverID)
             let transformResult = module.arena.appendTemporary(type: nil
@@ -165,50 +147,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     state.ulongRangeExprIDs.insert(transformResult.rawValue)
                     state.ulongRangeExprIDs.insert(result.rawValue)
                 }
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
-    if callee == lookup.sortedName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListSortedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
-    if callee == lookup.distinctName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListDistinctName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
                 loweredBody.append(.copy(from: transformResult, to: result))
             }
             return true

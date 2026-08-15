@@ -17,6 +17,9 @@ package struct MetadataRecord {
     let typeSignature: String?
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
+    /// Per-parameter flags indicating whether a function-type argument may
+    /// contain a non-local return when the callable is inline-expanded.
+    package let valueParameterAllowsNonLocalReturn: [Bool]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
     /// Whether the function/constructor is declared `throws`.
@@ -116,6 +119,7 @@ package struct MetadataRecord {
         isOverride: Bool = false,
         typeSignature: String? = nil,
         valueParameterIsVararg: [Bool] = [],
+        valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
@@ -164,6 +168,7 @@ package struct MetadataRecord {
         self.isOverride = isOverride
         self.typeSignature = typeSignature
         self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
@@ -415,7 +420,8 @@ package final class MetadataEncoder {
             expandedType,
             symbols: symbols,
             types: types,
-            nameResolver: nameResolver
+            nameResolver: nameResolver,
+            unboxValueClasses: false
         )
     }
 
@@ -660,6 +666,7 @@ package final class MetadataEncoder {
         var isOverride = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var canThrow = false
         var valueParameterNames: [String] = []
@@ -678,6 +685,7 @@ package final class MetadataEncoder {
             isOperator = symbol.flags.contains(.operatorFunction)
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
+            valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
             valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
             canThrow = signature.canThrow
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
@@ -688,7 +696,8 @@ package final class MetadataEncoder {
                 for: symbol,
                 symbols: symbols,
                 types: types,
-                nameResolver: { interner.resolve($0) }
+                nameResolver: { interner.resolve($0) },
+                unboxValueClasses: false
             )
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             if signature.valueParameterHasDefaultValues.contains(true) {
@@ -902,6 +911,7 @@ package final class MetadataEncoder {
             isOverride: isOverride,
             typeSignature: typeSignature,
             valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
@@ -1033,6 +1043,10 @@ package final class MetadataEncoder {
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
+                }
+                if !record.valueParameterAllowsNonLocalReturn.isEmpty {
+                    let mask = record.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }.joined()
+                    fields.append("nonLocal=\(mask)")
                 }
                 if !record.valueParameterHasDefaultValues.isEmpty {
                     let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
@@ -1387,6 +1401,7 @@ final class MetadataDecoder {
                 isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
@@ -1441,6 +1456,7 @@ final class MetadataDecoder {
         var isOverride: Bool = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
@@ -1497,6 +1513,8 @@ final class MetadataDecoder {
             record.isOverride = value == "1" || value == "true"
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
+        case "nonLocal":
+            record.valueParameterAllowsNonLocalReturn = value.map { $0 == "1" }
         case "default":
             record.valueParameterHasDefaultValues = value.map { $0 == "1" }
         case "canThrow":

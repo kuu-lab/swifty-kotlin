@@ -57,7 +57,7 @@ expr e@15:39 int(50) type=Int
 expr e@15:16 call callee=e@15:16#1 args=[_:e@15:23,_:e@15:27,_:e@15:31,_:e@15:35,_:e@15:39] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@15:5 localDecl list mutable=0 type=_ init=e@15:16 type=Unit ref=__local_2.list
 expr e@16:24 name(list) type=kotlin.collections.List<out Int> ref=__local_2.list
-expr e@16:24#1 memberCall recv=e@16:24 callee=asSequence args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.asSequence targs=[Int]
+expr e@16:24#1 memberCall recv=e@16:24 callee=asSequence args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.asSequence#0 targs=[Int]
 expr e@16:54 name(it) type=Int ref=s-2
 expr e@16:60 int(30) type=Int
 expr e@16:54#1 binary(greaterOrEqual) lhs=e@16:54 rhs=e@16:60 type=Boolean

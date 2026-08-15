@@ -270,17 +270,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                     return true
                 }
-                if state.listExprIDs.contains(receiverID.rawValue) || state.arrayExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkListSumName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
             }
         }
 

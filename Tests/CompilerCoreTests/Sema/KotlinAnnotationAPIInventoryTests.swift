@@ -481,100 +481,135 @@ struct KotlinAnnotationAPIInventoryTests {
 
     // MARK: - 8. Call-site resolution: annotations resolve without sema errors
 
-    @Test func testTargetAnnotationResolvesOnAnnotationClass() throws {
-        let source = """
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedPaths: [String]?
+
+    private func sharedCtx() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedCtx, let paths = Self._sharedPaths {
+            return (cached, paths)
+        }
+        var result: CompilationContext?
+        var paths: [String] = []
+        try withTemporaryFiles(contents: Self.sharedSources) { p in
+            paths = p
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        Self._sharedPaths = paths
+        return (ctx, paths)
+    }
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import kotlin.annotation.Target
         import kotlin.annotation.AnnotationTarget
 
         @Target(AnnotationTarget.CLASS)
         annotation class ClassScoped
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "@Target(AnnotationTarget.CLASS) on annotation class must not produce sema errors"
-            )
-        }
-    }
-
-    @Test func testRetentionAnnotationResolvesOnAnnotationClass() throws {
-        let source = """
+        package sample1
         import kotlin.annotation.Retention
         import kotlin.annotation.AnnotationRetention
 
         @Retention(AnnotationRetention.RUNTIME)
         annotation class RuntimeRetained
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "@Retention(AnnotationRetention.RUNTIME) must compile without sema errors"
-            )
-        }
-    }
-
-    @Test func testRepeatableAnnotationResolvesOnAnnotationClass() throws {
-        let source = """
+        package sample2
         import kotlin.annotation.Repeatable
 
         @Repeatable
         annotation class Taggable
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "@Repeatable on annotation class must compile without sema errors"
-            )
-        }
-    }
-
-    @Test func testMustBeDocumentedAnnotationResolvesOnAnnotationClass() throws {
-        let source = """
+        package sample3
         import kotlin.annotation.MustBeDocumented
 
         @MustBeDocumented
         annotation class PublicApi
+        """,
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "@MustBeDocumented on annotation class must compile without sema errors"
-            )
-        }
-    }
-
-    @Test func testAllAnnotationTargetEntriesResolveAsExpressions() throws {
-        let entries = [
-            "CLASS", "ANNOTATION_CLASS", "TYPE_PARAMETER", "PROPERTY", "FIELD",
-            "LOCAL_VARIABLE", "VALUE_PARAMETER", "CONSTRUCTOR", "FUNCTION",
-            "PROPERTY_GETTER", "PROPERTY_SETTER", "TYPE", "EXPRESSION", "FILE", "TYPEALIAS",
-        ]
-        let argList = entries.map { "AnnotationTarget.\($0)" }.joined(separator: ",\n        ")
-        let source = """
+        package sample4
         import kotlin.annotation.Target
         import kotlin.annotation.AnnotationTarget
 
         @Target(
-            \(argList)
+            AnnotationTarget.CLASS,
+            AnnotationTarget.ANNOTATION_CLASS,
+            AnnotationTarget.TYPE_PARAMETER,
+            AnnotationTarget.PROPERTY,
+            AnnotationTarget.FIELD,
+            AnnotationTarget.LOCAL_VARIABLE,
+            AnnotationTarget.VALUE_PARAMETER,
+            AnnotationTarget.CONSTRUCTOR,
+            AnnotationTarget.FUNCTION,
+            AnnotationTarget.PROPERTY_GETTER,
+            AnnotationTarget.PROPERTY_SETTER,
+            AnnotationTarget.TYPE,
+            AnnotationTarget.EXPRESSION,
+            AnnotationTarget.FILE,
+            AnnotationTarget.TYPEALIAS
         )
         annotation class AllTargets
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "@Target with all AnnotationTarget entries must compile without sema errors"
-            )
-        }
+    ]
+
+    private func errorDiagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID && $0.severity == .error }
+    }
+
+    @Test func testTargetAnnotationResolvesOnAnnotationClass() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[0]
+        #expect(
+            errorDiagnosticsForPath(path, in: ctx).isEmpty,
+            "@Target(AnnotationTarget.CLASS) on annotation class must not produce sema errors"
+        )
+    }
+
+    @Test func testRetentionAnnotationResolvesOnAnnotationClass() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[1]
+        #expect(
+            errorDiagnosticsForPath(path, in: ctx).isEmpty,
+            "@Retention(AnnotationRetention.RUNTIME) must compile without sema errors"
+        )
+    }
+
+    @Test func testRepeatableAnnotationResolvesOnAnnotationClass() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[2]
+        #expect(
+            errorDiagnosticsForPath(path, in: ctx).isEmpty,
+            "@Repeatable on annotation class must compile without sema errors"
+        )
+    }
+
+    @Test func testMustBeDocumentedAnnotationResolvesOnAnnotationClass() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[3]
+        #expect(
+            errorDiagnosticsForPath(path, in: ctx).isEmpty,
+            "@MustBeDocumented on annotation class must compile without sema errors"
+        )
+    }
+
+    @Test func testAllAnnotationTargetEntriesResolveAsExpressions() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[4]
+        #expect(
+            errorDiagnosticsForPath(path, in: ctx).isEmpty,
+            "@Target with all AnnotationTarget entries must compile without sema errors"
+        )
     }
 
     @Test func testAllAnnotationRetentionEntriesResolveAsExpressions() throws {

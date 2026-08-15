@@ -13,6 +13,57 @@ extension CallTypeChecker {
         symbols.lookupByShortName(interner.intern(name)).first
     }
 
+    /// Prefer Collection<T>.toList() when both source-backed collection
+    /// extensions are visible for a concrete Collection receiver.
+    func preferCollectionToListCandidates(
+        _ candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        guard let collectionSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ]),
+        let iterableSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]),
+        let receiverNominal = driver.helpers.nominalSymbol(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types
+        ),
+        sema.types.isNominalSubtypeSymbol(receiverNominal, of: collectionSymbol),
+        candidates.contains(where: { candidate in
+            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return false
+            }
+            return candidateNominal == collectionSymbol
+        })
+        else {
+            return candidates
+        }
+
+        return candidates.filter { candidate in
+            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return true
+            }
+            return candidateNominal != iterableSymbol
+        }
+    }
+
     /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
     /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
     /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
@@ -505,11 +556,9 @@ extension CallTypeChecker {
     ///
     ///   - **Constants** (STDLIB-153): `Int.MAX_VALUE`, `Double.NaN`, `Float.POSITIVE_INFINITY`, etc.
     ///     when `args.isEmpty` — looked up via `numericCompanionConstant`.
-    ///   - **Static functions** (STDLIB-NUM-130): `Double.fromBits(Long)`,
-    ///     `Float.fromBits(Int)` etc. when `args.count == 1` — looked up via
-    ///     `numericCompanionFunction`, with the receiver bound to `Unit` so
-    ///     lowering does not pass the class name as an argument.
-    ///
+    ///   - **Static functions** (STDLIB-NUM-130): `Double.fromBits(Long)` and
+    ///     `Float.fromBits(Int)` use a top-level synthetic registration because
+    ///     primitive types have no source-level Companion object.
     /// Returns the inferred type when handled, or `nil` to fall through. Both
     /// branches require the receiver to be a `nameRef` (typed identifier) that
     /// is not currently bound as a local — an Int *value* named `Int` shadows

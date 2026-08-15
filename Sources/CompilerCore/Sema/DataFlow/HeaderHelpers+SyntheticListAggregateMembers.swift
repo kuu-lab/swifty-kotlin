@@ -291,6 +291,15 @@ extension DataFlowSemaPhase {
             ) {
                 let memberName = interner.intern(name)
                 let memberFQName = listFQName + [memberName]
+                if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                    declaredOwnerFQName: listFQName,
+                    receiverType: receiverType,
+                    name: memberName,
+                    arity: 1,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) { return }
                 guard symbols.lookup(fqName: memberFQName) == nil else { return }
                 let memberSymbol = symbols.define(
                     kind: .function,
@@ -329,6 +338,15 @@ extension DataFlowSemaPhase {
             ) {
                 let memberName = interner.intern(name)
                 let memberFQName = listFQName + [memberName]
+                if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                    declaredOwnerFQName: listFQName,
+                    receiverType: receiverType,
+                    name: memberName,
+                    arity: 2,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) { return }
                 guard symbols.lookup(fqName: memberFQName) == nil else { return }
 
                 // Introduce a type parameter R (no Comparable bound needed – the comparator handles ordering)
@@ -470,7 +488,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .inlineFunction]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_sumOf", for: memberSymbol)
+            symbols.setExternalLinkName("sumOf", for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,
