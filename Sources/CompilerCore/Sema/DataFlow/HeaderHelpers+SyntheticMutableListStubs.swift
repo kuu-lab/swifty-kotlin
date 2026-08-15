@@ -840,12 +840,21 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("sort")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: mutableListFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 0,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) { return }
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,
@@ -879,12 +888,21 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("sortWith")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: mutableListFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) { return }
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let comparatorType = types.make(.functionType(FunctionType(
             params: [mlTypeParamType, mlTypeParamType],
             returnType: types.intType,
@@ -924,12 +942,21 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("sortBy")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: mutableListFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) { return }
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let selectorReturnType: TypeID
         let extraTypeParamSymbols: [SymbolID]
         let extraUpperBoundsList: [[TypeID]]
@@ -985,12 +1012,21 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("sortByDescending")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: mutableListFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) { return }
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let selectorReturnType: TypeID
         let extraTypeParamSymbols: [SymbolID]
         let extraUpperBoundsList: [[TypeID]]
@@ -1046,12 +1082,21 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("sortDescending")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: mutableListFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 0,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) { return }
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,

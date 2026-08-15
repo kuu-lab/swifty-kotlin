@@ -1405,13 +1405,13 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_flat",
+                "__kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_charset_flat",
+                "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
@@ -2349,7 +2349,17 @@ extension NativeEmitter {
                     continue
                 }
 
-                let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
+                // Function-value invokes carry the callable value as their first
+                // argument.  The KIR symbol is intentionally retained for
+                // InlineLoweringPass to match an inline function parameter, but
+                // it must not be treated as a direct callee here: doing so turns
+                // a captured parameter such as `transform` into an undefined
+                // external `_transform` symbol (KSP-499 compiler regression).
+                let isFunctionValueInvoke = Self.functionValueInvokeCallees.contains(calleeName)
+                let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
+                                                       let symbol,
+                                                       symbol != .invalid
+                {
                     symbol
                 } else {
                     SymbolID?.none
@@ -3271,10 +3281,6 @@ extension NativeEmitter {
         case "__floatToRawBits": "kk_float_toRawBits"
         case "__doubleFromBits": "kk_double_fromBits"
         case "__floatFromBits": "kk_float_fromBits"
-        case "__doubleRoundToInt": "kk_double_roundToInt"
-        case "__floatRoundToInt": "kk_float_roundToInt"
-        case "__doubleRoundToLong": "kk_double_roundToLong"
-        case "__floatRoundToLong": "kk_float_roundToLong"
         case "__intHighestOneBit": "kk_int_highestOneBit"
         case "__intLowestOneBit": "kk_int_lowestOneBit"
         case "__longHighestOneBit": "kk_long_highestOneBit"
