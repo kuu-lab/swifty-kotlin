@@ -127,10 +127,8 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        // STDLIB-189: String is iterable over its Char elements. The runtime iterator
-        // dispatch is rewritten to kk_string_iterator_* by CollectionLiteralLoweringPass
-        // regardless of this static type, but the loop variable still needs the correct
-        // static Char type for member resolution and explicit typing to work.
+        // String is iterable over its Char elements; the loop variable still needs
+        // the correct static Char type for member resolution and explicit typing.
         if sema.types.makeNonNullable(iterableType) == sema.types.stringType {
             return sema.types.charType
         }

@@ -168,17 +168,6 @@ public func kk_string_repeat_flat(
         outHash: outHash
     )
 }
-
-@_cdecl("kk_string_iterator_flat")
-public func kk_string_iterator_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    kk_string_iterator(kk_string_from_flat(data, length, byteCount, hash))
-}
-
 @_cdecl("kk_string_first_flat")
 public func kk_string_first_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -509,85 +498,6 @@ public func __kk_string_toFloatOrNull_flat(
 ) -> Int {
     __kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
-
-@_cdecl("kk_string_toSortedSet_flat")
-public func kk_string_toSortedSet_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let values = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).map {
-        RuntimeValue(charScalar: Int($0))
-    }
-    let deduped = runtimeDeduplicatePreservingOrder(values)
-    let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
-    return registerRuntimeObject(RuntimeSetBox(values: sorted))
-}
-
-@_cdecl("kk_string_toCollection_flat")
-public func kk_string_toCollection_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ destRaw: Int
-) -> Int {
-    let values = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).map {
-        RuntimeValue(charScalar: Int($0))
-    }
-    guard runtimeMutableCollectionExists(destRaw) else {
-        invalidContainerPanic(#function, "mutable collection")
-    }
-    for value in values {
-        runtimeAppendToMutableCollection(destRaw, value)
-    }
-    return destRaw
-}
-
-@_cdecl("kk_string_toList_flat")
-public func kk_string_toList_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let values = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).map {
-        RuntimeValue(charScalar: Int($0))
-    }
-    return registerRuntimeObject(RuntimeListBox(values: values))
-}
-
-@_cdecl("kk_string_toCharArray_flat")
-public func kk_string_toCharArray_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let values = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).map {
-        RuntimeValue(charScalar: Int($0))
-    }
-    let box = RuntimeArrayBox(length: values.count)
-    box.values = values
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_string_toTypedArray_flat")
-public func kk_string_toTypedArray_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let values = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).map {
-        RuntimeValue(charScalar: Int($0))
-    }
-    let box = RuntimeArrayBox(length: values.count)
-    box.values = values
-    return registerRuntimeObject(box)
-}
-
 @_cdecl("__kk_string_toUByteOrNull_radix_flat")
 public func __kk_string_toUByteOrNull_radix_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -841,27 +751,6 @@ public func kk_string_replace_char_ignoreCase_flat(
         outHash: outHash
     )
 }
-
-@_cdecl("kk_string_asIterable_flat")
-public func kk_string_asIterable_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    runtimeStringAsIterable(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash))
-}
-
-@_cdecl("kk_string_asSequence_flat")
-public func kk_string_asSequence_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    runtimeStringAsSequence(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash))
-}
-
 // KSP-413: contentEquals / equals(ignoreCase) are bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt); the kk_string_contentEquals_flat /
 // kk_string_contentEquals_ignoreCase_flat / kk_string_equalsIgnoreCase_flat

@@ -967,51 +967,6 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toList_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toList_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCharArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCharArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toTypedArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toTypedArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toSortedSet_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toSortedSet_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCollection_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCollection_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_withIndex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_withIndex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_iterator_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_iterator_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asIterable_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asIterable_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "kk_string_split_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_split_flat",
                     stringArgumentCount: 2,

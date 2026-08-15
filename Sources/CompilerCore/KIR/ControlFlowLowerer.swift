@@ -583,6 +583,19 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(type)
+        if sema.types.isSubtype(nonNullType, sema.types.stringType) {
+            return false
+        }
+        if let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol {
+            let charSequenceType = sema.types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            if sema.types.isSubtype(nonNullType, charSequenceType) {
+                return false
+            }
+        }
         if ReceiverClassifier(sema: sema, interner: interner).isIterableInterfaceType(nonNullType) {
             return true
         }
@@ -962,28 +975,42 @@ final class ControlFlowLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
-        guard let (_, classSymbol) = resolveClassTypeSymbol(
-            sema.types.makeNonNullable(receiverType),
-            sema: sema
-        ),
-              classSymbol.fqName.count >= 2
-        else {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        let classSymbol = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)?.1
+        let isCharSequenceLike = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+            || (sema.types.charSequenceInterfaceSymbol.map { symbol in
+                let charSequenceType = sema.types.make(.classType(ClassType(
+                    classSymbol: symbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                return sema.types.isSubtype(nonNullReceiverType, charSequenceType)
+            } ?? false)
+        guard isCharSequenceLike || classSymbol != nil else {
             return nil
         }
-        let packageFQName = classSymbol.fqName.dropLast()
-        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [name]) {
-            guard let candidateSymbol = sema.symbols.symbol(candidate),
-                  candidateSymbol.kind == .function,
-                  candidateSymbol.flags.contains(.operatorFunction),
-                  (!candidateSymbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
-                  let signature = sema.symbols.functionSignature(for: candidate),
-                  signature.parameterTypes.isEmpty,
-                  let candidateReceiverType = signature.receiverType
-            else {
-                continue
+        var packageFQNames: [[InternedString]] = classSymbol.map { [Array($0.fqName.dropLast())] } ?? []
+        if isCharSequenceLike {
+            let textPackage = [interner.intern("kotlin"), interner.intern("text")]
+            if !packageFQNames.contains(textPackage) {
+                packageFQNames.append(textPackage)
             }
-            if sema.types.isSubtype(receiverType, candidateReceiverType) {
-                return candidate
+        }
+        for packageFQName in packageFQNames {
+            for candidate in sema.symbols.lookupAll(fqName: packageFQName + [name]) {
+                guard let candidateSymbol = sema.symbols.symbol(candidate),
+                      candidateSymbol.kind == .function,
+                      candidateSymbol.flags.contains(.operatorFunction),
+                      (!candidateSymbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      let candidateReceiverType = signature.receiverType
+                else {
+                    continue
+                }
+                if sema.types.isSubtype(receiverType, candidateReceiverType) {
+                    return candidate
+                }
             }
         }
         return nil
@@ -1049,16 +1076,32 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
+        let isCharSequenceLike: Bool = {
+            if sema.types.isSubtype(nonNullType, sema.types.stringType) {
+                return true
+            }
+            guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol else {
+                return false
+            }
+            let charSequenceType = sema.types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            return sema.types.isSubtype(nonNullType, charSequenceType)
+        }()
         // Only resolve for user-defined class types and bundled Range/Progression,
         // Channel, or source Sequence/Iterator classes whose `iterator()` operators
         // are now supplied by Kotlin source.
-        guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              !classSymbol.flags.contains(.synthetic)
+        let classSymbol = resolveClassTypeSymbol(nonNullType, sema: sema)?.1
+        guard isCharSequenceLike || {
+            guard let classSymbol else { return false }
+            return !classSymbol.flags.contains(.synthetic)
                 || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
                 || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
                 || KnownCompilerNames(interner: interner).isSequenceSymbol(classSymbol)
                 || sema.symbols.isSourceBackedSymbol(classSymbol.id)
-        else {
+        }() else {
             return nil
         }
         // KSP-441: Allow synthetic Sequence/Iterator symbols to resolve source `iterator()`.

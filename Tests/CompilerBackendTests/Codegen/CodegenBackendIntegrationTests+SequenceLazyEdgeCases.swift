@@ -691,6 +691,28 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testSequenceConversionsRemainTraversableAfterSorting() throws {
+        let source = """
+        fun main() {
+            val sequence = sequenceOf(3, 1, 2)
+            println(sequence.asSequence().toList())
+            println(sequence.asIterable().toList())
+            println(sequence.sortedDescending().asSequence().toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceConversionsAfterSorting",
+            expected: """
+            [3, 1, 2]
+            [3, 1, 2]
+            [3, 2, 1]
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testSequenceIdentityConversionsPreserveLazyIteratorSemantics() throws {
         let source = """
         fun main() {
@@ -730,8 +752,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 """ + "\n"
         )
     }
-
-    @Test
     func testConstrainOnceThrowsOnSecondIteration() throws {
         let source = """
         fun main() {

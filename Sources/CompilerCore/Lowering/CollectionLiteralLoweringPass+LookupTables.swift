@@ -33,7 +33,6 @@ struct CollectionLiteralLookupTables {
         sequenceRuntimeBridgeReturningNames = [
             interner.intern("lineSequence"),
             interner.intern("splitToSequence"),
-            stringLookup.kkStringAsSequenceName,
             arrayLookup.kkListAsSequenceName,
             arrayLookup.kkArrayAsSequenceName
         ]
@@ -366,11 +365,6 @@ struct CollectionLiteralLookupTables {
     // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
 
     var kkStringSplitName: InternedString { stringLookup.kkStringSplitName }
-    var kkStringAsSequenceName: InternedString { stringLookup.kkStringAsSequenceName }
-    var kkStringAsIterableName: InternedString { stringLookup.kkStringAsIterableName }
-    var kkStringIteratorName: InternedString { stringLookup.kkStringIteratorName }
-    var kkStringIteratorHasNextName: InternedString { stringLookup.kkStringIteratorHasNextName }
-    var kkStringIteratorNextName: InternedString { stringLookup.kkStringIteratorNextName }
     var stringProducingCallees: Set<InternedString> { stringLookup.stringProducingCallees }
 
     // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
