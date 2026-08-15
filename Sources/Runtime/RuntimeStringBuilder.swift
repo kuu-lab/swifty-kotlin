@@ -21,6 +21,7 @@ func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
     runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
+    runtimeRegisterCharSequenceLengthItable(raw)
     return raw
 }
 

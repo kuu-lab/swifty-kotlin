@@ -397,30 +397,6 @@ extension RuntimeSequenceTests {
         #expect(thrown == 0)
     }
 
-
-    @Test
-    func testSequenceAsIterable() {
-        let seq = makeSequence([1, 2, 3])
-        let iterable = kk_sequence_asIterable(seq)
-        // Should return the same handle
-        #expect(iterable == seq)
-
-        let iterator = kk_range_iterator(iterable)
-        #expect(kk_range_hasNext(iterator) == 1)
-        #expect(kk_range_next(iterator) == 1)
-        #expect(kk_range_hasNext(iterator) == 1)
-        #expect(kk_range_next(iterator) == 2)
-        #expect(kk_range_hasNext(iterator) == 1)
-        #expect(kk_range_next(iterator) == 3)
-        #expect(kk_range_hasNext(iterator) == 0)
-    }
-
-    @Test
-    func testSequenceAsSequence() {
-        let seq = makeSequence([1, 2, 3])
-        #expect(kk_sequence_asSequence(seq) == seq)
-    }
-
     @Test
     func testSequenceOrEmptyReturnsEmptySequenceForNull() {
         let seq = kk_sequence_orEmpty(runtimeNullSentinelInt)

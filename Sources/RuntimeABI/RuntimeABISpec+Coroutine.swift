@@ -372,7 +372,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_collectLatest",
+            name: "__kk_flow_collectLatest",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
@@ -384,7 +384,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_retain",
+            name: "__kk_flow_retain",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
             ],
@@ -393,7 +393,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_release",
+            name: "__kk_flow_release",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
             ],
@@ -406,7 +406,7 @@ public extension RuntimeABISpec {
         // flowOf / emptyFlow / Iterable.asFlow are now Kotlin source composed
         // from kk_flow_create + kk_flow_emit.
         RuntimeABIFunctionSpec(
-            name: "kk_flow_to_list",
+            name: "__kk_flow_to_list",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
@@ -416,7 +416,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_first",
+            name: "__kk_flow_first",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
@@ -426,7 +426,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_single",
+            name: "__kk_flow_single",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
@@ -436,7 +436,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_zip",
+            name: "__kk_flow_zip",
             parameters: [
                 RuntimeABIParameter(name: "lhsHandle", type: .intptr),
                 RuntimeABIParameter(name: "rhsHandle", type: .intptr),
@@ -447,7 +447,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_combine",
+            name: "__kk_flow_combine",
             parameters: [
                 RuntimeABIParameter(name: "lhsHandle", type: .intptr),
                 RuntimeABIParameter(name: "rhsHandle", type: .intptr),
@@ -458,7 +458,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_merge",
+            name: "__kk_flow_merge",
             parameters: [
                 RuntimeABIParameter(name: "lhsHandle", type: .intptr),
                 RuntimeABIParameter(name: "rhsHandle", type: .intptr),
@@ -468,7 +468,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_flat_map_concat",
+            name: "__kk_flow_flat_map_concat",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "transformFnPtr", type: .intptr),
@@ -478,7 +478,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_flat_map_merge",
+            name: "__kk_flow_flat_map_merge",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "transformFnPtr", type: .intptr),
@@ -488,7 +488,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_flat_map_latest",
+            name: "__kk_flow_flat_map_latest",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "transformFnPtr", type: .intptr),
@@ -498,7 +498,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_count",
+            name: "__kk_flow_count",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
@@ -507,7 +507,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_fold",
+            name: "__kk_flow_fold",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "initial", type: .intptr),
@@ -518,7 +518,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_flow_reduce",
+            name: "__kk_flow_reduce",
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "operationFnPtr", type: .intptr),

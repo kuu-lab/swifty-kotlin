@@ -1308,14 +1308,12 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayAll() throws {
+    func testVirtualCallOnArrayTypedParameterDoesNotRewriteArrayHOFToRuntime() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
-        #expect(
-            callees.contains("kk_array_all"),
-            "virtualCall(all) on Array-typed parameter should be rewritten to kk_array_all, got: \(callees)"
-        )
+        #expect(!callees.contains("kk_array_all"),
+                "source-backed Array HOF must not be rewritten to a removed runtime bridge, got: \(callees)")
     }
 
     @Test
@@ -1377,11 +1375,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListSorted() throws {
+    func testVirtualCallOnListTypedParameterKeepsSourceBackedSortedCall() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
         #expect(
-            callees.contains("kk_list_sorted"),
-            "virtualCall(sorted) on List-typed parameter should be rewritten to kk_list_sorted, got: \(callees)"
+            !callees.contains("kk_list_sorted"),
+            "source-backed sorted on List-typed parameter must not emit kk_list_sorted, got: \(callees)"
         )
     }
 

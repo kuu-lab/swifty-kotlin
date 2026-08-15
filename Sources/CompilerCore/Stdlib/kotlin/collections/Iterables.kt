@@ -7,8 +7,7 @@ package kotlin.collections
 
 public fun <T> Iterable<T>.toList(): List<T> {
     val result = mutableListOf<T>()
-    val iterator = iterator()
-    while (iterator.hasNext()) result.add(iterator.next())
+    for (element in this) result.add(element)
     return result
 }
 

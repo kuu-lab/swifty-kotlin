@@ -1753,8 +1753,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         appendByteArrayCall("__kk_string_encodeToByteArray_flat", [textExpr])
         appendByteArrayCall("__kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
         appendByteArrayCall("__kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("kk_string_byteInputStream_flat", [textExpr])
-        appendByteArrayCall("kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_byteInputStream_flat", [textExpr])
+        appendByteArrayCall("__kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1795,12 +1795,13 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             #expect(!ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
             #expect(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
         }
-        let removedRawStringStreamNames = ["", "_charset"].map {
-            ["kk", "string", "byteInputStream"].joined(separator: "_") + $0
-        }
-        for rawName in removedRawStringStreamNames {
+        let stringStreamFlatNames = [
+            ("kk_string_byteInputStream", "__kk_string_byteInputStream_flat"),
+            ("kk_string_byteInputStream_charset", "__kk_string_byteInputStream_charset_flat"),
+        ]
+        for (rawName, flatName) in stringStreamFlatNames {
             #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw String stream call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String stream call: \(rawName)_flat")
+            #expect(ir.contains("@\(flatName)"), "Missing flat String stream call: \(flatName)")
         }
     }
 

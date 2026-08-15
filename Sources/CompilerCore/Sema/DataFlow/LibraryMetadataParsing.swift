@@ -88,6 +88,7 @@ extension DataFlowSemaPhase {
                 isOperator: metadataRecord.isOperator,
                 isOverride: metadataRecord.isOverride,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
@@ -189,6 +190,13 @@ extension DataFlowSemaPhase {
         for index in record.valueParameterHasDefaultValues.indices where index < valueParameterHasDefaultValues.count {
             valueParameterHasDefaultValues[index] = record.valueParameterHasDefaultValues[index]
         }
+        // Metadata emitted before BUG-209 has no non-local-return mask. Such
+        // artifacts predate crossinline/noinline tracking, so retain the
+        // historical permissive behavior for their inline function parameters.
+        var valueParameterAllowsNonLocalReturn = Array(repeating: true, count: functionType.params.count)
+        for index in record.valueParameterAllowsNonLocalReturn.indices where index < valueParameterAllowsNonLocalReturn.count {
+            valueParameterAllowsNonLocalReturn[index] = record.valueParameterAllowsNonLocalReturn[index]
+        }
         let typeParameterSymbols = collectTypeParameterSymbols(
             from: functionType,
             types: types
@@ -223,6 +231,7 @@ extension DataFlowSemaPhase {
             valueParameterSymbols: valueParameterSymbols,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
             classTypeParameterCount: ownerNominalTypeParameterCount(

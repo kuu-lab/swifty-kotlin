@@ -341,8 +341,8 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             let flatNames = [
-                "kk_string_byteInputStream_flat",
-                "kk_string_byteInputStream_charset_flat",
+                "__kk_string_byteInputStream_flat",
+                "__kk_string_byteInputStream_charset_flat",
             ]
             for flatName in flatNames {
                 #expect(callNames.contains(flatName), "Missing \(flatName)")
@@ -361,8 +361,8 @@ struct BuildKIRCodegenRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         for flatName in [
-            "kk_string_byteInputStream_flat",
-            "kk_string_byteInputStream_charset_flat",
+            "__kk_string_byteInputStream_flat",
+            "__kk_string_byteInputStream_charset_flat",
         ] {
             #expect(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
         }
@@ -649,6 +649,39 @@ struct BuildKIRCodegenRegressionTests {
             #expect(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["kk_array_set"]?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["kk_array_get"]?.allSatisfy { $0 == true } == true)
+        }
+    }
+
+    @Test
+    func testPrimitiveArrayHOFsRemainBundledSourceCalls() throws {
+        let source = """
+        fun main(): Any? {
+            val values = intArrayOf(1, 2, 3)
+            val mapped = values.map { it * 2 }
+            val mappedNotNull = values.mapNotNull { if (it > 1) it.toString() else null }
+            val total = values.fold(0) { accumulator, value -> accumulator + value }
+            val rendered = values.joinToString(transform = { it.toString() })
+            return listOf(mapped, mappedNotNull, total, rendered)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callNames.contains("map"))
+            #expect(callNames.contains("mapNotNull"))
+            #expect(callNames.contains("fold"))
+            // Source-backed default lowering may retain the default suffix or
+            // emit the resolved source function name directly.
+            #expect(callNames.contains("joinToString") || callNames.contains("joinToString$default"))
+            #expect(!callNames.contains("kk_array_map"))
+            #expect(!callNames.contains("kk_array_fold"))
+            #expect(!callNames.contains("kk_array_joinToString_transform"))
         }
     }
 

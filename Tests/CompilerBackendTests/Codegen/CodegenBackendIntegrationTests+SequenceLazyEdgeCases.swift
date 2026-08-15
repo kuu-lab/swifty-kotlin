@@ -713,13 +713,52 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testSequenceIdentityConversionsPreserveLazyIteratorSemantics() throws {
+        let source = """
+        fun main() {
+            val iterable = sequenceOf(1, 2, 3).asIterable()
+            println(iterable.toList())
+            println(iterable.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceIdentityLazyIterator",
+            expected: """
+            [1, 2, 3]
+            [1, 2, 3]
+            """ + "\n"
+        )
+    }
+
+    @Test
+    func testSequenceAsIterableWorksWithIterableConsumers() throws {
+        let source = """
+        fun main() {
+            val destination = mutableListOf<Int>()
+            println(destination.addAll(sequenceOf(4, 5).asIterable()))
+            println(destination)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceAsIterableConsumer",
+            expected:
+                """
+                true
+                [4, 5]
+                """ + "\n"
+        )
+    }
     func testConstrainOnceThrowsOnSecondIteration() throws {
         let source = """
         fun main() {
             val seq = sequenceOf(1, 2, 3).constrainOnce()
-            println(seq.toList())
+            println(seq.asSequence().toList())
             try {
-                seq.toList()
+                seq.asSequence().toList()
                 println("unexpected")
             } catch (e: IllegalStateException) {
                 println("constrain-once-error")

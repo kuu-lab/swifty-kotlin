@@ -1,8 +1,7 @@
 package kotlin.collections
 
-// KSP-433: Array<T> fold/reduce HOFs are bundled Kotlin source instead of the
-// `kk_array_fold` / `kk_array_foldIndexed` / `kk_array_reduce` /
-// `kk_array_reduceIndexed` / `kk_array_reduceOrNull` runtime bridges.
+// KSP-433: Array<T> fold/reduce HOFs are bundled Kotlin source. Primitive-array
+// variants are defined in PrimitiveArrayHOF.kt.
 //
 // The empty-receiver message is "Empty array can't be reduced." (verified
 // against kotlinc), distinct from the List/Iterable wording.

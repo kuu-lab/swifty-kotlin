@@ -98,6 +98,73 @@ struct SequenceTransformSourceMigrationTests {
         }
     }
 
+    @Test
+    func identityConversionsAreBundledSourceDefinitions() throws {
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let packageFQName = ["kotlin", "sequences"].map(ctx.interner.intern)
+            for name in ["asSequence", "asIterable"] {
+                let fqName = packageFQName + [ctx.interner.intern(name)]
+                let sourceSymbols = sema.symbols.lookupAll(fqName: fqName).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID)
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/sequences/Sequences.kt"
+                }
+
+                let expectedCount = name == "asSequence" ? 2 : 1
+                #expect(
+                    sourceSymbols.count == expectedCount,
+                    "Expected \(expectedCount) source definitions for \(name), got \(sourceSymbols.count)"
+                )
+                #expect(sourceSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
+            }
+
+            let ast = try #require(ctx.ast)
+            for (name, expectedOwner) in [
+                ("asSequence", ["kotlin", "sequences", "Sequence"]),
+                ("asIterable", ["kotlin", "sequences", "Sequence"]),
+            ] {
+                let callExprIDs = Self.allExprIDs(in: ast) { exprID, expr in
+                    guard let range = ast.arena.exprRange(exprID),
+                          ctx.sourceManager.path(of: range.start.file) == paths[1]
+                    else {
+                        return false
+                    }
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == name
+                }
+                #expect(callExprIDs.count == 1, "Expected one \(name) call")
+                let chosenCallee = try #require(
+                    callExprIDs.first.flatMap { sema.bindings.callBinding(for: $0)?.chosenCallee },
+                    Comment(rawValue: "Expected \(name) to have a Sema call binding")
+                )
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let receiverType = sema.types.makeNonNullable(signature.receiverType ?? sema.types.anyType)
+                let receiverSymbol: SemanticSymbol? = if case let .classType(classType) = sema.types.kind(of: receiverType) {
+                    sema.symbols.symbol(classType.classSymbol)
+                } else {
+                    nil
+                }
+                #expect(
+                    receiverSymbol?.fqName.map(ctx.interner.resolve) == expectedOwner,
+                    "Expected \(name) to select Sequence receiver, got \(receiverSymbol?.fqName.map(ctx.interner.resolve) ?? [])"
+                )
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            }
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, Comment(rawValue: "Expected identity conversions to type-check cleanly"))
+        }
+    }
+
     private static let sharedSources: [String] = [
         """
         fun noop() {}
@@ -119,6 +186,14 @@ struct SequenceTransformSourceMigrationTests {
 
         fun expandIndexedIterable(values: Sequence<Int>): Sequence<Int> {
             return values.flatMapIndexed { index, value -> listOf(index, value) }
+        }
+
+        fun keepSequenceAsSequence(): Sequence<Int> {
+            return sequenceOf(1, 2, 3).asSequence()
+        }
+
+        fun exposeSequenceAsIterable(): Iterable<Int> {
+            return sequenceOf(1, 2, 3).asIterable()
         }
         """,
     ]

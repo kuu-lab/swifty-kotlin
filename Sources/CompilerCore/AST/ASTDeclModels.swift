@@ -542,6 +542,10 @@ public struct ValueParamDecl: Equatable, Codable {
     public let isOverrideProperty: Bool
     public let hasDefaultValue: Bool
     public let isVararg: Bool
+    /// `true` when a function parameter is declared with `crossinline`.
+    public let isCrossinline: Bool
+    /// `true` when a function parameter is declared with `noinline`.
+    public let isNoinline: Bool
     public let defaultValue: ExprID?
     public let annotations: [AnnotationNode]
 
@@ -553,6 +557,8 @@ public struct ValueParamDecl: Equatable, Codable {
         isOverrideProperty: Bool = false,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
+        isCrossinline: Bool = false,
+        isNoinline: Bool = false,
         defaultValue: ExprID? = nil,
         annotations: [AnnotationNode] = []
     ) {
@@ -563,6 +569,8 @@ public struct ValueParamDecl: Equatable, Codable {
         self.isOverrideProperty = isOverrideProperty
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
+        self.isCrossinline = isCrossinline
+        self.isNoinline = isNoinline
         self.defaultValue = defaultValue
         self.annotations = annotations
     }

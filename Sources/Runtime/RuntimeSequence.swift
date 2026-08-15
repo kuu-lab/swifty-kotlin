@@ -354,7 +354,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -649,7 +649,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -2656,22 +2656,6 @@ public func kk_sequence_findLast(
     return hasMatch ? found : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_sequence_asIterable")
-public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
-    // Preserve the identity conversion for runtime-backed sequences. A
-    // source-implemented Sequence has only the Sequence itable, so materialize
-    // it into a list before exposing it through the Iterable ABI.
-    if runtimeSequenceBox(from: seqRaw) != nil {
-        return seqRaw
-    }
-    let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
-    return registerRuntimeObject(RuntimeListBox(values: values))
-}
-
-@_cdecl("kk_sequence_asSequence")
-public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
-    return seqRaw
-}
 
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

@@ -7,7 +7,7 @@ import Testing
 /// Sema for the `java.io.InputStream` receiver and produces a `ByteArray`
 /// value (modelled in the runtime as `List<Int>`).  The synthetic stub is
 /// registered in `HeaderHelpers+SyntheticTODOAndIOStubs.swift` and binds to the
-/// runtime helper `kk_input_stream_readAllBytes` declared in
+/// runtime helper `__kk_input_stream_readAllBytes` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 ///
 /// The receiver is NOT closed by `readBytes()` — callers are expected to wrap
@@ -120,7 +120,7 @@ struct InputStreamReadBytesFunctionTests {
     ///   - there are no value parameters
     ///   - the return type is `kotlin.collections.List<Int>` (the runtime's
     ///     ByteArray representation)
-    ///   - the external link name resolves to `kk_input_stream_readAllBytes`
+    ///   - the external link name resolves to `__kk_input_stream_readAllBytes`
     ///
     /// Pinning these here guards against accidental renames or signature
     /// drift that would silently break the lowering pipeline.
@@ -156,8 +156,8 @@ struct InputStreamReadBytesFunctionTests {
         })
 
         #expect(
-            symbols.externalLinkName(for: readBytes) == "kk_input_stream_readAllBytes",
-            "InputStream.readBytes should bind to runtime helper kk_input_stream_readAllBytes"
+            symbols.externalLinkName(for: readBytes) == "__kk_input_stream_readAllBytes",
+            "InputStream.readBytes should bind to runtime helper __kk_input_stream_readAllBytes"
         )
 
         let signature = try #require(symbols.functionSignature(for: readBytes))
@@ -170,14 +170,14 @@ struct InputStreamReadBytesFunctionTests {
 
     // MARK: - Runtime ABI registration
 
-    /// The runtime helper `kk_input_stream_readAllBytes` must be declared in
+    /// The runtime helper `__kk_input_stream_readAllBytes` must be declared in
     /// the FileIO ABI spec with the (streamRaw, outThrown) signature so the
     /// codegen pass can emit the correct extern declaration.
     @Test func testRuntimeABISpecRegistersReadAllBytes() throws {
-        let spec = RuntimeABISpec.fileIOFunctions.first { $0.name == "kk_input_stream_readAllBytes" }
+        let spec = RuntimeABISpec.fileIOFunctions.first { $0.name == "__kk_input_stream_readAllBytes" }
         let unwrapped = try #require(
             spec,
-            "kk_input_stream_readAllBytes must be registered in RuntimeABISpec+FileIO.swift"
+            "__kk_input_stream_readAllBytes must be registered in RuntimeABISpec+FileIO.swift"
         )
         #expect(unwrapped.parameters.count == 2)
         #expect(unwrapped.parameters[0].name == "streamRaw")

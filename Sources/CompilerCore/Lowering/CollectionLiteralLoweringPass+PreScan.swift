@@ -320,7 +320,7 @@ extension CollectionLiteralLoweringSupport {
             }
         }
         // STDLIB-565: Classify File constructor calls.
-        // KNOWN LIMITATION: Only direct File("...") / kk_file_new constructor
+        // KNOWN LIMITATION: Only direct File("...") / __kk_file_new constructor
         // calls are seeded here.  File receivers originating from function
         // parameters, return values, or field loads are not tracked, so their
         // member calls will fall through to the default virtualCall path.  A
@@ -380,13 +380,7 @@ extension CollectionLiteralLoweringSupport {
         let src = arguments[0].rawValue
         // KSP-441〜447: Sequence パイプラインは source 化済み。runtime sequence handle の追跡は不要。
         _ = sequenceExprIDs
-        if callee == lookup.kkArrayMapName || callee == lookup.kkArrayFilterName {
-            // The KIR builder resolves array HOF calls (map/filter) to kk_array_*
-            // directly when the receiver type is statically known.  Track their
-            // results as list expressions so that downstream size/isEmpty/forEach
-            // rewrites fire correctly (STDLIB-004).
-            listExprIDs.insert(result.rawValue)
-        } else if callee == lookup.groupByName || callee == lookup.associateByName
+        if callee == lookup.groupByName || callee == lookup.associateByName
             || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.associateByToName || callee == lookup.associateWithToName
             || callee == lookup.groupByToName,
