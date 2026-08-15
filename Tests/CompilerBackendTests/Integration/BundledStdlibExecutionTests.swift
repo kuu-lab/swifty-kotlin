@@ -987,4 +987,64 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-641 regression: generic Comparable coercion and the
+    // ClosedFloatingPointRange overload must be source-backed and executable.
+    @Test
+    func testComparableCoercionExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            class Score(val value: Int) : Comparable<Score> {
+                override fun compareTo(other: Score): Int = value.compareTo(other.value)
+            }
+
+            fun catchesIllegalArgument(action: () -> Unit): Boolean {
+                return try {
+                    action()
+                    false
+                } catch (e: IllegalArgumentException) {
+                    true
+                }
+            }
+
+            fun main() {
+                println(Score(5).coerceIn(null, Score(3)).value)
+                println(Score(5).coerceIn(Score(7), null).value)
+                println(Score(5).coerceIn(null, null).value)
+                println(Score(5).coerceIn(Score(1), Score(10)).value)
+                println(catchesIllegalArgument { Score(5).coerceIn(Score(10), Score(1)) })
+
+                println(9.9.coerceIn(1.0..10.0))
+                println(0.0.coerceIn(1.0..10.0))
+                println(10.0.coerceIn(1.0..10.0))
+                println(Double.NaN.coerceIn(1.0..10.0).isNaN())
+                println(catchesIllegalArgument { 9.9.coerceIn(1.0..Double.NaN) })
+                println(catchesIllegalArgument { 9.9.coerceIn(10.0..1.0) })
+                println(0.0f.coerceIn(1.0f..10.0f))
+                println(Float.NaN.coerceIn(1.0f..10.0f).isNaN())
+                println(catchesIllegalArgument { 9.9f.coerceIn(1.0f..Float.NaN) })
+                println(catchesIllegalArgument { 9.9f.coerceIn(10.0f..1.0f) })
+            }
+            """,
+            expectedOutput: """
+            3
+            7
+            5
+            5
+            true
+            9.9
+            1.0
+            10.0
+            true
+            true
+            true
+            1.0
+            true
+            true
+            true
+
+            """,
+            moduleName: "ComparableCoercion"
+        )
+    }
 }

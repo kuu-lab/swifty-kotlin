@@ -1235,6 +1235,8 @@ public final class BindingTable {
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
+    public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
+    public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1445,6 +1447,15 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+        floatingPointRangeExprIDs.insert(expr)
+        floatingPointRangeElementTypesByExpr[expr] = type
+    }
+
+    public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
+        floatingPointRangeElementTypesByExpr[expr]
+    }
+
     public func markFlowExpr(_ expr: ExprID) {
         flowExprIDs.insert(expr)
     }
@@ -1532,6 +1543,15 @@ public final class BindingTable {
 
     public func isFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
         floatingPointRangeSymbolIDs.contains(symbol)
+    }
+
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+        floatingPointRangeSymbolIDs.insert(symbol)
+        floatingPointRangeElementTypesBySymbol[symbol] = type
+    }
+
+    public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
+        floatingPointRangeElementTypesBySymbol[symbol]
     }
 
     public func markFlowSymbol(_ symbol: SymbolID) {
