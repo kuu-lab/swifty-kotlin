@@ -290,6 +290,11 @@
   - 注意: 旧制約「`Byte`/`Short` が独立プリミティブでない」（KSP-645 調査記録）は BUG-199 解消（#5665 の Byte/Short 独立プリミティブ化、`ByteShortOverloadResolutionTests` で固定）により撤廃済み — ByteArray/ShortArray 系も本タスクの対象に含める（着手時に `byte_short_array.kt` 等の既存 diff で現状挙動を確認）
   - 前提: KSP-433（完了済み）/ 手順: T / diff: `array_hof_source_backed.kt` の primitive 版を新規追加
   - 完了: 12 primitive array 型のHOFを `PrimitiveArrayHOF.kt` へ移し、source優先解決・fold accumulator raw表現・`Array<T>.joinToString(transform)` のsynthetic優先問題を回帰固定。40 runtime関数、旧fallback/ABI表、synthetic join登録を削除し、allocation/element bridgeは維持。全primitiveのsource実行、probe、diff_kotlinc、Golden、ABI、Runtime focused testを確認済み。
+- [ ] KSP-718: `HeaderHelpers+SyntheticIterableRegistry.swift` をメンバ単位の Kotlin 移行で縮小する（RF-STUB-005 consolidated Iterable/Collection レジストリ。並行 stdlib PR 間のマージ衝突回避のため意図的に1ファイルへ consolidated されており、KSP-692 型の「責務別に機械分割」は統合意図に反するため行わない。縮小手段は (b) メンバ単位の Kotlin 移行（`.kt` 化して合成登録・ブリッジ・特例を削除）とする）
+  - 目的: 現存する大型合成レジストリ `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift`（`docs/stdlib-pipeline.md` 記載で約 2,741 行、分類 (b)）を、`Iterable<E>`/`Collection<E>` の (b) メンバを Kotlin source 実装（`Sources/CompilerCore/Stdlib/kotlin/collections/` の既存ファイル、例 `Iterables.kt`）へ移行して合成登録を削除することで縮小する。粒度ルール（1タスク=1PR、削除 kk_* ≤ 15）を超える場合は枝番でなく新番号で分割する前提を明記する。
+  - 着手手順: まず `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で登録メンバを全列挙し、各メンバを「①既に bundled Kotlin source-backed 化済みで `BundledSyntheticStubRegistration.shouldSkipRegistration`／`BundledDeclarationIndex` によりスキップされている残骸（削除候補）」「②純ロジックで Kotlin 化可能な未移行 (b) メンバ（`.kt` 化して登録・`kk_sequence_*`/`kk_list_*` ブリッジ・関連特例を削除）」「③`Iterable`/`Collection`/`Iterator` の型シェル自体や `__kk_collection_*` の言語コア相当（残留）」に仕分ける。②が本タスクの縮小対象。移行は移行テンプレート T（TODO.md 冒頭の手順、diff ケース確認 → `.kt` 実装 → 同一PRで合成登録/CallTypeChecker・CallLowerer 特例/Runtime `@_cdecl`/`RuntimeABISpec` 削除 → U → G → rg 完了チェック 0 件）に従う。
+  - 関連タスクとの調整: 既存の `KSP-620`/`KSP-621`（joinToString/joinTo の List/Array/Iterable/Sequence 版統一）とスコープが重複しうるため、着手時に削除対象登録を突合し二重作業を避ける。
+  - 完了条件: 移行部分は挙動変更ゼロ（diff ケースが real kotlinc と一致）/ `Scripts/loc_report.sh` の `HeaderHelpers+Synthetic*` 合計行数・`"kk_` リテラル数の悪化なし / 共通ゲート G（`bash Scripts/swift_test.sh`、`bash Scripts/swift_test.sh --filter Golden`、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` すべて green）。
 
 #### math / numbers
 
