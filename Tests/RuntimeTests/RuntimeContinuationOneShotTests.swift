@@ -65,7 +65,7 @@ struct RuntimeContinuationOneShotTests {
             "Exception is not an IllegalStateException box"
         )
         #expect(
-            box.message.contains("Already resumed"),
+            box.message?.contains("Already resumed") == true,
             "Exception message must contain 'Already resumed', got: \(box.message)"
         )
     }

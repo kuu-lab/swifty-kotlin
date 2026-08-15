@@ -340,7 +340,7 @@ extension CallLowerer {
                 }
                 return interner.intern(externalLinkName)
             }
-            if sema.symbols.symbol(chosenCallee)?.declSite != nil {
+            if sema.symbols.isSourceBackedSymbol(chosenCallee) {
                 // Source-backed stdlib migrations lower through the chosen symbol's internal function.
                 return fallback
             }

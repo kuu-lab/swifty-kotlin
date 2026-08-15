@@ -1,6 +1,5 @@
 symbol fq=__local_0.d1 kind=local vis=private flags=_ type=kotlin.time.Duration
 symbol fq=__local_1.d2 kind=local vis=private flags=_ type=kotlin.time.Duration
-symbol fq=kotlin.time.Duration kind=class vis=public flags=synthetic type=kotlin.time.Duration
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fduration_long_factory package=_
   decl main fun main sym=main

@@ -9,7 +9,7 @@
 // representations stopped being safe once kotlin.random.Random became a genuine
 // compiled object instead of sharing java.util.Random's native SeededRandomBox.
 // The entries below are what remains native: the IntRange/LongRange/UIntRange/
-// ULongRange "range object" overloads (KSP-457), and SecureRandom (KSP-467).
+// Range-object overloads (KSP-457), and SecureRandom (KSP-467).
 
 public extension RuntimeABISpec {
     static let randomFunctions: [RuntimeABIFunctionSpec] = [
@@ -21,7 +21,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_random_nextInt_rangeObject",
+            name: "__kk_random_nextInt_rangeObject",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "range", type: .intptr),
@@ -31,7 +31,7 @@ public extension RuntimeABISpec {
             section: "Random"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_random_nextLong_rangeObject",
+            name: "__kk_random_nextLong_rangeObject",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "range", type: .intptr),
@@ -41,7 +41,7 @@ public extension RuntimeABISpec {
             section: "Random"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_random_nextULong_ulongRange",
+            name: "__kk_random_nextULong_ulongRange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "range", type: .intptr),
@@ -51,7 +51,7 @@ public extension RuntimeABISpec {
             section: "Random"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_random_nextUInt_uintRange",
+            name: "__kk_random_nextUInt_uintRange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "range", type: .intptr),

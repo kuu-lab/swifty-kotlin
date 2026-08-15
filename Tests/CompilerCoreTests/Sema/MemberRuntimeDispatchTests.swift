@@ -5,16 +5,16 @@ import Testing
 @Suite
 struct MemberRuntimeDispatchTests {
     @Test func testRangeRuntimeDispatchUsesTypedReceiverKind() {
-        let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
-            (.intRange, "random", 0, "kk_range_random"),
-            (.intRange, "random", 1, "kk_range_random_random"),
-            (.longRange, "random", 0, "kk_long_range_random"),
-            (.longRange, "random", 1, "kk_long_range_random_random"),
-            (.charRange, "random", 0, "kk_range_random"),
-            (.charRange, "random", 1, "kk_char_range_random_random"),
-            (.uintRange, "randomOrNull", 0, "kk_uint_range_randomOrNull"),
-            (.ulongRange, "randomOrNull", 1, "kk_ulong_range_randomOrNull_random"),
-            (.charRange, "randomOrNull", 0, "kk_char_range_randomOrNull"),
+        let cases: [(MemberDispatchReceiverKind, String, Int, String?)] = [
+            (.intRange, "random", 0, nil),
+            (.intRange, "random", 1, nil),
+            (.longRange, "random", 0, nil),
+            (.longRange, "random", 1, nil),
+            (.charRange, "random", 0, nil),
+            (.charRange, "random", 1, nil),
+            (.uintRange, "randomOrNull", 0, nil),
+            (.ulongRange, "randomOrNull", 1, nil),
+            (.charRange, "randomOrNull", 0, nil),
             (.longRange, "firstOrNull", 0, "kk_long_range_firstOrNull"),
             (.longRange, "firstOrNull", 2, "kk_range_firstOrNull_predicate"),
             (.longRange, "lastOrNull", 0, "kk_long_range_lastOrNull"),
