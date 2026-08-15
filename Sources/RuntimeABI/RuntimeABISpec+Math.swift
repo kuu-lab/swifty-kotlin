@@ -432,7 +432,7 @@ public extension RuntimeABISpec {
         // Throwing callees: NaN receiver throws IllegalArgumentException, so the
         // ABI carries the trailing outThrown pointer (see RuntimeNumericCompat).
         RuntimeABIFunctionSpec(
-            name: "kk_float_roundToInt",
+            name: "__kk_float_roundToInt",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -441,7 +441,7 @@ public extension RuntimeABISpec {
             section: "Math"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_double_roundToInt",
+            name: "__kk_double_roundToInt",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -450,7 +450,7 @@ public extension RuntimeABISpec {
             section: "Math"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_float_roundToLong",
+            name: "__kk_float_roundToLong",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -459,7 +459,7 @@ public extension RuntimeABISpec {
             section: "Math"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_double_roundToLong",
+            name: "__kk_double_roundToLong",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -469,7 +469,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-512~513: ulp / nextUp / nextDown
         RuntimeABIFunctionSpec(
-            name: "kk_double_ulp",
+            name: "__kk_double_ulp",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -478,7 +478,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_double_nextUp",
+            name: "__kk_double_nextUp",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -487,7 +487,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_double_nextDown",
+            name: "__kk_double_nextDown",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -496,7 +496,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_float_ulp",
+            name: "__kk_float_ulp",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -505,7 +505,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_float_nextUp",
+            name: "__kk_float_nextUp",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -514,7 +514,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_float_nextDown",
+            name: "__kk_float_nextDown",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],

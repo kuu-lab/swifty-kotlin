@@ -835,6 +835,51 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-647: public floating-point bit conversions are Kotlin wrappers around
+    // six __kk_* bridges. Verify raw/canonical NaN bits and exact edge-case
+    // round-trips through the bundled source path.
+    @Test
+    func testFloatingPointBitConversionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val doublePayloadBits = 0x7FF0000000000123L
+                val doublePayload = Double.fromBits(doublePayloadBits)
+                println(doublePayload.toRawBits() == doublePayloadBits)
+                println(doublePayload.toBits() == 0x7FF8000000000000L)
+                println(doublePayload.toRawBits() != doublePayload.toBits())
+                println(Double.fromBits(doublePayload.toRawBits()).toRawBits() == doublePayloadBits)
+                println((-0.0).toRawBits() == Long.MIN_VALUE)
+                println(Double.fromBits(0x7FF0000000000000L).toRawBits() == 0x7FF0000000000000L)
+
+                val floatPayloadBits = 0x7F800123
+                val floatPayload = Float.fromBits(floatPayloadBits)
+                println(floatPayload.toRawBits() == floatPayloadBits)
+                println(floatPayload.toBits() == 0x7FC00000)
+                println(floatPayload.toRawBits() != floatPayload.toBits())
+                println(Float.fromBits(floatPayload.toRawBits()).toRawBits() == floatPayloadBits)
+                println((-0.0f).toRawBits() == Int.MIN_VALUE)
+                println(Float.fromBits(0x7F800000).toRawBits() == 0x7F800000)
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+
+            """
+        )
+    }
+
 
     // KSP-417: These APIs use private runtime bridges. This also guards the
     // flat-string return ABI for __kk_string_normalize_flat.

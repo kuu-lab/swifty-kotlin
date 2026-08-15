@@ -94,7 +94,7 @@ struct ExceptionSyntheticStubTests {
             args: [],
             nullability: .nonNull
         )))
-        #expect(sema.symbols.propertyType(for: noWhenSymbol) == noWhenType)
+        #expect(!(sema.symbols.symbol(noWhenSymbol)?.flags.contains(.synthetic) ?? true))
 
         let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
         let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
@@ -110,10 +110,10 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "kk_no_when_branch_matched_exception_new"),
-            ([nullableStringType], "kk_no_when_branch_matched_exception_new_message"),
-            ([nullableStringType, nullableThrowableType], "kk_no_when_branch_matched_exception_new_message_cause"),
-            ([nullableThrowableType], "kk_no_when_branch_matched_exception_new_cause"),
+            ([], "__kk_no_when_branch_matched_exception_new"),
+            ([nullableStringType], "__kk_no_when_branch_matched_exception_new_message"),
+            ([nullableStringType, nullableThrowableType], "__kk_no_when_branch_matched_exception_new_message_cause"),
+            ([nullableThrowableType], "__kk_no_when_branch_matched_exception_new_cause"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
@@ -145,7 +145,7 @@ struct ExceptionSyntheticStubTests {
             args: [],
             nullability: .nonNull
         )))
-        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
+        #expect(!(sema.symbols.symbol(exceptionSymbol)?.flags.contains(.synthetic) ?? true))
 
         let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let constructorFQName = exceptionFQName + [interner.intern("<init>")]
@@ -186,7 +186,7 @@ struct ExceptionSyntheticStubTests {
             args: [],
             nullability: .nonNull
         )))
-        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
+        #expect(!(sema.symbols.symbol(exceptionSymbol)?.flags.contains(.synthetic) ?? true))
 
         let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
         let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
@@ -202,10 +202,10 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "kk_concurrent_modification_exception_new"),
-            ([nullableStringType], "kk_concurrent_modification_exception_new_message"),
-            ([nullableStringType, nullableThrowableType], "kk_concurrent_modification_exception_new_message_cause"),
-            ([nullableThrowableType], "kk_concurrent_modification_exception_new_cause"),
+            ([], "__kk_concurrent_modification_exception_new"),
+            ([nullableStringType], "__kk_concurrent_modification_exception_new_message"),
+            ([nullableStringType, nullableThrowableType], "__kk_concurrent_modification_exception_new_message_cause"),
+            ([nullableThrowableType], "__kk_concurrent_modification_exception_new_cause"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
@@ -300,6 +300,85 @@ struct ExceptionSyntheticStubTests {
 
     @Test func testNegativeArraySizeExceptionResolvesInSource() throws {
         _ = try sharedSourceSema()
+    }
+
+    @Test func testCommonExceptionHierarchyIsSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let cases: [(name: String, parent: String, arities: [Int], links: [String])] = [
+            ("Error", "Throwable", [0, 1, 2, 1], [
+                "__kk_error_new", "__kk_error_new_message", "__kk_error_new_message_cause", "__kk_error_new_cause",
+            ]),
+            ("Exception", "Throwable", [0, 1, 2, 1], [
+                "__kk_exception_new", "__kk_exception_new_message", "__kk_exception_new_message_cause", "__kk_exception_new_cause",
+            ]),
+            ("RuntimeException", "Exception", [0, 1, 2, 1], [
+                "__kk_runtime_exception_new", "__kk_runtime_exception_new_message", "__kk_runtime_exception_new_message_cause", "__kk_runtime_exception_new_cause",
+            ]),
+            ("IllegalArgumentException", "RuntimeException", [0, 1, 2, 1], [
+                "__kk_illegal_argument_exception_new", "__kk_illegal_argument_exception_new_message", "__kk_illegal_argument_exception_new_message_cause", "__kk_illegal_argument_exception_new_cause",
+            ]),
+            ("IllegalStateException", "RuntimeException", [0, 1, 2, 1], [
+                "__kk_illegal_state_exception_new", "__kk_illegal_state_exception_new_message", "__kk_illegal_state_exception_new_message_cause", "__kk_illegal_state_exception_new_cause",
+            ]),
+            ("IndexOutOfBoundsException", "RuntimeException", [0, 1], [
+                "__kk_index_out_of_bounds_exception_new", "__kk_index_out_of_bounds_exception_new_message",
+            ]),
+            ("ConcurrentModificationException", "RuntimeException", [0, 1, 2, 1], [
+                "__kk_concurrent_modification_exception_new", "__kk_concurrent_modification_exception_new_message", "__kk_concurrent_modification_exception_new_message_cause", "__kk_concurrent_modification_exception_new_cause",
+            ]),
+            ("UnsupportedOperationException", "RuntimeException", [0, 1, 2, 1], [
+                "__kk_unsupported_operation_exception_new", "__kk_unsupported_operation_exception_new_message", "__kk_unsupported_operation_exception_new_message_cause", "__kk_unsupported_operation_exception_new_cause",
+            ]),
+            ("NumberFormatException", "IllegalArgumentException", [0, 1], [
+                "__kk_number_format_exception_new", "__kk_number_format_exception_new_message",
+            ]),
+            ("NullPointerException", "RuntimeException", [0, 1], [
+                "__kk_null_pointer_exception_new", "__kk_null_pointer_exception_new_message",
+            ]),
+            ("ClassCastException", "RuntimeException", [0, 1], [
+                "__kk_class_cast_exception_new", "__kk_class_cast_exception_new_message",
+            ]),
+            ("AssertionError", "Error", [0, 1, 2], [
+                "__kk_assertion_error_new", "__kk_assertion_error_new_message", "__kk_assertion_error_new_message_cause",
+            ]),
+            ("NoSuchElementException", "RuntimeException", [0, 1], [
+                "__kk_no_such_element_exception_new", "__kk_no_such_element_exception_new_message",
+            ]),
+            ("ArithmeticException", "RuntimeException", [0, 1], [
+                "__kk_arithmetic_exception_new", "__kk_arithmetic_exception_new_message",
+            ]),
+            ("NoWhenBranchMatchedException", "RuntimeException", [0, 1, 2, 1], [
+                "__kk_no_when_branch_matched_exception_new", "__kk_no_when_branch_matched_exception_new_message", "__kk_no_when_branch_matched_exception_new_message_cause", "__kk_no_when_branch_matched_exception_new_cause",
+            ]),
+            ("UninitializedPropertyAccessException", "RuntimeException", [0, 1, 2, 1], [
+                "__kk_uninitialized_property_access_exception_new", "__kk_uninitialized_property_access_exception_new_message", "__kk_uninitialized_property_access_exception_new_message_cause", "__kk_uninitialized_property_access_exception_new_cause",
+            ]),
+        ]
+
+        for entry in cases {
+            let classFQName = ["kotlin", entry.name].map { interner.intern($0) }
+            let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
+            let classInfo = try #require(sema.symbols.symbol(classSymbol))
+            #expect(classInfo.kind == .class)
+            #expect(!classInfo.flags.contains(.synthetic), "(entry.name) must be source-backed")
+
+            let parentFQName = ["kotlin", entry.parent].map { interner.intern($0) }
+            let parentSymbol = try #require(sema.symbols.lookup(fqName: parentFQName))
+            #expect(sema.symbols.directSupertypes(for: classSymbol).contains(parentSymbol))
+
+            let constructorFQName = classFQName + [interner.intern("<init>")]
+            let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
+                sema.symbols.symbol($0)?.kind == .constructor
+            }
+            #expect(constructors.count == entry.links.count)
+            let arities = constructors.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes.count }.sorted()
+            #expect(arities == entry.arities.sorted())
+            let links = constructors.compactMap { sema.symbols.externalLinkName(for: $0) }
+            #expect(Set(links) == Set(entry.links))
+            for constructor in constructors {
+                #expect(!(sema.symbols.symbol(constructor)?.flags.contains(.synthetic) ?? true))
+            }
+        }
     }
 }
 #endif

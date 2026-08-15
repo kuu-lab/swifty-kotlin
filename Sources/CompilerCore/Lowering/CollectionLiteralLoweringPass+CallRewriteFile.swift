@@ -15,8 +15,8 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-        // --- Rewrite File(path) → kk_file_new(path) (STDLIB-565)
-        //     Rewrite File(parent, child) → kk_file_new_parent_child(parent, child) (STDLIB-IO-087) ---
+        // --- Rewrite File(path) → __kk_file_new(path) (STDLIB-565)
+        //     Rewrite File(parent, child) → __kk_file_new_parent_child(parent, child) (STDLIB-IO-087) ---
         if callee == lookup.fileConstructorName {
             let fileCallee = arguments.count == 2
                 ? lookup.kkFileNewParentChildName
@@ -33,7 +33,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // --- Rewrite File member calls: readText/writeText/readLines (STDLIB-320) ---
+        // --- Rewrite File member calls: readText/writeText (STDLIB-320) ---
         if callee == lookup.readTextName,
            arguments.count == 1,
            state.fileExprIDs.contains(arguments[0].rawValue),
@@ -82,23 +82,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        if callee == lookup.readLinesName,
-           arguments.count == 1,
-           state.fileExprIDs.contains(arguments[0].rawValue),
-           isJavaIOFileMember(symbol: symbol, ctx: ctx, interner: ctx.interner)
-        {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkFileReadLinesName,
-                arguments: arguments,
-                result: result,
-                canThrow: true,
-                thrownResult: thrownResult
-            ))
-            if let result { state.listExprIDs.insert(result.rawValue) }
-            return true
-        }
-
         // --- Rewrite File member calls (STDLIB-321) ---
         // Only rewrite calls on File expressions (tracked in state.fileExprIDs)
         if arguments.count >= 1, state.fileExprIDs.contains(arguments[0].rawValue) {
@@ -112,26 +95,20 @@ extension CollectionLiteralConstructionLoweringPass {
                 kkCallee = lookup.kkFileWriteTextName
             case lookup.appendTextName:
                 kkCallee = lookup.kkFileAppendTextName
-            case lookup.readLinesName:
-                kkCallee = lookup.kkFileReadLinesName
             case lookup.existsName:
                 kkCallee = lookup.kkFileExistsName
             case lookup.isFileName:
                 kkCallee = lookup.kkFileIsFileName
             case lookup.isDirectoryName:
                 kkCallee = lookup.kkFileIsDirectoryName
-            case lookup.forEachLineName:
-                kkCallee = lookup.kkFileForEachLineName
             // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch
             case lookup.forEachBlockName:
                 kkCallee = arguments.count == 2
                     ? lookup.kkFileForEachBlockName
                     : lookup.kkFileForEachBlockBlockSizeName
-            case lookup.useLinesName:
-                kkCallee = lookup.kkFileUseLinesName
             case lookup.bufferedReaderName:
                 // Only rewrite argument-less bufferedReader(); the runtime
-                // function kk_file_bufferedReader does not accept charset/bufferSize.
+                // function __kk_file_bufferedReader does not accept charset/bufferSize.
                 kkCallee = arguments.count == 1 ? lookup.kkFileBufferedReaderName : nil
             case lookup.bufferedWriterName:
                 // Only rewrite argument-less bufferedWriter()
@@ -176,9 +153,7 @@ extension CollectionLiteralConstructionLoweringPass {
 
             if let target = kkCallee {
                 let memberArgs = (
-                    callee == lookup.forEachLineName
-                        || callee == lookup.forEachBlockName
-                        || callee == lookup.useLinesName
+                    callee == lookup.forEachBlockName
                         || callee == lookup.writeTextName
                         || callee == lookup.appendTextName
                         || callee == lookup.appendBytesName
@@ -194,7 +169,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 if let result,
                    callee == lookup.walkName || callee == lookup.listFilesName
-                    || callee == lookup.readLinesName || callee == lookup.readBytesName
+                    || callee == lookup.readBytesName
                 {
                     state.listExprIDs.insert(result.rawValue)
                 }
@@ -209,7 +184,7 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // `kk_file_walk` result is a List<File>; the callee is already correct when
+        // `__kk_file_walk` result is a List<File>; the callee is already correct when
         // externalLinkName is set in Sema, so only the result tagging is needed.
         if callee == lookup.kkFileWalkName {
             if let result { state.listExprIDs.insert(result.rawValue) }
@@ -223,17 +198,15 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Append closureRaw argument for File lambda-accepting methods (STDLIB-322) ---
-        // STDLIB-IO-FN-040: also covers `kk_buffered_reader_useLines`, the synthetic
+        // STDLIB-IO-FN-040: also covers `__kk_buffered_reader_useLines`, the synthetic
         // stub for `kotlin.io.Reader.useLines` (resolved against `BufferedReader`).
-        // STDLIB-IO-FN-017: also covers `kk_buffered_reader_forEachLine`, the synthetic
+        // STDLIB-IO-FN-017: also covers `__kk_buffered_reader_forEachLine`, the synthetic
         // stub for `kotlin.io.Reader.forEachLine` (resolved against `BufferedReader`).
         // When the KIR callee is already rewritten via externalLinkName,
         // the lambda argument must be supplemented with closureRaw (0)
         // so the runtime receives (receiverRaw, fnPtr, closureRaw, outThrown).
-        if callee == lookup.kkFileForEachLineName
-            || callee == lookup.kkFileForEachBlockName
+        if callee == lookup.kkFileForEachBlockName
             || callee == lookup.kkFileForEachBlockBlockSizeName
-            || callee == lookup.kkFileUseLinesName
             || callee == lookup.kkBufferedReaderUseLinesName
             || callee == lookup.kkBufferedReaderForEachLineName
             || callee == lookup.kkPathUseLinesName

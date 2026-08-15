@@ -146,11 +146,16 @@ public fun Float.withSign(sign: Float): Float {
 public fun Float.withSign(sign: Int): Float =
     if (sign < 0) -abs(this) else abs(this)
 
-// KSP-637
+// KSP-637 & KSP-638
 // Transcendental kotlin.math functions are Kotlin-source public wrappers around
 // internal libm entry points. Keeping the bridge declarations private to the
 // bundled source prevents the native ABI names from becoming public stdlib
 // symbols while preserving the platform math implementation and its edge cases.
+//
+// roundToInt / roundToLong / ulp / nextUp / nextDown are Kotlin-source
+// surface declarations. Their native implementations remain bridges because
+// rounding must preserve Kotlin's NaN exception and saturation contract, while
+// the precision helpers operate on IEEE 754 bit patterns.
 
 @KsSymbolName("__kk_math_sqrt")
 internal external fun __kkMathSqrt(x: Double): Double
@@ -224,9 +229,6 @@ internal external fun __kkMathLog10(x: Double): Double
 @KsSymbolName("__kk_math_log")
 internal external fun __kkMathLog(x: Double, base: Double): Double
 
-@KsSymbolName("__kk_math_hypot")
-internal external fun __kkMathHypot(x: Double, y: Double): Double
-
 @KsSymbolName("__kk_math_sinh")
 internal external fun __kkMathSinh(x: Double): Double
 
@@ -247,6 +249,9 @@ internal external fun __kkMathAtanh(x: Double): Double
 
 @KsSymbolName("__kk_math_cbrt")
 internal external fun __kkMathCbrt(x: Double): Double
+
+@KsSymbolName("__kk_math_hypot")
+internal external fun __kkMathHypot(x: Double, y: Double): Double
 
 @KsSymbolName("__kk_math_sin_float")
 internal external fun __kkMathSinFloat(x: Float): Float
@@ -290,9 +295,6 @@ internal external fun __kkMathLog10Float(x: Float): Float
 @KsSymbolName("__kk_math_log_float")
 internal external fun __kkMathLogFloat(x: Float, base: Float): Float
 
-@KsSymbolName("__kk_math_hypot_float")
-internal external fun __kkMathHypotFloat(x: Float, y: Float): Float
-
 @KsSymbolName("__kk_math_sinh_float")
 internal external fun __kkMathSinhFloat(x: Float): Float
 
@@ -314,25 +316,48 @@ internal external fun __kkMathAtanhFloat(x: Float): Float
 @KsSymbolName("__kk_math_cbrt_float")
 internal external fun __kkMathCbrtFloat(x: Float): Float
 
+@KsSymbolName("__kk_math_hypot_float")
+internal external fun __kkMathHypotFloat(x: Float, y: Float): Float
+
+@KsSymbolName("__kk_float_roundToInt")
+internal external fun __kkFloatRoundToInt(x: Float): Int
+
+@KsSymbolName("__kk_double_roundToInt")
+internal external fun __kkDoubleRoundToInt(x: Double): Int
+
+@KsSymbolName("__kk_float_roundToLong")
+internal external fun __kkFloatRoundToLong(x: Float): Long
+
+@KsSymbolName("__kk_double_roundToLong")
+internal external fun __kkDoubleRoundToLong(x: Double): Long
+
+@KsSymbolName("__kk_double_ulp")
+internal external fun __kkDoubleUlp(x: Double): Double
+
+@KsSymbolName("__kk_float_ulp")
+internal external fun __kkFloatUlp(x: Float): Float
+
+@KsSymbolName("__kk_double_nextUp")
+internal external fun __kkDoubleNextUp(x: Double): Double
+
+@KsSymbolName("__kk_float_nextUp")
+internal external fun __kkFloatNextUp(x: Float): Float
+
+@KsSymbolName("__kk_double_nextDown")
+internal external fun __kkDoubleNextDown(x: Double): Double
+
+@KsSymbolName("__kk_float_nextDown")
+internal external fun __kkFloatNextDown(x: Float): Float
+
 public fun sqrt(x: Double): Double = __kkMathSqrt(x)
 
-public fun sqrt(x: Float): Float = __kkMathSqrtFloat(x)
+public fun pow(x: Double, y: Double): Double = __kkMathPow(x, y)
 
-public fun Double.pow(y: Double): Double = __kkMathPow(this, y)
+public fun pow(x: Double, n: Int): Double = __kkMathPowInt(x, n)
 
-public fun Float.pow(y: Float): Float = __kkMathPowFloat(this, y)
+public fun IEEErem(x: Double, divisor: Double): Double = __kkMathIEEErem(x, divisor)
 
-public fun Double.pow(n: Int): Double = __kkMathPowInt(this, n)
-
-public fun Float.pow(n: Int): Float = __kkMathPowFloatInt(this, n)
-
-public fun Double.IEEErem(divisor: Double): Double = __kkMathIEEErem(this, divisor)
-
-public fun Float.IEEErem(divisor: Float): Float = __kkMathIEEEremFloat(this, divisor)
-
-public fun Double.nextTowards(to: Double): Double = __kkMathNextTowards(this, to)
-
-public fun Float.nextTowards(to: Float): Float = __kkMathNextTowardsFloat(this, to)
+public fun nextTowards(x: Double, to: Double): Double = __kkMathNextTowards(x, to)
 
 public fun sin(x: Double): Double = __kkMathSin(x)
 
@@ -362,8 +387,6 @@ public fun log10(x: Double): Double = __kkMathLog10(x)
 
 public fun log(x: Double, base: Double): Double = __kkMathLog(x, base)
 
-public fun hypot(x: Double, y: Double): Double = __kkMathHypot(x, y)
-
 public fun sinh(x: Double): Double = __kkMathSinh(x)
 
 public fun cosh(x: Double): Double = __kkMathCosh(x)
@@ -377,6 +400,18 @@ public fun asinh(x: Double): Double = __kkMathAsinh(x)
 public fun atanh(x: Double): Double = __kkMathAtanh(x)
 
 public fun cbrt(x: Double): Double = __kkMathCbrt(x)
+
+public fun hypot(x: Double, y: Double): Double = __kkMathHypot(x, y)
+
+public fun sqrt(x: Float): Float = __kkMathSqrtFloat(x)
+
+public fun pow(x: Float, y: Float): Float = __kkMathPowFloat(x, y)
+
+public fun pow(x: Float, n: Int): Float = __kkMathPowFloatInt(x, n)
+
+public fun IEEErem(x: Float, divisor: Float): Float = __kkMathIEEEremFloat(x, divisor)
+
+public fun nextTowards(x: Float, to: Float): Float = __kkMathNextTowardsFloat(x, to)
 
 public fun sin(x: Float): Float = __kkMathSinFloat(x)
 
@@ -406,8 +441,6 @@ public fun log10(x: Float): Float = __kkMathLog10Float(x)
 
 public fun log(x: Float, base: Float): Float = __kkMathLogFloat(x, base)
 
-public fun hypot(x: Float, y: Float): Float = __kkMathHypotFloat(x, y)
-
 public fun sinh(x: Float): Float = __kkMathSinhFloat(x)
 
 public fun cosh(x: Float): Float = __kkMathCoshFloat(x)
@@ -421,3 +454,25 @@ public fun asinh(x: Float): Float = __kkMathAsinhFloat(x)
 public fun atanh(x: Float): Float = __kkMathAtanhFloat(x)
 
 public fun cbrt(x: Float): Float = __kkMathCbrtFloat(x)
+
+public fun hypot(x: Float, y: Float): Float = __kkMathHypotFloat(x, y)
+
+public fun Float.roundToInt(): Int = __kkFloatRoundToInt(this)
+
+public fun Double.roundToInt(): Int = __kkDoubleRoundToInt(this)
+
+public fun Float.roundToLong(): Long = __kkFloatRoundToLong(this)
+
+public fun Double.roundToLong(): Long = __kkDoubleRoundToLong(this)
+
+public val Double.ulp: Double get() = __kkDoubleUlp(this)
+
+public val Float.ulp: Float get() = __kkFloatUlp(this)
+
+public fun Double.nextUp(): Double = __kkDoubleNextUp(this)
+
+public fun Float.nextUp(): Float = __kkFloatNextUp(this)
+
+public fun Double.nextDown(): Double = __kkDoubleNextDown(this)
+
+public fun Float.nextDown(): Float = __kkFloatNextDown(this)

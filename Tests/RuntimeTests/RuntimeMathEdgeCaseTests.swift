@@ -1347,32 +1347,32 @@ struct RuntimeMathEdgeCaseTests {
     @Test
     func testUlpDoubleZero() {
         // ulp(0.0) == leastNonzeroMagnitude (subnormal)
-        let result = doubleFromBits(kk_double_ulp(doubleToBits(0.0)))
+        let result = doubleFromBits(__kk_double_ulp(doubleToBits(0.0)))
         #expect(result == Double(0.0).ulp)
     }
 
     @Test
     func testUlpDoubleInfinity() {
         // ulp(Inf) == NaN (IEEE 754)
-        let result = doubleFromBits(kk_double_ulp(doubleToBits(Double.infinity)))
+        let result = doubleFromBits(__kk_double_ulp(doubleToBits(Double.infinity)))
         #expect(result.isNaN)
     }
 
     @Test
     func testUlpDoubleNaN() {
-        #expect(doubleFromBits(kk_double_ulp(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_double_ulp(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test
     func testUlpDoubleNegativeInfinity() {
         // ulp(-Inf) == NaN (正の無限大と対称)
-        #expect(doubleFromBits(kk_double_ulp(doubleToBits(-Double.infinity))).isNaN)
+        #expect(doubleFromBits(__kk_double_ulp(doubleToBits(-Double.infinity))).isNaN)
     }
 
     @Test
     func testUlpDoubleNegativeZero() {
         // ulp(-0.0) == ulp(+0.0) = leastNonzeroMagnitude (大きさのみ依存)
-        let result = doubleFromBits(kk_double_ulp(doubleToBits(-0.0)))
+        let result = doubleFromBits(__kk_double_ulp(doubleToBits(-0.0)))
         #expect(result == Double(0.0).ulp)
     }
 
@@ -1380,25 +1380,25 @@ struct RuntimeMathEdgeCaseTests {
 
     @Test
     func testUlpFloatZero() {
-        let result = floatFromBits(kk_float_ulp(floatToBits(0.0)))
+        let result = floatFromBits(__kk_float_ulp(floatToBits(0.0)))
         #expect(result == Float(0.0).ulp)
     }
 
     @Test
     func testUlpFloatInfinity() {
         // ulp(Inf) == NaN (IEEE 754)
-        let result = floatFromBits(kk_float_ulp(floatToBits(Float.infinity)))
+        let result = floatFromBits(__kk_float_ulp(floatToBits(Float.infinity)))
         #expect(result.isNaN)
     }
 
     @Test
     func testUlpFloatNaN() {
-        #expect(floatFromBits(kk_float_ulp(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(__kk_float_ulp(floatToBits(Float.nan))).isNaN)
     }
 
     @Test
     func testUlpFloatNegativeInfinity() {
-        #expect(floatFromBits(kk_float_ulp(floatToBits(-Float.infinity))).isNaN)
+        #expect(floatFromBits(__kk_float_ulp(floatToBits(-Float.infinity))).isNaN)
     }
 
     // MARK: - nextUp / nextDown at boundaries (Double)
@@ -1406,7 +1406,7 @@ struct RuntimeMathEdgeCaseTests {
     @Test
     func testNextUpDoubleMaxFinite() {
         // nextUp(Double.greatestFiniteMagnitude) == +Inf
-        let result = doubleFromBits(kk_double_nextUp(doubleToBits(Double.greatestFiniteMagnitude)))
+        let result = doubleFromBits(__kk_double_nextUp(doubleToBits(Double.greatestFiniteMagnitude)))
         #expect(result.isInfinite)
         #expect(result > 0)
     }
@@ -1414,32 +1414,32 @@ struct RuntimeMathEdgeCaseTests {
     @Test
     func testNextDownDoubleNegativeMaxFinite() {
         // nextDown(-Double.greatestFiniteMagnitude) == -Inf
-        let result = doubleFromBits(kk_double_nextDown(doubleToBits(-Double.greatestFiniteMagnitude)))
+        let result = doubleFromBits(__kk_double_nextDown(doubleToBits(-Double.greatestFiniteMagnitude)))
         #expect(result.isInfinite)
         #expect(result < 0)
     }
 
     @Test
     func testNextUpDoubleNaN() {
-        #expect(doubleFromBits(kk_double_nextUp(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_double_nextUp(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test
     func testNextDownDoubleNaN() {
-        #expect(doubleFromBits(kk_double_nextDown(doubleToBits(Double.nan))).isNaN)
+        #expect(doubleFromBits(__kk_double_nextDown(doubleToBits(Double.nan))).isNaN)
     }
 
     @Test
     func testNextUpDoubleNegativeInfinity() {
         // nextUp(-Inf) == -Double.greatestFiniteMagnitude
-        let result = doubleFromBits(kk_double_nextUp(doubleToBits(-Double.infinity)))
+        let result = doubleFromBits(__kk_double_nextUp(doubleToBits(-Double.infinity)))
         #expect(result == -Double.greatestFiniteMagnitude)
     }
 
     @Test
     func testNextDownDoublePositiveInfinity() {
         // nextDown(+Inf) == Double.greatestFiniteMagnitude
-        let result = doubleFromBits(kk_double_nextDown(doubleToBits(Double.infinity)))
+        let result = doubleFromBits(__kk_double_nextDown(doubleToBits(Double.infinity)))
         #expect(result == Double.greatestFiniteMagnitude)
     }
 
@@ -1447,26 +1447,26 @@ struct RuntimeMathEdgeCaseTests {
 
     @Test
     func testNextUpFloatMaxFinite() {
-        let result = floatFromBits(kk_float_nextUp(floatToBits(Float.greatestFiniteMagnitude)))
+        let result = floatFromBits(__kk_float_nextUp(floatToBits(Float.greatestFiniteMagnitude)))
         #expect(result.isInfinite)
     }
 
     @Test
     func testNextDownFloatNaN() {
-        #expect(floatFromBits(kk_float_nextDown(floatToBits(Float.nan))).isNaN)
+        #expect(floatFromBits(__kk_float_nextDown(floatToBits(Float.nan))).isNaN)
     }
 
     @Test
     func testNextUpFloatNegativeInfinity() {
         // nextUp(-Inf) == -Float.greatestFiniteMagnitude
-        let result = floatFromBits(kk_float_nextUp(floatToBits(-Float.infinity)))
+        let result = floatFromBits(__kk_float_nextUp(floatToBits(-Float.infinity)))
         #expect(result == -Float.greatestFiniteMagnitude)
     }
 
     @Test
     func testNextDownFloatPositiveInfinity() {
         // nextDown(+Inf) == Float.greatestFiniteMagnitude
-        let result = floatFromBits(kk_float_nextDown(floatToBits(Float.infinity)))
+        let result = floatFromBits(__kk_float_nextDown(floatToBits(Float.infinity)))
         #expect(result == Float.greatestFiniteMagnitude)
     }
 

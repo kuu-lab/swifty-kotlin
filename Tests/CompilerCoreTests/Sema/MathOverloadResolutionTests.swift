@@ -49,6 +49,9 @@ struct MathOverloadResolutionTests {
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID) else { continue }
+                guard let exprRange = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.origin(of: exprRange.start.file) == .user
+                else { continue }
                 let matchesCallName: Bool
                 switch expr {
                 case let .call(calleeExpr, _, _, _):
@@ -556,27 +559,43 @@ struct MathOverloadResolutionTests {
     // MARK: - roundToInt / roundToLong (Double / Float)
 
     @Test func testRoundToIntDoubleOverload() throws {
-        let source = "fun f(x: Double): Int = roundToInt(x)"
+        let source = "fun f(x: Double): Int = x.roundToInt()"
         let link = try resolvedLink(forCall: "roundToInt", withSource: source)
-        #expect(link == "kk_double_roundToInt")
+        #expect(link == nil)
     }
 
     @Test func testRoundToIntFloatOverload() throws {
-        let source = "fun f(x: Float): Int = roundToInt(x)"
+        let source = "fun f(x: Float): Int = x.roundToInt()"
         let link = try resolvedLink(forCall: "roundToInt", withSource: source)
-        #expect(link == "kk_float_roundToInt")
+        #expect(link == nil)
     }
 
     @Test func testRoundToLongDoubleOverload() throws {
-        let source = "fun f(x: Double): Long = roundToLong(x)"
+        let source = "fun f(x: Double): Long = x.roundToLong()"
         let link = try resolvedLink(forCall: "roundToLong", withSource: source)
-        #expect(link == "kk_double_roundToLong")
+        #expect(link == nil)
     }
 
     @Test func testRoundToLongFloatOverload() throws {
-        let source = "fun f(x: Float): Long = roundToLong(x)"
+        let source = "fun f(x: Float): Long = x.roundToLong()"
         let link = try resolvedLink(forCall: "roundToLong", withSource: source)
-        #expect(link == "kk_float_roundToLong")
+        #expect(link == nil)
+    }
+
+    @Test func testFloatingPrecisionExtensionsAreSourceBacked() throws {
+        let cases: [(name: String, source: String)] = [
+            ("ulp", "fun f(x: Double): Double = x.ulp"),
+            ("ulp", "fun f(x: Float): Float = x.ulp"),
+            ("nextUp", "fun f(x: Double): Double = x.nextUp()"),
+            ("nextUp", "fun f(x: Float): Float = x.nextUp()"),
+            ("nextDown", "fun f(x: Double): Double = x.nextDown()"),
+            ("nextDown", "fun f(x: Float): Float = x.nextDown()"),
+        ]
+
+        for testCase in cases {
+            let link = try resolvedLink(forCall: testCase.name, withSource: testCase.source)
+            #expect(link == nil, "(testCase.name) should resolve to Kotlin source")
+        }
     }
 
     // MARK: - Unofficial rounding mode helpers

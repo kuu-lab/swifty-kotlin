@@ -8,6 +8,7 @@ struct MathSyntheticTopLevelLinkTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -162,17 +163,17 @@ struct MathSyntheticTopLevelLinkTests {
         }
     }
 
-    @Test func testFloatingPrecisionHelpersResolveWithKotlinMathImport() throws {
+    @Test func testFloatingPrecisionHelpersAreSourceBackedWithKotlinMathImport() throws {
         let source = """
         import kotlin.math.*
 
         fun sample(x: Double, y: Float) {
-            val a = ulp(x)
-            val b = nextUp(x)
-            val c = nextDown(x)
-            val d = ulp(y)
-            val e = nextUp(y)
-            val f = nextDown(y)
+            val a = x.ulp
+            val b = x.nextUp()
+            val c = x.nextDown()
+            val d = y.ulp
+            val e = y.nextUp()
+            val f = y.nextDown()
         }
         """
 
@@ -182,33 +183,24 @@ struct MathSyntheticTopLevelLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let expectedLinks = [
-                "kk_double_ulp",
-                "kk_double_nextUp",
-                "kk_double_nextDown",
-                "kk_float_ulp",
-                "kk_float_nextUp",
-                "kk_float_nextDown",
-            ]
-
             var resolvedLinks: [String] = []
+            var resolvedCount = 0
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
-                      case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                      case let .memberCall(_, calleeName, _, _, _) = expr,
+                      ast.arena.exprRange(exprID)?.start.file == ast.sortedFiles.last?.fileID,
+                      ["ulp", "nextUp", "nextDown"].contains(ctx.interner.resolve(calleeName)),
+                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
                 else { continue }
-                let name = ctx.interner.resolve(calleeName)
-                guard ["ulp", "nextUp", "nextDown"].contains(name),
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
-                else { continue }
-                resolvedLinks.append(link)
+                resolvedCount += 1
+                if let link = sema.symbols.externalLinkName(for: chosenCallee) {
+                    resolvedLinks.append(link)
+                }
             }
 
-            for expected in expectedLinks {
-                #expect(resolvedLinks.contains(expected), "Expected \(expected) to be resolved")
-            }
+            #expect(resolvedCount == 6, "Expected all six precision helpers to resolve")
+            #expect(resolvedLinks.isEmpty, "Source-backed precision helpers must not carry runtime links")
         }
     }
 
@@ -223,8 +215,8 @@ struct MathSyntheticTopLevelLinkTests {
             ("sign", sema.types.floatType, sema.types.floatType, nil),
             ("sign", sema.types.intType, sema.types.intType, nil),
             ("sign", sema.types.longType, sema.types.intType, nil),
-            ("ulp", sema.types.doubleType, sema.types.doubleType, "kk_double_ulp"),
-            ("ulp", sema.types.floatType, sema.types.floatType, "kk_float_ulp"),
+            ("ulp", sema.types.doubleType, sema.types.doubleType, nil),
+            ("ulp", sema.types.floatType, sema.types.floatType, nil),
         ]
 
         for (name, receiverType, returnType, expectedLink) in expected {
@@ -282,16 +274,7 @@ struct MathSyntheticTopLevelLinkTests {
                 resolvedLinks.append(link)
             }
 
-            for expectedLink in [
-                "kk_float_ulp",
-                "kk_double_ulp",
-            ] {
-                #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
-            }
-            #expect(
-                !resolvedLinks.contains { $0.hasPrefix("__kk_math_") },
-                "absoluteValue/sign are Kotlin-source backed, got \(resolvedLinks)"
-            )
+            #expect(resolvedLinks.isEmpty, "Math extension properties are Kotlin-source backed, got \(resolvedLinks)")
         }
     }
 

@@ -97,6 +97,16 @@ struct MathAPITargetInventoryTests {
         "fun min(ULong, ULong): ULong",
         "fun sign(Double): Double",
         "fun sign(Float): Float",
+        "val Double.ulp: Double",
+        "val Float.ulp: Float",
+        "fun Double.nextDown(): Double",
+        "fun Float.nextDown(): Float",
+        "fun Double.nextUp(): Double",
+        "fun Float.nextUp(): Float",
+        "fun Double.roundToInt(): Int",
+        "fun Float.roundToInt(): Int",
+        "fun Double.roundToLong(): Long",
+        "fun Float.roundToLong(): Long",
         "fun ceil(Double): Double",
         "fun ceil(Float): Float",
         "fun floor(Double): Double",
@@ -130,21 +140,7 @@ struct MathAPITargetInventoryTests {
     + binaryFloatingSignatures(["atan2", "hypot", "log"])
     )
 
-    private static let implementedLinksBySignature: [String: String] = {
-        var result: [String: String] = [
-            "val Double.ulp: Double": "kk_double_ulp",
-            "val Float.ulp: Float": "kk_float_ulp",
-            "fun Double.nextDown(): Double": "kk_double_nextDown",
-            "fun Float.nextDown(): Float": "kk_float_nextDown",
-            "fun Double.nextUp(): Double": "kk_double_nextUp",
-            "fun Float.nextUp(): Float": "kk_float_nextUp",
-            "fun Double.roundToInt(): Int": "kk_double_roundToInt",
-            "fun Float.roundToInt(): Int": "kk_float_roundToInt",
-            "fun Double.roundToLong(): Long": "kk_double_roundToLong",
-            "fun Float.roundToLong(): Long": "kk_float_roundToLong",
-        ]
-        return result
-    }()
+    private static let implementedLinksBySignature: [String: String] = [:]
 
     private static let knownGapSignaturesByTodo: [String: Set<String>] = [:]
 
@@ -281,6 +277,7 @@ struct MathAPITargetInventoryTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

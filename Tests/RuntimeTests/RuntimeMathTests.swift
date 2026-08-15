@@ -58,87 +58,87 @@ struct RuntimeMathTests {
     @Test func testFloatRoundToIntEdgeCases() {
         var thrown = 0
         // NaN -> throws IllegalArgumentException (Kotlin contract)
-        _ = kk_float_roundToInt(floatToBits(Float.nan), &thrown)
+        _ = __kk_float_roundToInt(floatToBits(Float.nan), &thrown)
         #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
         // +Infinity saturates to Int32.max (no throw)
         thrown = 0
-        #expect(kk_float_roundToInt(floatToBits(Float.infinity), &thrown) == Int(Int32.max))
+        #expect(__kk_float_roundToInt(floatToBits(Float.infinity), &thrown) == Int(Int32.max))
         #expect(thrown == 0, "roundToInt(+Inf) must saturate, not throw")
         // -Infinity saturates to Int32.min
-        #expect(kk_float_roundToInt(floatToBits(-Float.infinity), nil) == Int(Int32.min))
+        #expect(__kk_float_roundToInt(floatToBits(-Float.infinity), nil) == Int(Int32.min))
         // Negative tie: -1.5 rounds to -1 (toward +inf), not -2
-        #expect(kk_float_roundToInt(floatToBits(-1.5), nil) == -1)
+        #expect(__kk_float_roundToInt(floatToBits(-1.5), nil) == -1)
         // Negative tie: -0.5 rounds to 0 (toward +inf), not -1
-        #expect(kk_float_roundToInt(floatToBits(-0.5), nil) == 0)
+        #expect(__kk_float_roundToInt(floatToBits(-0.5), nil) == 0)
         // Positive tie: 0.5 rounds to 1
-        #expect(kk_float_roundToInt(floatToBits(0.5), nil) == 1)
+        #expect(__kk_float_roundToInt(floatToBits(0.5), nil) == 1)
         // Positive tie: 1.5 rounds to 2
-        #expect(kk_float_roundToInt(floatToBits(1.5), nil) == 2)
+        #expect(__kk_float_roundToInt(floatToBits(1.5), nil) == 2)
         // Normal values
-        #expect(kk_float_roundToInt(floatToBits(2.3), nil) == 2)
-        #expect(kk_float_roundToInt(floatToBits(-2.3), nil) == -2)
+        #expect(__kk_float_roundToInt(floatToBits(2.3), nil) == 2)
+        #expect(__kk_float_roundToInt(floatToBits(-2.3), nil) == -2)
         // Saturation beyond Int32 bounds
-        #expect(kk_float_roundToInt(floatToBits(Float(3e9)), nil) == Int(Int32.max))
-        #expect(kk_float_roundToInt(floatToBits(Float(-3e9)), nil) == Int(Int32.min))
+        #expect(__kk_float_roundToInt(floatToBits(Float(3e9)), nil) == Int(Int32.max))
+        #expect(__kk_float_roundToInt(floatToBits(Float(-3e9)), nil) == Int(Int32.min))
     }
 
     @Test func testDoubleRoundToIntEdgeCases() {
         var thrown = 0
         // NaN -> throws IllegalArgumentException (Kotlin contract)
-        _ = kk_double_roundToInt(doubleToBits(Double.nan), &thrown)
+        _ = __kk_double_roundToInt(doubleToBits(Double.nan), &thrown)
         #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
         // +Infinity saturates to Int32.max (no throw)
         thrown = 0
-        #expect(kk_double_roundToInt(doubleToBits(Double.infinity), &thrown) == Int(Int32.max))
+        #expect(__kk_double_roundToInt(doubleToBits(Double.infinity), &thrown) == Int(Int32.max))
         #expect(thrown == 0, "roundToInt(+Inf) must saturate, not throw")
         // -Infinity saturates to Int32.min
-        #expect(kk_double_roundToInt(doubleToBits(-Double.infinity), nil) == Int(Int32.min))
+        #expect(__kk_double_roundToInt(doubleToBits(-Double.infinity), nil) == Int(Int32.min))
         // Negative tie: -1.5 rounds to -1
-        #expect(kk_double_roundToInt(doubleToBits(-1.5), nil) == -1)
+        #expect(__kk_double_roundToInt(doubleToBits(-1.5), nil) == -1)
         // Negative tie: -0.5 rounds to 0
-        #expect(kk_double_roundToInt(doubleToBits(-0.5), nil) == 0)
+        #expect(__kk_double_roundToInt(doubleToBits(-0.5), nil) == 0)
         // Positive tie: 0.5 rounds to 1
-        #expect(kk_double_roundToInt(doubleToBits(0.5), nil) == 1)
+        #expect(__kk_double_roundToInt(doubleToBits(0.5), nil) == 1)
         // nextDown(0.5) should round to 0 (not 1)
-        #expect(kk_double_roundToInt(doubleToBits(0.49999999999999994), nil) == 0)
+        #expect(__kk_double_roundToInt(doubleToBits(0.49999999999999994), nil) == 0)
         // Saturation beyond Int32 bounds
-        #expect(kk_double_roundToInt(doubleToBits(3e9), nil) == Int(Int32.max))
-        #expect(kk_double_roundToInt(doubleToBits(-3e9), nil) == Int(Int32.min))
+        #expect(__kk_double_roundToInt(doubleToBits(3e9), nil) == Int(Int32.max))
+        #expect(__kk_double_roundToInt(doubleToBits(-3e9), nil) == Int(Int32.min))
     }
 
     @Test func testFloatRoundToLongEdgeCases() {
         var thrown = 0
-        _ = kk_float_roundToLong(floatToBits(Float.nan), &thrown)
+        _ = __kk_float_roundToLong(floatToBits(Float.nan), &thrown)
         #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
-        #expect(kk_float_roundToLong(floatToBits(Float.infinity), nil) == Int(Int64.max))
-        #expect(kk_float_roundToLong(floatToBits(-Float.infinity), nil) == Int(Int64.min))
-        let rawMin = kk_float_roundToLong(floatToBits(-Float.infinity), nil)
+        #expect(__kk_float_roundToLong(floatToBits(Float.infinity), nil) == Int(Int64.max))
+        #expect(__kk_float_roundToLong(floatToBits(-Float.infinity), nil) == Int(Int64.min))
+        let rawMin = __kk_float_roundToLong(floatToBits(-Float.infinity), nil)
         #expect(kk_unbox_long(rawMin) == Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
-        #expect(kk_float_roundToLong(floatToBits(-1.5), nil) == -1)
-        #expect(kk_float_roundToLong(floatToBits(-0.5), nil) == 0)
-        #expect(kk_float_roundToLong(floatToBits(0.5), nil) == 1)
+        #expect(__kk_float_roundToLong(floatToBits(-1.5), nil) == -1)
+        #expect(__kk_float_roundToLong(floatToBits(-0.5), nil) == 0)
+        #expect(__kk_float_roundToLong(floatToBits(0.5), nil) == 1)
         // Saturation beyond Int64 bounds
-        #expect(kk_float_roundToLong(floatToBits(Float(1e19)), nil) == Int(Int64.max))
-        #expect(kk_float_roundToLong(floatToBits(Float(-1e19)), nil) == Int(Int64.min))
+        #expect(__kk_float_roundToLong(floatToBits(Float(1e19)), nil) == Int(Int64.max))
+        #expect(__kk_float_roundToLong(floatToBits(Float(-1e19)), nil) == Int(Int64.min))
     }
 
     @Test func testDoubleRoundToLongEdgeCases() {
         var thrown = 0
-        _ = kk_double_roundToLong(doubleToBits(Double.nan), &thrown)
+        _ = __kk_double_roundToLong(doubleToBits(Double.nan), &thrown)
         #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
-        #expect(kk_double_roundToLong(doubleToBits(Double.infinity), nil) == Int(Int64.max))
-        #expect(kk_double_roundToLong(doubleToBits(-Double.infinity), nil) == Int(Int64.min))
+        #expect(__kk_double_roundToLong(doubleToBits(Double.infinity), nil) == Int(Int64.max))
+        #expect(__kk_double_roundToLong(doubleToBits(-Double.infinity), nil) == Int(Int64.min))
         // Int.min == runtimeNullSentinelInt: verify the raw return passes through
         // kk_unbox_long without being misread as null (regression for Long.MIN_VALUE bug).
-        let rawMin = kk_double_roundToLong(doubleToBits(-Double.infinity), nil)
+        let rawMin = __kk_double_roundToLong(doubleToBits(-Double.infinity), nil)
         #expect(kk_unbox_long(rawMin) == Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
-        #expect(kk_double_roundToLong(doubleToBits(-1.5), nil) == -1)
-        #expect(kk_double_roundToLong(doubleToBits(-0.5), nil) == 0)
-        #expect(kk_double_roundToLong(doubleToBits(0.5), nil) == 1)
-        #expect(kk_double_roundToLong(doubleToBits(0.49999999999999994), nil) == 0)
+        #expect(__kk_double_roundToLong(doubleToBits(-1.5), nil) == -1)
+        #expect(__kk_double_roundToLong(doubleToBits(-0.5), nil) == 0)
+        #expect(__kk_double_roundToLong(doubleToBits(0.5), nil) == 1)
+        #expect(__kk_double_roundToLong(doubleToBits(0.49999999999999994), nil) == 0)
         // Saturation beyond Int64 bounds
-        #expect(kk_double_roundToLong(doubleToBits(1e19), nil) == Int(Int64.max))
-        #expect(kk_double_roundToLong(doubleToBits(-1e19), nil) == Int(Int64.min))
+        #expect(__kk_double_roundToLong(doubleToBits(1e19), nil) == Int(Int64.max))
+        #expect(__kk_double_roundToLong(doubleToBits(-1e19), nil) == Int(Int64.min))
     }
 
     // MARK: - Float trig / rounding (STDLIB-500..509)
@@ -295,68 +295,68 @@ struct RuntimeMathTests {
     // MARK: - roundToInt / roundToLong (STDLIB-510..511)
 
     @Test func testFloatRoundToInt() {
-        #expect(kk_float_roundToInt(floatToBits(2.5), nil) == 3)
-        #expect(kk_float_roundToInt(floatToBits(3.5), nil) == 4)
-        #expect(kk_float_roundToInt(floatToBits(-1.5), nil) == -1)
-        #expect(kk_float_roundToInt(floatToBits(-2.5), nil) == -2)
+        #expect(__kk_float_roundToInt(floatToBits(2.5), nil) == 3)
+        #expect(__kk_float_roundToInt(floatToBits(3.5), nil) == 4)
+        #expect(__kk_float_roundToInt(floatToBits(-1.5), nil) == -1)
+        #expect(__kk_float_roundToInt(floatToBits(-2.5), nil) == -2)
         var thrown = 0
-        _ = kk_float_roundToInt(floatToBits(Float.nan), &thrown)
+        _ = __kk_float_roundToInt(floatToBits(Float.nan), &thrown)
         #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
     }
 
     @Test func testDoubleRoundToInt() {
-        #expect(kk_double_roundToInt(doubleToBits(2.5), nil) == 3)
-        #expect(kk_double_roundToInt(doubleToBits(3.5), nil) == 4)
-        #expect(kk_double_roundToInt(doubleToBits(-1.5), nil) == -1)
-        #expect(kk_double_roundToInt(doubleToBits(-2.5), nil) == -2)
+        #expect(__kk_double_roundToInt(doubleToBits(2.5), nil) == 3)
+        #expect(__kk_double_roundToInt(doubleToBits(3.5), nil) == 4)
+        #expect(__kk_double_roundToInt(doubleToBits(-1.5), nil) == -1)
+        #expect(__kk_double_roundToInt(doubleToBits(-2.5), nil) == -2)
         var thrown = 0
-        _ = kk_double_roundToInt(doubleToBits(Double.nan), &thrown)
+        _ = __kk_double_roundToInt(doubleToBits(Double.nan), &thrown)
         #expect(thrown != 0, "roundToInt(NaN) must throw IllegalArgumentException")
     }
 
     @Test func testFloatRoundToLong() {
-        #expect(kk_float_roundToLong(floatToBits(2.5), nil) == 3)
+        #expect(__kk_float_roundToLong(floatToBits(2.5), nil) == 3)
         var thrown = 0
-        _ = kk_float_roundToLong(floatToBits(Float.nan), &thrown)
+        _ = __kk_float_roundToLong(floatToBits(Float.nan), &thrown)
         #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
     }
 
     @Test func testDoubleRoundToLong() {
-        #expect(kk_double_roundToLong(doubleToBits(2.5), nil) == 3)
+        #expect(__kk_double_roundToLong(doubleToBits(2.5), nil) == 3)
         var thrown = 0
-        _ = kk_double_roundToLong(doubleToBits(Double.nan), &thrown)
+        _ = __kk_double_roundToLong(doubleToBits(Double.nan), &thrown)
         #expect(thrown != 0, "roundToLong(NaN) must throw IllegalArgumentException")
     }
 
     // MARK: - ulp / nextUp / nextDown (STDLIB-512..513)
 
     @Test func testDoubleUlp() {
-        let result = doubleFromBits(kk_double_ulp(doubleToBits(1.0)))
+        let result = doubleFromBits(__kk_double_ulp(doubleToBits(1.0)))
         #expect(result == Double(1.0).ulp)
     }
 
     @Test func testDoubleNextUp() {
-        let result = doubleFromBits(kk_double_nextUp(doubleToBits(1.0)))
+        let result = doubleFromBits(__kk_double_nextUp(doubleToBits(1.0)))
         #expect(result == Double(1.0).nextUp)
     }
 
     @Test func testDoubleNextDown() {
-        let result = doubleFromBits(kk_double_nextDown(doubleToBits(1.0)))
+        let result = doubleFromBits(__kk_double_nextDown(doubleToBits(1.0)))
         #expect(result == Double(1.0).nextDown)
     }
 
     @Test func testFloatUlp() {
-        let result = floatFromBits(kk_float_ulp(floatToBits(1.0)))
+        let result = floatFromBits(__kk_float_ulp(floatToBits(1.0)))
         #expect(result == Float(1.0).ulp)
     }
 
     @Test func testFloatNextUp() {
-        let result = floatFromBits(kk_float_nextUp(floatToBits(1.0)))
+        let result = floatFromBits(__kk_float_nextUp(floatToBits(1.0)))
         #expect(result == Float(1.0).nextUp)
     }
 
     @Test func testFloatNextDown() {
-        let result = floatFromBits(kk_float_nextDown(floatToBits(1.0)))
+        let result = floatFromBits(__kk_float_nextDown(floatToBits(1.0)))
         #expect(result == Float(1.0).nextDown)
     }
 

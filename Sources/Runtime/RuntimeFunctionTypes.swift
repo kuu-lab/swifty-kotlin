@@ -119,6 +119,12 @@ public func kk_function_create_0(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    // A function-valued parameter may already be boxed when it is captured by
+    // another lambda. Keep boxing idempotent so the outer closure does not
+    // turn the inner function object into a function pointer.
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 0 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
@@ -132,6 +138,9 @@ public func kk_function_create_1(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 1 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
@@ -165,6 +174,9 @@ public func kk_function_create_2(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 2 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
@@ -178,6 +190,9 @@ public func kk_function_create_3(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 3 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
@@ -191,6 +206,9 @@ public func kk_function_create_4(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 4 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0

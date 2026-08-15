@@ -129,8 +129,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             for expected in [
                 "absoluteValue",
                 "sign",
-                "kk_float_ulp",
-                "kk_double_ulp",
+                "ulp",
             ] {
                 #expect(
                     calls.contains(where: { $0 == expected && $1 == 1 }),
@@ -141,8 +140,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             for extensionHelper in [
                 "absoluteValue",
                 "sign",
-                "kk_float_ulp",
-                "kk_double_ulp",
+                "ulp",
             ] {
                 #expect(
                     !calls.contains(where: { $0 == extensionHelper && $1 == 0 }),
