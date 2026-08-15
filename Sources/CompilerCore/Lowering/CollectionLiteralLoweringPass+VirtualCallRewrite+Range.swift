@@ -27,9 +27,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let isULongRange = ulongRangeExprIDs.contains(receiver.rawValue)
         let isUIntRange = sema.map { module.arena.exprType(receiver) == $0.types.uintType } ?? false
         let isLongRange = sema.map { module.arena.exprType(receiver) == $0.types.longType } ?? false
-        let randomName = interner.intern("random")
-        let randomOrNullName = interner.intern("randomOrNull")
-
         // step — simple property access (STDLIB-RANGE-037)
         if callee == lookup.stepName, arguments.isEmpty {
             let stepName = isULongRange ? lookup.kkULongRangeStepName : (isUIntRange ? interner.intern("kk_uint_range_step") : lookup.kkRangeStepName)
@@ -449,56 +446,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            return true
-        }
-        if callee == randomName, arguments.isEmpty || arguments.count == 1 {
-            let randomCallee: InternedString
-            if isCharRange {
-                randomCallee = arguments.isEmpty ? interner.intern("kk_range_random")
-                    : interner.intern("kk_char_range_random_random")
-            } else if isULongRange {
-                randomCallee = arguments.isEmpty ? interner.intern("kk_ulong_range_random")
-                    : interner.intern("kk_ulong_range_random_random")
-            } else if isUIntRange {
-                randomCallee = arguments.isEmpty ? interner.intern("kk_uint_range_random")
-                    : interner.intern("kk_uint_range_random_random")
-            } else if isLongRange {
-                randomCallee = arguments.isEmpty ? interner.intern("kk_long_range_random")
-                    : interner.intern("kk_long_range_random_random")
-            } else {
-                randomCallee = arguments.isEmpty ? interner.intern("kk_range_random")
-                    : interner.intern("kk_range_random_random")
-            }
-            loweredBody.append(.call(
-                symbol: nil, callee: randomCallee,
-                arguments: [receiver] + arguments, result: result,
-                canThrow: true, thrownResult: origThrownResult
-            ))
-            return true
-        }
-        if callee == randomOrNullName, arguments.isEmpty || arguments.count == 1 {
-            let randomOrNullCallee: InternedString
-            if isCharRange {
-                randomOrNullCallee = arguments.isEmpty ? interner.intern("kk_char_range_randomOrNull")
-                    : interner.intern("kk_char_range_randomOrNull_random")
-            } else if isULongRange {
-                randomOrNullCallee = arguments.isEmpty ? interner.intern("kk_ulong_range_randomOrNull")
-                    : interner.intern("kk_ulong_range_randomOrNull_random")
-            } else if isUIntRange {
-                randomOrNullCallee = arguments.isEmpty ? interner.intern("kk_uint_range_randomOrNull")
-                    : interner.intern("kk_uint_range_randomOrNull_random")
-            } else if isLongRange {
-                randomOrNullCallee = arguments.isEmpty ? interner.intern("kk_long_range_randomOrNull")
-                    : interner.intern("kk_long_range_randomOrNull_random")
-            } else {
-                randomOrNullCallee = arguments.isEmpty ? interner.intern("kk_range_randomOrNull")
-                    : interner.intern("kk_range_randomOrNull_random")
-            }
-            loweredBody.append(.call(
-                symbol: nil, callee: randomOrNullCallee,
-                arguments: [receiver] + arguments, result: result,
-                canThrow: false, thrownResult: nil
-            ))
             return true
         }
         if callee == lookup.anyName || callee == lookup.allName || callee == lookup.noneName, arguments.count == 1 {

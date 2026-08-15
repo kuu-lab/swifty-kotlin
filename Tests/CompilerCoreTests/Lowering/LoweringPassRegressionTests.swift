@@ -368,21 +368,23 @@ struct LoweringPassRegressionTests {
                         return nil
                     }
                     let name = ctx.interner.resolve(callee)
-                    guard name == "kk_range_random_random"
-                        || name == "kk_char_range_random_random"
-                        || name == "kk_long_range_random_random"
-                        || name == "kk_uint_range_random_random"
-                        || name == "kk_ulong_range_random_random"
+                    guard name == "random"
                     else {
                         return nil
                     }
                     return (name, arguments.count, canThrow)
                 }
 
-                #expect(randomCalls.count == 5, "Expected five range.random calls, got: \(randomCalls); all callees: \(allCallees)")
+                #expect(randomCalls.count == 5, "Expected five source-backed range.random calls, got: \(randomCalls); all callees: \(allCallees)")
                 #expect(randomCalls.allSatisfy { _, argumentCount, canThrow in
                     argumentCount == 2 && canThrow
-                }, "Expected receiver + Random argument and canThrow=true, got: \(randomCalls); all callees: \(allCallees)")
+                }, "Expected source wrapper receiver + Random argument and canThrow=true, got: \(randomCalls); all callees: \(allCallees)")
+                #expect(
+                    allCallees.allSatisfy { name in
+                        !name.contains("range_random") && !name.contains("randomOrNull")
+                    },
+                    "Legacy range random runtime links must not remain in user call lowering: \(allCallees)"
+                )
             }
             // testCoroutineLoweringRewritesKxMiniLauncherAndDelayBuiltins
             do {

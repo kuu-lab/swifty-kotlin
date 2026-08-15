@@ -132,7 +132,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.chunkedName
             || callee == lookup.windowedName
             || callee == lookup.firstName
-            || callee == lookup.lastName,
+            || callee == lookup.lastName
+            || callee == context.interner.intern("random")
+            || callee == context.interner.intern("randomOrNull"),
             let symbol,
             let sema = context.sema,
             sema.symbols.symbol(symbol) != nil

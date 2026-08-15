@@ -137,7 +137,7 @@
 - [x] KSP-456: progression 構築系を Kotlin 化（`step`, `downTo`, `until`, `*_progression_fromClosedRange`）
   - 削除 kk_*: `kk_op_step`, `kk_op_downTo`, `kk_op_rangeUntil`, `kk_int/long/uint/ulong/char_progression_fromClosedRange` ほか（`kk_op_rangeTo` は演算子コアのため残留可）
   - 完了確認（2026-08-14）: merged PR #5741 / merge commit `06aeb5eea` で実装済み。現行 master `0a9c0c248` に `Sources/CompilerCore/Stdlib/kotlin/ranges/ProgressionConstructors.kt` と対応する Sema/KIR/Lowering、Runtime/ABI bridge、回帰テストが存在し、旧公開 `kk_op_step`/`kk_op_downTo`/`kk_op_rangeUntil`/`kk_*_progression_fromClosedRange` は残っていない。残留する `__kk_*` は bundled Kotlin source から Runtime/ABI へ接続する意図的な内部 bridge。現行検証は `RuntimeRange` 210 tests、`RangeSynthetic` 7 tests、`RangeUntilSynthetic` 6 tests、`bash Scripts/validate_runtime_abi_links.sh` 4 tests、`bash Scripts/check_todo_ids.sh` がすべて pass。`progression.golden` と `Scripts/diff_cases/progression.kt` も現行 master に存在する。#5708 / commit `630260a2cc` の TODO 更新で本行だけ `[ ]` に戻っていたため、実装重複なしの focused TODO 同期として完了化した。
-- [ ] KSP-457: range random 系を Kotlin 化（前提: KSP-466。`kk_range_random*`, `kk_long_range_random*`, `kk_char_range_random*`, `kk_uint/ulong_range_random*`, `kk_random_nextInt/nextLong_rangeObject`）
+- [x] KSP-457: range random 系を Kotlin 化（前提: KSP-466。`kk_range_random*`, `kk_long_range_random*`, `kk_char_range_random*`, `kk_uint/ulong_range_random*`, `kk_random_nextInt/nextLong_rangeObject`）
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
