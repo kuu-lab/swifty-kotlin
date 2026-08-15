@@ -49,7 +49,8 @@ package final class NameMangler {
         for symbol: SemanticSymbol,
         symbols: SymbolTable,
         types: TypeSystem,
-        nameResolver: ((InternedString) -> String)? = nil
+        nameResolver: ((InternedString) -> String)? = nil,
+        unboxValueClasses: Bool = true
     ) -> String {
         switch symbol.kind {
         case .function, .constructor:
@@ -67,19 +68,37 @@ package final class NameMangler {
                     )
                 )
             )
-            return encodeType(erasedFunctionType, symbols: symbols, types: types, nameResolver: nameResolver)
+            return encodeType(
+                erasedFunctionType,
+                symbols: symbols,
+                types: types,
+                nameResolver: nameResolver,
+                unboxValueClasses: unboxValueClasses
+            )
 
         case .property, .field, .backingField:
             guard let propertyType = symbols.propertyType(for: symbol.id) else {
                 return "_"
             }
-            return encodeType(propertyType, symbols: symbols, types: types, nameResolver: nameResolver)
+            return encodeType(
+                propertyType,
+                symbols: symbols,
+                types: types,
+                nameResolver: nameResolver,
+                unboxValueClasses: unboxValueClasses
+            )
 
         case .typeAlias:
             guard let underlyingType = symbols.typeAliasUnderlyingType(for: symbol.id) else {
                 return "_"
             }
-            return encodeType(underlyingType, symbols: symbols, types: types, nameResolver: nameResolver)
+            return encodeType(
+                underlyingType,
+                symbols: symbols,
+                types: types,
+                nameResolver: nameResolver,
+                unboxValueClasses: unboxValueClasses
+            )
 
         default:
             return "_"
@@ -153,7 +172,8 @@ package final class NameMangler {
         _ type: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
-        nameResolver: ((InternedString) -> String)?
+        nameResolver: ((InternedString) -> String)?,
+        unboxValueClasses: Bool = true
     ) -> String {
         switch types.kind(of: type) {
         case .error:
@@ -212,12 +232,19 @@ package final class NameMangler {
             // Value classes that implement interfaces (e.g. ValueTimeMark)
             // must keep their boxed class identity, so they encode as the
             // regular class type and can round-trip through metadata.
-            if classType.nullability == .nonNull,
+            if unboxValueClasses,
+               classType.nullability == .nonNull,
                let sym = symbols.symbol(classType.classSymbol),
                sym.flags.contains(.valueType),
                let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
             {
-                let underlyingEncoded = encodeType(underlyingType, symbols: symbols, types: types, nameResolver: nameResolver)
+                let underlyingEncoded = encodeType(
+                    underlyingType,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: nameResolver,
+                    unboxValueClasses: unboxValueClasses
+                )
                 return "VC<\(underlyingEncoded)>"
             }
 
@@ -231,7 +258,13 @@ package final class NameMangler {
             var encoded = "L\(className)"
             if !classType.args.isEmpty {
                 let args = classType.args.map {
-                    encodeTypeArg($0, symbols: symbols, types: types, nameResolver: nameResolver)
+                    encodeTypeArg(
+                        $0,
+                        symbols: symbols,
+                        types: types,
+                        nameResolver: nameResolver,
+                        unboxValueClasses: unboxValueClasses
+                    )
                 }.joined(separator: ",")
                 encoded += "<\(args)>"
             }
@@ -246,29 +279,35 @@ package final class NameMangler {
             var components: [String] = []
             if !functionType.contextReceivers.isEmpty {
                 let encodedContextReceivers = functionType.contextReceivers.map {
-                    encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver)
+                    encodeType(
+                        $0,
+                        symbols: symbols,
+                        types: types,
+                        nameResolver: nameResolver,
+                        unboxValueClasses: unboxValueClasses
+                    )
                 }.joined(separator: ",")
                 components.append("C\(functionType.contextReceivers.count)<\(encodedContextReceivers)>")
             }
             if let receiver = functionType.receiver {
-                components.append("R\(encodeType(receiver, symbols: symbols, types: types, nameResolver: nameResolver))")
+                components.append("R\(encodeType(receiver, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))")
             }
             components.append(contentsOf: functionType.params.map {
-                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver)
+                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
             })
-            components.append(encodeType(functionType.returnType, symbols: symbols, types: types, nameResolver: nameResolver))
+            components.append(encodeType(functionType.returnType, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))
             let prefix = functionType.isSuspend ? "SF" : "F"
             let encoded = "\(prefix)\(functionType.params.count)<\(components.joined(separator: ","))>"
             return applyNullability(encoded, nullability: functionType.nullability)
 
         case let .kClassType(kClassType):
-            let argEncoded = encodeType(kClassType.argument, symbols: symbols, types: types, nameResolver: nameResolver)
+            let argEncoded = encodeType(kClassType.argument, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
             let encoded = "KC<\(argEncoded)>"
             return applyNullability(encoded, nullability: kClassType.nullability)
 
         case let .intersection(parts):
             let encodedParts = parts.map {
-                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver)
+                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
             }.joined(separator: "&")
             return "X<\(encodedParts)>"
         }
@@ -278,15 +317,16 @@ package final class NameMangler {
         _ arg: TypeArg,
         symbols: SymbolTable,
         types: TypeSystem,
-        nameResolver: ((InternedString) -> String)?
+        nameResolver: ((InternedString) -> String)?,
+        unboxValueClasses: Bool
     ) -> String {
         switch arg {
         case let .invariant(type):
-            encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver)
+            encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
         case let .out(type):
-            "O<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver))>"
+            "O<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))>"
         case let .in(type):
-            "N<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver))>"
+            "N<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))>"
         case .star:
             "*"
         }

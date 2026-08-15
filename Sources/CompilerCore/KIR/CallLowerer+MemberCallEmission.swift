@@ -330,20 +330,6 @@ extension CallLowerer {
         {
             finalArguments.insert(receiver.loweredID, at: 0)
         }
-        // Array.count() with no predicate: kk_array_count's native signature always
-        // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
-        // lambda argument, finalArguments only has the receiver. Without this padding,
-        // fnPtr/closureRaw read whatever garbage occupies those ABI slots, and
-        // kk_array_count's `if fnPtr == 0` fast path is skipped, crashing when it tries
-        // to invoke the garbage pointer as a closure.
-        if loweredCallee == interner.intern("kk_array_count"),
-           finalArguments.count == 1
-        {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            finalArguments.append(zeroExpr)
-            finalArguments.append(zeroExpr)
-        }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,
            sourceArgExprs.count == 3
@@ -394,25 +380,6 @@ extension CallLowerer {
                 sourceArgLabels: sourceArgLabels
             )
         }
-        if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
-           finalArguments.count >= 3
-        {
-            switch loweredCallee {
-            case interner.intern("__kk_mutable_list_sortBy"):
-                loweredCallee = interner.intern("__kk_mutable_list_sortBy_primitive")
-            case interner.intern("__kk_mutable_list_sortByDescending"):
-                loweredCallee = interner.intern("__kk_mutable_list_sortByDescending_primitive")
-            default:
-                break
-            }
-            if loweredCallee == interner.intern("__kk_mutable_list_sortBy_primitive")
-                || loweredCallee == interner.intern("__kk_mutable_list_sortByDescending_primitive")
-            {
-                let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveSelectorKind.rawValue)), type: sema.types.intType)
-                instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
-                finalArguments.append(kindExpr)
-            }
-        }
         finalArguments = adaptComparatorBackedCollectionArguments(
             loweredCallee: loweredCallee,
             finalArguments: finalArguments,
@@ -447,7 +414,6 @@ extension CallLowerer {
             )
         }
         if loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
-            || loweredCallee == interner.intern("kk_array_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
             let lambdaArgIndex = originalArgumentCount - 1
@@ -618,42 +584,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0]] + successArgs + failureArgs
         }
-        if let primitiveKind = collectionElementPrimitiveCompareKind(
-            of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema
-        ) {
-            let primitiveSortCallees: Set<InternedString> = [
-                interner.intern("kk_list_sorted_primitive"),
-                interner.intern("kk_list_sortedDescending_primitive"),
-                interner.intern("__kk_mutable_list_sort_primitive"),
-                interner.intern("__kk_mutable_list_sortDescending_primitive"),
-            ]
-            if primitiveSortCallees.contains(loweredCallee),
-               finalArguments.count == 1
-            {
-                let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveKind.rawValue)), type: sema.types.intType)
-                instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveKind.rawValue))))
-                finalArguments.append(kindExpr)
-            }
-        }
-        let comparatorOnlyCallees: Set<InternedString> = [
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_maxWithOrNull"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_minWithOrNull"),
-            interner.intern("kk_list_sortedWith"),
-        ]
-        if comparatorOnlyCallees.contains(loweredCallee),
-           finalArguments.count == 2
-        {
-            let comparatorArgs = makeComparatorObjectArgumentPair(
-                loweredComparatorID: finalArguments[1],
-                sema: sema,
-                arena: arena,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0]] + comparatorArgs
-        }
         if loweredCallee == interner.intern("kk_channel_send")
             || loweredCallee == interner.intern("kk_channel_receive")
             || loweredCallee == interner.intern("kk_mutex_lock")
@@ -765,16 +695,6 @@ extension CallLowerer {
         Set([
             interner.intern("kk_list_random"),
             interner.intern("kk_sequence_takeLast"),
-            interner.intern("kk_list_max"),
-            interner.intern("kk_list_minBy"),
-            interner.intern("kk_list_min"),
-            interner.intern("kk_list_maxOf"),
-            interner.intern("kk_list_minOf"),
-            interner.intern("kk_list_maxBy"),
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_maxOfWith"),
-            interner.intern("kk_list_minOfWith"),
             interner.intern("kk_list_sumOf"),
             interner.intern("kk_list_sumBy"),
             interner.intern("kk_list_sumByDouble"),

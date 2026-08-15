@@ -197,9 +197,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "OnErrorAction") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FilesUtility") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         },

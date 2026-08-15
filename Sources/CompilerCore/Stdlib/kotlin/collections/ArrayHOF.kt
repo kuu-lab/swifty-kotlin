@@ -1,8 +1,7 @@
 package kotlin.collections
 
-// KSP-433: Array<T> transform HOFs are bundled Kotlin source instead of the
-// `kk_array_map` / `kk_array_mapIndexed` / `kk_array_mapNotNull` /
-// `kk_array_flatMap` / `kk_array_forEach` runtime bridges.
+// KSP-433: Array<T> transform HOFs are bundled Kotlin source. Primitive-array
+// variants are defined in PrimitiveArrayHOF.kt.
 
 public fun <T, R> Array<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
@@ -66,10 +65,8 @@ public fun <T> Array<T>.forEach(action: (T) -> Unit) {
 
 // `joinToString` / `asSequence` delegate to the source-backed List
 // implementations so Array and List share one rendering and one Sequence
-// adapter. The `transform` overload keeps resolving to the synthetic
-// `kk_array_joinToString_transform` member (registered in
-// HeaderHelpers+SyntheticArrayStubs.swift and shared with the primitive arrays,
-// BUG-158), which wins over an extension.
+// adapter. Both overloads are source-backed; the legacy synthetic member stubs
+// are retained only for unresolved legacy call sites.
 
 public fun <T> Array<T>.joinToString(
     separator: String = ", ",

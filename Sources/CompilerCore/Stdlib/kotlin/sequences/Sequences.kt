@@ -49,3 +49,12 @@ public fun <T> Iterable<T>.asSequence(): Sequence<T> {
         }
     }
 }
+
+public fun <T> Sequence<T>.asSequence(): Sequence<T> = this
+
+public fun <T> Sequence<T>.asIterable(): Iterable<T> {
+    val source = this
+    return object : Iterable<T> {
+        override fun iterator(): Iterator<T> = source.iterator()
+    }
+}

@@ -3,8 +3,7 @@ package kotlin.collections
 import kotlin.internal.__valuesEqual
 
 // MIGRATION-COL-006
-// Array search helpers.
-// Migration source: Sources/Runtime/RuntimeCollectionHOFArray.swift (kk_array_*)
+// Array search helpers. Generic and primitive-array variants are source-backed.
 //
 // Equality is delegated to __kk_values_equal via kotlin.internal.__valuesEqual.
 
@@ -37,11 +36,8 @@ public fun <T> Array<T>.lastIndexOf(element: T): Int {
     return -1
 }
 
-// KSP-433: predicate-based search / quantifier HOFs, replacing the
-// `kk_array_find` / `kk_array_findLast` / `kk_array_first(_predicate)` /
-// `kk_array_firstOrNull` / `kk_array_last(_predicate)` / `kk_array_lastOrNull`
-// / `kk_array_any` / `kk_array_all` / `kk_array_none` / `kk_array_count`
-// runtime bridges. Exception messages match kotlinc's Array wording
+// KSP-433: predicate-based search / quantifier HOFs are source-backed.
+// Exception messages match kotlinc's Array wording
 // ("Array is empty." / "Array contains no element matching the predicate.").
 
 public fun <T> Array<T>.find(predicate: (T) -> Boolean): T? {
