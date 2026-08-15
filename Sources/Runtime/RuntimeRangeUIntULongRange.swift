@@ -285,28 +285,28 @@ public func kk_uint_range_lastOrNull(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_uint_range_randomOrNull")
-public func kk_uint_range_randomOrNull(_ rangeRaw: Int) -> Int {
+@_cdecl("__kk_uint_range_randomOrNull")
+public func __kk_uint_range_randomOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
-                                  functionName: "kk_uint_range_randomOrNull")
+                                  functionName: "__kk_uint_range_randomOrNull")
 }
 
-@_cdecl("kk_uint_range_randomOrNull_random")
-public func kk_uint_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
+@_cdecl("__kk_uint_range_randomOrNull_random")
+public func __kk_uint_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw: randomRaw,
-                                  functionName: "kk_uint_range_randomOrNull_random")
+                                  functionName: "__kk_uint_range_randomOrNull_random")
 }
 
-@_cdecl("kk_uint_range_random")
-public func kk_uint_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_uint_range_random")
+public func __kk_uint_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, 0, outThrown,
-                            functionName: "kk_uint_range_random")
+                            functionName: "__kk_uint_range_random")
 }
 
-@_cdecl("kk_uint_range_random_random")
-public func kk_uint_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_uint_range_random_random")
+public func __kk_uint_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw, outThrown,
-                            functionName: "kk_uint_range_random_random")
+                            functionName: "__kk_uint_range_random_random")
 }
 
 @_cdecl("kk_uint_range_any")
@@ -539,28 +539,28 @@ public func kk_ulong_range_lastOrNull(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_ulong_range_randomOrNull")
-public func kk_ulong_range_randomOrNull(_ rangeRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_randomOrNull")
+public func __kk_ulong_range_randomOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
-                                  functionName: "kk_ulong_range_randomOrNull")
+                                  functionName: "__kk_ulong_range_randomOrNull")
 }
 
-@_cdecl("kk_ulong_range_randomOrNull_random")
-public func kk_ulong_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_randomOrNull_random")
+public func __kk_ulong_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw: randomRaw,
-                                  functionName: "kk_ulong_range_randomOrNull_random")
+                                  functionName: "__kk_ulong_range_randomOrNull_random")
 }
 
-@_cdecl("kk_ulong_range_random")
-public func kk_ulong_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_ulong_range_random")
+public func __kk_ulong_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, 0, outThrown,
-                            functionName: "kk_ulong_range_random")
+                            functionName: "__kk_ulong_range_random")
 }
 
-@_cdecl("kk_ulong_range_random_random")
-public func kk_ulong_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_ulong_range_random_random")
+public func __kk_ulong_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw, outThrown,
-                            functionName: "kk_ulong_range_random_random")
+                            functionName: "__kk_ulong_range_random_random")
 }
 
 @_cdecl("kk_ulong_range_any")

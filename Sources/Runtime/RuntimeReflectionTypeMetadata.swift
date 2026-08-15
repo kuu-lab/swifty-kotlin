@@ -85,6 +85,11 @@ func runtimeReflectionObject<T: AnyObject>(from raw: Int, as type: T.Type) -> T?
 /// KClass member and constructor queries.
 @_cdecl("__kk_kcallable_get_name")
 public func __kk_kcallable_get_name(_ callableRaw: Int) -> Int {
+    if let taggedName = runtimeStorage.withDelegateLock({ state in
+        state.callableRefMetadataByValue[callableRaw]?.nameRaw
+    }) {
+        return taggedName
+    }
     if let function = runtimeReflectionObject(from: callableRaw, as: RuntimeKFunctionBox.self) {
         return function.nameRaw
     }

@@ -15,24 +15,77 @@ struct ScriptModeTests {
         try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelStmts")
     }
 
-    @Test func testScriptTopLevelValVarPropertiesCompileToKIR() throws {
-        let source = """
+    @Test func testScriptFrontendPipeline() throws {
+        let regular = """
+        fun helper(x: Int): Int = x + 1
+        class Config(val value: Int)
+        """
+        let script = """
         val greeting = "hello"
         var counter = 0
         counter = counter + 1
         println(greeting)
         println(counter)
+
+        fun greet(name: String): String = "Hello, " + name
+        println(greet("World"))
+
+        val a = 3
+        val b = 7
+        val c = a + b
+        println(c)
+        a * b
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+
+        try withTemporaryFiles(contents: [regular, script]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runFrontend(ctx)
 
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "Shared script fixture should have no errors for \(path): \(errors.map(\.message))")
+            }
+
             let ast = try #require(ctx.ast)
-            let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            #expect(scriptFile != nil, "Script file must have a non-empty scriptBody for top-level val/var")
-            #expect(!ctx.diagnostics.hasError, "Top-level val/var in script mode should not produce errors")
+            let scriptFile = try #require(ast.files.first(where: { !$0.scriptBody.isEmpty }))
+            #expect(!ctx.diagnostics.hasError, "Combined script frontend fixture should compile without errors")
+            #expect(scriptFile.scriptBody.count > 1, "scriptBody should contain multiple expressions")
+
+            let topLevelDeclNames: [String] = scriptFile.topLevelDecls.compactMap { declID in
+                guard let decl = ast.arena.decl(declID) else { return nil }
+                if case let .funDecl(function) = decl {
+                    return ctx.interner.resolve(function.name)
+                }
+                return nil
+            }
+            #expect(topLevelDeclNames.contains("main"), "BuildASTPhase must synthesise a 'main' entry for script content")
+            #expect(
+                topLevelDeclNames.filter { $0 == "greet" }.count == 1,
+                "Top-level 'greet' must be registered exactly once, got: \(topLevelDeclNames)"
+            )
+
+            let localFunNamesInScriptBody: [String] = scriptFile.scriptBody.compactMap { exprID in
+                guard let expr = ast.arena.expr(exprID),
+                      case let .localFunDecl(name, _, _, _, _, _) = expr
+                else {
+                    return nil
+                }
+                return ctx.interner.resolve(name)
+            }
+            #expect(
+                !localFunNamesInScriptBody.contains("greet"),
+                "greet must not be duplicated as a local decl inside the synthesized main(), got: \(localFunNamesInScriptBody)"
+            )
+
+            #expect(ast.files.count >= 4, "Both user files + bundled stdlib must produce an ASTFile")
+            let bundledFileCount = ast.files.count - 2
+            let regularFile = ast.files.first(where: {
+                $0.scriptBody.isEmpty && $0.fileID.rawValue >= Int32(bundledFileCount)
+            })
+            #expect(regularFile != nil, "One ASTFile must have an empty scriptBody")
         }
     }
+
 
     @Test func testScriptLevelFunctionDefinitionAlongsideStatements() throws {
         let source = """
@@ -63,30 +116,6 @@ struct ScriptModeTests {
         }
     }
 
-    @Test func testBuildASTSynthesisesMainForScriptBody() throws {
-        let source = """
-        val x = 42
-        println(x)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            #expect(scriptFile != nil, "scriptBody must be populated after BuildASTPhase for a script file")
-
-            let topLevelDeclNames: [String] = (scriptFile?.topLevelDecls ?? []).compactMap { declID in
-                guard let decl = ast.arena.decl(declID) else { return nil }
-                if case let .funDecl(f) = decl { return ctx.interner.resolve(f.name) }
-                return nil
-            }
-            #expect(
-                topLevelDeclNames.contains("main"),
-                "BuildASTPhase must synthesise a 'main' entry for script content, got: \(topLevelDeclNames)"
-            )
-        }
-    }
 
     @Test func testScriptArithmeticExpressionCompilesToKIR() throws {
         let source = """
@@ -118,23 +147,6 @@ struct ScriptModeTests {
         try assertKotlinCompilesToKIR(source, moduleName: "ScriptMixedValsAndExprs")
     }
 
-    @Test func testScriptBodyContainsMultipleExpressions() throws {
-        let source = """
-        val a = 1
-        val b = 2
-        val c = a + b
-        println(c)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            let count = scriptFile?.scriptBody.count ?? 0
-            #expect(count > 1, "scriptBody should contain multiple expressions for a multi-statement script")
-        }
-    }
 
     @Test func testParserRootKindIsScriptWhenFunDeclCoexistsWithStatement() throws {
         let source = """
@@ -155,42 +167,6 @@ struct ScriptModeTests {
         }
     }
 
-    @Test func testScriptTopLevelFunctionIsNotDuplicatedAsLocalDecl() throws {
-        let source = """
-        fun greet(name: String): String = "Hello, " + name
-        println(greet("World"))
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try #require(ctx.ast)
-            let scriptFile = try #require(ast.files.first(where: { !$0.scriptBody.isEmpty }))
-
-            let topLevelFunNames: [String] = scriptFile.topLevelDecls.compactMap { declID in
-                guard let decl = ast.arena.decl(declID) else { return nil }
-                if case let .funDecl(f) = decl { return ctx.interner.resolve(f.name) }
-                return nil
-            }
-            #expect(
-                topLevelFunNames.filter { $0 == "greet" }.count == 1,
-                "Top-level 'greet' must be registered exactly once, got: \(topLevelFunNames)"
-            )
-            #expect(topLevelFunNames.contains("main"))
-
-            // The synthesized main() body must not also re-declare `greet` as a
-            // shadowing local function; it should only call the top-level one.
-            let localFunNamesInScriptBody: [String] = scriptFile.scriptBody.compactMap { exprID in
-                guard let expr = ast.arena.expr(exprID) else { return nil }
-                guard case let .localFunDecl(name, _, _, _, _, _) = expr else { return nil }
-                return ctx.interner.resolve(name)
-            }
-            #expect(
-                !localFunNamesInScriptBody.contains("greet"),
-                "greet must not be duplicated as a local decl inside the synthesized main(), got: \(localFunNamesInScriptBody)"
-            )
-        }
-    }
 
     @Test func testScriptTopLevelFunctionDeclarationAlongsideStatementCompilesToKIR() throws {
         let source = """
@@ -258,31 +234,6 @@ struct ScriptModeTests {
         try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelGenericExtensionAndVararg")
     }
 
-    @Test func testScriptFileCoexistsWithRegularKotlinFileInModule() throws {
-        let regular = """
-        fun helper(x: Int): Int = x + 1
-        class Config(val value: Int)
-        """
-        let script = """
-        val n = 5
-        println(n)
-        """
-        try withTemporaryFiles(contents: [regular, script]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runFrontend(ctx)
 
-            let ast = try #require(ctx.ast)
-            #expect(ast.files.count >= 4, "Both user files + bundled stdlib must produce an ASTFile")
-
-            let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            #expect(scriptFile != nil, "One ASTFile must have a non-empty scriptBody")
-
-            let bundledFileCount = ast.files.count - 2
-            let regularFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= Int32(bundledFileCount) })
-            #expect(regularFile != nil, "One ASTFile must have an empty scriptBody")
-
-            #expect(!ctx.diagnostics.hasError, "Mixed script+regular module must compile without errors")
-        }
-    }
 }
 #endif

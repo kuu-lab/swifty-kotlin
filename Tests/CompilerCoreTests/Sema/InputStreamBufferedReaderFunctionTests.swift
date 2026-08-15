@@ -9,8 +9,8 @@ import Testing
 /// `readLines`, `read`, `ready`, and `close` members so the `.use { }`
 /// closeable pattern works.
 ///
-/// Runtime link names involved: `kk_input_stream_bufferedReader`,
-/// `kk_buffered_reader_readLine`, `kk_buffered_reader_close`.
+/// Runtime link names involved: `__kk_input_stream_bufferedReader`,
+/// `__kk_buffered_reader_readLine`, `__kk_buffered_reader_close`.
 @Suite
 struct InputStreamBufferedReaderFunctionTests {
 
@@ -145,8 +145,8 @@ struct InputStreamBufferedReaderFunctionTests {
         }
 
         #expect(
-            symbols.externalLinkName(for: functionSymbol) == "kk_input_stream_bufferedReader",
-            "InputStream.bufferedReader must link to kk_input_stream_bufferedReader"
+            symbols.externalLinkName(for: functionSymbol) == "__kk_input_stream_bufferedReader",
+            "InputStream.bufferedReader must link to __kk_input_stream_bufferedReader"
         )
 
         guard let signature = symbols.functionSignature(for: functionSymbol) else {

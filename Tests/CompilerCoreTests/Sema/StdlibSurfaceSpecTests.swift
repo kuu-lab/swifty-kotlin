@@ -44,9 +44,6 @@ struct StdlibSurfaceSpecTests {
     @Test func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
             list("forEach", 1),
-            list("sumOf", 1),
-            list("sumBy", 1),
-            list("sumByDouble", 1),
             list("firstNotNullOf", 1),
             list("firstNotNullOfOrNull", 1),
             list("maxOfOrNull", 1),

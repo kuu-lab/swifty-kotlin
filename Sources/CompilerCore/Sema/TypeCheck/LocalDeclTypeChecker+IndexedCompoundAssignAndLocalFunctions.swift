@@ -243,7 +243,8 @@ extension LocalDeclTypeChecker {
             isSuspend: isSuspend,
             valueParameterSymbols: paramSymbols,
             valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),
-            valueParameterIsVararg: valueParams.map(\.isVararg)
+            valueParameterIsVararg: valueParams.map(\.isVararg),
+            valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline }
         )
         sema.symbols.setFunctionSignature(signature, for: funSymbol)
 
@@ -288,7 +289,8 @@ extension LocalDeclTypeChecker {
                 isSuspend: isSuspend,
                 valueParameterSymbols: paramSymbols,
                 valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),
-                valueParameterIsVararg: valueParams.map(\.isVararg)
+                valueParameterIsVararg: valueParams.map(\.isVararg),
+                valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline }
             )
             sema.symbols.setFunctionSignature(inferredSignature, for: funSymbol)
         }
