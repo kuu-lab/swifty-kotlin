@@ -556,11 +556,9 @@ extension CallTypeChecker {
     ///
     ///   - **Constants** (STDLIB-153): `Int.MAX_VALUE`, `Double.NaN`, `Float.POSITIVE_INFINITY`, etc.
     ///     when `args.isEmpty` — looked up via `numericCompanionConstant`.
-    ///   - **Static functions** (STDLIB-NUM-130): `Double.fromBits(Long)`,
-    ///     `Float.fromBits(Int)` etc. when `args.count == 1` — looked up via
-    ///     `numericCompanionFunction`, with the receiver bound to `Unit` so
-    ///     lowering does not pass the class name as an argument.
-    ///
+    ///   - **Static functions** (STDLIB-NUM-130): `Double.fromBits(Long)` and
+    ///     `Float.fromBits(Int)` use a top-level synthetic registration because
+    ///     primitive types have no source-level Companion object.
     /// Returns the inferred type when handled, or `nil` to fall through. Both
     /// branches require the receiver to be a `nameRef` (typed identifier) that
     /// is not currently bound as a local — an Int *value* named `Int` shadows

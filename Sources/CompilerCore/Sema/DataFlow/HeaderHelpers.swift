@@ -1183,7 +1183,7 @@ extension DataFlowSemaPhase {
             skipStats.logIfEnabled()
         }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRandomStubs(symbols: symbols, interner: interner)
         registerSyntheticCollectionStubs(
             symbols: symbols,
             types: types,
@@ -1204,7 +1204,6 @@ extension DataFlowSemaPhase {
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)

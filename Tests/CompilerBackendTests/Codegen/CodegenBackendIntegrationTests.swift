@@ -59,8 +59,9 @@ import Testing
             #expect(FileManager.default.fileExists(atPath: metadataPath))
             #expect(FileManager.default.fileExists(atPath: objectPath))
 
-            let manifest = try String(contentsOfFile: manifestPath, encoding: .utf8)
-            #expect(manifest.contains("\"moduleName\"") && manifest.contains("\"LibMod\""))
+            let manifestData = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
+            let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+            #expect(manifest["moduleName"] as? String == "LibMod")
 
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
             #expect(metadata.contains("symbols="))

@@ -123,7 +123,7 @@ struct RuntimeValue {
 }
 
 class RuntimeThrowableBox {
-    let message: String
+    let message: String?
     var cause: Int
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
@@ -138,13 +138,18 @@ class RuntimeThrowableBox {
     }
 
     var renderedMessage: String {
-        message
+        message ?? "Throwable"
     }
 
-    init(message: String, cause: Int = 0) {
+    init(message: String?, cause: Int = 0) {
         self.message = message
         self.cause = cause
     }
+}
+
+func runtimeRenderedExceptionMessage(_ name: String, _ message: String?) -> String {
+    guard let message else { return name }
+    return "\(name): \(message)"
 }
 
 final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox {
@@ -162,7 +167,7 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
     }
 
     override var renderedMessage: String {
-        "UninitializedPropertyAccessException: \(message)"
+        runtimeRenderedExceptionMessage("UninitializedPropertyAccessException", message)
     }
 }
 
@@ -187,10 +192,10 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        message
+        message ?? "CancellationException"
     }
 
-    override init(message: String, cause: Int = 0) {
+    override init(message: String?, cause: Int = 0) {
         super.init(message: message, cause: cause)
     }
 }

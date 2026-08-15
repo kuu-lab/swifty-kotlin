@@ -32,10 +32,11 @@ extension CallLowerer {
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
-        "last", "minusElement", "plusElement", "requireNoNulls",
-        "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull",
-        "sumBy", "sumByDouble", "toCollection", "toHashSet", "toList", "toMutableList",
-        "toMutableSet", "toSet", "toMap", "toTypedArray", "isNotEmpty",
+        "isNotEmpty", "intersect", "last", "minus", "minusElement", "plusElement",
+        "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
+        "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
+        "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
+        "distinct", "distinctBy",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -1473,41 +1474,6 @@ extension CallLowerer {
             }
         }
 
-        if args.count == 1,
-           calleeName == interner.intern("plusElement") || calleeName == interner.intern("minusElement")
-        {
-            let chosenLinkName = chosenBase64Callee.flatMap { sema.symbols.externalLinkName(for: $0) }
-            let returnsList = boundType.map { resultType in
-                guard let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
-                else { return false }
-                return interner.resolve(resultSymbol.name) == "List"
-            } ?? false
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let receiverIsIterable = {
-                guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
-                else { return false }
-                return receiverSymbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("Iterable"),
-                ]
-            }()
-            let runtimeCallee = calleeName == interner.intern("plusElement")
-                ? "kk_list_plus_element"
-                : "kk_list_minus_element"
-            if chosenLinkName == runtimeCallee || returnsList || receiverIsIterable {
-                instructions.append(.call(
-                    symbol: chosenBase64Callee,
-                    callee: interner.intern(runtimeCallee),
-                    arguments: [loweredReceiverID] + normalizedArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -1917,8 +1883,6 @@ extension CallLowerer {
                     primitiveSelectorKind != nil ? "kk_list_sortedBy_primitive" : "kk_list_sortedBy"
                 case "sortedByDescending":
                     primitiveSelectorKind != nil ? "kk_list_sortedByDescending_primitive" : "kk_list_sortedByDescending"
-                case "distinctBy":
-                    "kk_list_distinctBy"
                 case "sortedWith":
                     "kk_list_sortedWith"
                 case "maxOf":
@@ -1947,8 +1911,8 @@ extension CallLowerer {
                     "kk_list_minOfWithOrNull"
                 case "minBy":
                     "kk_list_minBy"
-                case "intersect":
-                    "kk_list_intersect"
+                case "partition":
+                    "kk_list_partition"
                 default:
                     nil
                 }
@@ -1961,9 +1925,7 @@ extension CallLowerer {
                         instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
                         callArguments.append(kindExpr)
                     }
-                    let canThrow = runtimeCallee == "kk_list_distinctBy"
-                        || runtimeCallee == "kk_list_minBy"
-                        || runtimeCallee == "kk_list_min"
+                    let canThrow = runtimeCallee == "kk_list_minBy"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),

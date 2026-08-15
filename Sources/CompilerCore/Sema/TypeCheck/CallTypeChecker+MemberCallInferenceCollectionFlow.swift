@@ -52,7 +52,7 @@ extension CallTypeChecker {
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
             "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
             "max",
-            "flatten", "asSequence",
+            "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
             "sort", "sortBy", "sortByDescending", "sortWith",
         ]
         let flowHOFNames: Set = ["map", "filter", "collect"]
@@ -186,7 +186,8 @@ extension CallTypeChecker {
         func bindBundledListSourceFunction(
             typeArguments: [TypeID],
             parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) }),
-            matchingParameterType: TypeID? = nil
+            matchingParameterType: TypeID? = nil,
+            receiverElementType: TypeID? = nil
         ) -> Bool {
             func typeArgMatches(_ lhs: TypeArg, _ rhs: TypeArg) -> Bool {
                 switch (lhs, rhs) {
@@ -270,6 +271,15 @@ extension CallTypeChecker {
                         typeVarBySymbol: typeVarBySymbol
                     )
                     guard typeMatches(substitutedParam, matchingParameterType) else {
+                        return false
+                    }
+                }
+                if let receiverElementType {
+                    guard extractListElementType(
+                        signatureReceiver,
+                        sema: sema,
+                        interner: interner
+                    ) == receiverElementType else {
                         return false
                     }
                 }
@@ -1533,7 +1543,7 @@ extension CallTypeChecker {
 
             case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
                  "count", "first", "last", "single", "find", "associateBy", "associateWith", "associate",
-                 "mapValues", "mapKeys", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "onEach", "distinct", "withIndex", "filterNotNull", "requireNoNulls", "asSequence":
+                 "mapValues", "mapKeys", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "onEach", "distinct", "withIndex", "filterNotNull", "requireNoNulls", "asSequence", "sum", "average", "reversed", "asReversed":
                 // any(), none(), count(), first(), last() can be called with no args
                 if args.isEmpty {
                     switch calleeStr {
@@ -1607,6 +1617,38 @@ extension CallTypeChecker {
                             elementType: collectionElementType
                         )
                         _ = bindBundledAsSequenceSourceIfAvailable(typeArguments: [collectionElementType])
+                    case "distinct":
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: collectionElementType
+                            )
+                        } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                            resultType = sema.types.make(.classType(ClassType(
+                                classSymbol: listSymbol,
+                                args: [.invariant(collectionElementType)],
+                                nullability: .nonNull
+                            )))
+                        } else {
+                            resultType = sema.types.anyType
+                        }
+                    case "sum":
+                        resultType = sema.types.intType
+                    case "average":
+                        resultType = sema.types.doubleType
+                    case "reversed", "asReversed":
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: collectionElementType
+                            )
+                        } else {
+                            resultType = receiverType
+                        }
                     case "flatten":
                         let innerElementType = extractIterableOrSequenceElementType(
                             collectionElementType,
@@ -1633,6 +1675,21 @@ extension CallTypeChecker {
                     }
                     if ["any", "none", "first", "last", "single"].contains(calleeStr) {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    }
+                    if ["sum", "average"].contains(calleeStr), !isSequenceReceiver {
+                        _ = bindBundledListSourceFunction(
+                            typeArguments: [],
+                            receiverElementType: calleeStr == "average" ? collectionElementType : nil
+                        )
+                    }
+                    if calleeStr == "reversed", !isSequenceReceiver {
+                        _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                    }
+                    if calleeStr == "asReversed", !isSequenceReceiver {
+                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    }
+                    if calleeStr == "distinct", !isSequenceReceiver {
+                        _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                     }
                     if calleeStr == "withIndex", !isSequenceReceiver {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
@@ -3195,31 +3252,35 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
-                if calleeStr == "sumOf", isSequenceReceiver {
+                if isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
-                }
-                if calleeStr == "sumBy" {
-                    if isSequenceReceiver {
-                        sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
-                    } else {
-                        let memberFQName = [
-                            interner.intern("kotlin"),
-                            interner.intern("collections"),
-                            interner.intern("Iterable"),
-                            calleeName,
-                        ]
-                        if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
-                            sema.symbols.functionSignature(for: candidate)?.parameterTypes.count == args.count
-                        }) {
-                            sema.bindings.bindCall(id, binding: CallBinding(
-                                chosenCallee: chosenCallee,
-                                substitutedTypeArguments: [collectionElementType],
-                                parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                            ))
-                            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                        }
+                } else {
+                    let didBindSource = calleeStr == "sumOf"
+                        ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        : bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                    if didBindSource,
+                       let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
+                    {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
+
+            case "intersect", "union", "subtract":
+                guard args.count == 1 else {
+                    sema.bindings.bindExprType(id, type: sema.types.anyType)
+                    return sema.types.anyType
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.anyType)
+                if let setSymbol = lookupStdlibSymbol("Set", symbols: sema.symbols, interner: interner) {
+                    resultType = sema.types.make(.classType(ClassType(
+                        classSymbol: setSymbol,
+                        args: [.out(collectionElementType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    resultType = sema.types.anyType
+                }
+                _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
 
             case "sumByDouble":
                 guard args.count == 1 else {
@@ -3238,21 +3299,11 @@ extension CallTypeChecker {
                 if isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
                 } else {
-                    let memberFQName = [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                        calleeName,
-                    ]
-                    if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
-                        sema.symbols.functionSignature(for: candidate)?.parameterTypes.count == args.count
-                    }) {
-                        sema.bindings.bindCall(id, binding: CallBinding(
-                            chosenCallee: chosenCallee,
-                            substitutedTypeArguments: [collectionElementType],
-                            parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                        ))
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+                    let didBindSource = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                    if didBindSource,
+                       let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
+                    {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
 
@@ -3637,6 +3688,13 @@ extension CallTypeChecker {
                     )))
                 } else {
                     resultType = receiverType
+                }
+                if !isSequenceReceiver,
+                   bindBundledIterableSourceFunction(typeArguments: [collectionElementType, keyType])
+                {
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    }
                 }
 
             case "scanReduce":

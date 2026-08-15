@@ -199,38 +199,6 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     return accumulator
 }
 
-@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
-    var sum = 0
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
-
-@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double {
-    var sum = 0.0
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
-
-public fun <T> Iterable<T>.plusElement(element: T): List<T> {
-    val result = this.toMutableList()
-    result.add(element)
-    return result
-}
-
-public fun <T> Iterable<T>.minusElement(element: T): List<T> {
-    val result = this.toMutableList()
-    result.remove(element)
-    return result
-}
-
-public operator fun <T> Iterable<T>.minus(element: T): List<T> = minusElement(element)
-
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = joinToString(", ", "", "", transform)

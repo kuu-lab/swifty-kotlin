@@ -65,9 +65,10 @@ struct ListSyntheticMemberLinkTests {
                 // KSP-427: take / drop / takeLast / dropLast / slice / subList are now bundled Kotlin source.
                 ("take", 1, nil as String?),
                 ("drop", 1, nil as String?),
-                ("reversed", 0, "kk_list_reversed" as String?),
-                ("sorted", 0, nil),
-                ("distinct", 0, "kk_list_distinct" as String?),
+                // KSP-428: reversed and distinct are bundled Kotlin source.
+                ("reversed", 0, nil as String?),
+                ("sorted", 0, nil as String?),
+                ("distinct", 0, nil as String?),
                 ("shuffled", 0, "kk_list_shuffled" as String?),
                 ("shuffled", 1, "kk_list_shuffled_random" as String?),
             ]
@@ -455,7 +456,7 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let expectedExternalLinks: [String: String?] = [
-                "sum": "kk_list_sum",
+                "sum": nil,
                 // KSP-426: sort/max/min family is source-backed in ListSortingHOF.kt
                 // and ListExtremaHOF.kt, so synthetic stubs have no external link.
                 "max": nil,
@@ -837,6 +838,36 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testIterableDistinctByBindsBundledSource() throws {
+        let source = """
+        fun deduplicate(values: List<Int>): List<Int> {
+            return values.distinctBy { value -> value % 2 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnostics = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!ctx.diagnostics.hasError, "Expected List.distinctBy to type-check cleanly, got: \(diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "distinctBy"
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let fileID = try #require(sema.symbols.sourceFileID(for: chosenCallee))
+            #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListCollectionOps.kt")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+        }
+    }
+
+    @Test
     func testIterableSumByResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int {
@@ -877,7 +908,9 @@ struct ListSyntheticMemberLinkTests {
             #expect(selectorType.params.count == 1)
             #expect(signature.returnType == sema.types.intType)
 
-            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+            let callLinks = sema.bindings.callBindings.values
+                .filter { $0.chosenCallee == memberSymbol }
+                .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
             // KSP-632: Iterable.sumBy is bundled Kotlin source, so no public
@@ -927,7 +960,9 @@ struct ListSyntheticMemberLinkTests {
             #expect(selectorType.params.count == 1)
             #expect(signature.returnType == sema.types.doubleType)
 
-            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+            let callLinks = sema.bindings.callBindings.values
+                .filter { $0.chosenCallee == memberSymbol }
+                .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
             // KSP-632: Iterable.sumByDouble is bundled Kotlin source, so no public
@@ -1047,7 +1082,9 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(ctx.interner.resolve(returnSymbol.name) == "List")
 
-            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+            let callLinks = sema.bindings.callBindings.values
+                .filter { $0.chosenCallee == memberSymbol }
+                .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
             // KSP-632: Iterable.minusElement is bundled Kotlin source, so no public

@@ -441,46 +441,6 @@ public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
     return destRaw
 }
 
-// MARK: - List intersect / union / subtract / toHashSet (STDLIB-510)
-
-@_cdecl("kk_list_intersect")
-public func kk_list_intersect(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
-        otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
-@_cdecl("kk_list_union")
-public func kk_list_union(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    let combined = selfElements + otherElements
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(combined)))
-}
-
-@_cdecl("kk_list_subtract")
-public func kk_list_subtract(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
-        !otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
     let isObjectPointer: Bool = if let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) {
         runtimeStorage.withGCLock { state in
@@ -863,6 +823,19 @@ public func kk_list_minus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
         !otherElements.contains(where: { runtimeValuesEqual($0, element) })
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
+// KSP-428: Keep asReversed lazy so mutations of a MutableList are visible
+// through the returned view.
+@_cdecl("__kk_list_as_reversed")
+public func kk_list_as_reversed(_ listRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    return registerRuntimeObject(
+        RuntimeListBox(reversedViewOf: list),
+        typeID: listRuntimeTypeID
+    )
 }
 
 // MARK: - asSequence (STDLIB-471)

@@ -1294,6 +1294,10 @@ public final class BindingTable {
     /// Maps nameRef expression IDs to their member name when they were resolved
     /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
+    /// Calls resolved through the ambient CoroutineScope of a coroutine builder
+    /// need a runtime receiver even though the builder lambda keeps a no-receiver
+    /// function ABI.
+    public private(set) var coroutineScopeImplicitReceiverCallExprs: Set<ExprID> = []
     /// Maps callable reference expression IDs to their kind (function vs property)
     /// so that KIR lowering can emit KFunction / KProperty type identity (REFL-003).
     public private(set) var callableRefKinds: [ExprID: CallableRefKind] = [:]
@@ -1756,6 +1760,14 @@ public final class BindingTable {
     /// Mark a nameRef expression as an implicit receiver member access (STDLIB-004).
     public func markImplicitReceiverMember(_ expr: ExprID, name: InternedString) {
         implicitReceiverMemberNames[expr] = name
+    }
+
+    public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {
+        coroutineScopeImplicitReceiverCallExprs.insert(expr)
+    }
+
+    public func isCoroutineScopeImplicitReceiverCall(_ expr: ExprID) -> Bool {
+        coroutineScopeImplicitReceiverCallExprs.contains(expr)
     }
 
     /// Bind a callable reference expression to its kind (REFL-003).
