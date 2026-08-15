@@ -22,7 +22,7 @@ struct OutputStreamBufferedWriterFunctionTests {
     /// and `.close` member calls — confirming the type chain stays intact.
 
     /// The Sema layer should record the external link name on the symbol so
-    /// codegen can resolve it to `kk_output_stream_bufferedWriter` later in
+    /// codegen can resolve it to `__kk_output_stream_bufferedWriter` later in
     /// the pipeline.
 
     // MARK: - Per-source diagnostic helpers
@@ -306,7 +306,7 @@ struct OutputStreamBufferedWriterFunctionTests {
                 })
 
                 #expect(
-                    symbols.externalLinkName(for: bufferedWriter) == "kk_output_stream_bufferedWriter"
+                    symbols.externalLinkName(for: bufferedWriter) == "__kk_output_stream_bufferedWriter"
                 )
 
                 let signature = try #require(symbols.functionSignature(for: bufferedWriter))
@@ -387,7 +387,7 @@ struct OutputStreamBufferedWriterFunctionTests {
                         && signature.parameterTypes == [charsetType]
                 })
                 #expect(
-                    symbols.externalLinkName(for: bufferedWriter) == "kk_output_stream_bufferedWriter"
+                    symbols.externalLinkName(for: bufferedWriter) == "__kk_output_stream_bufferedWriter"
                 )
 
             }

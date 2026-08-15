@@ -974,34 +974,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // asSequence(): Sequence<T>
-        registerSequenceMemberStub(
-            named: "asSequence",
-            externalLinkName: "kk_sequence_asSequence",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // asIterable(): Iterable<T>
-        registerSequenceMemberStub(
-            named: "asIterable",
-            externalLinkName: "kk_sequence_asIterable",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: iterableReturnType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
         // toMutableSet(): MutableSet<T>
         registerSequenceMemberStub(
             named: "toMutableSet",

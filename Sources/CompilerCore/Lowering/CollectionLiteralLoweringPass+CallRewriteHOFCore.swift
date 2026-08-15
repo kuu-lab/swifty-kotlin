@@ -164,49 +164,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 return true
             }
-            if state.arrayExprIDs.contains(receiverID.rawValue),
-               callee == lookup.mapName || callee == lookup.filterName
-               || callee == lookup.forEachName || callee == lookup.anyName
-               || callee == lookup.allName
-               || callee == lookup.noneName
-            {
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let kkName: InternedString = switch callee {
-                case lookup.mapName: lookup.kkArrayMapName
-                case lookup.filterName: lookup.kkArrayFilterName
-                case lookup.forEachName: lookup.kkArrayForEachName
-                case lookup.anyName: lookup.kkArrayAnyName
-                case lookup.allName: lookup.kkArrayAllName
-                case lookup.noneName: lookup.kkArrayNoneName
-                default: callee
-                }
-                let needsListTag = callee == lookup.mapName || callee == lookup.filterName
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if needsListTag, let result {
-                    state.listExprIDs.insert(result.rawValue)
-                    state.listExprIDs.insert(hofResult.rawValue)
-                }
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
             // KSP-432: Set higher-order functions are source-backed in
             // Stdlib/kotlin/collections/SetHOF.kt, so set receivers intentionally
             // fall through to normal call lowering here.

@@ -126,7 +126,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            // STDLIB-TIME-FN-006: TimeUnit.toDurationUnit() -> kotlin.time.DurationUnit
             registerPlatformTimeExtensionFunction(
                 named: "toDurationUnit",
                 externalLinkName: "kk_time_unit_to_duration_unit",
