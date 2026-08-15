@@ -2614,9 +2614,9 @@ public func kk_exception_handler_new() -> Int {
         var message = "Unknown exception"
         if throwableRaw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) {
             if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-                message = throwable.message
+                message = throwable.message ?? "Throwable"
             } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
-                message = cancellation.message
+                message = cancellation.message ?? "CancellationException"
             }
         }
         FileHandle.standardError.write(Data("CoroutineExceptionHandler: \(message)\n".utf8))

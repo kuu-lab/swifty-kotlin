@@ -313,7 +313,7 @@
 #### 例外・言語コア表面（(c) 再監査 2026-07-10 で b-reclass 確定分）
 
 - [x] KSP-655: stackTraceToString/printStackTrace を Kotlin 化する（前提: KSP-654 + runtime の renderedMessage を「生フレーム取得（`__kk_throwable_rawStackFrames` 新設）」と「整形（Kotlin 側で cause/suppressed チェーンを辿る）」に分離するリファクタ）
-- [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）
+- [x] KSP-656: 例外サブクラス階層の宣言を .kt 化する（`Exceptions.kt` と `kotlin.text.CharacterCodingException.kt` を source-backed 化し、common exception の synthetic constructor ループを置換。JVM/platform 固有の配列例外と coroutine 残余は対象外。検証: Sema/Runtime/ABI/Golden/diff_kotlinc）
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
 - [x] KSP-688: AtomicBoolean/AtomicReference の compareAndSet 公開層を Kotlin 化する（KSP-671 の `compareAndExchange` 委譲パターンを `AtomicMigration.kt` へ横展開し、AtomicReference は `===` で参照同一性を保持）。synthetic compareAndSet stub と `kk_atomic_bool/ref_compareAndSet` 公開経路を削除し、ハードウェア CAS コアの `compareAndExchange` ブリッジは (c) として残留。equal-but-distinct reference の最小 diff case と成功/失敗時の値保持を回帰固定。RuntimeAtomic の比較を参照同一性へ修正し、最小再現を同一PRに包含。
