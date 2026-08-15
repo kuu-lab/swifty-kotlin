@@ -150,7 +150,7 @@ extension CollectionLiteralLoweringSupport {
 
     // --- Rewrite additional HOF collection member calls (STDLIB-005) ---
     // 1-param lambda HOFs with [receiver, lambda, closureRaw?]
-    if callee == lookup.groupByName || callee == lookup.sortedByName
+    if callee == lookup.groupByName
         || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
     {
         if arguments.count == 2 || arguments.count == 3 {
@@ -167,7 +167,6 @@ extension CollectionLiteralLoweringSupport {
                 }
                 let kkName: InternedString = switch callee {
                 case lookup.groupByName: lookup.kkListGroupByName
-                case lookup.sortedByName: lookup.kkListSortedByName
                 case lookup.associateByName: lookup.kkListAssociateByName
                 case lookup.associateWithName: lookup.kkListAssociateWithName
                 case lookup.associateName: lookup.kkListAssociateName
@@ -183,10 +182,7 @@ extension CollectionLiteralLoweringSupport {
                     canThrow: canThrow,
                     thrownResult: thrownResult
                 ))
-                if callee == lookup.sortedByName, let result {
-                    state.listExprIDs.insert(result.rawValue)
-                    state.listExprIDs.insert(hofResult.rawValue)
-                }
+
                 if callee == lookup.groupByName, let result {
                     state.mapExprIDs.insert(result.rawValue)
                     state.mapExprIDs.insert(hofResult.rawValue)

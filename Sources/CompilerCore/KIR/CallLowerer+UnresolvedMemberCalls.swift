@@ -38,6 +38,25 @@ extension CallLowerer {
             receiverType: receiverType,
             sema: sema,
             interner: interner
+        ) {
+            switch collectionKind {
+            case .set, .collection, .iterable:
+                // List sorting is source-backed, but Iterable/Collection/Set
+                // receivers still use the collection-compatible runtime ABI.
+                switch memberName {
+                case "sortedBy":
+                    return interner.intern("kk_list_sortedBy")
+                default:
+                    break
+                }
+            default:
+                break
+            }
+        }
+        if let collectionKind = MemberRuntimeDispatch.collectionReceiverKind(
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
         ),
            // Only allow the early-return for kinds that map cleanly to their own
            // surface-spec entries (.list, .map, .sequence).  .set, .collection,
@@ -94,20 +113,7 @@ extension CallLowerer {
 
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
-            // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
-            case "sorted":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sorted_primitive")
-                }
-                return interner.intern("kk_list_sorted")
-            case "sortedDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sortedDescending_primitive")
-                }
-                return interner.intern("kk_list_sortedDescending")
-            case "sortedBy":
-                return interner.intern("kk_list_sortedBy")
+            // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
             case "sortedWith":
@@ -165,22 +171,7 @@ extension CallLowerer {
 
         if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "sort":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("__kk_mutable_list_sort_primitive")
-                }
-                return interner.intern("__kk_mutable_list_sort")
-            case "sortWith":
-                return interner.intern("__kk_mutable_list_sortWith")
-            case "sortBy":
-                return interner.intern("__kk_mutable_list_sortBy")
-            case "sortByDescending":
-                return interner.intern("__kk_mutable_list_sortByDescending")
-            case "sortDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("__kk_mutable_list_sortDescending_primitive")
-                }
-                return interner.intern("__kk_mutable_list_sortDescending")
+            // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
             case "addAll":
@@ -206,38 +197,12 @@ extension CallLowerer {
             switch memberName {
             case "get":
                 return interner.intern("kk_array_get")
-            case "map":
-                return interner.intern("kk_array_map")
-            case "filter":
-                return interner.intern("kk_array_filter")
             case "toList":
                 return interner.intern("kk_array_toList")
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
             case "toTypedArray":
                 return interner.intern("kk_array_copyOf")
-            case "forEach":
-                return interner.intern("kk_array_forEach")
-            case "any":
-                return interner.intern("kk_array_any")
-            case "all":
-                return interner.intern("kk_array_all")
-            case "none":
-                return interner.intern("kk_array_none")
-            case "count":
-                return interner.intern("kk_array_count")
-            case "reduce":
-                return interner.intern("kk_array_reduce")
-            case "reduceOrNull":
-                return interner.intern("kk_array_reduceOrNull")
-            case "reduceIndexed":
-                return interner.intern("kk_array_reduceIndexed")
-            case "fold":
-                return interner.intern("kk_array_fold")
-            case "foldIndexed":
-                return interner.intern("kk_array_foldIndexed")
-            case "flatMap":
-                return interner.intern("kk_array_flatMap")
             case "copyOf":
                 switch argumentCount {
                 case 0:
@@ -251,52 +216,8 @@ extension CallLowerer {
                 }
             case "fill":
                 return interner.intern("kk_array_fill")
-            case "find":
-                return interner.intern("kk_array_find")
-            case "findLast":
-                return interner.intern("kk_array_findLast")
-            // Array HOF gap fix: mapIndexed/filterIndexed/mapNotNull/filterNot/
-            // filterNotNull/first/firstOrNull/last/lastOrNull previously failed
-            // Sema member resolution outright (see
-            // CallTypeChecker+ArrayMemberFallback.swift), so this switch was
-            // never reached for them.
-            case "mapIndexed":
-                return interner.intern("kk_array_mapIndexed")
-            case "filterIndexed":
-                return interner.intern("kk_array_filterIndexed")
-            case "mapNotNull":
-                return interner.intern("kk_array_mapNotNull")
-            case "filterNot":
-                return interner.intern("kk_array_filterNot")
-            case "filterNotNull":
-                return interner.intern("kk_array_filterNotNull")
             case "asSequence":
                 return interner.intern("kk_array_asSequence")
-            // NOTE: branches on `hofArity` (source-level arg count), not the raw
-            // `argumentCount` parameter above — `argumentCount` can arrive with
-            // the receiver already prepended by some call sites (see the
-            // `hofArity` doc comment at the top of this function), which would
-            // otherwise misroute a bare `first()`/`last()` call to the
-            // predicate-taking runtime function with a garbage fnPtr/closureRaw
-            // and crash. Caught via an end-to-end SIGSEGV repro during manual
-            // verification, not by the type checker (both routes type-check
-            // identically).
-            case "first":
-                return hofArity == 0
-                    ? interner.intern("kk_array_first")
-                    : interner.intern("kk_array_first_predicate")
-            case "firstOrNull":
-                return hofArity == 0
-                    ? interner.intern("kk_array_firstOrNull")
-                    : interner.intern("kk_array_find")
-            case "last":
-                return hofArity == 0
-                    ? interner.intern("kk_array_last")
-                    : interner.intern("kk_array_last_predicate")
-            case "lastOrNull":
-                return hofArity == 0
-                    ? interner.intern("kk_array_lastOrNull")
-                    : interner.intern("kk_array_findLast")
             default:
                 break
             }
@@ -316,12 +237,7 @@ extension CallLowerer {
         }
 
         switch memberName {
-        case "sorted":
-            return interner.intern("kk_list_sorted")
-        case "sortedDescending":
-            return interner.intern("kk_list_sortedDescending")
-        case "sortedBy":
-            return interner.intern("kk_list_sortedBy")
+        // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
         case "maxBy":
@@ -478,12 +394,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_filterNotNull")
             case interner.intern("requireNoNulls"):
                 return interner.intern("kk_sequence_requireNoNulls")
-            case interner.intern("asSequence"):
-                return interner.intern("kk_sequence_asSequence")
             case interner.intern("reversed"):
                 return interner.intern("kk_sequence_reversed")
-            case interner.intern("asIterable"):
-                return interner.intern("kk_sequence_asIterable")
             case interner.intern("mapIndexed"):
                 return interner.intern("kk_sequence_mapIndexed")
             case interner.intern("filterIndexed"):

@@ -1,5 +1,5 @@
 // KSP-433: Array<T> HOFs are backed by bundled Kotlin source instead of the
-// kk_array_* runtime bridges. Covers the transform/filter/aggregate/search
+// former kk_array_* runtime bridges. Covers the transform/filter/aggregate/search
 // families plus joinToString / asSequence, including element types whose
 // erased representation is boxed (Double, Char, String).
 fun main() {

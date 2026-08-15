@@ -340,7 +340,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -635,7 +635,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -2640,17 +2640,6 @@ public func kk_sequence_findLast(
         return runtimeNullSentinelInt
     }
     return hasMatch ? found : runtimeNullSentinelInt
-}
-
-@_cdecl("kk_sequence_asIterable")
-public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
-    // Sequence is already an Iterable, so return the same handle
-    return seqRaw
-}
-
-@_cdecl("kk_sequence_asSequence")
-public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
-    return seqRaw
 }
 
 @_cdecl("kk_sequence_lastOrNull")

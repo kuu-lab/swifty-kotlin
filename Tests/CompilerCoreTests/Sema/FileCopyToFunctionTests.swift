@@ -6,7 +6,7 @@ import Testing
 /// STDLIB-IO-FN-015: Validates that `File.copyTo(target, overwrite, bufferSize)`
 /// resolves through Sema for the `java.io.File` receiver and produces a `File`.
 ///
-/// The runtime link name exercised here is `kk_file_copyTo`.
+/// The runtime link name exercised here is `__kk_file_copyTo`.
 ///
 /// Kotlin signature:
 ///
@@ -351,7 +351,7 @@ struct FileCopyToFunctionTests {
                 })
 
                 #expect(
-                    symbols.externalLinkName(for: copyTo) == "kk_file_copyTo"
+                    symbols.externalLinkName(for: copyTo) == "__kk_file_copyTo"
                 )
 
                 let signature = try #require(symbols.functionSignature(for: copyTo))

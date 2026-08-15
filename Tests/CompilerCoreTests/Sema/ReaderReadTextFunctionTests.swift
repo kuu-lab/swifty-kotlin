@@ -11,7 +11,7 @@ import Testing
 /// Verifies:
 ///   1. The synthetic symbol is registered with the correct extension
 ///      receiver, parameter list, return type, and runtime link name
-///      (`kk_reader_readText`).
+///      (`__kk_reader_readText`).
 ///   2. The function resolves end-to-end when invoked on a `BufferedReader`
 ///      value, including the common `File("...").bufferedReader().readText()`
 ///      chain and inside a `use { }` block.
@@ -289,8 +289,8 @@ struct ReaderReadTextFunctionTests {
                     "Reader.readText() is not a suspend function"
                 )
                 #expect(
-                    sema.symbols.externalLinkName(for: readTextSymbol) == "kk_reader_readText",
-                    "Reader.readText() must lower to kk_reader_readText runtime entry"
+                    sema.symbols.externalLinkName(for: readTextSymbol) == "__kk_reader_readText",
+                    "Reader.readText() must lower to __kk_reader_readText runtime entry"
                 )
 
             }

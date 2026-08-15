@@ -111,24 +111,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if callee == lookup.sortedName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListSortedName,
-                arguments: [receiver],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
 
         if callee == lookup.chunkedName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
             let transformResult = module.arena.appendTemporary(type: nil
@@ -318,25 +300,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 symbol: nil,
                 callee: lookup.kkListShuffledRandomName,
                 arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.sortedDescendingName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListSortedDescendingName,
-                arguments: [receiver],
                 result: transformResult,
                 canThrow: false,
                 thrownResult: nil
