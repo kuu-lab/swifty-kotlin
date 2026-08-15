@@ -1,40 +1,40 @@
 # stdlib gap summary (source-based)
 
-Official ABI entries (kotlin.* native, excluding built-in primitives): 3541
-KSwiftK source surface entries: 1537
-Missing (heuristic): 2748
+Official ABI entries (kotlin.* native, excluding built-in primitives): 3502
+KSwiftK source surface entries: 1623
+Missing (heuristic): 2678
 
 ## By package
 
-- kotlin.collections: 437
-- kotlin.text: 218
-- kotlin: 140
+- kotlin.collections: 411
+- kotlin.text: 217
+- kotlin: 139
 - kotlin.sequences: 117
 - kotlin.ranges: 94
-- kotlin.math: 58
+- kotlin.math: 48
 - kotlin.comparisons: 42
 - kotlin.text.Typography: 41
 - kotlin.concurrent.atomics: 37
-- kotlin.native.concurrent: 35
+- kotlin.native.concurrent: 34
 - kotlin.native: 32
 - kotlin.native.BitSet: 30
-- kotlin.collections.ArrayDeque: 28
 - kotlin.collections.ArrayList: 28
-- kotlin.time.Duration.Companion: 24
+- kotlin.collections.ArrayDeque: 27
 - kotlin.native.runtime.GC: 23
-- kotlin.text.StringBuilder: 23
-- kotlin.time.Duration: 23
+- kotlin.text.StringBuilder: 22
+- kotlin.time.Duration.Companion: 22
 - kotlin.collections.AbstractMutableList: 20
 - kotlin.collections.HashMap: 20
 - kotlin.concurrent: 20
 - kotlin.coroutines: 20
-- kotlin.text.Regex: 19
 - kotlin.reflect: 18
 - kotlin.uuid.Uuid.Companion: 18
+- kotlin.text.Regex: 17
 - kotlin.collections.HashSet: 16
 - kotlin.native.runtime.GCInfo: 16
 - kotlin.Char.Companion: 15
 - kotlin.time: 15
+- kotlin.time.Duration: 15
 - kotlin.concurrent.atomics.AtomicArray: 14
 - kotlin.native.concurrent.Worker: 14
 - kotlin.collections.MutableList: 13
@@ -54,12 +54,9 @@ Missing (heuristic): 2748
 - kotlin.concurrent.atomics.AtomicNativePtr: 9
 - kotlin.native.concurrent.AtomicInt: 9
 - kotlin.text.MatchGroup: 9
-- kotlin.time.TimedValue: 9
 - kotlin.Enum: 8
 - kotlin.Number: 8
-- kotlin.Throwable: 8
 - kotlin.Triple: 8
-- kotlin.collections.AbstractCollection: 8
 - kotlin.collections.MutableMap: 8
 - kotlin.concurrent.AtomicArray: 8
 - kotlin.concurrent.atomics.AtomicReference: 8
@@ -74,8 +71,10 @@ Missing (heuristic): 2748
 - kotlin.ranges.ULongRange: 8
 - kotlin.text.HexFormat: 8
 - kotlin.text.HexFormat.BytesHexFormat: 8
+- kotlin.time.TimedValue: 8
 - kotlin.Double.Companion: 7
 - kotlin.Float.Companion: 7
+- kotlin.collections.AbstractCollection: 7
 - kotlin.collections.AbstractMutableMap: 7
 - kotlin.collections.Map: 7
 - kotlin.collections.MutableCollection: 7
@@ -88,9 +87,9 @@ Missing (heuristic): 2748
 - kotlin.ranges.UIntProgression: 7
 - kotlin.ranges.ULongProgression: 7
 - kotlin.text.HexFormat.Builder: 7
-- kotlin.time.Instant: 7
 - kotlin.KotlinVersion: 6
 - kotlin.Pair: 6
+- kotlin.Throwable: 6
 - kotlin.annotation: 6
 - kotlin.collections.AbstractMutableCollection: 6
 - kotlin.collections.List: 6
@@ -106,7 +105,6 @@ Missing (heuristic): 2748
 - kotlin.text.CharCategory: 6
 - kotlin.text.HexFormat.BytesHexFormat.Builder: 6
 - kotlin.text.HexFormat.NumberHexFormat: 6
-- kotlin.text.MatchResult: 6
 - kotlin.time.Instant.Companion: 6
 - kotlin.time.TimeSource.Monotonic.ValueTimeMark: 6
 - kotlin.collections.AbstractIterator: 5
@@ -120,6 +118,7 @@ Missing (heuristic): 2748
 - kotlin.native.ref.WeakReference: 5
 - kotlin.native.runtime.RootSetStatistics: 5
 - kotlin.reflect.KTypeProjection.Companion: 5
+- kotlin.time.Instant: 5
 - kotlin.Byte.Companion: 4
 - kotlin.ConcurrentModificationException: 4
 - kotlin.Deprecated: 4
@@ -156,7 +155,6 @@ Missing (heuristic): 2748
 - kotlin.properties: 4
 - kotlin.ranges.ClosedRange: 4
 - kotlin.ranges.OpenEndRange: 4
-- kotlin.reflect.KClass: 4
 - kotlin.reflect.KTypeParameter: 4
 - kotlin.sequences.SequenceScope: 4
 - kotlin.text.HexFormat.NumberHexFormat.Builder: 4
@@ -192,7 +190,6 @@ Missing (heuristic): 2748
 - kotlin.reflect.KType: 3
 - kotlin.reflect.KVariance: 3
 - kotlin.text.Appendable: 3
-- kotlin.text.MatchResult.Destructured: 3
 - kotlin.text.RegexOption: 3
 - kotlin.time.Clock: 3
 - kotlin.time.DurationUnit: 3
@@ -210,7 +207,6 @@ Missing (heuristic): 2748
 - kotlin.FloatArray: 2
 - kotlin.IndexOutOfBoundsException: 2
 - kotlin.IntArray: 2
-- kotlin.KotlinVersion.Companion: 2
 - kotlin.Lazy: 2
 - kotlin.LongArray: 2
 - kotlin.NoSuchElementException: 2
@@ -242,11 +238,12 @@ Missing (heuristic): 2748
 - kotlin.native.runtime.MemoryUsage: 2
 - kotlin.random.Random: 2
 - kotlin.reflect.KCallable: 2
+- kotlin.reflect.KClass: 2
 - kotlin.reflect.KProperty0: 2
 - kotlin.reflect.KProperty1: 2
 - kotlin.reflect.KProperty2: 2
 - kotlin.text.CharacterCodingException: 2
-- kotlin.text.HexFormat.Companion: 2
+- kotlin.text.MatchResult.Destructured: 2
 - kotlin.text.Regex.Companion: 2
 - kotlin.time.ComparableTimeMark: 2
 - kotlin.time.TestTimeSource: 2
@@ -336,17 +333,19 @@ Missing (heuristic): 2748
 - kotlin.ranges.ULongRange.Companion: 1
 - kotlin.reflect.AssociatedObjectKey: 1
 - kotlin.reflect.ExperimentalAssociatedObjects: 1
+- kotlin.text.HexFormat.Companion: 1
 - kotlin.text.MatchNamedGroupCollection: 1
+- kotlin.text.MatchResult: 1
 - kotlin.time.ExperimentalTime: 1
 - kotlin.time.TimeSource.Monotonic: 1
 - kotlin.uuid.ExperimentalUuidApi: 1
 
-_total: 2748_
+_total: 2678_
 
 ## By package/receiver
 
 - kotlin.collections.Iterable: 163
-- kotlin.text.CharSequence: 160
+- kotlin.text.CharSequence: 162
 - kotlin: 127
 - kotlin.sequences.Sequence: 107
 - kotlin.collections: 66
@@ -357,30 +356,30 @@ _total: 2748_
 - kotlin.text.StringBuilder: 35
 - kotlin.ranges.ClosedRange: 30
 - kotlin.native.concurrent: 29
+- kotlin.collections.List: 28
 - kotlin.native: 27
 - kotlin.native.BitSet.BitSet: 27
-- kotlin.collections.List: 27
-- kotlin.collections.Collection: 26
-- kotlin.collections.ArrayDeque.ArrayDeque: 25
+- kotlin.collections.Collection: 27
 - kotlin.collections.ArrayList.ArrayList: 25
-- kotlin.time.Duration.Companion.Companion: 24
+- kotlin.collections.ArrayDeque.ArrayDeque: 24
 - kotlin.native.runtime.GC.GC: 22
-- kotlin.time.Duration.Duration: 22
+- kotlin.time.Duration.Companion.Companion: 22
 - kotlin.ranges: 21
 - kotlin.collections.MutableMap: 20
 - kotlin.text: 20
 - kotlin.collections.MutableCollection: 20
 - kotlin.collections.AbstractMutableList.AbstractMutableList: 19
-- kotlin.text.StringBuilder.StringBuilder: 19
+- kotlin.text.StringBuilder.StringBuilder: 18
 - kotlin.uuid.Uuid.Companion.Companion: 18
 - kotlin.collections.HashMap.HashMap: 16
 - kotlin.Char.Companion.Companion: 15
 - kotlin.native.runtime.GCInfo.GCInfo: 15
 - kotlin.reflect: 15
-- kotlin.text.Regex.Regex: 15
+- kotlin.time.Duration.Duration: 14
 - kotlin.collections.MutableList.MutableList: 13
 - kotlin.concurrent.atomics: 13
 - kotlin.concurrent.atomics.AtomicArray.AtomicArray: 13
+- kotlin.text.Regex.Regex: 13
 - kotlin.ranges.OpenEndRange: 13
 - kotlin.collections.HashSet.HashSet: 12
 - kotlin.contracts: 12
@@ -406,12 +405,10 @@ _total: 2748_
 - kotlin.native.concurrent.AtomicInt.AtomicInt: 8
 - kotlin.reflect.KTypeProjection.KTypeProjection: 8
 - kotlin.text.MatchGroup.MatchGroup: 8
-- kotlin.time.TimedValue.TimedValue: 8
 - kotlin.Double.Companion.Companion: 7
 - kotlin.Float.Companion.Companion: 7
 - kotlin.Number.Number: 7
 - kotlin.Triple.Triple: 7
-- kotlin.collections.AbstractCollection.AbstractCollection: 7
 - kotlin.collections.MutableCollection.MutableCollection: 7
 - kotlin.collections.MutableMap.MutableMap: 7
 - kotlin.collections.MutableSet.MutableSet: 7
@@ -425,8 +422,10 @@ _total: 2748_
 - kotlin.ranges.IntProgression.IntProgression: 7
 - kotlin.ranges.LongProgression.LongProgression: 7
 - kotlin.text.HexFormat.BytesHexFormat.BytesHexFormat: 7
+- kotlin.time.TimedValue.TimedValue: 7
 - kotlin.Enum.Enum: 6
 - kotlin.annotation: 6
+- kotlin.collections.AbstractCollection.AbstractCollection: 6
 - kotlin.collections.AbstractMutableMap.AbstractMutableMap: 6
 - kotlin.collections.List.List: 6
 - kotlin.collections.ListIterator.ListIterator: 6
@@ -444,10 +443,10 @@ _total: 2748_
 - kotlin.ranges.ULongRange.ULongRange: 6
 - kotlin.text.HexFormat.Builder.Builder: 6
 - kotlin.text.HexFormat.BytesHexFormat.Builder.Builder: 6
-- kotlin.time.Instant.Instant: 6
 - kotlin.time.Instant.Companion.Companion: 6
 - kotlin.time.TimeSource.Monotonic.ValueTimeMark.ValueTimeMark: 6
 - kotlin.Pair.Pair: 5
+- kotlin.Throwable: 5
 - kotlin.collections.AbstractMutableCollection.AbstractMutableCollection: 5
 - kotlin.collections.Collection.Collection: 5
 - kotlin.collections.MutableListIterator.MutableListIterator: 5
@@ -469,7 +468,6 @@ _total: 2748_
 - kotlin.reflect.KTypeProjection.Companion.Companion: 5
 - kotlin.text.CharCategory.CharCategory: 5
 - kotlin.text.HexFormat.NumberHexFormat.NumberHexFormat: 5
-- kotlin.text.MatchResult.MatchResult: 5
 - kotlin.time.TimeSource: 5
 - kotlin.collections.Grouping: 5
 - kotlin.Byte.Companion.Companion: 4
@@ -483,8 +481,6 @@ _total: 2748_
 - kotlin.Long.Companion.Companion: 4
 - kotlin.RuntimeException: 4
 - kotlin.Short.Companion.Companion: 4
-- kotlin.Throwable.Throwable: 4
-- kotlin.Throwable: 4
 - kotlin.UByte.Companion.Companion: 4
 - kotlin.UInt.Companion.Companion: 4
 - kotlin.ULong.Companion.Companion: 4
@@ -518,13 +514,13 @@ _total: 2748_
 - kotlin.properties: 4
 - kotlin.ranges.ClosedRange.ClosedRange: 4
 - kotlin.ranges.OpenEndRange.OpenEndRange: 4
-- kotlin.reflect.KClass.KClass: 4
 - kotlin.reflect.KTypeParameter.KTypeParameter: 4
 - kotlin.sequences.SequenceScope.SequenceScope: 4
 - kotlin.text.HexFormat.HexFormat: 4
 - kotlin.text.HexFormat: 4
 - kotlin.text.HexFormat.NumberHexFormat.Builder.Builder: 4
 - kotlin.text.Regex: 4
+- kotlin.time.Instant.Instant: 4
 - kotlin.enums: 4
 - kotlin.native.ImmutableBlob: 4
 - kotlin.AssertionError: 3
@@ -562,11 +558,11 @@ _total: 2748_
 - kotlin.reflect.KType.KType: 3
 - kotlin.reflect.KVariance.KVariance: 3
 - kotlin.text.Appendable.Appendable: 3
-- kotlin.text.MatchResult.Destructured.Destructured: 3
 - kotlin.text.RegexOption.RegexOption: 3
 - kotlin.time.AbstractDoubleTimeSource.AbstractDoubleTimeSource: 3
 - kotlin.time.AbstractLongTimeSource.AbstractLongTimeSource: 3
 - kotlin.time.DurationUnit.DurationUnit: 3
+- kotlin.time.Instant: 3
 - kotlin.collections.Entry: 3
 - kotlin.native.concurrent.CPointer: 3
 - kotlin.reflect.KClass: 3
@@ -586,7 +582,6 @@ _total: 2748_
 - kotlin.FloatArray: 2
 - kotlin.IndexOutOfBoundsException: 2
 - kotlin.IntArray: 2
-- kotlin.KotlinVersion.Companion.Companion: 2
 - kotlin.Lazy.Lazy: 2
 - kotlin.LongArray: 2
 - kotlin.NoSuchElementException: 2
@@ -598,6 +593,7 @@ _total: 2748_
 - kotlin.RequiresOptIn: 2
 - kotlin.Result.Companion.Companion: 2
 - kotlin.ShortArray: 2
+- kotlin.Throwable.Throwable: 2
 - kotlin.TypeCastException: 2
 - kotlin.UByteArray: 2
 - kotlin.UIntArray: 2
@@ -622,16 +618,18 @@ _total: 2748_
 - kotlin.random.Random: 2
 - kotlin.ranges.CharRange: 2
 - kotlin.reflect.KCallable.KCallable: 2
+- kotlin.reflect.KClass.KClass: 2
 - kotlin.reflect.KProperty0.KProperty0: 2
 - kotlin.reflect.KProperty1.KProperty1: 2
 - kotlin.reflect.KProperty2.KProperty2: 2
 - kotlin.reflect.KTypeProjection: 2
 - kotlin.text.CharacterCodingException: 2
-- kotlin.text.HexFormat.Companion.Companion: 2
+- kotlin.text.MatchResult.Destructured.Destructured: 2
 - kotlin.text.Regex.Companion.Companion: 2
 - kotlin.time.Clock: 2
 - kotlin.time.ComparableTimeMark.ComparableTimeMark: 2
 - kotlin.uuid: 2
+- kotlin.KProperty0: 2
 - kotlin.Companion: 2
 - kotlin.collections.MutableIterable: 2
 - kotlin.collections.Sequence: 2
@@ -800,6 +798,7 @@ _total: 2748_
 - kotlin.text.CharCategory: 1
 - kotlin.text.HexFormat.Builder: 1
 - kotlin.text.HexFormat.BytesHexFormat: 1
+- kotlin.text.HexFormat.Companion.Companion: 1
 - kotlin.text.HexFormat.NumberHexFormat: 1
 - kotlin.text.MatchGroup: 1
 - kotlin.text.MatchNamedGroupCollection.MatchNamedGroupCollection: 1
@@ -809,65 +808,16 @@ _total: 2748_
 - kotlin.time.Clock.Clock: 1
 - kotlin.time.Duration: 1
 - kotlin.time.ExperimentalTime: 1
-- kotlin.time.Instant: 1
 - kotlin.time.TestTimeSource: 1
 - kotlin.time.TestTimeSource.TestTimeSource: 1
 - kotlin.time.TimeSource.Monotonic: 1
 - kotlin.time.TimedValue: 1
 - kotlin.uuid.ExperimentalUuidApi: 1
 - kotlin.uuid.Uuid: 1
-- kotlin.Char{}code: 1
-- kotlin.KProperty0{}isInitialized: 1
-- kotlin.Throwable{}suppressedExceptions: 1
-- kotlin.collections.Collection{}indices: 1
-- kotlin.collections.BooleanArray{}indices: 1
-- kotlin.collections.ByteArray{}indices: 1
-- kotlin.collections.CharArray{}indices: 1
-- kotlin.collections.DoubleArray{}indices: 1
-- kotlin.collections.FloatArray{}indices: 1
-- kotlin.collections.IntArray{}indices: 1
-- kotlin.collections.LongArray{}indices: 1
-- kotlin.collections.ShortArray{}indices: 1
-- kotlin.collections.Array{0§}indices: 1
-- kotlin.collections.UByteArray{}indices: 1
-- kotlin.collections.UIntArray{}indices: 1
-- kotlin.collections.ULongArray{}indices: 1
-- kotlin.collections.UShortArray{}indices: 1
-- kotlin.collections.BooleanArray{}lastIndex: 1
-- kotlin.collections.ByteArray{}lastIndex: 1
-- kotlin.collections.CharArray{}lastIndex: 1
-- kotlin.collections.DoubleArray{}lastIndex: 1
-- kotlin.collections.FloatArray{}lastIndex: 1
-- kotlin.collections.IntArray{}lastIndex: 1
-- kotlin.collections.LongArray{}lastIndex: 1
-- kotlin.collections.ShortArray{}lastIndex: 1
-- kotlin.collections.List{0§}lastIndex: 1
-- kotlin.collections.Array{0§}lastIndex: 1
-- kotlin.collections.UByteArray{}lastIndex: 1
-- kotlin.collections.UIntArray{}lastIndex: 1
-- kotlin.collections.ULongArray{}lastIndex: 1
-- kotlin.collections.UShortArray{}lastIndex: 1
-- kotlin.math.Double{}absoluteValue: 1
-- kotlin.math.Float{}absoluteValue: 1
-- kotlin.math.Int{}absoluteValue: 1
-- kotlin.math.Long{}absoluteValue: 1
-- kotlin.math.Double{}sign: 1
-- kotlin.math.Float{}sign: 1
-- kotlin.math.Int{}sign: 1
-- kotlin.math.Long{}sign: 1
-- kotlin.math.Double{}ulp: 1
-- kotlin.math.Float{}ulp: 1
-- kotlin.native.concurrent.Any{}isFrozen: 1
-- kotlin.text.Companion{}CASE_INSENSITIVE_ORDER: 1
-- kotlin.text.Char{}category: 1
-- kotlin.text.CharSequence{}indices: 1
-- kotlin.text.CharSequence{}lastIndex: 1
-- kotlin.time.Instant{}isDistantFuture: 1
-- kotlin.time.Instant{}isDistantPast: 1
+- kotlin.text.Companion: 1
 - kotlin.AutoCloseable: 1
 - kotlin.Comparable: 1
 - kotlin.KProperty1: 1
-- kotlin.KProperty0: 1
 - kotlin.Lazy: 1
 - kotlin.KMutableProperty1: 1
 - kotlin.KMutableProperty0: 1
@@ -877,4 +827,4 @@ _total: 2748_
 - kotlin.native.concurrent.Collection: 1
 - kotlin.sequences.Iterator: 1
 
-_total: 2748_
+_total: 2678_

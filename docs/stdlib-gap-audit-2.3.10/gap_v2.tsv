@@ -156,8 +156,6 @@ property	kotlin.KotlinVersion.patch	patch	KotlinVersion		Int	final val patch
 constructor	kotlin.KotlinVersion.<init>	<init>		Int|Int		constructor <init>(kotlin/Int, kotlin/Int)
 constructor	kotlin.KotlinVersion.<init>	<init>		Int|Int|Int		constructor <init>(kotlin/Int, kotlin/Int, kotlin/Int)
 object	kotlin.KotlinVersion.Companion	Companion				final object Companion {
-property	kotlin.KotlinVersion.Companion.CURRENT	CURRENT	Companion		KotlinVersion	final val CURRENT
-property	kotlin.KotlinVersion.Companion.MAX_COMPONENT_VALUE	MAX_COMPONENT_VALUE	Companion		Int	final const val MAX_COMPONENT_VALUE
 interface	kotlin.Lazy	Lazy				abstract interface <#A: out kotlin/Any?> kotlin/Lazy {
 property	kotlin.Lazy.value	value	Lazy		#A	abstract val value
 function	kotlin.Lazy.isInitialized	isInitialized	Lazy		Boolean	abstract fun isInitialized(): kotlin/Boolean
@@ -246,8 +244,6 @@ constructor	kotlin.SubclassOptInRequired.<init>	<init>		Array		constructor <init
 class	kotlin.Suppress	Suppress				open annotation class kotlin/Suppress : kotlin/Annotation {
 property	kotlin.Suppress.names	names	Suppress		Array	final val names
 constructor	kotlin.Suppress.<init>	<init>		Array		constructor <init>(kotlin/Array<out kotlin/String>...)
-property	kotlin.Throwable.cause	cause	Throwable		Throwable	open val cause
-property	kotlin.Throwable.message	message	Throwable		String	open val message
 constructor	kotlin.Throwable.<init>	<init>				constructor <init>()
 constructor	kotlin.Throwable.<init>	<init>		String		constructor <init>(kotlin/String?)
 constructor	kotlin.Throwable.<init>	<init>		Throwable		constructor <init>(kotlin/Throwable?)
@@ -322,7 +318,6 @@ constructor	kotlin.annotation.Retention.<init>	<init>		AnnotationRetention		cons
 class	kotlin.annotation.Target	Target				open annotation class kotlin.annotation/Target : kotlin/Annotation {
 property	kotlin.annotation.Target.allowedTargets	allowedTargets	Target		Array	final val allowedTargets
 constructor	kotlin.annotation.Target.<init>	<init>		Array		constructor <init>(kotlin/Array<out kotlin.annotation/AnnotationTarget>...)
-property	kotlin.collections.AbstractCollection.size	size	AbstractCollection		Int	abstract val size
 constructor	kotlin.collections.AbstractCollection.<init>	<init>				constructor <init>()
 function	kotlin.collections.AbstractCollection.contains	contains	AbstractCollection		Boolean	open fun contains(#A): kotlin/Boolean
 function	kotlin.collections.AbstractCollection.containsAll	containsAll	AbstractCollection	Collection	Boolean	open fun containsAll(kotlin.collections/Collection<#A>): kotlin/Boolean
@@ -403,7 +398,6 @@ class	kotlin.collections.AbstractSet	AbstractSet				abstract class <#A: out kotl
 constructor	kotlin.collections.AbstractSet.<init>	<init>				constructor <init>()
 function	kotlin.collections.AbstractSet.equals	equals	AbstractSet	Any	Boolean	open fun equals(kotlin/Any?): kotlin/Boolean
 function	kotlin.collections.AbstractSet.hashCode	hashCode	AbstractSet		Int	open fun hashCode(): kotlin/Int
-property	kotlin.collections.ArrayDeque.size	size	ArrayDeque		Int	final var size
 constructor	kotlin.collections.ArrayDeque.<init>	<init>				constructor <init>()
 constructor	kotlin.collections.ArrayDeque.<init>	<init>		Collection		constructor <init>(kotlin.collections/Collection<#A>)
 constructor	kotlin.collections.ArrayDeque.<init>	<init>		Int		constructor <init>(kotlin/Int)
@@ -1258,8 +1252,6 @@ interface	kotlin.reflect.KCallable	KCallable				abstract interface <#A: out kotl
 property	kotlin.reflect.KCallable.name	name	KCallable		String	abstract val name
 property	kotlin.reflect.KCallable.returnType	returnType	KCallable		KType	abstract val returnType
 interface	kotlin.reflect.KClass	KClass				abstract interface <#A: kotlin/Any> kotlin.reflect/KClass : kotlin.reflect/KAnnotatedElement, kotlin.reflect/KClassifier, kotlin.reflect/KDeclarationContainer {
-property	kotlin.reflect.KClass.qualifiedName	qualifiedName	KClass		String	abstract val qualifiedName
-property	kotlin.reflect.KClass.simpleName	simpleName	KClass		String	abstract val simpleName
 function	kotlin.reflect.KClass.equals	equals	KClass	Any	Boolean	abstract fun equals(kotlin/Any?): kotlin/Boolean
 function	kotlin.reflect.KClass.hashCode	hashCode	KClass		Int	abstract fun hashCode(): kotlin/Int
 interface	kotlin.reflect.KClassifier	KClassifier				abstract interface kotlin.reflect/KClassifier
@@ -1348,7 +1340,6 @@ property	kotlin.text.HexFormat.BytesHexFormat.Builder.bytesPerGroup	bytesPerGrou
 property	kotlin.text.HexFormat.BytesHexFormat.Builder.bytesPerLine	bytesPerLine	Builder		Int	final var bytesPerLine
 property	kotlin.text.HexFormat.BytesHexFormat.Builder.groupSeparator	groupSeparator	Builder		String	final var groupSeparator
 object	kotlin.text.HexFormat.Companion	Companion				final object Companion {
-property	kotlin.text.HexFormat.Companion.Default	Default	Companion		HexFormat	final val Default
 property	kotlin.text.HexFormat.Companion.UpperCase	UpperCase	Companion		HexFormat	final val UpperCase
 class	kotlin.text.HexFormat.NumberHexFormat	NumberHexFormat				final class NumberHexFormat {
 property	kotlin.text.HexFormat.NumberHexFormat.minLength	minLength	NumberHexFormat		Int	final val minLength
@@ -1374,17 +1365,9 @@ interface	kotlin.text.MatchGroupCollection	MatchGroupCollection				abstract inte
 interface	kotlin.text.MatchNamedGroupCollection	MatchNamedGroupCollection				abstract interface kotlin.text/MatchNamedGroupCollection : kotlin.text/MatchGroupCollection {
 function	kotlin.text.MatchNamedGroupCollection.get	get	MatchNamedGroupCollection	String	MatchGroup	abstract fun get(kotlin/String): kotlin.text/MatchGroup?
 interface	kotlin.text.MatchResult	MatchResult				abstract interface kotlin.text/MatchResult {
-property	kotlin.text.MatchResult.destructured	destructured	MatchResult		Destructured	open val destructured
-property	kotlin.text.MatchResult.groupValues	groupValues	MatchResult		List	abstract val groupValues
-property	kotlin.text.MatchResult.groups	groups	MatchResult		MatchGroupCollection	abstract val groups
-property	kotlin.text.MatchResult.range	range	MatchResult		IntRange	abstract val range
-property	kotlin.text.MatchResult.value	value	MatchResult		String	abstract val value
 class	kotlin.text.MatchResult.Destructured	Destructured				final class Destructured {
-property	kotlin.text.MatchResult.Destructured.match	match	Destructured		MatchResult	final val match
 function	kotlin.text.MatchResult.Destructured.component10	component10	Destructured		String	final inline fun component10(): kotlin/String
 function	kotlin.text.MatchResult.Destructured.toList	toList	Destructured		List	final fun toList(): kotlin.collections/List<kotlin/String>
-property	kotlin.text.Regex.options	options	Regex		Set	final val options
-property	kotlin.text.Regex.pattern	pattern	Regex		String	final val pattern
 constructor	kotlin.text.Regex.<init>	<init>		String		constructor <init>(kotlin/String)
 constructor	kotlin.text.Regex.<init>	<init>		String|Set		constructor <init>(kotlin/String, kotlin.collections/Set<kotlin.text/RegexOption>)
 constructor	kotlin.text.Regex.<init>	<init>		String|RegexOption		constructor <init>(kotlin/String, kotlin.text/RegexOption)
@@ -1407,7 +1390,6 @@ function	kotlin.text.Regex.Companion.escapeReplacement	escapeReplacement	Compani
 property	kotlin.text.RegexOption.entries	entries	RegexOption		EnumEntries	final val entries
 function	kotlin.text.RegexOption.valueOf	valueOf	RegexOption	String	RegexOption	final fun valueOf(kotlin/String): kotlin.text/RegexOption
 function	kotlin.text.RegexOption.values	values	RegexOption		Array	final fun values(): kotlin/Array<kotlin.text/RegexOption>
-property	kotlin.text.StringBuilder.length	length	StringBuilder		Int	final val length
 constructor	kotlin.text.StringBuilder.<init>	<init>				constructor <init>()
 constructor	kotlin.text.StringBuilder.<init>	<init>		CharSequence		constructor <init>(kotlin/CharSequence)
 constructor	kotlin.text.StringBuilder.<init>	<init>		Int		constructor <init>(kotlin/Int)
@@ -1489,15 +1471,7 @@ object	kotlin.time.Clock.System	System				final object System : kotlin.time/Cloc
 interface	kotlin.time.ComparableTimeMark	ComparableTimeMark				abstract interface kotlin.time/ComparableTimeMark : kotlin.time/TimeMark, kotlin/Comparable<kotlin.time/ComparableTimeMark> {
 function	kotlin.time.ComparableTimeMark.equals	equals	ComparableTimeMark	Any	Boolean	abstract fun equals(kotlin/Any?): kotlin/Boolean
 function	kotlin.time.ComparableTimeMark.hashCode	hashCode	ComparableTimeMark		Int	abstract fun hashCode(): kotlin/Int
-property	kotlin.time.Duration.absoluteValue	absoluteValue	Duration		Duration	final val absoluteValue
 property	kotlin.time.Duration.hoursComponent	hoursComponent	Duration		Int	final val hoursComponent
-property	kotlin.time.Duration.inWholeDays	inWholeDays	Duration		Long	final val inWholeDays
-property	kotlin.time.Duration.inWholeHours	inWholeHours	Duration		Long	final val inWholeHours
-property	kotlin.time.Duration.inWholeMicroseconds	inWholeMicroseconds	Duration		Long	final val inWholeMicroseconds
-property	kotlin.time.Duration.inWholeMilliseconds	inWholeMilliseconds	Duration		Long	final val inWholeMilliseconds
-property	kotlin.time.Duration.inWholeMinutes	inWholeMinutes	Duration		Long	final val inWholeMinutes
-property	kotlin.time.Duration.inWholeNanoseconds	inWholeNanoseconds	Duration		Long	final val inWholeNanoseconds
-property	kotlin.time.Duration.inWholeSeconds	inWholeSeconds	Duration		Long	final val inWholeSeconds
 property	kotlin.time.Duration.minutesComponent	minutesComponent	Duration		Int	final val minutesComponent
 property	kotlin.time.Duration.nanosecondsComponent	nanosecondsComponent	Duration		Int	final val nanosecondsComponent
 property	kotlin.time.Duration.secondsComponent	secondsComponent	Duration		Int	final val secondsComponent
@@ -1512,8 +1486,6 @@ function	kotlin.time.Duration.toInt	toInt	Duration	DurationUnit	Int	final fun to
 function	kotlin.time.Duration.toLong	toLong	Duration	DurationUnit	Long	final fun toLong(kotlin.time/DurationUnit): kotlin/Long
 function	kotlin.time.Duration.toString	toString	Duration	DurationUnit|Int	String	final fun toString(kotlin.time/DurationUnit, kotlin/Int = ...): kotlin/String
 object	kotlin.time.Duration.Companion	Companion				final object Companion {
-property	kotlin.time.Duration.Companion.INFINITE	INFINITE	Companion		Duration	final val INFINITE
-property	kotlin.time.Duration.Companion.ZERO	ZERO	Companion		Duration	final val ZERO
 property	kotlin.time.Duration.Companion.days	days	Companion		Duration	final val days
 property	kotlin.time.Duration.Companion.days	days	Companion		Duration	final val days
 property	kotlin.time.Duration.Companion.days	days	Companion		Duration	final val days
@@ -1542,8 +1514,6 @@ function	kotlin.time.DurationUnit.values	values	DurationUnit		Array	final fun va
 class	kotlin.time.ExperimentalTime	ExperimentalTime				open annotation class kotlin.time/ExperimentalTime : kotlin/Annotation {
 constructor	kotlin.time.ExperimentalTime.<init>	<init>				constructor <init>()
 class	kotlin.time.Instant	Instant				final class kotlin.time/Instant : kotlin.io/Serializable, kotlin/Comparable<kotlin.time/Instant> {
-property	kotlin.time.Instant.epochSeconds	epochSeconds	Instant		Long	final val epochSeconds
-property	kotlin.time.Instant.nanosecondsOfSecond	nanosecondsOfSecond	Instant		Int	final val nanosecondsOfSecond
 function	kotlin.time.Instant.equals	equals	Instant	Any	Boolean	final fun equals(kotlin/Any?): kotlin/Boolean
 function	kotlin.time.Instant.hashCode	hashCode	Instant		Int	final fun hashCode(): kotlin/Int
 function	kotlin.time.Instant.toEpochMilliseconds	toEpochMilliseconds	Instant		Long	final fun toEpochMilliseconds(): kotlin/Long
@@ -1570,7 +1540,6 @@ function	kotlin.time.TimeSource.Monotonic.ValueTimeMark.minus	minus	ValueTimeMar
 function	kotlin.time.TimeSource.Monotonic.ValueTimeMark.toString	toString	ValueTimeMark		String	final fun toString(): kotlin/String
 interface	kotlin.time.TimeSource.WithComparableMarks	WithComparableMarks				abstract interface WithComparableMarks : kotlin.time/TimeSource {
 class	kotlin.time.TimedValue	TimedValue				final class <#A: kotlin/Any?> kotlin.time/TimedValue {
-property	kotlin.time.TimedValue.duration	duration	TimedValue		Duration	final val duration
 property	kotlin.time.TimedValue.value	value	TimedValue		#A	final val value
 constructor	kotlin.time.TimedValue.<init>	<init>		|Duration		constructor <init>(#A, kotlin.time/Duration)
 function	kotlin.time.TimedValue.component1	component1	TimedValue		#A	final fun component1(): #A
@@ -1613,58 +1582,19 @@ function	kotlin.uuid.Uuid.Companion.parseHexDashOrNull	parseHexDashOrNull	Compan
 function	kotlin.uuid.Uuid.Companion.parseHexOrNull	parseHexOrNull	Companion	String	Uuid	final fun parseHexOrNull(kotlin/String): kotlin.uuid/Uuid?
 function	kotlin.uuid.Uuid.Companion.parseOrNull	parseOrNull	Companion	String	Uuid	final fun parseOrNull(kotlin/String): kotlin.uuid/Uuid?
 function	kotlin.uuid.Uuid.Companion.random	random	Companion		Uuid	final fun random(): kotlin.uuid/Uuid
-property	kotlin.code	code	Char{}code			final val kotlin/code
-property	kotlin.isInitialized	isInitialized	KProperty0{}isInitialized			final val kotlin/isInitialized
-property	kotlin.suppressedExceptions	suppressedExceptions	Throwable{}suppressedExceptions			final val kotlin/suppressedExceptions
-property	kotlin.collections.indices	indices	Collection{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	BooleanArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	ByteArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	CharArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	DoubleArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	FloatArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	IntArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	LongArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	ShortArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	Array{0§}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	UByteArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	UIntArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	ULongArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.indices	indices	UShortArray{}indices			final val kotlin.collections/indices
-property	kotlin.collections.lastIndex	lastIndex	BooleanArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	ByteArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	CharArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	DoubleArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	FloatArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	IntArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	LongArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	ShortArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	List{0§}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	Array{0§}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	UByteArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	UIntArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	ULongArray{}lastIndex			final val kotlin.collections/lastIndex
-property	kotlin.collections.lastIndex	lastIndex	UShortArray{}lastIndex			final val kotlin.collections/lastIndex
+property	kotlin.isInitialized	isInitialized	KProperty0			final val kotlin/isInitialized
+property	kotlin.suppressedExceptions	suppressedExceptions	Throwable			final val kotlin/suppressedExceptions
+property	kotlin.collections.indices	indices	Collection			final val kotlin.collections/indices
+property	kotlin.collections.lastIndex	lastIndex	List			final val kotlin.collections/lastIndex
 property	kotlin.coroutines.coroutineContext	coroutineContext				final val kotlin.coroutines/coroutineContext
 property	kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED	COROUTINE_SUSPENDED				final val kotlin.coroutines.intrinsics/COROUTINE_SUSPENDED
 property	kotlin.math.E	E				final const val kotlin.math/E
 property	kotlin.math.PI	PI				final const val kotlin.math/PI
-property	kotlin.math.absoluteValue	absoluteValue	Double{}absoluteValue			final val kotlin.math/absoluteValue
-property	kotlin.math.absoluteValue	absoluteValue	Float{}absoluteValue			final val kotlin.math/absoluteValue
-property	kotlin.math.absoluteValue	absoluteValue	Int{}absoluteValue			final val kotlin.math/absoluteValue
-property	kotlin.math.absoluteValue	absoluteValue	Long{}absoluteValue			final val kotlin.math/absoluteValue
-property	kotlin.math.sign	sign	Double{}sign			final val kotlin.math/sign
-property	kotlin.math.sign	sign	Float{}sign			final val kotlin.math/sign
-property	kotlin.math.sign	sign	Int{}sign			final val kotlin.math/sign
-property	kotlin.math.sign	sign	Long{}sign			final val kotlin.math/sign
-property	kotlin.math.ulp	ulp	Double{}ulp			final val kotlin.math/ulp
-property	kotlin.math.ulp	ulp	Float{}ulp			final val kotlin.math/ulp
-property	kotlin.native.concurrent.isFrozen	isFrozen	Any{}isFrozen			final val kotlin.native.concurrent/isFrozen
-property	kotlin.text.CASE_INSENSITIVE_ORDER	CASE_INSENSITIVE_ORDER	Companion{}CASE_INSENSITIVE_ORDER			final val kotlin.text/CASE_INSENSITIVE_ORDER
-property	kotlin.text.category	category	Char{}category			final val kotlin.text/category
-property	kotlin.text.indices	indices	CharSequence{}indices			final val kotlin.text/indices
-property	kotlin.text.lastIndex	lastIndex	CharSequence{}lastIndex			final val kotlin.text/lastIndex
-property	kotlin.time.isDistantFuture	isDistantFuture	Instant{}isDistantFuture			final val kotlin.time/isDistantFuture
-property	kotlin.time.isDistantPast	isDistantPast	Instant{}isDistantPast			final val kotlin.time/isDistantPast
+property	kotlin.text.CASE_INSENSITIVE_ORDER	CASE_INSENSITIVE_ORDER	Companion			final val kotlin.text/CASE_INSENSITIVE_ORDER
+property	kotlin.text.indices	indices	CharSequence			final val kotlin.text/indices
+property	kotlin.text.lastIndex	lastIndex	CharSequence			final val kotlin.text/lastIndex
+property	kotlin.time.isDistantFuture	isDistantFuture	Instant			final val kotlin.time/isDistantFuture
+property	kotlin.time.isDistantPast	isDistantPast	Instant			final val kotlin.time/isDistantPast
 function	kotlin.AutoCloseable	AutoCloseable		Function0	AutoCloseable	final inline fun kotlin/AutoCloseable(crossinline kotlin/Function0<kotlin/Unit>): kotlin/AutoCloseable
 function	kotlin.Char	Char		Int	Char	final inline fun kotlin/Char(kotlin/Int): kotlin/Char
 function	kotlin.Char	Char		UShort	Char	final inline fun kotlin/Char(kotlin/UShort): kotlin/Char
