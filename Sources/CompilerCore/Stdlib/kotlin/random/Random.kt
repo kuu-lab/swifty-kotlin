@@ -8,6 +8,7 @@
 package kotlin.random
 
 import kotlin.math.nextDown
+import kotlin.internal.KsSymbolName
 
 // KSP-466/KSP-685: Random — Kotlin-source implementation of
 // kotlin.random.Random and its deterministic XorWowRandom generator. The
@@ -18,6 +19,18 @@ import kotlin.math.nextDown
 // Bridge residue: __kk_random_seed_entropy is the only native call, used once
 // to seed Random.Default from system entropy.
 private external fun __kk_random_seed_entropy(): Long
+
+@KsSymbolName("__kk_random_nextInt_rangeObject")
+private external fun __kk_random_nextInt_rangeObject(random: Random, range: IntRange): Int
+
+@KsSymbolName("__kk_random_nextLong_rangeObject")
+private external fun __kk_random_nextLong_rangeObject(random: Random, range: LongRange): Long
+
+@KsSymbolName("__kk_random_nextUInt_uintRange")
+private external fun __kk_random_nextUInt_uintRange(random: Random, range: UIntRange): UInt
+
+@KsSymbolName("__kk_random_nextULong_ulongRange")
+private external fun __kk_random_nextULong_ulongRange(random: Random, range: ULongRange): ULong
 
 // Interfaces exposing the Random methods that native runtime helpers need to
 // call through itable dispatch. Single-method interfaces keep the itable
@@ -63,6 +76,8 @@ public abstract class Random : RandomSource, RandomLongSource {
         return result
     }
 
+    public open fun nextInt(range: IntRange): Int = __kk_random_nextInt_rangeObject(this, range)
+
     // Keep both operands as Long to preserve Kotlin's sign extension of the
     // low Int when composing the 64-bit result.
     public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt().toLong()
@@ -102,6 +117,8 @@ public abstract class Random : RandomSource, RandomLongSource {
         } while (result !in from until until)
         return result
     }
+
+    public open fun nextLong(range: LongRange): Long = __kk_random_nextLong_rangeObject(this, range)
 
     // Implementations of the runtime-dispatch interfaces used by native
     // collection/range helpers for deterministic seeded random values.
@@ -175,14 +192,9 @@ public abstract class Random : RandomSource, RandomLongSource {
     public open fun nextBytes(size: Int): ByteArray = nextBytes(ByteArray(size) { 0 })
 
     // nextUInt/nextULong (scalar overloads; ported from kotlin-stdlib
-    // libraries/stdlib/src/kotlin/random/URandom.kt) are declared as real
-    // members here rather than package-level extensions (as upstream does):
-    // the kept native nextUInt(UIntRange)/nextULong(ULongRange) bridges
-    // (KSP-457 scope) are registered as members named "nextUInt"/"nextULong",
-    // and this compiler's overload resolution does not consider package-level
-    // extensions once a member of the same name exists (same shadowing
-    // confirmed for nextInt/nextLong above). Declaring these as sibling
-    // members avoids that entirely.
+    // libraries/stdlib/src/main/kotlin/kotlin/random/URandom.kt) are declared
+    // as real members here rather than package-level extensions, matching the
+    // existing KSwiftK member-based Random surface.
     public open fun nextUInt(): UInt = nextInt().toUInt()
 
     public open fun nextUInt(until: UInt): UInt = nextUInt(0u, until)
@@ -195,6 +207,8 @@ public abstract class Random : RandomSource, RandomLongSource {
         return signedResult.toUInt()
     }
 
+    public open fun nextUInt(range: UIntRange): UInt = __kk_random_nextUInt_uintRange(this, range)
+
     public open fun nextULong(): ULong = nextLong().toULong()
 
     public open fun nextULong(until: ULong): ULong = nextULong(0uL, until)
@@ -206,6 +220,8 @@ public abstract class Random : RandomSource, RandomLongSource {
         val signedResult = nextLong(signedFrom, signedUntil) xor Long.MIN_VALUE
         return signedResult.toULong()
     }
+
+    public open fun nextULong(range: ULongRange): ULong = __kk_random_nextULong_ulongRange(this, range)
 
     public companion object Default : Random() {
         private val defaultRandom: Random
@@ -228,9 +244,11 @@ public abstract class Random : RandomSource, RandomLongSource {
         override fun nextInt(): Int = defaultRandom.nextInt()
         override fun nextInt(until: Int): Int = defaultRandom.nextInt(until)
         override fun nextInt(from: Int, until: Int): Int = defaultRandom.nextInt(from, until)
+        override fun nextInt(range: IntRange): Int = defaultRandom.nextInt(range)
         override fun nextLong(): Long = defaultRandom.nextLong()
         override fun nextLong(until: Long): Long = defaultRandom.nextLong(until)
         override fun nextLong(from: Long, until: Long): Long = defaultRandom.nextLong(from, until)
+        override fun nextLong(range: LongRange): Long = defaultRandom.nextLong(range)
         override fun nextBoolean(): Boolean = defaultRandom.nextBoolean()
         override fun nextDouble(): Double = defaultRandom.nextDouble()
         override fun nextDouble(until: Double): Double = defaultRandom.nextDouble(until)
@@ -245,9 +263,11 @@ public abstract class Random : RandomSource, RandomLongSource {
         override fun nextUInt(): UInt = defaultRandom.nextUInt()
         override fun nextUInt(until: UInt): UInt = defaultRandom.nextUInt(until)
         override fun nextUInt(from: UInt, until: UInt): UInt = defaultRandom.nextUInt(from, until)
+        override fun nextUInt(range: UIntRange): UInt = defaultRandom.nextUInt(range)
         override fun nextULong(): ULong = defaultRandom.nextULong()
         override fun nextULong(until: ULong): ULong = defaultRandom.nextULong(until)
         override fun nextULong(from: ULong, until: ULong): ULong = defaultRandom.nextULong(from, until)
+        override fun nextULong(range: ULongRange): ULong = defaultRandom.nextULong(range)
     }
 }
 

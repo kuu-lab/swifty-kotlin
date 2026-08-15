@@ -12,13 +12,7 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let listE = kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
-        let mutableList = kotlinCollectionsPkg + [interner.intern("MutableList")]
-        let setSym = kotlinCollectionsPkg + [interner.intern("Set")]
-        let mutableSet = kotlinCollectionsPkg + [interner.intern("MutableSet")]
-        guard let listTypeParamSymbol = symbols.lookup(fqName: listE),
-            let setInterfaceSymbol = symbols.lookup(fqName: setSym),
-            symbols.lookup(fqName: mutableList) != nil,
-            symbols.lookup(fqName: mutableSet) != nil
+        guard let listTypeParamSymbol = symbols.lookup(fqName: listE)
         else {
             return
         }
@@ -31,17 +25,6 @@ extension DataFlowSemaPhase {
             mapInterfaceSymbol: mapInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType
-        )
-        let iterableSymbolForOps = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("Iterable")]
-        ) ?? collectionInterfaceSymbol
-        registerListSetOperationMembers(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            setInterfaceSymbol: setInterfaceSymbol,
-            iterableInterfaceSymbol: iterableSymbolForOps
         )
         registerListAsSequenceMember(
             symbols: symbols, types: types, interner: interner,

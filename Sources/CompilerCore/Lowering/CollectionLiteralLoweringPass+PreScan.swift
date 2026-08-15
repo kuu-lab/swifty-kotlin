@@ -321,7 +321,7 @@ extension CollectionLiteralLoweringSupport {
             }
         }
         // STDLIB-565: Classify File constructor calls.
-        // KNOWN LIMITATION: Only direct File("...") / kk_file_new constructor
+        // KNOWN LIMITATION: Only direct File("...") / __kk_file_new constructor
         // calls are seeded here.  File receivers originating from function
         // parameters, return values, or field loads are not tracked, so their
         // member calls will fall through to the default virtualCall path.  A
@@ -382,13 +382,7 @@ extension CollectionLiteralLoweringSupport {
         let src = arguments[0].rawValue
         // KSP-441〜447: Sequence パイプラインは source 化済み。runtime sequence handle の追跡は不要。
         _ = sequenceExprIDs
-        if callee == lookup.kkArrayMapName || callee == lookup.kkArrayFilterName {
-            // The KIR builder resolves array HOF calls (map/filter) to kk_array_*
-            // directly when the receiver type is statically known.  Track their
-            // results as list expressions so that downstream size/isEmpty/forEach
-            // rewrites fire correctly (STDLIB-004).
-            listExprIDs.insert(result.rawValue)
-        } else if callee == lookup.groupByName || callee == lookup.associateByName
+        if callee == lookup.groupByName || callee == lookup.associateByName
             || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.associateByToName || callee == lookup.associateWithToName
             || callee == lookup.groupByToName,
@@ -409,18 +403,9 @@ extension CollectionLiteralLoweringSupport {
             || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
             || callee == lookup.shuffledName
             || callee == lookup.scanName || callee == lookup.runningFoldName
-            || callee == lookup.kkListReversedName || callee == lookup.kkListSortedName
-            || callee == lookup.kkListDistinctName || callee == lookup.kkListShuffledName
+            || callee == lookup.kkListSortedName
+            || callee == lookup.kkListShuffledName
             || callee == lookup.kkListShuffledRandomName,
-            listExprIDs.contains(src)
-        {
-            listExprIDs.insert(result.rawValue)
-        }
-        // STDLIB-345: list plus/minus produce new lists
-        if callee == lookup.kkListPlusElementName
-            || callee == lookup.kkListPlusCollectionName
-            || callee == lookup.kkListMinusElementName
-            || callee == lookup.kkListMinusCollectionName,
             listExprIDs.contains(src)
         {
             listExprIDs.insert(result.rawValue)
@@ -499,8 +484,8 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
                 || callee == lookup.shuffledName
                 || callee == lookup.scanName || callee == lookup.runningFoldName
-                || callee == lookup.kkListReversedName || callee == lookup.kkListSortedName
-                || callee == lookup.kkListDistinctName || callee == lookup.kkListShuffledName
+                || callee == lookup.kkListSortedName
+                || callee == lookup.kkListShuffledName
                 || callee == lookup.kkListShuffledRandomName
             {
                 if let result { listExprIDs.insert(result.rawValue) }

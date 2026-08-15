@@ -384,6 +384,32 @@ struct CodegenBackendStableDurationEdgeCasesTests {
     }
 
     @Test
+    func testDurationBUG195NumericConversionTimeUnitAndComponents() throws {
+        let source = """
+        import java.util.concurrent.TimeUnit
+        import kotlin.time.DurationUnit
+        import kotlin.time.toDuration
+        import kotlin.time.toDurationUnit
+        import kotlin.time.toTimeUnit
+
+        fun main() {
+            println(2.toDuration(DurationUnit.SECONDS).inWholeSeconds)
+            println(1500L.toDuration(DurationUnit.MILLISECONDS).inWholeMilliseconds)
+            println(1.5.toDuration(DurationUnit.MINUTES).inWholeSeconds)
+            println(DurationUnit.SECONDS.toTimeUnit() == TimeUnit.SECONDS)
+            println(TimeUnit.MINUTES.toDurationUnit() == DurationUnit.MINUTES)
+            println(2.toDuration(DurationUnit.SECONDS).toComponents { seconds, nanos -> "$seconds/$nanos" })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationBUG195NumericConversionTimeUnitAndComponents",
+            expected: "2\n1500\n90\ntrue\ntrue\n2/0\n"
+        )
+    }
+
+    @Test
     func testDurationStableDurationDivisionReturnsDouble() throws {
         let source = """
         import kotlin.time.Duration.Companion.seconds

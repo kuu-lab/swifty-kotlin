@@ -225,6 +225,7 @@ extension CallTypeChecker {
             "any", "all", "none",
             "chunked", "windowed",
             "take", "drop",
+            "random", "randomOrNull",
         ]
         return sourceBacked.contains(memberName)
     }
@@ -249,7 +250,10 @@ extension CallTypeChecker {
                   sema: sema,
                   interner: interner
               ),
-              rangeKind == .intRange || rangeKind == .intProgression,
+              (rangeKind == .intRange || rangeKind == .intProgression
+                  || ((memberName == "random" || memberName == "randomOrNull")
+                      && (rangeKind == .longRange || rangeKind == .charRange
+                          || rangeKind == .uintRange || rangeKind == .ulongRange))),
               let sourceSymbol = sourceRangeHOFSymbol(
                   memberName: memberName,
                   rangeKind: rangeKind,
@@ -425,6 +429,14 @@ extension CallTypeChecker {
             return [kotlin, ranges, interner.intern("IntRange")]
         case .intProgression:
             return [kotlin, ranges, interner.intern("IntProgression")]
+        case .longRange:
+            return [kotlin, ranges, interner.intern("LongRange")]
+        case .charRange:
+            return [kotlin, ranges, interner.intern("CharRange")]
+        case .uintRange:
+            return [kotlin, ranges, interner.intern("UIntRange")]
+        case .ulongRange:
+            return [kotlin, ranges, interner.intern("ULongRange")]
         default:
             return nil
         }

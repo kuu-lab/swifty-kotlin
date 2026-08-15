@@ -10,8 +10,8 @@ import Testing
 ///   public fun Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long
 ///
 /// The runtime link names exercised here are:
-///   - `kk_reader_copyTo` (explicit bufferSize)
-///   - `kk_reader_copyTo_default` (omitted bufferSize, uses the JVM default)
+///   - `__kk_reader_copyTo` (explicit bufferSize)
+///   - `__kk_reader_copyTo_default` (omitted bufferSize, uses the JVM default)
 @Suite
 struct ReaderCopyToFunctionTests {
 
@@ -25,7 +25,7 @@ struct ReaderCopyToFunctionTests {
 
     // MARK: - BufferedReader / BufferedWriter are Reader / Writer subtypes
 
-    // MARK: - External link name is wired through to kk_reader_copyTo
+    // MARK: - External link name is wired through to __kk_reader_copyTo
 
     // MARK: - Call site binds to the expected copyTo overload
 
@@ -417,7 +417,7 @@ struct ReaderCopyToFunctionTests {
                         && signature.parameterTypes == [writerType, types.intType]
                         && signature.returnType == types.longType
                 })
-                #expect(symbols.externalLinkName(for: twoArg) == "kk_reader_copyTo")
+                #expect(symbols.externalLinkName(for: twoArg) == "__kk_reader_copyTo")
 
                 let twoArgSignature = try #require(symbols.functionSignature(for: twoArg))
                 #expect(twoArgSignature.valueParameterHasDefaultValues == [false, false])
@@ -431,7 +431,7 @@ struct ReaderCopyToFunctionTests {
                         && signature.parameterTypes == [writerType]
                         && signature.returnType == types.longType
                 })
-                #expect(symbols.externalLinkName(for: oneArg) == "kk_reader_copyTo_default")
+                #expect(symbols.externalLinkName(for: oneArg) == "__kk_reader_copyTo_default")
 
             }
 
@@ -454,8 +454,8 @@ struct ReaderCopyToFunctionTests {
                     }
                     return sema.symbols.externalLinkName(for: chosen)
                 }
-                #expect(externalNames.contains("kk_reader_copyTo"))
-                #expect(externalNames.contains("kk_reader_copyTo_default"))
+                #expect(externalNames.contains("__kk_reader_copyTo"))
+                #expect(externalNames.contains("__kk_reader_copyTo_default"))
 
             }
 

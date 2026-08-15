@@ -2,7 +2,7 @@ import Foundation
 @testable import Runtime
 import Testing
 
-/// STDLIB-IO-FN-015: Runtime tests for `kk_file_copyTo`.
+/// STDLIB-IO-FN-015: Runtime tests for `__kk_file_copyTo`.
 ///
 /// Mirrors the behaviour of `kotlin.io.copyTo` on `java.io.File`:
 ///   public fun File.copyTo(
@@ -25,7 +25,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        let resultRaw = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
+        let resultRaw = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown == 0)
         #expect(resultRaw == targetRaw)
@@ -43,7 +43,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        let resultRaw = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(1), kk_box_int(8 * 1024), &thrown)
+        let resultRaw = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(1), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown == 0)
         #expect(resultRaw == targetRaw)
@@ -62,7 +62,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        let resultRaw = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
+        let resultRaw = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown == 0)
         #expect(resultRaw == targetRaw)
@@ -83,7 +83,7 @@ struct RuntimeFileCopyToTests {
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
         // Buffer size of 16 forces ~63 read/write iterations.
-        let resultRaw = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(16), &thrown)
+        let resultRaw = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(16), &thrown)
 
         #expect(thrown == 0)
         #expect(resultRaw == targetRaw)
@@ -104,7 +104,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceDir.path)
         let targetRaw = runtimeTestFileHandle(targetDir.path)
         var thrown = 0
-        let resultRaw = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
+        let resultRaw = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown == 0)
         #expect(resultRaw == targetRaw)
@@ -125,7 +125,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        _ = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
+        _ = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown != 0)
         #expect(!FileManager.default.fileExists(atPath: targetURL.path))
@@ -142,7 +142,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetURL.path)
         var thrown = 0
-        let resultRaw = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
+        let resultRaw = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(0), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown != 0)
         #expect(resultRaw == targetRaw)
@@ -163,7 +163,7 @@ struct RuntimeFileCopyToTests {
         let sourceRaw = runtimeTestFileHandle(sourceURL.path)
         let targetRaw = runtimeTestFileHandle(targetDir.path)
         var thrown = 0
-        _ = kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(1), kk_box_int(8 * 1024), &thrown)
+        _ = __kk_file_copyTo(sourceRaw, targetRaw, kk_box_bool(1), kk_box_int(8 * 1024), &thrown)
 
         #expect(thrown != 0)
         // The directory and its child should remain untouched on conflict.
@@ -179,7 +179,7 @@ struct RuntimeFileCopyToTests {
     }
 
     private func runtimeTestFileHandle(_ path: String) -> Int {
-        kk_file_new(runtimeStringRaw(path))
+        __kk_file_new(runtimeStringRaw(path))
     }
 
     private func runtimeStringRaw(_ value: String) -> Int {

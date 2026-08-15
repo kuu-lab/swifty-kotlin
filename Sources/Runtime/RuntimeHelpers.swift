@@ -196,7 +196,7 @@ func runtimeAllocateThrowable(message: String, cause: Int = 0) -> Int {
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateUninitializedPropertyAccessException(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateUninitializedPropertyAccessException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in

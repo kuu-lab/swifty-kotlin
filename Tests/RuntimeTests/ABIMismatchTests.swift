@@ -136,38 +136,38 @@ struct ABIMismatchTests {
 
     @Test
     func kkNoWhenBranchMatchedExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("kk_no_when_branch_matched_exception_new")
+        let noArg = try requireSpec("__kk_no_when_branch_matched_exception_new")
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("kk_no_when_branch_matched_exception_new_message")
+        let message = try requireSpec("__kk_no_when_branch_matched_exception_new_message")
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
 
-        let messageCause = try requireSpec("kk_no_when_branch_matched_exception_new_message_cause")
+        let messageCause = try requireSpec("__kk_no_when_branch_matched_exception_new_message_cause")
         #expect(messageCause.returnType == .intptr)
         #expect(messageCause.parameters.map(\.type) == [.intptr, .intptr])
 
-        let cause = try requireSpec("kk_no_when_branch_matched_exception_new_cause")
+        let cause = try requireSpec("__kk_no_when_branch_matched_exception_new_cause")
         #expect(cause.returnType == .intptr)
         #expect(cause.parameters.map(\.type) == [.intptr])
     }
 
     @Test
     func kkConcurrentModificationExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("kk_concurrent_modification_exception_new")
+        let noArg = try requireSpec("__kk_concurrent_modification_exception_new")
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("kk_concurrent_modification_exception_new_message")
+        let message = try requireSpec("__kk_concurrent_modification_exception_new_message")
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
 
-        let messageCause = try requireSpec("kk_concurrent_modification_exception_new_message_cause")
+        let messageCause = try requireSpec("__kk_concurrent_modification_exception_new_message_cause")
         #expect(messageCause.returnType == .intptr)
         #expect(messageCause.parameters.map(\.type) == [.intptr, .intptr])
 
-        let cause = try requireSpec("kk_concurrent_modification_exception_new_cause")
+        let cause = try requireSpec("__kk_concurrent_modification_exception_new_cause")
         #expect(cause.returnType == .intptr)
         #expect(cause.parameters.map(\.type) == [.intptr])
     }
@@ -856,15 +856,6 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkListSubtractSignature() throws {
-        let spec = try requireSpec("kk_list_subtract")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 2)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-    }
-
-    @Test
     func kkListSortedSignature() throws {
         let spec = try requireSpec("kk_list_sorted")
         #expect(spec.returnType == .intptr)
@@ -943,59 +934,6 @@ struct ABIMismatchTests {
         #expect(spec.parameters[0].type == .intptr)
         #expect(spec.parameters[1].type == .intptr)
         #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListSumOfSignature() throws {
-        let spec = try requireSpec("kk_list_sumOf")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListSumSignature() throws {
-        let spec = try requireSpec("kk_list_sum")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 1)
-        #expect(spec.parameters[0].type == .intptr)
-    }
-
-    @Test
-    func kkListSumByDoubleSignature() throws {
-        let spec = try requireSpec("kk_list_sumByDouble")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkListSumBySignature() throws {
-        let spec = try requireSpec("kk_list_sumBy")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "listRaw")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
         #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
