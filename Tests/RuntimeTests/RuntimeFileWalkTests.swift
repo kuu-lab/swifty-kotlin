@@ -2,9 +2,9 @@ import Foundation
 @testable import Runtime
 import Testing
 
-// MARK: - Runtime tests for kk_file_walk (java.io.File.walk)
+// MARK: - Runtime tests for __kk_file_walk (java.io.File.walk)
 //
-// `kk_file_walk` materialises the file tree rooted at the receiver eagerly as a
+// `__kk_file_walk` materialises the file tree rooted at the receiver eagerly as a
 // `List<File>` in TOP_DOWN (preorder) order, with directory entries sorted by
 // name so the traversal is deterministic.
 
@@ -17,18 +17,18 @@ private func rtwStringRaw(_ value: String) -> Int {
 }
 
 private func rtwFileHandle(_ path: String) -> Int {
-    kk_file_new(rtwStringRaw(path))
+    __kk_file_new(rtwStringRaw(path))
 }
 
 private func rtwExtractString(_ raw: Int) -> String {
     extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
 }
 
-/// Materialises the `List<File>` returned by `kk_file_walk` into path strings.
+/// Materialises the `List<File>` returned by `__kk_file_walk` into path strings.
 private func walkPaths(_ listRaw: Int) -> [String] {
     let size = kk_unbox_int(kk_list_size(listRaw))
     return (0 ..< size).map { i in
-        rtwExtractString(kk_file_path(kk_list_get(listRaw, i)))
+        rtwExtractString(__kk_file_path(kk_list_get(listRaw, i)))
     }
 }
 
@@ -49,16 +49,16 @@ struct RuntimeFileWalkTests {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
-        let paths = walkPaths(kk_file_walk(rtwFileHandle(root)))
+        let paths = walkPaths(__kk_file_walk(rtwFileHandle(root)))
 
-        #expect(paths.first == root, "kk_file_walk must be TOP_DOWN (root first)")
+        #expect(paths.first == root, "__kk_file_walk must be TOP_DOWN (root first)")
     }
 
     @Test func walkIncludesAllNodes() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
-        let paths = walkPaths(kk_file_walk(rtwFileHandle(root)))
+        let paths = walkPaths(__kk_file_walk(rtwFileHandle(root)))
 
         // root + file1.txt + subdir + subdir/file2.txt = 4
         #expect(paths.count == 4)
@@ -70,7 +70,7 @@ struct RuntimeFileWalkTests {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
-        let paths = walkPaths(kk_file_walk(rtwFileHandle(root)))
+        let paths = walkPaths(__kk_file_walk(rtwFileHandle(root)))
         let subdirIndex = try #require(paths.firstIndex(where: { $0.hasSuffix("/subdir") }))
         let childIndex = try #require(paths.firstIndex(where: { $0.hasSuffix("/subdir/file2.txt") }))
 
@@ -86,7 +86,7 @@ struct RuntimeFileWalkTests {
             try "x".write(to: root.appendingPathComponent(name), atomically: true, encoding: .utf8)
         }
 
-        let names = walkPaths(kk_file_walk(rtwFileHandle(root.path)))
+        let names = walkPaths(__kk_file_walk(rtwFileHandle(root.path)))
             .dropFirst()
             .map { ($0 as NSString).lastPathComponent }
 
@@ -98,7 +98,7 @@ struct RuntimeFileWalkTests {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let paths = walkPaths(kk_file_walk(rtwFileHandle(dir.path)))
+        let paths = walkPaths(__kk_file_walk(rtwFileHandle(dir.path)))
 
         #expect(paths == [dir.path])
     }
@@ -108,7 +108,7 @@ struct RuntimeFileWalkTests {
         try "content".write(to: file, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: file) }
 
-        let paths = walkPaths(kk_file_walk(rtwFileHandle(file.path)))
+        let paths = walkPaths(__kk_file_walk(rtwFileHandle(file.path)))
 
         #expect(paths == [file.path])
     }

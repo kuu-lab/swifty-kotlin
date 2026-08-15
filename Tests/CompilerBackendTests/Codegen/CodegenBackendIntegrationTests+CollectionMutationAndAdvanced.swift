@@ -472,12 +472,14 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
             #expect(callees.contains("__kk_list_size") || callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
             #expect(callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
             #expect(callees.contains("__kk_mutable_list_add"), "callees: \(callees.sorted())")
-            #expect(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
-            #expect(callees.contains("kk_list_minBy"))
-            #expect(callees.contains("kk_list_maxOrNull"))
-            #expect(callees.contains("kk_list_minOrNull"))
-            #expect(callees.contains("kk_list_minOfOrNull"))
-            #expect(callees.contains("kk_list_minByOrNull"))
+            // KSP-426: List extrema HOFs are bundled Kotlin source and are
+            // expanded inline rather than routed through legacy ABI bridges.
+            for legacyCallee in [
+                "kk_list_minBy", "kk_list_maxOrNull", "kk_list_minOrNull",
+                "kk_list_minOfOrNull", "kk_list_minByOrNull",
+            ] {
+                #expect(!callees.contains(legacyCallee), "callees: \(callees.sorted())")
+            }
             // The old runtime entry points for source-backed HOFs must not appear
             // after lowering; their bodies have been expanded inline.
             #expect(!(callees.contains("kk_list_flatMap")), "callees: \(callees.sorted())")
@@ -498,6 +500,35 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
         """
 
         try assertKotlinOutput(source, moduleName: "ListAverageRuntime", expected: "4.0\n")
+    }
+
+    @Test
+    func testCodegenListAverageSupportsDoubleElements() throws {
+        let source = """
+        fun main() {
+            println(listOf(1.0, 2.5, 3.5).average())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "ListAverageDoubleRuntime", expected: "2.3333333333333335\n")
+    }
+
+    @Test
+    func testCodegenListAsReversedIsLiveForMutableLists() throws {
+        let source = """
+        fun main() {
+            val values = mutableListOf(10, 20, 30)
+            val view = values.asReversed()
+            values[0] = 99
+            println(view)
+            values.add(40)
+            println(view)
+            values.removeAt(1)
+            println(view)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "ListAsReversedRuntime", expected: "[30, 20, 99]\n[40, 30, 20, 99]\n[40, 30, 99]\n")
     }
 
     @Test

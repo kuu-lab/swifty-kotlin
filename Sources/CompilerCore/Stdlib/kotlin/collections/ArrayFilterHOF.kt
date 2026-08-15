@@ -1,8 +1,7 @@
 package kotlin.collections
 
-// KSP-433: Array<T> filter HOFs are bundled Kotlin source instead of the
-// `kk_array_filter` / `kk_array_filterIndexed` / `kk_array_filterNot` /
-// `kk_array_filterNotNull` runtime bridges.
+// KSP-433: Array<T> filter HOFs are bundled Kotlin source. Primitive-array
+// variants are defined in PrimitiveArrayHOF.kt.
 
 public fun <T> Array<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()

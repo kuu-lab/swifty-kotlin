@@ -26,8 +26,7 @@ symbol fq=golden.sema.tryMultiCatchJoin kind=function vis=public flags=_ sig=rec
 symbol fq=golden.sema.tryMultiCatchJoin.$1.flag kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.tryPartialCatchRethrow kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=Int
 symbol fq=golden.sema.tryPartialCatchRethrow.$2.flag kind=valueParameter vis=private flags=_
-symbol fq=kotlin.Exception kind=class vis=public flags=synthetic|openType type=kotlin.Exception
-symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalArgumentException
+symbol fq=kotlin.Exception kind=class vis=public flags=openType type=kotlin.Exception
 file ftry_expression package=golden.sema
   decl golden.sema.Handled class Handled sym=golden.sema.Handled
   decl golden.sema.Unhandled class Unhandled sym=golden.sema.Unhandled
@@ -44,7 +43,7 @@ file ftry_expression package=golden.sema
 expr e@7:15 name(flag) type=Boolean ref=golden.sema.tryCatchExpr.$0.flag
 expr e@7:21 string(ok) type=String
 expr e@7:47 string(fail) type=String
-expr e@7:37 call callee=e@7:37#1 args=[_:e@7:47] type=<error>
+expr e@7:37 call callee=e@7:37#1 args=[_:e@7:47] type=kotlin.Exception call=kotlin.Exception.<init>#1
 expr e@7:31 throw value=e@7:37 type=Nothing
 expr e@7:11 if cond=e@7:15 then=e@7:21 else=e@7:31 type=String
 expr e@7:9 blockExpr stmts=[] trailing=e@7:11 type=String

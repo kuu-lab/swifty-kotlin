@@ -614,130 +614,12 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testListMinusElementRemovesFirstMatchingValue() {
-        let source = makeList([1, 2, 2, 3])
-
-        let removed = kk_list_minus_element(source, 2)
-        let unchanged = kk_list_minus_element(source, 9)
-        let arrayRemoved = kk_list_minus_element(makeArray([1, 2, 2, 3]), 2)
-        let collectionRemoved = kk_list_minus_collection(source, makeList([2, 4]))
-
-        #expect(listElements(removed) == [1, 2, 3])
-        #expect(listElements(unchanged) == [1, 2, 2, 3])
-        #expect(listElements(arrayRemoved) == [1, 2, 3])
-        #expect(listElements(collectionRemoved) == [1, 3])
-        #expect(listElements(source) == [1, 2, 2, 3])
-    }
-
-    @Test
-    func testListSumOfAccumulatesSelectorResults() {
-        var thrown = 0
-        let result = kk_list_sumOf(
-            makeList([1, 2, 3]),
-            unsafeBitCast(sumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(result == 14)
-
-        thrown = 0
-        let emptyResult = kk_list_sumOf(
-            makeList([]),
-            unsafeBitCast(sumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(emptyResult == 0)
-    }
-
-    @Test
-    func testListSumAddsBoxedAndRawIntegers() {
-        let boxedTwo = kk_box_int(2)
-        let boxedMinusThree = kk_box_int(-3)
-        let source = registerRuntimeObject(RuntimeListBox(elements: [1, boxedTwo, boxedMinusThree, 4]))
-
-        #expect(kk_list_sum(source) == 4)
-        #expect(kk_list_sum(makeList([])) == 0)
-    }
-
-    @Test
-    func testListSumByAccumulatesSelectorResults() {
-        var thrown = 0
-        let result = kk_list_sumBy(
-            makeList([1, 2, 3]),
-            unsafeBitCast(sumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(result == 14)
-
-        thrown = 0
-        let arrayResult = kk_list_sumBy(
-            makeArray([1, 2, 3]),
-            unsafeBitCast(sumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(arrayResult == 14)
-
-        thrown = 0
-        let emptyResult = kk_list_sumBy(
-            makeList([]),
-            unsafeBitCast(sumByWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(emptyResult == 0)
-    }
-
-    @Test
-    func testListSumByDoubleAccumulatesSelectorResults() {
-        var thrown = 0
-        let result = kk_list_sumByDouble(
-            makeList([1, 2, 3]),
-            unsafeBitCast(sumByDoubleWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(abs((kk_bits_to_double(result)) - (2.0)) <= 0.0001)
-
-        thrown = 0
-        let arrayResult = kk_list_sumByDouble(
-            makeArray([1, 2, 3]),
-            unsafeBitCast(sumByDoubleWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(abs((kk_bits_to_double(arrayResult)) - (2.0)) <= 0.0001)
-
-        thrown = 0
-        let emptyResult = kk_list_sumByDouble(
-            makeList([]),
-            unsafeBitCast(sumByDoubleWeightedTwo, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(thrown == 0)
-        #expect(abs((kk_bits_to_double(emptyResult)) - (0.0)) <= 0.0001)
-    }
-
-    @Test
     func testCollectionMapNotNullPassesSentinelInputsToTransform() {
         let source = makeList([1, runtimeNullSentinelInt, 3])
 
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
         #expect(listElements(listMapped) == [2, 99, 6])
 
-        let arraySource = makeArray([1, runtimeNullSentinelInt, 3])
-        let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
-        #expect(listElements(arrayMapped) == [2, 99, 6])
     }
 
     @Test
@@ -789,9 +671,6 @@ struct RuntimeCollectionHOFTests {
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
         #expect(listElements(listMapped) == [0, 1, 2])
 
-        let arraySource = makeArray([0, 1, 2])
-        let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        #expect(listElements(arrayMapped) == [0, 1, 2])
     }
 
     @Test
@@ -1201,16 +1080,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testListPlusCollectionAppendsSetElements() {
-        let list = makeList([1, 2])
-        let set = kk_set_of(makeArray([3, 4]), 2)
-
-        let combined = kk_list_plus_collection(list, set)
-
-        #expect(listElements(combined) == [1, 2, 3, 4])
-    }
-
-    @Test
     func testMapImplicitDefaultPropagatesThrowingDefaultLambda() {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
         let defaulted = kk_map_withDefault(map, unsafeBitCast(throwForMapDefault, to: Int.self), 0)
@@ -1349,16 +1218,6 @@ struct RuntimeCollectionHOFTests {
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
 
         #expect(arrayElements(kk_collection_toTypedArray(setSource)) == [3, 1, 2])
-    }
-
-    @Test
-    func testListSubtractAcceptsIterableInputDeduplicatesAndPreservesReceiverOrder() {
-        let left = makeList([1, 2, 2, 3, 4])
-        let right = makeList([2, 4, 2])
-
-        let subtracted = kk_list_subtract(left, right)
-
-        #expect(setElements(subtracted) == [1, 3])
     }
 
     @Test
@@ -1779,48 +1638,6 @@ struct RuntimeCollectionHOFTests {
         )
         #expect(result == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
-    }
-
-    // MARK: - kk_array_joinToString (STDLIB-GAP-PH1)
-
-    @Test
-    func testArrayJoinToStringWithDefaultSeparator() {
-        let array = makeArray([runtimeStringRaw("a"), runtimeStringRaw("b"), runtimeStringRaw("c")])
-        let sep = runtimeStringRaw(", ")
-        let pre = runtimeStringRaw("")
-        let post = runtimeStringRaw("")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "a, b, c")
-    }
-
-    @Test
-    func testArrayJoinToStringWithCustomSeparatorAndWrappers() {
-        let array = makeArray([runtimeStringRaw("1"), runtimeStringRaw("2"), runtimeStringRaw("3")])
-        let sep = runtimeStringRaw("-")
-        let pre = runtimeStringRaw("[")
-        let post = runtimeStringRaw("]")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "[1-2-3]")
-    }
-
-    @Test
-    func testArrayJoinToStringEmptyArrayReturnsEmptyWithWrappers() {
-        let array = makeArray([])
-        let sep = runtimeStringRaw(", ")
-        let pre = runtimeStringRaw("(")
-        let post = runtimeStringRaw(")")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "()")
-    }
-
-    @Test
-    func testArrayJoinToStringSingleElement() {
-        let array = makeArray([runtimeStringRaw("only")])
-        let sep = runtimeStringRaw(", ")
-        let pre = runtimeStringRaw("")
-        let post = runtimeStringRaw("")
-        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
-        #expect(runtimeStringValue(result) == "only")
     }
 
 }

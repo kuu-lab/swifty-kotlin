@@ -196,6 +196,39 @@ struct CodegenBackendRangeEdgeCasesTests {
         )
     }
 
+    @Test(.disabled(if: isLinux, "Random range-object overload test temporarily disabled on Linux"))
+    func testCodegenCompilesRandomRangeObjectOverloads() throws {
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            val intRange = Int.MIN_VALUE..Int.MAX_VALUE
+            println(Random(7).nextInt(intRange) == Random(7).nextInt(intRange))
+
+            val longRange = Long.MIN_VALUE..Long.MAX_VALUE
+            println(Random(7).nextLong(longRange) == Random(7).nextLong(longRange))
+
+            val uintRange = 0u..UInt.MAX_VALUE
+            println(Random(7).nextUInt(uintRange) == Random(7).nextUInt(uintRange))
+
+            val ulongRange = 0uL..ULong.MAX_VALUE
+            println(Random(7).nextULong(ulongRange) == Random(7).nextULong(ulongRange))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomRangeObjectOverloads",
+            expected:
+                """
+                true
+                true
+                true
+                true
+                """ + "\n"
+        )
+    }
+
     @Test(.disabled(if: isLinux, "Byte/Short coercion test temporarily disabled on Linux"))
     func testCodegenCompilesByteAndShortCoercionCases() throws {
         // Byte and Short are normalized to Int in the compiler, so these calls

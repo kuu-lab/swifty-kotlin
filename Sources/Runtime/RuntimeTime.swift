@@ -45,11 +45,6 @@ private func runtimeKotlinInstantBox(from raw: Int) -> RuntimeInstantBox? {
     return tryCast(ptr, to: RuntimeInstantBox.self)
 }
 
-private func runtimeKotlinDurationBox(from raw: Int) -> RuntimeDurationBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeDurationBox.self)
-}
-
 private func runtimeJSDateBox(from raw: Int) -> RuntimeJSDateBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeJSDateBox.self)
@@ -59,6 +54,7 @@ private func runtimeTimeMarkBox(from raw: Int) -> RuntimeTimeMarkBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeTimeMarkBox.self)
 }
+
 
 private func runtimeEpochMilliseconds(
     epochSeconds: Int64,
@@ -122,10 +118,10 @@ public func kk_instant_to_java_instant(_ instantRaw: Int) -> Int {
 
 @_cdecl("kk_duration_to_java_duration")
 public func kk_duration_to_java_duration(_ durationRaw: Int) -> Int {
-    guard let duration = runtimeKotlinDurationBox(from: durationRaw) else {
+    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_to_java_duration received invalid Duration handle")
     }
-    let components = runtimeJavaDurationComponents(from: duration.nanoseconds)
+    let components = runtimeJavaDurationComponents(from: nanoseconds)
     return registerRuntimeObject(
         RuntimeJavaDurationBox(seconds: components.seconds, nanoAdjustment: components.nanoAdjustment)
     )
@@ -326,6 +322,7 @@ public func __kk_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
 public func __kk_comparable_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
     __kk_time_mark_from_reading_nanos(readingNanos)
 }
+
 
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
 

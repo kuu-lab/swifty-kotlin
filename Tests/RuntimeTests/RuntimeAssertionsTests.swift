@@ -487,10 +487,23 @@ struct RuntimeAssertionsTests {
         )
 
         #expect(messageOnlyBox.message == "modified")
-        #expect(noArgBox.message == "")
+        #expect(noArgBox.message == nil)
         #expect(withCauseBox.message == "modified")
         #expect(withCauseBox.cause == noArg)
         #expect(causeOnlyBox.cause == noArg)
+    }
+
+    @Test
+    func testSourceBackedExceptionCauseOnlyConstructors() throws {
+        let cause = kk_exception_new()
+
+        #expect(runtimeBox(from: kk_error_new_cause(cause), as: RuntimeErrorBox.self) != nil)
+        #expect(runtimeBox(from: kk_exception_new_cause(cause), as: RuntimeExceptionBox.self) != nil)
+        #expect(runtimeBox(from: kk_runtime_exception_new_cause(cause), as: RuntimeRuntimeExceptionBox.self) != nil)
+        #expect(runtimeBox(from: kk_illegal_argument_exception_new_cause(cause), as: RuntimeIllegalArgumentExceptionBox.self) != nil)
+        #expect(runtimeBox(from: kk_illegal_state_exception_new_cause(cause), as: RuntimeIllegalStateExceptionBox.self) != nil)
+        #expect(runtimeBox(from: kk_unsupported_operation_exception_new_cause(cause), as: RuntimeUnsupportedOperationExceptionBox.self) != nil)
+        #expect(runtimeBox(from: kk_uninitialized_property_access_exception_new_cause(cause), as: RuntimeUninitializedPropertyAccessExceptionBox.self) != nil)
     }
 
     @Test
@@ -509,7 +522,7 @@ struct RuntimeAssertionsTests {
         )
 
         #expect(messageOnlyBox.message == "bad index")
-        #expect(noArgBox.message == "")
+        #expect(noArgBox.message == nil)
     }
 
     @Test
@@ -528,7 +541,7 @@ struct RuntimeAssertionsTests {
         )
 
         #expect(messageOnlyBox.message == "-1")
-        #expect(noArgBox.message == "")
+        #expect(noArgBox.message == nil)
     }
 
     // MARK: - kk_array_new_checked

@@ -3,6 +3,55 @@
 ///
 /// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
+    private static let primitiveArraySourceHOFNames: Set<String> = [
+        "map", "mapIndexed", "mapNotNull", "flatMap", "forEach",
+        "filter", "filterIndexed", "filterNot",
+        "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
+        "find", "findLast", "first", "firstOrNull", "last", "lastOrNull",
+        "any", "all", "none", "count", "joinToString",
+    ]
+
+    /// Finds the exact primitive-array source overload before the default-import
+    /// scope fallback can select a same-named Sequence extension. Primitive
+    /// arrays are compiler-provided nominal classes, while their bundled HOFs
+    /// live in kotlin.collections as top-level extensions.
+    func collectPrimitiveArraySourceHOFs(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let memberName = interner.resolve(calleeName)
+        guard Self.primitiveArraySourceHOFNames.contains(memberName),
+              let receiverClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
+              let receiverSymbol = sema.symbols.symbol(receiverClass),
+              receiverSymbol.fqName.count == 2,
+              receiverSymbol.fqName[0] == interner.intern("kotlin"),
+              receiverSymbol.name != interner.intern("Array"),
+              KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name)
+        else {
+            return []
+        }
+
+        let sourceFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            calleeName,
+        ]
+        return sema.symbols.lookupAll(fqName: sourceFQName).filter { candidate in
+            guard sema.symbols.isSourceBackedSymbol(candidate),
+                  let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let signatureClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(signatureReceiver), types: sema.types),
+                  let signatureSymbol = sema.symbols.symbol(signatureClass)
+            else {
+                return false
+            }
+            return signatureSymbol.fqName == receiverSymbol.fqName
+        }
+    }
+
     func tryArrayMemberFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -26,6 +75,19 @@ extension CallTypeChecker {
         guard isSupportedArrayMember(memberName),
               isValidArrayMemberArity(memberName, argCount: args.count)
         else {
+            return nil
+        }
+
+        // KSP-687: primitive-array HOFs are bundled Kotlin extensions, not
+        // unresolved members. Let ordinary overload resolution select the
+        // source declaration so the legacy raw-array bridge cannot intercept
+        // the call (especially joinToString(transform)).
+        if !collectPrimitiveArraySourceHOFs(
+            named: calleeName,
+            receiverType: sema.bindings.exprTypes[receiverID] ?? sema.types.anyType,
+            sema: sema,
+            interner: interner
+        ).isEmpty {
             return nil
         }
 
@@ -94,57 +156,30 @@ extension CallTypeChecker {
     func isSupportedArrayMember(_ memberName: String) -> Bool {
         let arrayMembers: Set = [
             "toList", "toMutableList",
-            "map", "filter", "forEach", "any", "all", "none",
-            "find", "findLast",
-            "fold", "foldIndexed",
-            "reduce", "reduceOrNull", "reduceIndexed",
-            "count",
             "copyOf", "copyOfRange", "fill",
             "size", "get", "contains", "isEmpty",
             "concatToString",
-            // Array HOF members that already work identically on List but were
-            // missing from this Sema-level allowlist, so they were rejected as
-            // "Unresolved member function" before ever reaching the KIR/runtime
-            // dispatch that (partially) already existed for them. See
-            // CollectionLiteralLoweringPass+VirtualCallRewrite+Array.swift,
-            // CallLowerer+UnresolvedMemberCalls.swift, and
-            // RuntimeCollectionHOFArray.swift for the matching KIR/runtime
-            // wiring. KSP-433 (TODO.md) tracks eventually migrating all Array
-            // HOF members (this set included) to bundled Kotlin source, as was
-            // already done for List; until then this ad hoc fallback is the
-            // established mechanism for Array member resolution.
-            "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "filterNotNull",
-            "first", "firstOrNull", "last", "lastOrNull",
         ]
         return arrayMembers.contains(memberName)
     }
 
     private func isValidArrayMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "toList", "toMutableList", "size", "isEmpty", "concatToString", "filterNotNull":
+        case "toList", "toMutableList", "size", "isEmpty", "concatToString":
             argCount == 0
         case "copyOf":
             (0...2).contains(argCount)
-        case "map", "filter", "forEach", "all", "fill", "get", "contains",
-             "find", "findLast", "reduce", "reduceOrNull",
-             "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "reduceIndexed":
+        case "fill", "get", "contains":
             argCount == 1
-        case "fold", "foldIndexed":
-            argCount == 2
-        case "count", "any", "none":
-            (0...1).contains(argCount)
         case "copyOfRange":
             argCount == 2
-        case "first", "firstOrNull", "last", "lastOrNull":
-            (0...1).contains(argCount)
         default:
             true
         }
     }
 
     private func isArrayMemberReturningCollection(_ memberName: String) -> Bool {
-        ["toList", "toMutableList", "map", "filter", "copyOf", "copyOfRange",
-         "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "filterNotNull"].contains(memberName)
+        ["toList", "toMutableList", "copyOf", "copyOfRange"].contains(memberName)
     }
 
     private func arrayMemberResultType(
@@ -158,24 +193,12 @@ extension CallTypeChecker {
         switch memberName {
         case "size":
             return sema.types.intType
-        case "isEmpty", "contains", "any", "all", "none":
+        case "isEmpty", "contains":
             return sema.types.booleanType
         case "forEach", "fill":
             return sema.types.unitType
         case "count":
             return sema.types.intType
-        case "find", "findLast":
-            return sema.types.makeNullable(elementType)
-        case "firstOrNull", "lastOrNull":
-            return sema.types.makeNullable(elementType)
-        case "first", "last":
-            return elementType
-        case "reduce", "reduceIndexed":
-            return elementType
-        case "reduceOrNull":
-            return sema.types.makeNullable(elementType)
-        case "fold", "foldIndexed":
-            return accumulatorType
         case "concatToString":
             return sema.types.stringType
         case "get":
@@ -215,14 +238,6 @@ extension CallTypeChecker {
         accumulatorType: TypeID,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
-        let boolPredicateMembers: Set = [
-            "filter", "filterNot", "any", "all", "none", "find", "findLast", "count",
-            "first", "last", "firstOrNull", "lastOrNull",
-        ]
-        let oneParamMembers: Set = [
-            "map", "filter", "filterNot", "forEach", "any", "all", "none", "find", "findLast", "count",
-            "first", "last", "firstOrNull", "lastOrNull",
-        ]
         if memberName == "copyOf", argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType],
@@ -232,82 +247,7 @@ extension CallTypeChecker {
             )))
             return (argumentIndex: 1, expectedType: expectedType)
         }
-        if (memberName == "reduce" || memberName == "reduceOrNull"), argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [receiverElementType, receiverElementType],
-                returnType: receiverElementType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 0, expectedType: expectedType)
-        }
-        if memberName == "reduceIndexed", argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, receiverElementType, receiverElementType],
-                returnType: receiverElementType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 0, expectedType: expectedType)
-        }
-        if memberName == "fold", argCount == 2 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [accumulatorType, receiverElementType],
-                returnType: accumulatorType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 1, expectedType: expectedType)
-        }
-        if memberName == "foldIndexed", argCount == 2 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, accumulatorType, receiverElementType],
-                returnType: accumulatorType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 1, expectedType: expectedType)
-        }
-        if memberName == "mapIndexed", argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, receiverElementType],
-                returnType: sema.types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 0, expectedType: expectedType)
-        }
-        if memberName == "filterIndexed", argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, receiverElementType],
-                returnType: sema.types.booleanType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 0, expectedType: expectedType)
-        }
-        if memberName == "mapNotNull", argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [receiverElementType],
-                returnType: sema.types.makeNullable(sema.types.anyType),
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 0, expectedType: expectedType)
-        }
-        guard oneParamMembers.contains(memberName), argCount == 1 else {
-            return nil
-        }
-        let lambdaReturnType = boolPredicateMembers.contains(memberName)
-            ? sema.types.booleanType
-            : memberName == "forEach" ? sema.types.unitType : sema.types.anyType
-        let expectedType = sema.types.make(.functionType(FunctionType(
-            params: [receiverElementType],
-            returnType: lambdaReturnType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        return (argumentIndex: 0, expectedType: expectedType)
+        return nil
     }
 
     /// Extract the element type from an `Array<T>` receiver.

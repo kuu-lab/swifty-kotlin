@@ -145,3 +145,59 @@ public fun Float.withSign(sign: Float): Float {
 
 public fun Float.withSign(sign: Int): Float =
     if (sign < 0) -abs(this) else abs(this)
+
+// KSP-638
+// roundToInt / roundToLong / ulp / nextUp / nextDown are Kotlin-source
+// surface declarations. Their native implementations remain bridges because
+// rounding must preserve Kotlin's NaN exception and saturation contract, while
+// the precision helpers operate on IEEE 754 bit patterns.
+
+@KsSymbolName("__kk_float_roundToInt")
+internal external fun __kkFloatRoundToInt(x: Float): Int
+
+@KsSymbolName("__kk_double_roundToInt")
+internal external fun __kkDoubleRoundToInt(x: Double): Int
+
+@KsSymbolName("__kk_float_roundToLong")
+internal external fun __kkFloatRoundToLong(x: Float): Long
+
+@KsSymbolName("__kk_double_roundToLong")
+internal external fun __kkDoubleRoundToLong(x: Double): Long
+
+@KsSymbolName("__kk_double_ulp")
+internal external fun __kkDoubleUlp(x: Double): Double
+
+@KsSymbolName("__kk_float_ulp")
+internal external fun __kkFloatUlp(x: Float): Float
+
+@KsSymbolName("__kk_double_nextUp")
+internal external fun __kkDoubleNextUp(x: Double): Double
+
+@KsSymbolName("__kk_float_nextUp")
+internal external fun __kkFloatNextUp(x: Float): Float
+
+@KsSymbolName("__kk_double_nextDown")
+internal external fun __kkDoubleNextDown(x: Double): Double
+
+@KsSymbolName("__kk_float_nextDown")
+internal external fun __kkFloatNextDown(x: Float): Float
+
+public fun Float.roundToInt(): Int = __kkFloatRoundToInt(this)
+
+public fun Double.roundToInt(): Int = __kkDoubleRoundToInt(this)
+
+public fun Float.roundToLong(): Long = __kkFloatRoundToLong(this)
+
+public fun Double.roundToLong(): Long = __kkDoubleRoundToLong(this)
+
+public val Double.ulp: Double get() = __kkDoubleUlp(this)
+
+public val Float.ulp: Float get() = __kkFloatUlp(this)
+
+public fun Double.nextUp(): Double = __kkDoubleNextUp(this)
+
+public fun Float.nextUp(): Float = __kkFloatNextUp(this)
+
+public fun Double.nextDown(): Double = __kkDoubleNextDown(this)
+
+public fun Float.nextDown(): Float = __kkFloatNextDown(this)

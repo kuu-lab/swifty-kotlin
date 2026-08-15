@@ -230,9 +230,6 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }
-        if ownerFQName == ["kotlin", "random", "Random"] {
-            return isRuntimeBackedRandomSyntheticRetainedOverlap(key, interner: interner)
-        }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparatorSyntheticRetainedOverlap(key, interner: interner)
         }
@@ -255,44 +252,18 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    private static func isRuntimeBackedRandomSyntheticRetainedOverlap(
-        _ key: BundledMemberKey,
-        interner: StringInterner
-    ) -> Bool {
-        // KSP-466/KSP-457: nextInt(range: IntRange)/nextLong(range: LongRange)/
-        // nextUInt(range: UIntRange)/nextULong(range: ULongRange) stay native
-        // bridges (kk_random_*_rangeObject/*Range) pending KSP-457's own
-        // range-random Kotlin migration, registered as members so they remain
-        // reachable (see HeaderHelpers+SyntheticRandomStubs.swift). Their arity
-        // (1) happens to collide with the bundled scalar overloads of the same
-        // name (nextInt(until: Int) etc., Random.kt/URandom.kt) since this key
-        // only tracks arity, not parameter types — this is an intentional,
-        // by-design overload pair, not an accidental duplicate.
-        switch interner.resolve(key.name) {
-        case "nextInt", "nextLong", "nextUInt", "nextULong":
-            return key.arity == 1
-        default:
-            return false
-        }
-    }
-
     private static func isRuntimeBackedListSyntheticRetainedOverlap(
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // These List HOF/search/sort sources are bundled as migration targets, but
-        // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
-        // removes the compatibility bridge.
+        // These List HOF/search/sort sources are bundled migration targets. Keep
+        // only the List members whose runtime bridges are still required.
         switch interner.resolve(key.name) {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
         // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
         // contains, any, all, none, count, first, last, single) are source-bound.
-        case "reversed", "sorted":
-            return key.arity == 0
         case "shuffled":
             return key.arity == 0 || key.arity == 1
-        case "sortedBy", "sortedByDescending", "sortedWith":
-            return key.arity == 1
         default:
             return false
         }
