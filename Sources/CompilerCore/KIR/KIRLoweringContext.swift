@@ -27,6 +27,14 @@ final class KIRLoweringContext {
     var currentImplicitReceiverSymbol: SymbolID?
     private var contextReceiverValueStack: [[ContextReceiverValue]] = []
     var currentFunctionSymbol: SymbolID?
+    /// Set while lowering a lambda body that is passed to a non-crossinline
+    /// parameter of an inline function. A label-free return in that body exits
+    /// the caller rather than the lambda.
+    var currentLambdaAllowsNonLocalReturn = false
+    /// One-shot allowance installed by CallLowerer for the lambda argument it
+    /// is about to lower. This prevents nested lambdas from inheriting the
+    /// enclosing lambda's non-local-return permission.
+    var pendingLambdaNonLocalReturnAllowance = false
     var loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)] = []
     /// Stack of enclosing finally block entries.
     /// Each entry records the finally block expression ID and the loop-control-stack
@@ -83,6 +91,8 @@ final class KIRLoweringContext {
         let currentImplicitReceiverSymbol: SymbolID?
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
+        let currentLambdaAllowsNonLocalReturn: Bool
+        let pendingLambdaNonLocalReturnAllowance: Bool
         let loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
         let finallyBlockStack: [(exprID: ExprID, loopDepth: Int)]
         let nextLoopLabel: Int32
@@ -99,6 +109,8 @@ final class KIRLoweringContext {
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
+            currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
+            pendingLambdaNonLocalReturnAllowance: pendingLambdaNonLocalReturnAllowance,
             loopControlStack: loopControlStack,
             finallyBlockStack: finallyBlockStack,
             nextLoopLabel: nextLoopLabel
@@ -115,6 +127,8 @@ final class KIRLoweringContext {
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
+        currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
+        pendingLambdaNonLocalReturnAllowance = snapshot.pendingLambdaNonLocalReturnAllowance
         loopControlStack = snapshot.loopControlStack
         finallyBlockStack = snapshot.finallyBlockStack
         nextLoopLabel = snapshot.nextLoopLabel
@@ -139,6 +153,8 @@ final class KIRLoweringContext {
         currentImplicitReceiverSymbol = nil
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
+        currentLambdaAllowsNonLocalReturn = false
+        pendingLambdaNonLocalReturnAllowance = false
         loopControlStack.removeAll(keepingCapacity: true)
         finallyBlockStack.removeAll(keepingCapacity: true)
         nextLoopLabel = 10000

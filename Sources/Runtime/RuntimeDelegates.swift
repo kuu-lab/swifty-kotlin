@@ -123,6 +123,11 @@ public func kk_kproperty_stub_create_full(
 
 @_cdecl("__kk_kproperty_stub_name")
 public func kk_kproperty_stub_name(_ handle: Int) -> Int {
+    if let taggedName = runtimeStorage.withDelegateLock({ state in
+        state.callableRefMetadataByValue[handle]?.nameRaw
+    }) {
+        return taggedName
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)

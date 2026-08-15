@@ -27,7 +27,7 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
         return throwable.renderedMessage
     }
     if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
-        return cancellation.message
+        return cancellation.message ?? "CancellationException"
     }
     return ""
 }
@@ -102,7 +102,7 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
         return runtimeNullSentinelInt
     }
-    let message: String
+    let message: String?
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         message = throwable.message
     } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
@@ -110,6 +110,7 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     } else {
         return runtimeNullSentinelInt
     }
+    guard let message else { return runtimeNullSentinelInt }
     let box = RuntimeStringBox(message)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in

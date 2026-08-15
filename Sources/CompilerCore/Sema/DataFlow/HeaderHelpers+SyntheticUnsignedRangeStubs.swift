@@ -67,14 +67,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let randomType = syntheticNominalType(
-            named: "Random",
-            in: [interner.intern("kotlin"), interner.intern("random")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         for property in [
             ("start", "kk_uint_range_first"),
             ("end", "kk_uint_range_last"),
@@ -181,26 +173,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_randomOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_randomOrNull_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
             named: "take",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
@@ -237,26 +209,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_uint_range_sorted",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.uintType,
-            externalLinkName: "kk_uint_range_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.uintType,
-            externalLinkName: "kk_uint_range_random_random",
             symbols: symbols,
             interner: interner
         )
@@ -336,14 +288,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let randomType = syntheticNominalType(
-            named: "Random",
-            in: [interner.intern("kotlin"), interner.intern("random")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         for property in [
             ("start", "kk_ulong_range_first"),
             ("endInclusive", "kk_ulong_range_last"),
@@ -450,26 +394,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_randomOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_randomOrNull_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
             named: "take",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
@@ -506,26 +430,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_ulong_range_sorted",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.ulongType,
-            externalLinkName: "kk_ulong_range_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.ulongType,
-            externalLinkName: "kk_ulong_range_random_random",
             symbols: symbols,
             interner: interner
         )

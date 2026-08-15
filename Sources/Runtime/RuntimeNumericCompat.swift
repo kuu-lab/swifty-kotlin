@@ -853,8 +853,8 @@ private func roundDoubleJava7(_ raw: Double) -> Int64 {
 // throw IllegalArgumentException when the receiver is NaN. Infinity / out-of-range
 // still saturate to MIN/MAX (no exception). These are therefore throwing callees
 // (outThrown appended by ABILoweringPass — they must NOT be in nonThrowingCallees).
-@_cdecl("kk_float_roundToInt")
-public func kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_float_roundToInt")
+public func __kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -866,8 +866,8 @@ public func kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<
     return Int(Int32(r))
 }
 
-@_cdecl("kk_double_roundToInt")
-public func kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_double_roundToInt")
+public func __kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -879,8 +879,8 @@ public func kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer
     return Int(Int32(r))
 }
 
-@_cdecl("kk_float_roundToLong")
-public func kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_float_roundToLong")
+public func __kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -892,8 +892,8 @@ public func kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer
     return Int(r)
 }
 
-@_cdecl("kk_double_roundToLong")
-public func kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_double_roundToLong")
+public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -907,33 +907,33 @@ public func kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointe
 
 // MARK: - STDLIB-512~513: ulp / nextUp / nextDown extensions
 
-@_cdecl("kk_double_ulp")
-public func kk_double_ulp(_ value: Int) -> Int {
+@_cdecl("__kk_double_ulp")
+public func __kk_double_ulp(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).ulp)
 }
 
-@_cdecl("kk_double_nextUp")
-public func kk_double_nextUp(_ value: Int) -> Int {
+@_cdecl("__kk_double_nextUp")
+public func __kk_double_nextUp(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).nextUp)
 }
 
-@_cdecl("kk_double_nextDown")
-public func kk_double_nextDown(_ value: Int) -> Int {
+@_cdecl("__kk_double_nextDown")
+public func __kk_double_nextDown(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).nextDown)
 }
 
-@_cdecl("kk_float_ulp")
-public func kk_float_ulp(_ value: Int) -> Int {
+@_cdecl("__kk_float_ulp")
+public func __kk_float_ulp(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).ulp)
 }
 
-@_cdecl("kk_float_nextUp")
-public func kk_float_nextUp(_ value: Int) -> Int {
+@_cdecl("__kk_float_nextUp")
+public func __kk_float_nextUp(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextUp)
 }
 
-@_cdecl("kk_float_nextDown")
-public func kk_float_nextDown(_ value: Int) -> Int {
+@_cdecl("__kk_float_nextDown")
+public func __kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
@@ -945,8 +945,8 @@ public func kk_float_nextDown(_ value: Int) -> Int {
 
 /// Double.toBits(): Long — returns IEEE 754 bit representation as Long.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
-@_cdecl("kk_double_toBits")
-public func kk_double_toBits(_ value: Int) -> Int {
+@_cdecl("__kk_double_toBits")
+public func __kk_double_toBits(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return Int(bitPattern: UInt(0x7FF8_0000_0000_0000 as UInt64)) }
     return kk_double_to_bits(d)
@@ -954,16 +954,16 @@ public func kk_double_toBits(_ value: Int) -> Int {
 
 /// Double.toRawBits(): Long — same as toBits() for finite values; differs for NaN.
 /// In Kotlin toRawBits returns the actual bit pattern without canonicalizing NaN.
-@_cdecl("kk_double_toRawBits")
-public func kk_double_toRawBits(_ value: Int) -> Int {
+@_cdecl("__kk_double_toRawBits")
+public func __kk_double_toRawBits(_ value: Int) -> Int {
     value  // bit pattern is already canonical in our ABI
 }
 
 /// Double.Companion.fromBits(bits: Long): Double
 /// The bits Int is already the IEEE 754 bit pattern used by the ABI,
 /// so reconstructing it is a no-op — just return the same Int.
-@_cdecl("kk_double_fromBits")
-public func kk_double_fromBits(_ bits: Int) -> Int {
+@_cdecl("__kk_double_fromBits")
+public func __kk_double_fromBits(_ bits: Int) -> Int {
     bits  // already the correct ABI representation for Double
 }
 
@@ -971,22 +971,22 @@ public func kk_double_fromBits(_ bits: Int) -> Int {
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
 /// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
 /// sign-extended back into the Int domain Kotlin expects.
-@_cdecl("kk_float_toBits")
-public func kk_float_toBits(_ value: Int) -> Int {
+@_cdecl("__kk_float_toBits")
+public func __kk_float_toBits(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32)) }
     return Int(Int32(bitPattern: f.bitPattern))
 }
 
 /// Float.toRawBits(): Int — actual bit pattern without canonicalizing NaN.
-@_cdecl("kk_float_toRawBits")
-public func kk_float_toRawBits(_ value: Int) -> Int {
+@_cdecl("__kk_float_toRawBits")
+public func __kk_float_toRawBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
 }
 
 /// Float.Companion.fromBits(bits: Int): Float
-@_cdecl("kk_float_fromBits")
-public func kk_float_fromBits(_ bits: Int) -> Int {
+@_cdecl("__kk_float_fromBits")
+public func __kk_float_fromBits(_ bits: Int) -> Int {
     Int(UInt32(truncatingIfNeeded: bits))  // re-widen to the zero-extended ABI form
 }
 

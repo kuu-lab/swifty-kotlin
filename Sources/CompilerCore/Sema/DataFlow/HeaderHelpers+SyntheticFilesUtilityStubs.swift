@@ -8,7 +8,7 @@
 /// - Temporary files: `createTempFile()`, `createTempDirectory()`
 ///
 /// `Files` is modelled as a Kotlin `object` (singleton) whose methods are
-/// dispatched to `kk_files_*` runtime entry points.  The `Path` type is
+/// dispatched to `__kk_files_*` runtime entry points.  The `Path` type is
 /// modelled as `java.nio.file.Path` so the Files API can share the existing
 /// runtime path box without exposing extra `kotlin.io.path` extension stubs.
 extension DataFlowSemaPhase {
@@ -68,7 +68,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "createFile",
-            externalLinkName: "kk_files_createFile",
+            externalLinkName: "__kk_files_createFile",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -79,7 +79,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "delete",
-            externalLinkName: "kk_files_delete",
+            externalLinkName: "__kk_files_delete",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -90,7 +90,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "copy",
-            externalLinkName: "kk_files_copy",
+            externalLinkName: "__kk_files_copy",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("source", pathType), ("target", pathType)],
@@ -101,7 +101,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "move",
-            externalLinkName: "kk_files_move",
+            externalLinkName: "__kk_files_move",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("source", pathType), ("target", pathType)],
@@ -114,7 +114,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "createDirectory",
-            externalLinkName: "kk_files_createDirectory",
+            externalLinkName: "__kk_files_createDirectory",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -125,7 +125,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "createDirectories",
-            externalLinkName: "kk_files_createDirectories",
+            externalLinkName: "__kk_files_createDirectories",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -160,7 +160,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "size",
-            externalLinkName: "kk_files_size",
+            externalLinkName: "__kk_files_size",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -171,7 +171,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "getLastModifiedTime",
-            externalLinkName: "kk_files_getLastModifiedTime",
+            externalLinkName: "__kk_files_getLastModifiedTime",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -182,7 +182,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "isRegularFile",
-            externalLinkName: "kk_files_isRegularFile",
+            externalLinkName: "__kk_files_isRegularFile",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -193,7 +193,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "isDirectory",
-            externalLinkName: "kk_files_isDirectory",
+            externalLinkName: "__kk_files_isDirectory",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -204,7 +204,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "exists",
-            externalLinkName: "kk_files_exists",
+            externalLinkName: "__kk_files_exists",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("path", pathType)],
@@ -217,7 +217,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "walk",
-            externalLinkName: "kk_files_walk",
+            externalLinkName: "__kk_files_walk",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("start", pathType)],
@@ -228,7 +228,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "list",
-            externalLinkName: "kk_files_list",
+            externalLinkName: "__kk_files_list",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("dir", pathType)],
@@ -239,7 +239,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "newDirectoryStream",
-            externalLinkName: "kk_files_newDirectoryStream",
+            externalLinkName: "__kk_files_newDirectoryStream",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("dir", pathType)],
@@ -252,7 +252,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "createTempFile",
-            externalLinkName: "kk_files_createTempFile",
+            externalLinkName: "__kk_files_createTempFile",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("prefix", types.stringType), ("suffix", types.stringType)],
@@ -263,7 +263,7 @@ extension DataFlowSemaPhase {
 
         registerFilesMemberFunction(
             named: "createTempDirectory",
-            externalLinkName: "kk_files_createTempDirectory",
+            externalLinkName: "__kk_files_createTempDirectory",
             ownerSymbol: filesSymbol,
             ownerType: filesType,
             parameters: [("prefix", types.stringType)],
@@ -431,7 +431,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(fileTimeSymbol, for: toMillisSymbol)
-            symbols.setExternalLinkName("kk_fileTime_toMillis", for: toMillisSymbol)
+            symbols.setExternalLinkName("__kk_fileTime_toMillis", for: toMillisSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: fileTimeType,

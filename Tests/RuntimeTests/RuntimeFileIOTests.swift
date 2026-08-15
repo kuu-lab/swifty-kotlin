@@ -33,7 +33,7 @@ struct RuntimeFileIOTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let textRaw = kk_file_readText(fileRaw, &thrown)
+        let textRaw = __kk_file_readText(fileRaw, &thrown)
 
         #expect(thrown == 0)
         #expect(readString(textRaw) == "alpha\nbeta")
@@ -46,11 +46,11 @@ struct RuntimeFileIOTests {
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
 
-        #expect(kk_file_appendText(fileRaw, runtimeStringRaw("alpha"), &thrown) == 0)
+        #expect(__kk_file_appendText(fileRaw, runtimeStringRaw("alpha"), &thrown) == 0)
         #expect(thrown == 0)
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "alpha")
 
-        #expect(kk_file_appendText(fileRaw, runtimeStringRaw("\nbeta"), &thrown) == 0)
+        #expect(__kk_file_appendText(fileRaw, runtimeStringRaw("\nbeta"), &thrown) == 0)
         #expect(thrown == 0)
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
     }
@@ -62,7 +62,7 @@ struct RuntimeFileIOTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let bytesRaw = kk_file_readBytes(fileRaw, &thrown)
+        let bytesRaw = __kk_file_readBytes(fileRaw, &thrown)
 
         #expect(thrown == 0)
         #expect(runtimeListBox(from: bytesRaw)?.elements == [0, 127, -128, -1])
@@ -78,13 +78,13 @@ struct RuntimeFileIOTests {
 
         // Write initial bytes [1, 2, 3]
         let bytesRaw1 = registerRuntimeObject(RuntimeListBox(elements: [1, 2, 3]))
-        #expect(kk_file_appendBytes(fileRaw, bytesRaw1, &thrown) == 0)
+        #expect(__kk_file_appendBytes(fileRaw, bytesRaw1, &thrown) == 0)
         #expect(thrown == 0)
         #expect(try Data(contentsOf: fileURL) == Data([1, 2, 3]))
 
         // Append additional bytes [4, 5]
         let bytesRaw2 = registerRuntimeObject(RuntimeListBox(elements: [4, 5]))
-        #expect(kk_file_appendBytes(fileRaw, bytesRaw2, &thrown) == 0)
+        #expect(__kk_file_appendBytes(fileRaw, bytesRaw2, &thrown) == 0)
         #expect(thrown == 0)
         #expect(try Data(contentsOf: fileURL) == Data([1, 2, 3, 4, 5]))
     }
@@ -98,21 +98,21 @@ struct RuntimeFileIOTests {
 
         // Kotlin Byte range: -128 to 127; -1 maps to 0xFF, -128 to 0x80
         let bytesRaw = registerRuntimeObject(RuntimeListBox(elements: [0, 127, -128, -1]))
-        #expect(kk_file_appendBytes(fileRaw, bytesRaw, &thrown) == 0)
+        #expect(__kk_file_appendBytes(fileRaw, bytesRaw, &thrown) == 0)
         #expect(thrown == 0)
         #expect(try Data(contentsOf: fileURL) == Data([0, 127, 128, 255]))
     }
 
     @Test func testStringByteInputStreamFlatDefaultCharsetYieldsUtf8Bytes() {
         withFlatString("A\u{00E9}") { data, length, byteCount, hash in
-            let streamRaw = kk_string_byteInputStream_flat(data, length, byteCount, hash)
+            let streamRaw = __kk_string_byteInputStream_flat(data, length, byteCount, hash)
             #expect(readInputStreamBytes(streamRaw) == [65, 195, 169])
         }
     }
 
     @Test func testStringByteInputStreamFlatExplicitCharsetYieldsEncodedBytes() {
         withFlatString("AB") { data, length, byteCount, hash in
-            let streamRaw = kk_string_byteInputStream_charset_flat(
+            let streamRaw = __kk_string_byteInputStream_charset_flat(
                 data,
                 length,
                 byteCount,
@@ -138,7 +138,7 @@ struct RuntimeFileIOTests {
             to: UnsafeRawPointer.self
         ))
         var thrown = 0
-        _ = kk_file_forEachBlock(fileRaw, fnPtr, 0, &thrown)
+        _ = __kk_file_forEachBlock(fileRaw, fnPtr, 0, &thrown)
 
         #expect(thrown == 0)
         #expect(forEachBlockAccumulator == 8)
@@ -162,7 +162,7 @@ struct RuntimeFileIOTests {
         // blockSize = 2 → should produce 3 chunks of 2 bytes each
         let blockSizeRaw = kk_box_int(2)
         var thrown = 0
-        _ = kk_file_forEachBlock_blockSize(fileRaw, blockSizeRaw, fnPtr, 0, &thrown)
+        _ = __kk_file_forEachBlock_blockSize(fileRaw, blockSizeRaw, fnPtr, 0, &thrown)
 
         #expect(thrown == 0)
         #expect(forEachBlockChunkCount == 3)
@@ -176,7 +176,7 @@ struct RuntimeFileIOTests {
     }
 
     private func runtimeTestFileHandle(_ path: String) -> Int {
-        kk_file_new(runtimeStringRaw(path))
+        __kk_file_new(runtimeStringRaw(path))
     }
 
     private func runtimeStringRaw(_ value: String) -> Int {
@@ -207,7 +207,7 @@ struct RuntimeFileIOTests {
         var result: [Int] = []
         var thrown = 0
         while true {
-            let byte = kk_input_stream_read(streamRaw, &thrown)
+            let byte = __kk_input_stream_read(streamRaw, &thrown)
             #expect(thrown == 0)
             if byte < 0 {
                 return result

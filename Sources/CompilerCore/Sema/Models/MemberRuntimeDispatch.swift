@@ -210,24 +210,15 @@ enum MemberRuntimeDispatch {
 
     static func rangeRuntimeLinkName(for key: MemberDispatchKey) -> String? {
         let kind = key.receiverKind
-        let hasArgument = key.arity > 0
+
+        // KSP-457: range random APIs are bundled Kotlin source wrappers. Their
+        // private __kk_* calls are lowered from the source bodies, not from the
+        // legacy member-dispatch table.
+        if key.memberName == "random" || key.memberName == "randomOrNull" {
+            return nil
+        }
 
         switch key.memberName {
-        case "random":
-            if hasArgument {
-                if kind.isCharRangeLike { return "kk_char_range_random_random" }
-                return rangeRuntimeName(kind: kind, member: "random_random", longMember: "random_random")
-            }
-            return rangeRuntimeName(kind: kind, member: "random", longMember: "random")
-        case "randomOrNull":
-            if kind == .charRange {
-                return hasArgument ? "kk_char_range_randomOrNull_random" : "kk_char_range_randomOrNull"
-            }
-            return rangeRuntimeName(
-                kind: kind,
-                member: hasArgument ? "randomOrNull_random" : "randomOrNull",
-                longMember: hasArgument ? "randomOrNull_random" : "randomOrNull"
-            )
         case "contains":
             if kind.isULongRangeLike { return "kk_ulong_range_contains" }
             if kind.isUIntRangeLike { return "kk_uint_range_contains" }

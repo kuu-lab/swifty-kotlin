@@ -1,10 +1,19 @@
-/// Synthetic-stdlib dispatch helpers used by `inferCallExpr` to
-/// recognize the kotlin.stdlib `run` / `let` / `also` / `apply` / `with`
-/// scope-function family and to detect user-shadowing or qualified-call
-/// paths.
+/// Synthetic-stdlib dispatch helpers used by `inferCallExpr` to detect
+/// user-shadowing or qualified-call paths.
 ///
 /// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
+    /// Returns true when `exprID` is a lambda literal or callable reference.
+    func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let argExpr = ast.arena.expr(exprID) else { return false }
+        switch argExpr {
+        case .lambdaLiteral, .callableRef:
+            return true
+        default:
+            return false
+        }
+    }
+
     func shouldUseBuiltinFlowFactorySpecialHandling(
         calleeName: InternedString,
         ctx: TypeInferenceContext,
@@ -30,52 +39,6 @@ extension CallTypeChecker {
             return !symbol.flags.contains(.synthetic)
         }
         return !hasRealCandidate
-    }
-
-    /// Returns true when the call site looks like a top-level `run { ... }` or
-    /// `run(::ref)` that should be intercepted by the scope-function path.
-    func isTopLevelRunCandidate(
-        calleeName: InternedString?,
-        args: [CallArgument],
-        knownNames: KnownCompilerNames,
-        ast: ASTModule,
-        ctx: TypeInferenceContext,
-        locals: LocalBindings
-    ) -> Bool {
-        guard let calleeName, args.count == 1,
-              calleeName == knownNames.run,
-              locals[calleeName] == nil
-        else {
-            return false
-        }
-        return isLambdaOrCallableRefArg(args[0].expr, ast: ast)
-            && !isShadowedByUserDefinedRun(calleeName, ctx: ctx)
-    }
-
-    /// Returns true when `exprID` is a lambda literal or callable reference.
-    func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
-        guard let argExpr = ast.arena.expr(exprID) else { return false }
-        switch argExpr {
-        case .lambdaLiteral, .callableRef:
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// Returns true when a non-synthetic (user-defined) `run` shadows the
-    /// synthetic stdlib helper.
-    /// KNOWN LIMITATION: This treats any non-synthetic symbol named `run` as
-    /// shadowing, regardless of whether it is a top-level or extension overload.
-    /// A more precise check would compare signatures/receiver types.
-    func isShadowedByUserDefinedRun(
-        _ calleeName: InternedString,
-        ctx: TypeInferenceContext
-    ) -> Bool {
-        ctx.cachedScopeLookup(calleeName).contains { candidate in
-            guard let sym = ctx.cachedSymbol(candidate) else { return false }
-            return !sym.flags.contains(.synthetic)
-        }
     }
 
     /// Returns true when `name` is shadowed by a non-synthetic (user-defined) symbol,
