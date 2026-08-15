@@ -242,7 +242,8 @@ public func __kk_kparameter_create(
         isOptional: isOptional != 0,
         kind: kind
     )
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kParameterRuntimeTypeID)
 }
 
 private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
@@ -325,7 +326,8 @@ public func __kk_kfunction_create(
         fnPtr: fnPtr,
         closureRaw: closureRaw
     )
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
 /// Extended factory that also attaches parameter metadata and type string.
@@ -371,7 +373,8 @@ public func __kk_kfunction_create_full(
         parameterRaws: paramRaws,
         typeStringRaw: typeStringRaw
     )
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
 @_cdecl("__kk_kfunction_get_name")
@@ -729,7 +732,8 @@ public func __kk_kconstructor_create(
         visibilityRaw: visibilityRaw,
         declaringClassRaw: declaringClassRaw
     )
-    let raw = registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    let raw = registerRuntimeObject(box, typeID: kConstructorRuntimeTypeID)
     runtimeKConstructorRegistry.register(classRaw: declaringClassRaw, constructorRaw: raw)
     return raw
 }

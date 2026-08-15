@@ -11,7 +11,6 @@ extension DataFlowSemaPhase {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         // Unsigned coercion overloads are provided by bundled Kotlin source (RangeCoercion.kt).
 
-        // --- STDLIB-510..511: roundToInt / roundToLong extension functions ---
         let kotlinMathPkg = kotlinPkg + [interner.intern("math")]
         if symbols.lookup(fqName: kotlinMathPkg) == nil {
             let mathName = interner.intern("math")
@@ -32,178 +31,16 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            registerSyntheticCoercionFunction(
-                named: "roundToInt",
-                externalLinkName: "kk_float_roundToInt",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "roundToInt",
-                externalLinkName: "kk_double_roundToInt",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "roundToLong",
-                externalLinkName: "kk_float_roundToLong",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "roundToLong",
-                externalLinkName: "kk_double_roundToLong",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            // --- STDLIB-512..513: ulp / nextUp / nextDown extension properties ---
-            // Registered as zero-parameter extension functions (the property accessor pattern).
-            registerSyntheticCoercionFunction(
-                named: "ulp",
-                externalLinkName: "kk_double_ulp",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.doubleType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "nextUp",
-                externalLinkName: "kk_double_nextUp",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.doubleType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "nextDown",
-                externalLinkName: "kk_double_nextDown",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.doubleType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "ulp",
-                externalLinkName: "kk_float_ulp",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.floatType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "nextUp",
-                externalLinkName: "kk_float_nextUp",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.floatType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "nextDown",
-                externalLinkName: "kk_float_nextDown",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.floatType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
         }
 
-        // STDLIB-NUM-130: isNaN / isInfinite / isFinite / toBits / fromBits
+        // STDLIB-NUM-130: isNaN / isInfinite / isFinite
 
         // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
-        // STDLIB-BIT-007: Additional bit manipulation functions
-        // Use if-let instead of guard-return so future registrations below are not skipped.
-        if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use
-            // IEEE 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
-
-            // Double.toBits(): Long / Double.toRawBits(): Long
-            registerSyntheticCoercionFunction(
-                named: "toBits",
-                externalLinkName: "kk_double_toBits",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "toRawBits",
-                externalLinkName: "kk_double_toRawBits",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            // Float.toBits(): Int / Float.toRawBits(): Int
-            registerSyntheticCoercionFunction(
-                named: "toBits",
-                externalLinkName: "kk_float_toBits",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoercionFunction(
-                named: "toRawBits",
-                externalLinkName: "kk_float_toRawBits",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // STDLIB-BIT-007: Additional bit manipulation functions.
+        // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use IEEE
+        // 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
+        // KSP-647: toBits and toRawBits are bundled Kotlin extensions in the
+        // same source file, backed by __kk_* declarations there.
 
         // STDLIB-BIT-007: Additional bit manipulation functions.
         // countOneBits / countLeadingZeroBits / countTrailingZeroBits are declared in
@@ -839,14 +676,14 @@ extension DataFlowSemaPhase {
         }
 
         // STDLIB-NUM-130: Double.fromBits(bits: Long) and Float.fromBits(bits: Int)
-        // Registered as top-level kotlin package functions (no receiver) so that the
-        // numericCompanionFunction path in the type checker can resolve them.
+        // remain top-level synthetic registrations because primitive Double and
+        // Float do not expose a Companion type in the compiler's core model.
         registerSyntheticTopLevelFunction(
             named: "fromBits",
             packageFQName: kotlinPkg,
             parameters: [(name: "bits", type: types.longType)],
             returnType: types.doubleType,
-            externalLinkName: "kk_double_fromBits",
+            externalLinkName: "__kk_double_fromBits",
             symbols: symbols,
             interner: interner
         )
@@ -855,7 +692,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinPkg,
             parameters: [(name: "bits", type: types.intType)],
             returnType: types.floatType,
-            externalLinkName: "kk_float_fromBits",
+            externalLinkName: "__kk_float_fromBits",
             symbols: symbols,
             interner: interner
         )

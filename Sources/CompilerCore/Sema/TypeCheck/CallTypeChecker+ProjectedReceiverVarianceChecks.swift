@@ -7,7 +7,12 @@ extension CallTypeChecker {
     ) -> Bool {
                 if let externalLinkName = sema.symbols.externalLinkName(for: candidate) {
                     switch externalLinkName {
-            case "kk_list_sumBy", "kk_list_sumByDouble",
+            case "kk_list_reduceIndexedOrNull",
+                 "kk_list_foldRight", "kk_list_foldRightIndexed", "kk_list_reduceRight", "kk_list_reduceRightIndexed", "kk_list_reduceRightIndexedOrNull", "kk_list_reduceRightOrNull",
+                 "kk_list_runningFoldIndexed", "kk_list_runningReduceIndexed", "kk_list_scanIndexed",
+                 "kk_list_takeWhile", "kk_list_dropLastWhile",
+                 "kk_list_sumBy", "kk_list_sumByDouble",
+                 "kk_list_onEach", "kk_list_onEachIndexed",
                  "kk_list_maxBy", "kk_list_minBy", "kk_list_maxByOrNull", "kk_list_minByOrNull",
                  "kk_list_maxOfOrNull", "kk_list_minOfOrNull",
                  "kk_list_maxOf", "kk_list_minOf",
@@ -16,7 +21,6 @@ extension CallTypeChecker {
                  "kk_list_maxOfWith", "kk_list_maxOfWithOrNull",
                  "kk_list_minOfWith", "kk_list_minOfWithOrNull",
                  "kk_list_chunked_transform",
-                 "kk_list_minus_element",
                  "kk_list_zip_transform",
                  "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
                  "kk_sequence_contains", "kk_sequence_indexOf",
@@ -24,7 +28,6 @@ extension CallTypeChecker {
                  "kk_list_windowed_transform",
                  "__kk_iterable_joinToString_transform",
                  "kk_array_joinToString_transform",
-                 "kk_list_intersect", "kk_list_union", "kk_list_subtract",
                  "__kk_set_contains",
                  "__kk_map_get":
                 return true
@@ -75,9 +78,6 @@ extension CallTypeChecker {
              (knownNames.kotlinCollectionsListFQName, interner.intern("minOfWith")),
              (knownNames.kotlinCollectionsListFQName, interner.intern("minOfWithOrNull")),
              (knownNames.kotlinCollectionsListFQName, interner.intern("windowed")),
-             (knownNames.kotlinCollectionsListFQName, interner.intern("intersect")),
-             (knownNames.kotlinCollectionsListFQName, interner.intern("union")),
-             (knownNames.kotlinCollectionsListFQName, interner.intern("subtract")),
              (knownNames.kotlinCollectionsListFQName, knownNames.isEmpty),
              (knownNames.kotlinCollectionsSetFQName, interner.intern("contains")),
              (knownNames.kotlinCollectionsSetFQName, interner.intern("containsAll")),

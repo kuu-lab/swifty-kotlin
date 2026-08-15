@@ -145,7 +145,7 @@ private let runtimeFlowErrorTestState = RuntimeFlowErrorTestState()
 @_cdecl("runtime_test_flow_emitter_values_1_2_3_4")
 func runtime_test_flow_emitter_values_1_2_3_4(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let sentinel = kk_flow_stopped()
+    let sentinel = __kk_flow_stopped()
     for value in 1 ... 4 {
         runtimeFlowTestState.recordEmitCall()
         let result = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
@@ -161,7 +161,7 @@ func runtime_test_flow_emitter_values_1_2_3_4(_ outThrown: UnsafeMutablePointer<
 @_cdecl("runtime_test_flow_fixed_values_emitter")
 func runtime_test_flow_fixed_values_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let sentinel = kk_flow_stopped()
+    let sentinel = __kk_flow_stopped()
     let count = kk_coroutine_launcher_arg_get(continuation, 0)
     var index: Int64 = 0
     while index < count {
@@ -222,7 +222,7 @@ func runtime_test_flow_collect_throw_on_first(_: Int, _ value: Int, _ outThrown:
 @_cdecl("runtime_test_flow_emitter_large_source")
 func runtime_test_flow_emitter_large_source(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let sentinel = kk_flow_stopped()
+    let sentinel = __kk_flow_stopped()
     for value in 1 ... 10_000 {
         runtimeFlowTestState.recordEmitCall()
         let result = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
@@ -252,9 +252,9 @@ func runtime_test_flow_emitter_burst_1_2_3(_ outThrown: UnsafeMutablePointer<Int
 func runtime_test_flow_emitter_spaced_1_2_3(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let now = DispatchTime.now().uptimeNanoseconds
-    _ = kk_flow_emit_with_timestamp(0, 1, RuntimeFlowTag.emit.rawValue, now)
-    _ = kk_flow_emit_with_timestamp(0, 2, RuntimeFlowTag.emit.rawValue, now + 1_500_000)
-    _ = kk_flow_emit_with_timestamp(0, 3, RuntimeFlowTag.emit.rawValue, now + 3_000_000)
+    _ = __kk_flow_emit_with_timestamp(0, 1, RuntimeFlowTag.emit.rawValue, now)
+    _ = __kk_flow_emit_with_timestamp(0, 2, RuntimeFlowTag.emit.rawValue, now + 1_500_000)
+    _ = __kk_flow_emit_with_timestamp(0, 3, RuntimeFlowTag.emit.rawValue, now + 3_000_000)
     return 0
 }
 
@@ -429,16 +429,16 @@ struct RuntimeFlowTests {
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        let retained = kk_flow_retain(flowHandle)
+        let retained = __kk_flow_retain(flowHandle)
         #expect(retained == flowHandle)
 
-        _ = kk_flow_release(flowHandle)
+        _ = __kk_flow_release(flowHandle)
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(retained, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3, 4])
 
-        _ = kk_flow_release(retained)
+        _ = __kk_flow_release(retained)
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(retained, collectorPtr, 0, 0)
@@ -528,7 +528,7 @@ struct RuntimeFlowTests {
     @Test func testFlowFirst() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        let result = kk_flow_first(flowHandle, 0)
+        let result = __kk_flow_first(flowHandle, 0)
         #expect(result == 1, "first() should return the first emitted value.")
     }
 
@@ -538,14 +538,14 @@ struct RuntimeFlowTests {
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let filtered = kk_flow_emit(flowHandle, filterPtr, RuntimeFlowTag.filter.rawValue)
-        let result = kk_flow_first(filtered, 0)
+        let result = __kk_flow_first(filtered, 0)
         #expect(result == 2, "first() after filter(even) should return 2.")
     }
 
     @Test func testFlowCount() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        let result = kk_flow_count(flowHandle, 0)
+        let result = __kk_flow_count(flowHandle, 0)
         #expect(result == 4, "count() should return number of emitted elements.")
     }
 
@@ -555,7 +555,7 @@ struct RuntimeFlowTests {
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let filtered = kk_flow_emit(flowHandle, filterPtr, RuntimeFlowTag.filter.rawValue)
-        let result = kk_flow_count(filtered, 0)
+        let result = __kk_flow_count(filtered, 0)
         #expect(result == 2, "count() after filter(even) on [1,2,3,4] should return 2.")
     }
 
@@ -565,7 +565,7 @@ struct RuntimeFlowTests {
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let mapped = kk_flow_emit(flowHandle, mapPtr, RuntimeFlowTag.map.rawValue)
-        let listHandle = kk_flow_to_list(mapped, 0)
+        let listHandle = __kk_flow_to_list(mapped, 0)
 
         let size = kk_list_size(listHandle)
         #expect(size == 4)
@@ -580,7 +580,7 @@ struct RuntimeFlowTests {
         let foldOpPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        let result = kk_flow_fold(flowHandle, 0, foldOpPtr, 0)
+        let result = __kk_flow_fold(flowHandle, 0, foldOpPtr, 0)
         #expect(result == 10, "fold with + and initial 0 on [1,2,3,4] should yield 10.")
     }
 
@@ -589,7 +589,7 @@ struct RuntimeFlowTests {
         let reduceOpPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        let result = kk_flow_reduce(flowHandle, reduceOpPtr, 0)
+        let result = __kk_flow_reduce(flowHandle, reduceOpPtr, 0)
         #expect(result == 10, "reduce with + on [1,2,3,4] should yield 10.")
     }
 
@@ -735,7 +735,7 @@ struct RuntimeFlowTests {
 
         let leftFlow = runtimeFlowOf([1, 2, 3])
         let rightFlow = runtimeFlowOf([10, 20])
-        let zipped = kk_flow_zip(leftFlow, rightFlow, combinerPtr, 0)
+        let zipped = __kk_flow_zip(leftFlow, rightFlow, combinerPtr, 0)
 
         _ = kk_flow_collect(zipped, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [11, 22], "zip should stop at the shorter source and combine pairwise")
@@ -747,7 +747,7 @@ struct RuntimeFlowTests {
 
         let leftFlow = runtimeFlowOf([1, 2])
         let rightFlow = runtimeFlowOf([10, 20, 30])
-        let combined = kk_flow_combine(leftFlow, rightFlow, combinerPtr, 0)
+        let combined = __kk_flow_combine(leftFlow, rightFlow, combinerPtr, 0)
 
         _ = kk_flow_collect(combined, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [11, 22, 32], "combine should repeat the latest value from the shorter source")
@@ -764,7 +764,7 @@ struct RuntimeFlowTests {
         _ = kk_array_set(flowArray, 1, second, nil)
         _ = kk_array_set(flowArray, 2, third, nil)
 
-        let merged = kk_flow_merge(flowArray, 3, 0)
+        let merged = __kk_flow_merge(flowArray, 3, 0)
 
         _ = kk_flow_collect(merged, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3, 4, 5], "merge should concatenate flows in the provided order")
@@ -776,17 +776,17 @@ struct RuntimeFlowTests {
 
         let source = runtimeFlowOf([1, 2])
 
-        let concat = kk_flow_flat_map_concat(source, mapperPtr, 0)
+        let concat = __kk_flow_flat_map_concat(source, mapperPtr, 0)
         _ = kk_flow_collect(concat, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [1, 11, 2, 12], "flatMapConcat should append each inner flow in source order")
 
         runtimeFlowTestState.reset()
-        let merge = kk_flow_flat_map_merge(source, mapperPtr, 0)
+        let merge = __kk_flow_flat_map_merge(source, mapperPtr, 0)
         _ = kk_flow_collect(merge, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [1, 11, 2, 12], "flatMapMerge should match concat in the synchronous runtime")
 
         runtimeFlowTestState.reset()
-        let latest = kk_flow_flat_map_latest(source, mapperPtr, 0)
+        let latest = __kk_flow_flat_map_latest(source, mapperPtr, 0)
         _ = kk_flow_collect(latest, collectorPtr, 0, 0)
         #expect(runtimeFlowTestState.snapshot().values == [2, 12], "flatMapLatest should keep only the last mapped flow")
     }

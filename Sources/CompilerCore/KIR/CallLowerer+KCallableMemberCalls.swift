@@ -5,19 +5,47 @@
 extension CallLowerer {
     // MARK: - KProperty member access lowering (PROP-007)
 
+    private func isKCallableReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullType = sema.types.makeNonNullable(receiverType)
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
+            return false
+        }
+        let resolvedName = interner.resolve(symbol.name)
+        return resolvedName == "KCallable"
+            || resolvedName == "KFunction"
+            || resolvedName == "KFunction0"
+            || resolvedName == "KFunction1"
+            || resolvedName == "KFunction2"
+            || resolvedName == "KFunction3"
+            || resolvedName == "KProperty"
+            || resolvedName == "KProperty0"
+            || resolvedName == "KProperty1"
+            || resolvedName == "KProperty2"
+            || resolvedName == "KMutableProperty"
+            || resolvedName == "KMutableProperty0"
+            || resolvedName == "KMutableProperty1"
+            || resolvedName == "KMutableProperty2"
+    }
+
     private func isKPropertyReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+        let nonNullType = sema.types.makeNonNullable(receiverType)
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         let resolvedName = interner.resolve(symbol.name)
         return resolvedName == "KProperty" || resolvedName == "KProperty0"
-            || resolvedName == "KProperty1" || resolvedName == "KCallable"
+            || resolvedName == "KProperty1" || resolvedName == "KProperty2"
+            || resolvedName == "KCallable"
             || resolvedName == "KMutableProperty" || resolvedName == "KMutableProperty0"
-            || resolvedName == "KMutableProperty1"
+            || resolvedName == "KMutableProperty1" || resolvedName == "KMutableProperty2"
     }
 
     func tryLowerKPropertyMemberAccess(
@@ -47,12 +75,36 @@ extension CallLowerer {
             ?? sema.types.stringType
         let result = arena.appendTemporary(type: resultType)
         emitNonThrowingCall(
-            callee: interner.intern("__kk_kproperty_stub_name"),
+            callee: interner.intern("__kk_kcallable_get_name"),
             arg: receiverID,
             result: result,
             into: &instructions
         )
         return result
+    }
+
+    /// Emits KCallable.name after the safe-call null check has already passed.
+    func tryLowerKCallableNameAccess(
+        receiverType: TypeID,
+        receiverID: KIRExprID,
+        result: KIRExprID,
+        calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        guard interner.resolve(calleeName) == "name",
+              isKCallableReceiverType(receiverType, sema: sema, interner: interner)
+        else {
+            return false
+        }
+        emitNonThrowingCall(
+            callee: interner.intern("__kk_kcallable_get_name"),
+            arg: receiverID,
+            result: result,
+            into: &instructions
+        )
+        return true
     }
 
     // MARK: - KFunction member access lowering (STDLIB-REFLECT-063)
@@ -81,7 +133,7 @@ extension CallLowerer {
 
     /// Known KFunction member names and their corresponding runtime function.
     private static let kFunctionMemberMap: [String: String] = [
-        "name": "__kk_kfunction_get_name",
+        "name": "__kk_kcallable_get_name",
         "returnType": "__kk_kfunction_get_return_type",
         "parameters": "__kk_kfunction_get_parameters",
         "valueParameters": "__kk_kfunction_get_value_parameters",

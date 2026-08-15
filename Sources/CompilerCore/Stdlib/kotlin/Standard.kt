@@ -18,6 +18,17 @@ public inline fun repeat(times: Int, action: (Int) -> Unit) {
     }
 }
 
+public inline fun <T, R> with(receiver: T, block: T.() -> R): R = receiver.block()
+
+public inline fun <R> run(block: () -> R): R = block()
+
+public inline fun <T, R> T.run(block: T.() -> R): R = block()
+
+public inline fun <T> T.apply(block: T.() -> Unit): T {
+    block()
+    return this
+}
+
 public inline fun <T, R> T.let(block: (T) -> R): R = block(this)
 
 public inline fun <T> T.also(block: (T) -> Unit): T {

@@ -131,9 +131,8 @@ extension RandomSyntheticLinkTests {
     // link names like kk_random_nextInt_until) have been removed.
 
     // KSP-466: nextULong() / nextULong(until) / nextULong(from, until) are now real
-    // Kotlin class members (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt), not
-    // synthetic stubs bridged to kk_random_nextULong/_until/_range (all deleted). Only
-    // the UIntRange/ULongRange-typed overload stays native (KSP-457 scope).
+    // Kotlin class members (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt), with
+    // only the range-object engines retained as private __kk_* bridges (KSP-457).
     @Test
     func testNextULongOverloadsAreRegistered() throws {
         let (sema, interner) = try sharedSema()
@@ -170,9 +169,8 @@ extension RandomSyntheticLinkTests {
         #expect(sema.symbols.functionSignature(for: range)?.returnType == sema.types.ulongType)
 
         let ulongRange = try #require(candidate(parameterTypes: [ulongRangeType]))
-        #expect(sema.symbols.externalLinkName(for: ulongRange) == "kk_random_nextULong_ulongRange")
+        #expect(sema.symbols.externalLinkName(for: ulongRange) == nil)
         #expect(sema.symbols.functionSignature(for: ulongRange)?.returnType == sema.types.ulongType)
-        #expect(sema.symbols.functionSignature(for: ulongRange)?.canThrow ?? false)
     }
 
     // MARK: - nextUInt overload selection
@@ -216,13 +214,13 @@ extension RandomSyntheticLinkTests {
         #expect(range != nil, "nextUInt(range: UIntRange) must be registered")
         // KSP-466: the scalar overloads are now real Kotlin class members
         // (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt); only the
-        // UIntRange-typed overload stays a native bridge (KSP-457 scope).
+        // UIntRange-typed overload is now a real Kotlin member whose body calls
+        // the private __kk_* engine bridge.
         if let zero {
             #expect(sema.symbols.externalLinkName(for: zero) == nil)
         }
-        // canThrow is a native-bridge ABI calling-convention detail; the real
-        // Kotlin `until`/`fromUntil` members don't set it despite throwing via
-        // require(...) internally. Only the kept native uintRange bridge does.
+        // Source-backed members have no synthetic external link or bridge-level
+        // thrown-channel metadata.
         if let until {
             #expect(sema.symbols.externalLinkName(for: until) == nil)
         }
@@ -232,8 +230,8 @@ extension RandomSyntheticLinkTests {
         if let range,
            let signature = sema.symbols.functionSignature(for: range)
         {
-            #expect(sema.symbols.externalLinkName(for: range) == "kk_random_nextUInt_uintRange")
-            #expect(signature.canThrow)
+            #expect(sema.symbols.externalLinkName(for: range) == nil)
+            #expect(!signature.canThrow)
         }
     }
 
@@ -361,40 +359,23 @@ extension RandomSyntheticLinkTests {
         }
     }
 
-    // MARK: - nextInt(IntRange) — package-level extension stub
+    // MARK: - nextInt(IntRange) — source-backed member
 
     // MARK: - range.random(random: Random)
 
     @Test
-    func testRangeRandomOverloadsAreRegistered() throws {
+    func testRangeRandomOverloadsAreSourceBacked() throws {
         let (sema, interner) = try sharedSema()
 
-        let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
-        let randomSymbol = try #require(sema.symbols.lookup(fqName: randomFQ))
-        let randomType = sema.types.make(.classType(ClassType(
-            classSymbol: randomSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let cases: [(typeName: String, expectedLink: String)] = [
-            ("CharRange", "kk_char_range_random_random"),
-            ("IntRange", "kk_range_random_random"),
-            ("LongRange", "kk_long_range_random_random"),
-            ("UIntRange", "kk_uint_range_random_random"),
-            ("ULongRange", "kk_ulong_range_random_random"),
-        ]
-
-        for (typeName, expectedLink) in cases {
-            let fq = ["kotlin", "ranges", typeName, "random"].map { interner.intern($0) }
-            let candidates = sema.symbols.lookupAll(fqName: fq)
-            let overload = candidates.first { id in
-                guard let sig = sema.symbols.functionSignature(for: id) else { return false }
-                return sig.parameterTypes.count == 1 && sig.parameterTypes.first == randomType
-            }
-            #expect(overload != nil, "\(typeName).random(random: Random) must be registered")
-            if let overload {
-                #expect(sema.symbols.externalLinkName(for: overload) == expectedLink)
+        for typeName in ["CharRange", "IntRange", "LongRange", "UIntRange", "ULongRange"] {
+            for member in ["random", "randomOrNull"] {
+                let fq = ["kotlin", "ranges", typeName, member].map { interner.intern($0) }
+                for symbol in sema.symbols.lookupAll(fqName: fq) {
+                    #expect(
+                        sema.symbols.externalLinkName(for: symbol) == nil,
+                        "\(typeName).\(member) must be source-backed"
+                    )
+                }
             }
         }
     }

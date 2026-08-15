@@ -128,6 +128,36 @@ struct DurationSyntheticStubTests {
     }
 
     @Test
+    func testDurationNominalReusePreservesValueClassMetadata() throws {
+        let (sema, interner) = try sharedSema()
+        let durationSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("time"),
+            interner.intern("Duration"),
+        ]))
+
+        #expect(sema.symbols.symbol(durationSymbol)?.declSite != nil)
+        #expect(sema.symbols.symbol(durationSymbol)?.flags.contains(.synthetic) == false)
+        #expect(sema.symbols.symbol(durationSymbol)?.flags.contains(.valueType) == true)
+        #expect(sema.symbols.valueClassUnderlyingType(for: durationSymbol) == sema.types.longType)
+    }
+
+    @Test
+    func testUnrelatedReusableSyntheticNominalKeepsGoldenIdentity() throws {
+        let (sema, interner) = try sharedSema()
+        let closedRangeSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern("ClosedRange"),
+        ]))
+
+        // Golden semantic dumps must continue to include the compatibility shell
+        // instead of filtering it as a bundled source declaration.
+        #expect(sema.symbols.symbol(closedRangeSymbol)?.declSite == nil)
+        #expect(sema.symbols.symbol(closedRangeSymbol)?.flags.contains(.synthetic) == false)
+    }
+
+    @Test
     func testDurationSourceOperatorsDoNotPoisonLambdaArithmeticFallback() throws {
         let source = """
         fun main() {
@@ -288,26 +318,27 @@ struct DurationSyntheticStubTests {
         )))
 
         let toDurationFQName = ["kotlin", "time", "toDuration"].map { interner.intern($0) }
-        let expected: [(receiver: TypeID, link: String)] = [
-            (sema.types.intType, "kk_duration_toDuration_int"),
-            (sema.types.longType, "kk_duration_toDuration_long"),
-            (sema.types.doubleType, "kk_duration_toDuration_double"),
+        let expected: [TypeID] = [
+            sema.types.intType,
+            sema.types.longType,
+            sema.types.doubleType,
         ]
 
-        for overload in expected {
+        for receiverType in expected {
             let symbol = try #require(sema.symbols.lookupAll(fqName: toDurationFQName).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
-                return signature.receiverType == overload.receiver
+                return signature.receiverType == receiverType
                     && signature.parameterTypes == [durationUnitType]
                     && signature.returnType == durationType
             })
             #expect(sema.symbols.symbol(symbol)?.kind == .function)
-            #expect(sema.symbols.externalLinkName(for: symbol) == overload.link)
+            #expect(sema.symbols.symbol(symbol)?.declSite != nil, "Numeric toDuration overload should be Kotlin source")
+            #expect(sema.symbols.externalLinkName(for: symbol) == nil)
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(signature.valueParameterSymbols.count == 1)
-            #expect(sema.symbols.propertyType(for: signature.valueParameterSymbols[0]) == durationUnitType)
+            #expect(signature.parameterTypes == [durationUnitType])
         }
     }
 }

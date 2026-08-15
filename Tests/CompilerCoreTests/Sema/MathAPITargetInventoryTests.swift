@@ -97,6 +97,16 @@ struct MathAPITargetInventoryTests {
         "fun min(ULong, ULong): ULong",
         "fun sign(Double): Double",
         "fun sign(Float): Float",
+        "val Double.ulp: Double",
+        "val Float.ulp: Float",
+        "fun Double.nextDown(): Double",
+        "fun Float.nextDown(): Float",
+        "fun Double.nextUp(): Double",
+        "fun Float.nextUp(): Float",
+        "fun Double.roundToInt(): Int",
+        "fun Float.roundToInt(): Int",
+        "fun Double.roundToLong(): Long",
+        "fun Float.roundToLong(): Long",
         "fun ceil(Double): Double",
         "fun ceil(Float): Float",
         "fun floor(Double): Double",
@@ -113,16 +123,10 @@ struct MathAPITargetInventoryTests {
 
     private static let implementedLinksBySignature: [String: String] = {
         var result: [String: String] = [
-            "val Double.ulp: Double": "kk_double_ulp",
-            "val Float.ulp: Float": "kk_float_ulp",
             "fun Double.IEEErem(Double): Double": "kk_math_IEEErem",
             "fun Float.IEEErem(Float): Float": "kk_math_IEEErem_float",
-            "fun Double.nextDown(): Double": "kk_double_nextDown",
-            "fun Float.nextDown(): Float": "kk_float_nextDown",
             "fun Double.nextTowards(Double): Double": "kk_math_nextTowards",
             "fun Float.nextTowards(Float): Float": "kk_math_nextTowards_float",
-            "fun Double.nextUp(): Double": "kk_double_nextUp",
-            "fun Float.nextUp(): Float": "kk_float_nextUp",
             "fun Double.pow(Double): Double": "kk_math_pow",
             "fun Float.pow(Float): Float": "kk_math_pow_float",
             "fun Double.pow(Int): Double": "kk_math_pow_int",
@@ -131,10 +135,6 @@ struct MathAPITargetInventoryTests {
             "fun expm1(Float): Float": "kk_math_expm1_float",
             "fun ln1p(Double): Double": "kk_math_ln1p",
             "fun ln1p(Float): Float": "kk_math_ln1p_float",
-            "fun Double.roundToInt(): Int": "kk_double_roundToInt",
-            "fun Float.roundToInt(): Int": "kk_float_roundToInt",
-            "fun Double.roundToLong(): Long": "kk_double_roundToLong",
-            "fun Float.roundToLong(): Long": "kk_float_roundToLong",
         ]
         for (name, doubleLink, floatLink) in unaryFloatingLinks([
             ("acos", "kk_math_acos", "kk_math_acos_float"),
@@ -305,6 +305,7 @@ struct MathAPITargetInventoryTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

@@ -1,79 +1,3 @@
-private let arrayHOFBridgeNames = [
-    "kk_array_all",
-    "kk_array_count",
-    "kk_array_find",
-    "kk_array_findLast",
-    "kk_array_flatMap",
-    "kk_array_mapNotNull",
-    "kk_array_reduce",
-    "kk_array_reduceIndexed",
-    "kk_array_reduceOrNull",
-    // Array HOF gap fix: mapIndexed/filterIndexed/filterNot/first(predicate)/
-    // last(predicate) share the same (arrayRaw, fnPtr, closureRaw, outThrown)
-    // shape as the entries above.
-    "kk_array_mapIndexed",
-    "kk_array_filterIndexed",
-    "kk_array_filterNot",
-    "kk_array_first_predicate",
-    "kk_array_last_predicate",
-]
-
-private let arrayHOFBridgeFunctions = arrayHOFBridgeNames.map {
-    bridgeSpec(
-        $0,
-        section: "Collection",
-        typedParams: [
-            ("arrayRaw", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    )
-}
-
-private let arrayFoldBridgeFunctions = [
-    "kk_array_fold",
-    "kk_array_foldIndexed",
-].map {
-    bridgeSpec(
-        $0,
-        section: "Collection",
-        typedParams: [
-            ("arrayRaw", .intptr),
-            ("initial", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    )
-}
-
-// Array HOF gap fix: filterNotNull()/firstOrNull()/lastOrNull() take only the
-// array handle (no lambda, never throw).
-private let arrayNoLambdaNonThrowingBridgeFunctions = [
-    "kk_array_filterNotNull",
-    "kk_array_firstOrNull",
-    "kk_array_lastOrNull",
-].map {
-    bridgeSpec($0, section: "Collection", params: ["arrayRaw"], isThrowing: false)
-}
-
-// Array HOF gap fix: first()/last() take only the array handle but can throw
-// NoSuchElementException when the array is empty.
-private let arrayNoLambdaThrowingBridgeFunctions = [
-    "kk_array_first",
-    "kk_array_last",
-].map {
-    bridgeSpec(
-        $0,
-        section: "Collection",
-        typedParams: [
-            ("arrayRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    )
-}
-
 private let arraySpecialBridgeFunctions: [RuntimeABIFunctionSpec] = [
     RuntimeABIFunctionSpec(
         name: "kk_bits_to_double",
@@ -122,7 +46,7 @@ private let minMaxFloatDoubleBridgeFunctions: [RuntimeABIFunctionSpec] =
     }
 
 private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_flow_stopped", section: "Coroutine"),
+    bridgeSpec("__kk_flow_stopped", section: "Coroutine"),
     bridgeSpec("kk_supervisor_scope_new", section: "Coroutine"),
 ]
 
@@ -147,11 +71,7 @@ private let sequenceOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
 
 public extension RuntimeABISpec {
     static let runtimeOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
-        arrayHOFBridgeFunctions
-        + arrayFoldBridgeFunctions
-        + arrayNoLambdaNonThrowingBridgeFunctions
-        + arrayNoLambdaThrowingBridgeFunctions
-        + arraySpecialBridgeFunctions
+        arraySpecialBridgeFunctions
         + numericOnlyBridgeFunctions
         + minMaxFloatDoubleBridgeFunctions
         + coroutineOnlyBridgeFunctions
