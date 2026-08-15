@@ -51,9 +51,6 @@ struct ListLookupNames {
     let kkIndexingIterableNextName: InternedString
     let kkListOnEachName: InternedString
     let kkListOnEachIndexedName: InternedString
-    let kkListSumOfName: InternedString
-    let kkListSumByName: InternedString
-    let kkListSumByDoubleName: InternedString
     let kkListMaxOrNullName: InternedString
     let kkListMinOrNullName: InternedString
     let kkListMaxByName: InternedString
@@ -73,18 +70,9 @@ struct ListLookupNames {
     let kkListMaxOfWithOrNullName: InternedString
     let kkListMinOfWithName: InternedString
     let kkListMinOfWithOrNullName: InternedString
-    let kkListSumName: InternedString
-    let kkListReversedName: InternedString
-    let kkListAsReversedName: InternedString
     let kkListSortedName: InternedString
-    let kkListDistinctName: InternedString
-    let kkListDistinctByName: InternedString
     let kkListShuffledName: InternedString
     let kkListShuffledRandomName: InternedString
-    let kkListPlusElementName: InternedString
-    let kkListPlusCollectionName: InternedString
-    let kkListMinusElementName: InternedString
-    let kkListMinusCollectionName: InternedString
     let kkListChunkedBridgeName: InternedString
     let kkListChunkedTransformBridgeName: InternedString
     let kkListWindowedBridgeName: InternedString
@@ -144,9 +132,6 @@ struct ListLookupNames {
         kkIndexingIterableNextName = interner.intern("kk_indexing_iterable_next")
         kkListOnEachName = .invalid
         kkListOnEachIndexedName = .invalid
-        kkListSumOfName = interner.intern("kk_list_sumOf")
-        kkListSumByName = interner.intern("kk_list_sumBy")
-        kkListSumByDoubleName = interner.intern("kk_list_sumByDouble")
         kkListMaxOrNullName = interner.intern("kk_list_maxOrNull")
         kkListMinOrNullName = interner.intern("kk_list_minOrNull")
         kkListMaxByName = interner.intern("kk_list_maxBy")
@@ -166,18 +151,9 @@ struct ListLookupNames {
         kkListMaxOfWithOrNullName = interner.intern("kk_list_maxOfWithOrNull")
         kkListMinOfWithName = interner.intern("kk_list_minOfWith")
         kkListMinOfWithOrNullName = interner.intern("kk_list_minOfWithOrNull")
-        kkListSumName = interner.intern("kk_list_sum")
-        kkListReversedName = interner.intern("kk_list_reversed")
-        kkListAsReversedName = interner.intern("kk_list_as_reversed")
         kkListSortedName = interner.intern("kk_list_sorted")
-        kkListDistinctName = interner.intern("kk_list_distinct")
-        kkListDistinctByName = interner.intern("kk_list_distinctBy")
         kkListShuffledName = interner.intern("kk_list_shuffled")
         kkListShuffledRandomName = interner.intern("kk_list_shuffled_random")
-        kkListPlusElementName = interner.intern("kk_list_plus_element")
-        kkListPlusCollectionName = interner.intern("kk_list_plus_collection")
-        kkListMinusElementName = interner.intern("kk_list_minus_element")
-        kkListMinusCollectionName = interner.intern("kk_list_minus_collection")
         kkListChunkedBridgeName = interner.intern("__kk_list_chunked")
         kkListChunkedTransformBridgeName = interner.intern("__kk_list_chunked_transform")
         kkListWindowedBridgeName = interner.intern("__kk_list_windowed")

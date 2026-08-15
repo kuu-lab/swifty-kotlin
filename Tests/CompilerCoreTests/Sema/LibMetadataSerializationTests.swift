@@ -16,6 +16,7 @@ struct LibMetadataSerializationTests {
             isSuspend: false,
             isInline: true,
             typeSignature: "F1<I,I>",
+            valueParameterAllowsNonLocalReturn: [false],
             externalLinkName: "_ext_id"
         )
         let encoder = MetadataEncoder()
@@ -32,6 +33,7 @@ struct LibMetadataSerializationTests {
         #expect(r.isSuspend == false)
         #expect(r.isInline == true)
         #expect(r.typeSignature == "F1<I,I>")
+        #expect(r.valueParameterAllowsNonLocalReturn == [false])
         #expect(r.externalLinkName == "_ext_id")
     }
 

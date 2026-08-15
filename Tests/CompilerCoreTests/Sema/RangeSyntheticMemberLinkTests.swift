@@ -8,6 +8,7 @@ struct RangeSyntheticMemberLinkTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -131,14 +132,6 @@ struct RangeSyntheticMemberLinkTests {
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try sharedSema()
 
-        let expected: [(owner: String, link: String)] = [
-            ("IntRange", "kk_range_random"),
-            ("LongRange", "kk_long_range_random"),
-            ("CharRange", "kk_range_random"),
-            ("UIntRange", "kk_uint_range_random"),
-            ("ULongRange", "kk_ulong_range_random"),
-        ]
-
         let orNullExpected: [(owner: String, link: String)] = [
             // IntRange.firstOrNull is source-backed now; no runtime link.
             ("LongRange", "kk_long_range_firstOrNull"),
@@ -172,16 +165,16 @@ struct RangeSyntheticMemberLinkTests {
             )
         }
 
-        for expectation in expected {
-            #expect(
-                externalLink(
-                    for: expectation.owner,
-                    member: "random",
-                    sema: sema,
-                    interner: interner
-                ) == expectation.link,
-                Comment(rawValue: "\(expectation.owner).random should link to \(expectation.link)")
-            )
+        for owner in ["IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange"] {
+            for member in ["random", "randomOrNull"] {
+                let fq = ["kotlin", "ranges", owner, member].map { interner.intern($0) }
+                for symbol in sema.symbols.lookupAll(fqName: fq) {
+                    #expect(
+                        sema.symbols.externalLinkName(for: symbol) == nil,
+                        Comment(rawValue: "\(owner).\(member) must be source-backed")
+                    )
+                }
+            }
         }
     }
 
@@ -192,7 +185,7 @@ struct RangeSyntheticMemberLinkTests {
 
             fun probe(range: IntRange): Int = range.random()
             """,
-            expectedLink: "kk_range_random",
+            expectedLink: nil,
             expectedTypeName: "Int"
         )
         try assertRandomCallLink(
@@ -201,7 +194,7 @@ struct RangeSyntheticMemberLinkTests {
 
             fun probe(range: LongRange): Long = range.random()
             """,
-            expectedLink: "kk_long_range_random",
+            expectedLink: nil,
             expectedTypeName: "Long"
         )
         try assertRandomCallLink(
@@ -210,7 +203,7 @@ struct RangeSyntheticMemberLinkTests {
 
             fun probe(range: CharRange): Char = range.random()
             """,
-            expectedLink: "kk_range_random",
+            expectedLink: nil,
             expectedTypeName: "Char"
         )
         try assertRandomCallLink(
@@ -219,7 +212,7 @@ struct RangeSyntheticMemberLinkTests {
 
             fun probe(range: UIntRange): UInt = range.random()
             """,
-            expectedLink: "kk_uint_range_random",
+            expectedLink: nil,
             expectedTypeName: "UInt"
         )
         try assertRandomCallLink(
@@ -228,14 +221,14 @@ struct RangeSyntheticMemberLinkTests {
 
             fun probe(range: ULongRange): ULong = range.random()
             """,
-            expectedLink: "kk_ulong_range_random",
+            expectedLink: nil,
             expectedTypeName: "ULong"
         )
     }
 
     private func assertRandomCallLink(
         source: String,
-        expectedLink: String,
+        expectedLink: String?,
         expectedTypeName: String
     ) throws {
         try withTemporaryFile(contents: source) { path in

@@ -552,6 +552,7 @@ extension DataFlowSemaPhase {
         let isOperator: Bool
         let isOverride: Bool
         let valueParameterIsVararg: [Bool]
+        let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         let canThrow: Bool
         let valueParameterNames: [String]
@@ -609,6 +610,7 @@ extension DataFlowSemaPhase {
             isOperator: Bool = false,
             isOverride: Bool = false,
             valueParameterIsVararg: [Bool] = [],
+            valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
@@ -660,6 +662,7 @@ extension DataFlowSemaPhase {
             self.isOperator = isOperator
             self.isOverride = isOverride
             self.valueParameterIsVararg = valueParameterIsVararg
+            self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames

@@ -340,7 +340,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -635,7 +635,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -2642,17 +2642,6 @@ public func kk_sequence_findLast(
     return hasMatch ? found : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_sequence_asIterable")
-public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
-    // Sequence is already an Iterable, so return the same handle
-    return seqRaw
-}
-
-@_cdecl("kk_sequence_asSequence")
-public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
-    return seqRaw
-}
-
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     var found = false
@@ -3012,13 +3001,18 @@ public func kk_sequence_elementAtOrElse(
 @_cdecl("kk_sequence_sum")
 public func kk_sequence_sum(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_sum(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    var total = 0
+    for element in elements { total &+= maybeUnbox(element) }
+    return total
 }
 
 @_cdecl("kk_sequence_average")
 public func kk_sequence_average(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_average(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    guard !elements.isEmpty else { return kk_double_to_bits(Double.nan) }
+    var total = 0.0
+    for element in elements { total += Double(maybeUnbox(element)) }
+    return kk_double_to_bits(total / Double(elements.count))
 }
 
 @_cdecl("kk_sequence_toMutableList")

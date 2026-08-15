@@ -12,10 +12,9 @@ package kotlin.random
 // overloads) live as real members on Random itself (Random.kt) rather than as
 // package-level extensions here — see the comment above their declaration.
 //
-// Range-argument overloads (nextUInt(UIntRange) / nextULong(ULongRange)) are
-// intentionally NOT ported here: they remain native kk_random_nextUInt_uintRange /
-// kk_random_nextULong_ulongRange bridges pending KSP-457 (range-random Kotlin
-// migration), the same way nextInt(IntRange)/nextLong(LongRange) are deferred there.
+// Range-argument overloads (nextUInt(UIntRange) / nextULong(ULongRange) live as
+// source-backed members on Random.kt. Their retained runtime engines are
+// private __kk_random_* bridges, matching nextInt(IntRange)/nextLong(LongRange).
 
 public fun Random.nextUBytes(array: UByteArray): UByteArray {
     nextBytes(array.asByteArray())

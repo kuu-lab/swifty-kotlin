@@ -70,6 +70,12 @@ extension CallTypeChecker {
 
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        markCoroutineScopeImplicitReceiverCallIfNeeded(
+            id,
+            chosenCallee: chosen,
+            receiverType: receiverType,
+            ctx: ctx
+        )
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }
@@ -139,6 +145,12 @@ extension CallTypeChecker {
 
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        markCoroutineScopeImplicitReceiverCallIfNeeded(
+            id,
+            chosenCallee: chosen,
+            receiverType: implicitReceiverType,
+            ctx: ctx
+        )
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }

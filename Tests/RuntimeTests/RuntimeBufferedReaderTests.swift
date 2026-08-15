@@ -57,14 +57,14 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
 
         #expect(thrown == 0)
         #expect(readerRaw != 0)
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "alpha")
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "beta")
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "gamma")
-        #expect(kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "alpha")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "beta")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "gamma")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
     }
 
     @Test func testBufferedReaderEmptyFileIsImmediateEOF() throws {
@@ -73,12 +73,12 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
 
         #expect(thrown == 0)
         #expect(readerRaw != 0)
-        #expect(kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
-        let linesRaw = kk_buffered_reader_readLines(readerRaw)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        let linesRaw = __kk_buffered_reader_readLines(readerRaw)
         #expect(runtimeListBox(from: linesRaw)?.elements.count == 0)
     }
 
@@ -90,11 +90,11 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
-        let iterRaw = kk_buffered_reader_iterator(readerRaw)
+        let iterRaw = __kk_buffered_reader_iterator(readerRaw)
         #expect(iterRaw != 0)
         #expect(runtimeListIteratorBox(from: iterRaw) != nil)
 
@@ -113,10 +113,10 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        let iterRaw = kk_buffered_reader_iterator(readerRaw)
+        let iterRaw = __kk_buffered_reader_iterator(readerRaw)
         #expect(iterRaw != 0)
         #expect(kk_iterator_hasNext(iterRaw) == 0)
     }
@@ -129,11 +129,11 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
+        let textRaw = __kk_reader_readText(readerRaw)
         #expect(readString(textRaw) == "alpha\nbeta\ngamma")
     }
 
@@ -143,11 +143,11 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "alpha")
-        let textRaw = kk_reader_readText(readerRaw)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "alpha")
+        let textRaw = __kk_reader_readText(readerRaw)
         #expect(readString(textRaw) == "beta\ngamma")
     }
 
@@ -157,10 +157,10 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
+        let textRaw = __kk_reader_readText(readerRaw)
         #expect(readString(textRaw) == "")
     }
 
@@ -170,11 +170,11 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
-        #expect(kk_buffered_reader_close(readerRaw) == 0)
+        #expect(__kk_buffered_reader_close(readerRaw) == 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
+        let textRaw = __kk_reader_readText(readerRaw)
         #expect(readString(textRaw) == "")
     }
 
@@ -184,10 +184,10 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
+        let textRaw = __kk_reader_readText(readerRaw)
         #expect(readString(textRaw) == "α\nβ\nγ")
     }
 
@@ -197,11 +197,11 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
-        #expect(kk_buffered_reader_close(readerRaw) == 0)
+        #expect(__kk_buffered_reader_close(readerRaw) == 0)
 
-        let iterRaw = kk_buffered_reader_iterator(readerRaw)
+        let iterRaw = __kk_buffered_reader_iterator(readerRaw)
         #expect(iterRaw != 0)
         #expect(kk_iterator_hasNext(iterRaw) == 0)
     }
@@ -212,13 +212,13 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
 
         #expect(thrown == 0)
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "first")
-        #expect(kk_buffered_reader_close(readerRaw) == 0)
-        #expect(kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
-        let linesRaw = kk_buffered_reader_readLines(readerRaw)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "first")
+        #expect(__kk_buffered_reader_close(readerRaw) == 0)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        let linesRaw = __kk_buffered_reader_readLines(readerRaw)
         #expect(runtimeListBox(from: linesRaw)?.elements.count == 0)
     }
 
@@ -230,7 +230,7 @@ struct RuntimeBufferedReaderTests {
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
 
         #expect(thrown != 0)
         #expect(readerRaw == 0)
@@ -247,9 +247,9 @@ struct RuntimeBufferedReaderTests {
 
         #expect(thrown == 0)
         #expect(readerRaw != 0)
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "path-alpha")
-        #expect(readString(kk_buffered_reader_readLine(readerRaw)) == "path-beta")
-        #expect(kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "path-alpha")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "path-beta")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
     }
 
     @Test func testPathBufferedReaderOpenFailureReturnsNoReaderObject() {
@@ -275,11 +275,11 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
-        let result = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
+        let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
         #expect(thrown == 0)
         #expect(kk_unbox_int(result) == 3)
     }
@@ -290,10 +290,10 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        let result = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
+        let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
         #expect(thrown == 0)
         #expect(kk_unbox_int(result) == 0)
     }
@@ -304,10 +304,10 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        let result = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesAlwaysThrows), 0, &thrown)
+        let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesAlwaysThrows), 0, &thrown)
         #expect(result == 0)
         #expect(thrown != 0, "block exception should surface via outThrown")
     }
@@ -318,15 +318,15 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        _ = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
+        _ = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
         #expect(thrown == 0)
 
         // After useLines returns, the reader is closed and yields no further lines
         // (mirrors the JVM `use { }` contract on the underlying Reader).
-        #expect(kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
     }
 
     // MARK: - STDLIB-IO-FN-017: BufferedReader.forEachLine
@@ -338,11 +338,11 @@ struct RuntimeBufferedReaderTests {
         forEachLineCollectedLines = []
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
-        _ = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
+        _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
         #expect(thrown == 0)
         #expect(forEachLineCollectedLines == ["alpha", "beta", "gamma"])
     }
@@ -354,10 +354,10 @@ struct RuntimeBufferedReaderTests {
         forEachLineCollectedLines = []
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        _ = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
+        _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
         #expect(thrown == 0)
         #expect(forEachLineCollectedLines == [], "action should not be called for an empty file")
     }
@@ -368,10 +368,10 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
-        let result = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineAlwaysThrows), 0, &thrown)
+        let result = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineAlwaysThrows), 0, &thrown)
         #expect(result == 0)
         #expect(thrown != 0, "action exception should surface via outThrown")
     }
@@ -382,18 +382,18 @@ struct RuntimeBufferedReaderTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = __kk_file_bufferedReader(fileRaw, &thrown)
         #expect(thrown == 0)
 
         forEachLineCollectedLines = []
-        _ = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
+        _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
         #expect(thrown == 0)
         #expect(forEachLineCollectedLines == ["first", "second"])
 
         // After forEachLine returns, the reader is still open. All lines have been
         // consumed, so the next readLine returns null sentinel — but the reader handle
         // itself is still valid (not released). This differs from useLines.
-        #expect(kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt,
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt,
                 "all lines already consumed; reader still open but at EOF")
     }
 
@@ -409,7 +409,7 @@ struct RuntimeBufferedReaderTests {
             let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
             return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
         }
-        return kk_file_new(stringRaw)
+        return __kk_file_new(stringRaw)
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {

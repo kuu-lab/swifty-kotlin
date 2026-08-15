@@ -1,7 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-003): `fun CoroutineScope.produce(...)`-style user
-// extension functions are not resolved as an implicit receiver inside
-// runBlocking/launch/async bodies — builder lambdas do not yet carry
-// CoroutineScope as their receiver type (see docs/diff-skip-inventory.md).
+// Regression coverage for implicit CoroutineScope extension resolution and the
+// receiver-aware ABI of a produce builder lambda.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 

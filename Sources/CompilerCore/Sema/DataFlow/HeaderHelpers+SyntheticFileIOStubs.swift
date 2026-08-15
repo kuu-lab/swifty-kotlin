@@ -1,13 +1,16 @@
 /// Synthetic stubs for java.io.File type.
 ///
 /// Covers:
-/// - STDLIB-320: `File(String)` constructor, `readText`, `writeText`, `readLines`
+/// - STDLIB-320: `File(String)` constructor, `readText`, and `writeText`
 /// - STDLIB-664: `appendText(text: String)` member function
 /// - STDLIB-321: `name`, `path` properties; `exists()`, `isFile()`, `isDirectory()` query methods
-/// - STDLIB-322: `forEachLine(action:)` member function
+/// - STDLIB-322: buffered-reader `forEachLine(action:)` member function
 /// - STDLIB-323: `delete()`, `mkdirs()`, `listFiles()`, `walk()` filesystem operations
 /// - STDLIB-664: `appendText(text: String)` member function
 /// - STDLIB-567: `bufferedReader()` returning `BufferedReader` with `readLine()`, `readLines()`, `close()`
+///
+/// `File.readLines`, `File.forEachLine`, and `File.useLines` are bundled Kotlin
+/// source APIs; only their underlying file-content bridge remains synthetic.
 ///
 /// Each stub registers the java.io.File class, its constructor, member properties,
 /// and member functions in the symbol table so that name resolution and type
@@ -61,7 +64,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinIOPkg,
             parameters: [],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempDir_default",
+            externalLinkName: "__kk_io_createTempDir_default",
             annotations: deprecatedCreateTempDirAnnotations,
             symbols: symbols,
             interner: interner
@@ -71,7 +74,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinIOPkg,
             parameters: [(name: "prefix", type: types.stringType)],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempDir_prefix",
+            externalLinkName: "__kk_io_createTempDir_prefix",
             annotations: deprecatedCreateTempDirAnnotations,
             symbols: symbols,
             interner: interner
@@ -84,7 +87,7 @@ extension DataFlowSemaPhase {
                 (name: "suffix", type: types.makeNullable(types.stringType)),
             ],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempDir_prefix_suffix",
+            externalLinkName: "__kk_io_createTempDir_prefix_suffix",
             annotations: deprecatedCreateTempDirAnnotations,
             symbols: symbols,
             interner: interner
@@ -98,7 +101,7 @@ extension DataFlowSemaPhase {
                 (name: "directory", type: types.makeNullable(fileType)),
             ],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempDir",
+            externalLinkName: "__kk_io_createTempDir",
             annotations: deprecatedCreateTempDirAnnotations,
             symbols: symbols,
             interner: interner
@@ -108,7 +111,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinIOPkg,
             parameters: [],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempFile_default",
+            externalLinkName: "__kk_io_createTempFile_default",
             annotations: deprecatedCreateTempFileAnnotations,
             symbols: symbols,
             interner: interner
@@ -118,7 +121,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinIOPkg,
             parameters: [(name: "prefix", type: types.stringType)],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempFile_prefix",
+            externalLinkName: "__kk_io_createTempFile_prefix",
             annotations: deprecatedCreateTempFileAnnotations,
             symbols: symbols,
             interner: interner
@@ -131,7 +134,7 @@ extension DataFlowSemaPhase {
                 (name: "suffix", type: types.makeNullable(types.stringType)),
             ],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempFile_prefix_suffix",
+            externalLinkName: "__kk_io_createTempFile_prefix_suffix",
             annotations: deprecatedCreateTempFileAnnotations,
             symbols: symbols,
             interner: interner
@@ -145,7 +148,7 @@ extension DataFlowSemaPhase {
                 (name: "directory", type: types.makeNullable(fileType)),
             ],
             returnType: fileType,
-            externalLinkName: "kk_io_createTempFile",
+            externalLinkName: "__kk_io_createTempFile",
             annotations: deprecatedCreateTempFileAnnotations,
             symbols: symbols,
             interner: interner
@@ -155,7 +158,7 @@ extension DataFlowSemaPhase {
         registerSyntheticConstructor(
             ownerSymbol: fileSymbol,
             ownerType: fileType,
-            externalLinkName: "kk_file_new",
+            externalLinkName: "__kk_file_new",
             parameters: [(name: "path", type: types.stringType)],
             symbols: symbols,
             interner: interner
@@ -166,7 +169,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             name: "readText",
-            externalLinkName: "kk_file_readText",
+            externalLinkName: "__kk_file_readText",
             returnType: types.stringType,
             parameters: [],
             symbols: symbols,
@@ -178,7 +181,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             name: "writeText",
-            externalLinkName: "kk_file_writeText",
+            externalLinkName: "__kk_file_writeText",
             returnType: types.unitType,
             parameters: [(name: "text", type: types.stringType)],
             symbols: symbols,
@@ -190,29 +193,13 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             name: "appendText",
-            externalLinkName: "kk_file_appendText",
+            externalLinkName: "__kk_file_appendText",
             returnType: types.unitType,
             parameters: [(name: "text", type: types.stringType)],
             symbols: symbols,
             interner: interner
         )
 
-        // readLines(): List<String>
-        let listOfStringType = makeFileListOfStringType(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticSystemMember(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            name: "readLines",
-            externalLinkName: "kk_file_readLines",
-            returnType: listOfStringType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     private func makeFileListOfStringType(
@@ -358,7 +345,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("path", types.stringType)],
-            externalLinkName: "kk_file_new",
+            externalLinkName: "__kk_file_new",
             symbols: symbols,
             interner: interner
         )
@@ -369,7 +356,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("parent", types.stringType), ("child", types.stringType)],
-            externalLinkName: "kk_file_new_parent_child",
+            externalLinkName: "__kk_file_new_parent_child",
             symbols: symbols,
             interner: interner
         )
@@ -390,7 +377,7 @@ extension DataFlowSemaPhase {
         // below read `path` through this member instead of a bridge.
         registerFileMemberProperty(
             named: "path",
-            externalLinkName: "kk_file_path",
+            externalLinkName: "__kk_file_path",
             ownerSymbol: fileSymbol,
             returnType: types.stringType,
             symbols: symbols,
@@ -401,7 +388,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberProperty(
             named: "absolutePath",
-            externalLinkName: "kk_file_absolutePath",
+            externalLinkName: "__kk_file_absolutePath",
             ownerSymbol: fileSymbol,
             returnType: types.stringType,
             symbols: symbols,
@@ -409,7 +396,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberProperty(
             named: "canonicalPath",
-            externalLinkName: "kk_file_canonicalPath",
+            externalLinkName: "__kk_file_canonicalPath",
             ownerSymbol: fileSymbol,
             returnType: types.stringType,
             symbols: symbols,
@@ -425,7 +412,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "exists",
-            externalLinkName: "kk_file_exists",
+            externalLinkName: "__kk_file_exists",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -435,7 +422,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "isFile",
-            externalLinkName: "kk_file_isFile",
+            externalLinkName: "__kk_file_isFile",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -445,7 +432,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "isDirectory",
-            externalLinkName: "kk_file_isDirectory",
+            externalLinkName: "__kk_file_isDirectory",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -458,7 +445,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "createNewFile",
-            externalLinkName: "kk_file_createNewFile",
+            externalLinkName: "__kk_file_createNewFile",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -468,7 +455,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "length",
-            externalLinkName: "kk_file_length",
+            externalLinkName: "__kk_file_length",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -478,7 +465,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "lastModified",
-            externalLinkName: "kk_file_lastModified",
+            externalLinkName: "__kk_file_lastModified",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -488,7 +475,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "canRead",
-            externalLinkName: "kk_file_canRead",
+            externalLinkName: "__kk_file_canRead",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -498,7 +485,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "canWrite",
-            externalLinkName: "kk_file_canWrite",
+            externalLinkName: "__kk_file_canWrite",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -508,7 +495,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "canExecute",
-            externalLinkName: "kk_file_canExecute",
+            externalLinkName: "__kk_file_canExecute",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -523,11 +510,12 @@ extension DataFlowSemaPhase {
         // functions derived from `path`. Direct compat stubs removed.
 
         // MARK: - File read/write methods (STDLIB-320)
-        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
+        // KSP-484 keeps line iteration in bundled Kotlin source; these methods
+        // remain synthetic OS bridges used by that source and public byte/text APIs.
 
         registerFileMemberFunction(
             named: "readText",
-            externalLinkName: "kk_file_readText",
+            externalLinkName: "__kk_file_readText",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -537,7 +525,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "writeText",
-            externalLinkName: "kk_file_writeText",
+            externalLinkName: "__kk_file_writeText",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("text", types.stringType)],
@@ -547,11 +535,10 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - File.appendText() (STDLIB-664)
-        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
 
         registerFileMemberFunction(
             named: "appendText",
-            externalLinkName: "kk_file_appendText",
+            externalLinkName: "__kk_file_appendText",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("text", types.stringType)],
@@ -559,19 +546,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerFileMemberFunction(
-            named: "readLines",
-            externalLinkName: "kk_file_readLines",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: listOfStringType,
-            symbols: symbols,
-            interner: interner
-        )
-
         // MARK: - File.readBytes() (STDLIB-665)
-        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
 
         // ByteArray is represented as List<Int> in the runtime
         let intType = types.intType
@@ -586,7 +561,7 @@ extension DataFlowSemaPhase {
         }
         registerFileMemberFunction(
             named: "readBytes",
-            externalLinkName: "kk_file_readBytes",
+            externalLinkName: "__kk_file_readBytes",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -596,7 +571,6 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - File.appendBytes() (STDLIB-IO-FN-001)
-        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
         //
         // Kotlin signature: `fun File.appendBytes(array: ByteArray): Unit`
         // ByteArray is represented internally as List<Int>; we register both
@@ -615,7 +589,7 @@ extension DataFlowSemaPhase {
         for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
             registerFileMemberFunction(
                 named: "appendBytes",
-                externalLinkName: "kk_file_appendBytes",
+                externalLinkName: "__kk_file_appendBytes",
                 ownerSymbol: fileSymbol,
                 ownerType: fileType,
                 parameters: [("array", arrayParamType)],
@@ -626,14 +600,13 @@ extension DataFlowSemaPhase {
         }
 
         // MARK: - File.writeBytes() (MIGRATION-IO-001)
-        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
         //
         // Kotlin signature: `fun File.writeBytes(array: ByteArray): Unit`
 
         for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
             registerFileMemberFunction(
                 named: "writeBytes",
-                externalLinkName: "kk_file_writeBytes",
+                externalLinkName: "__kk_file_writeBytes",
                 ownerSymbol: fileSymbol,
                 ownerType: fileType,
                 parameters: [("array", arrayParamType)],
@@ -647,7 +620,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "__kk_file_readText",
-            externalLinkName: "kk_file_readText",
+            externalLinkName: "__kk_file_readText",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -657,7 +630,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "__kk_file_writeText",
-            externalLinkName: "kk_file_writeText",
+            externalLinkName: "__kk_file_writeText",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("text", types.stringType)],
@@ -667,7 +640,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "__kk_file_appendText",
-            externalLinkName: "kk_file_appendText",
+            externalLinkName: "__kk_file_appendText",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("text", types.stringType)],
@@ -677,7 +650,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "__kk_file_readBytes",
-            externalLinkName: "kk_file_readBytes",
+            externalLinkName: "__kk_file_readBytes",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -688,7 +661,7 @@ extension DataFlowSemaPhase {
         for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
             registerFileMemberFunction(
                 named: "__kk_file_appendBytes",
-                externalLinkName: "kk_file_appendBytes",
+                externalLinkName: "__kk_file_appendBytes",
                 ownerSymbol: fileSymbol,
                 ownerType: fileType,
                 parameters: [("array", arrayParamType)],
@@ -700,7 +673,7 @@ extension DataFlowSemaPhase {
         for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
             registerFileMemberFunction(
                 named: "__kk_file_writeBytes",
-                externalLinkName: "kk_file_writeBytes",
+                externalLinkName: "__kk_file_writeBytes",
                 ownerSymbol: fileSymbol,
                 ownerType: fileType,
                 parameters: [("array", arrayParamType)],
@@ -709,19 +682,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-
-        // MARK: - File line-by-line operations (STDLIB-322)
-
-        registerFileMemberFunction(
-            named: "forEachLine",
-            externalLinkName: "kk_file_forEachLine",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("action", stringToUnitType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
 
         // MARK: - File.forEachBlock(action) and File.forEachBlock(blockSize, action) (STDLIB-IO-FN-016)
         let byteArrayToIntToUnitType = types.make(.functionType(FunctionType(
@@ -732,7 +692,7 @@ extension DataFlowSemaPhase {
         )))
         registerFileMemberFunction(
             named: "forEachBlock",
-            externalLinkName: "kk_file_forEachBlock",
+            externalLinkName: "__kk_file_forEachBlock",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("action", byteArrayToIntToUnitType)],
@@ -742,7 +702,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "forEachBlock",
-            externalLinkName: "kk_file_forEachBlock_blockSize",
+            externalLinkName: "__kk_file_forEachBlock_blockSize",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("blockSize", types.intType), ("action", byteArrayToIntToUnitType)],
@@ -751,31 +711,11 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - File.useLines {} (STDLIB-566)
-
-        // (List<String>) -> T  (represented as Any for generic return)
-        let listOfStringToAnyType = types.make(.functionType(FunctionType(
-            params: [listOfStringType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerFileMemberFunction(
-            named: "useLines",
-            externalLinkName: "kk_file_useLines",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("block", listOfStringToAnyType)],
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
-
         // MARK: - File filesystem operations (STDLIB-323)
 
         registerFileMemberFunction(
             named: "delete",
-            externalLinkName: "kk_file_delete",
+            externalLinkName: "__kk_file_delete",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -785,7 +725,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "mkdirs",
-            externalLinkName: "kk_file_mkdirs",
+            externalLinkName: "__kk_file_mkdirs",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -795,7 +735,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "listFiles",
-            externalLinkName: "kk_file_listFiles",
+            externalLinkName: "__kk_file_listFiles",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -805,7 +745,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "walk",
-            externalLinkName: "kk_file_walk",
+            externalLinkName: "__kk_file_walk",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -849,7 +789,7 @@ extension DataFlowSemaPhase {
         // File.bufferedReader() -> BufferedReader
         registerFileMemberFunction(
             named: "bufferedReader",
-            externalLinkName: "kk_file_bufferedReader",
+            externalLinkName: "__kk_file_bufferedReader",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -861,7 +801,7 @@ extension DataFlowSemaPhase {
         // BufferedReader.readLine() -> String?
         registerFileMemberFunction(
             named: "readLine",
-            externalLinkName: "kk_buffered_reader_readLine",
+            externalLinkName: "__kk_buffered_reader_readLine",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [],
@@ -873,7 +813,7 @@ extension DataFlowSemaPhase {
         // BufferedReader.readLines() -> List<String>
         registerFileMemberFunction(
             named: "readLines",
-            externalLinkName: "kk_buffered_reader_readLines",
+            externalLinkName: "__kk_buffered_reader_readLines",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [],
@@ -885,7 +825,7 @@ extension DataFlowSemaPhase {
         // BufferedReader.close() -> Unit
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "kk_buffered_reader_close",
+            externalLinkName: "__kk_buffered_reader_close",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [],
@@ -914,7 +854,7 @@ extension DataFlowSemaPhase {
         // BufferedReader.read() -> Int  (STDLIB-IO-091)
         registerFileMemberFunction(
             named: "read",
-            externalLinkName: "kk_buffered_reader_read",
+            externalLinkName: "__kk_buffered_reader_read",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [],
@@ -926,7 +866,7 @@ extension DataFlowSemaPhase {
         // BufferedReader.ready() -> Boolean  (STDLIB-IO-091)
         registerFileMemberFunction(
             named: "ready",
-            externalLinkName: "kk_buffered_reader_ready",
+            externalLinkName: "__kk_buffered_reader_ready",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [],
@@ -951,7 +891,7 @@ extension DataFlowSemaPhase {
         )
         registerFileMemberFunction(
             named: "iterator",
-            externalLinkName: "kk_buffered_reader_iterator",
+            externalLinkName: "__kk_buffered_reader_iterator",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [],
@@ -991,7 +931,7 @@ extension DataFlowSemaPhase {
         )))
         registerFileMemberFunction(
             named: "useLines",
-            externalLinkName: "kk_buffered_reader_useLines",
+            externalLinkName: "__kk_buffered_reader_useLines",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [("block", listOfStringToAnyTypeBR)],
@@ -1009,7 +949,7 @@ extension DataFlowSemaPhase {
         // Unlike `useLines`, the reader is NOT automatically closed after iteration.
         registerFileMemberFunction(
             named: "forEachLine",
-            externalLinkName: "kk_buffered_reader_forEachLine",
+            externalLinkName: "__kk_buffered_reader_forEachLine",
             ownerSymbol: bufferedReaderSymbol,
             ownerType: bufferedReaderType,
             parameters: [("action", stringToUnitType)],
@@ -1059,7 +999,7 @@ extension DataFlowSemaPhase {
         // File.bufferedWriter() -> BufferedWriter
         registerFileMemberFunction(
             named: "bufferedWriter",
-            externalLinkName: "kk_file_bufferedWriter",
+            externalLinkName: "__kk_file_bufferedWriter",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -1071,7 +1011,7 @@ extension DataFlowSemaPhase {
         // BufferedWriter.write(text: String) -> Unit
         registerFileMemberFunction(
             named: "write",
-            externalLinkName: "kk_buffered_writer_write",
+            externalLinkName: "__kk_buffered_writer_write",
             ownerSymbol: bufferedWriterSymbol,
             ownerType: bufferedWriterType,
             parameters: [("text", types.stringType)],
@@ -1083,7 +1023,7 @@ extension DataFlowSemaPhase {
         // BufferedWriter.newLine() -> Unit
         registerFileMemberFunction(
             named: "newLine",
-            externalLinkName: "kk_buffered_writer_new_line",
+            externalLinkName: "__kk_buffered_writer_new_line",
             ownerSymbol: bufferedWriterSymbol,
             ownerType: bufferedWriterType,
             parameters: [],
@@ -1095,7 +1035,7 @@ extension DataFlowSemaPhase {
         // BufferedWriter.flush() -> Unit
         registerFileMemberFunction(
             named: "flush",
-            externalLinkName: "kk_buffered_writer_flush",
+            externalLinkName: "__kk_buffered_writer_flush",
             ownerSymbol: bufferedWriterSymbol,
             ownerType: bufferedWriterType,
             parameters: [],
@@ -1107,7 +1047,7 @@ extension DataFlowSemaPhase {
         // BufferedWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "kk_buffered_writer_close",
+            externalLinkName: "__kk_buffered_writer_close",
             ownerSymbol: bufferedWriterSymbol,
             ownerType: bufferedWriterType,
             parameters: [],
@@ -1211,7 +1151,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "inputStream",
-            externalLinkName: "kk_file_inputStream",
+            externalLinkName: "__kk_file_inputStream",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -1222,7 +1162,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "outputStream",
-            externalLinkName: "kk_file_outputStream",
+            externalLinkName: "__kk_file_outputStream",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -1235,7 +1175,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: sequenceInputStreamSymbol,
             ownerType: sequenceInputStreamType,
             parameters: [("first", inputStreamType), ("second", inputStreamType)],
-            externalLinkName: "kk_sequence_input_stream_new",
+            externalLinkName: "__kk_sequence_input_stream_new",
             symbols: symbols,
             interner: interner
         )
@@ -1244,7 +1184,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: byteArrayInputStreamSymbol,
             ownerType: byteArrayInputStreamType,
             parameters: [("buffer", listIntType)],
-            externalLinkName: "kk_bytearrayinputstream_new",
+            externalLinkName: "__kk_bytearrayinputstream_new",
             symbols: symbols,
             interner: interner
         )
@@ -1267,7 +1207,7 @@ extension DataFlowSemaPhase {
             )))
             registerSyntheticStringExtensionFunction(
                 named: "byteInputStream",
-                externalLinkName: "kk_string_byteInputStream_flat",
+                externalLinkName: "__kk_string_byteInputStream_flat",
                 receiverType: types.stringType,
                 parameters: [],
                 returnType: byteArrayInputStreamType,
@@ -1277,7 +1217,7 @@ extension DataFlowSemaPhase {
             )
             registerSyntheticStringExtensionFunction(
                 named: "byteInputStream",
-                externalLinkName: "kk_string_byteInputStream_charset_flat",
+                externalLinkName: "__kk_string_byteInputStream_charset_flat",
                 receiverType: types.stringType,
                 parameters: [
                     ("charset", charsetType, false, false),
@@ -1291,7 +1231,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "read",
-            externalLinkName: "kk_input_stream_read",
+            externalLinkName: "__kk_input_stream_read",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1302,7 +1242,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "available",
-            externalLinkName: "kk_input_stream_available",
+            externalLinkName: "__kk_input_stream_available",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1313,7 +1253,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "skip",
-            externalLinkName: "kk_input_stream_skip",
+            externalLinkName: "__kk_input_stream_skip",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [("count", intType)],
@@ -1324,7 +1264,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "read",
-            externalLinkName: "kk_input_stream_read_bytes",
+            externalLinkName: "__kk_input_stream_read_bytes",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [("buffer", listOfIntType)],
@@ -1347,7 +1287,7 @@ extension DataFlowSemaPhase {
         // resolve the call shape; the runtime drains the stream.
         registerFileMemberFunction(
             named: "readBytes",
-            externalLinkName: "kk_input_stream_readAllBytes",
+            externalLinkName: "__kk_input_stream_readAllBytes",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1358,7 +1298,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "mark",
-            externalLinkName: "kk_input_stream_mark",
+            externalLinkName: "__kk_input_stream_mark",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [("readLimit", intType)],
@@ -1369,7 +1309,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "reset",
-            externalLinkName: "kk_input_stream_reset",
+            externalLinkName: "__kk_input_stream_reset",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1380,7 +1320,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "markSupported",
-            externalLinkName: "kk_input_stream_mark_supported",
+            externalLinkName: "__kk_input_stream_mark_supported",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1391,7 +1331,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "kk_input_stream_close",
+            externalLinkName: "__kk_input_stream_close",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1430,7 +1370,7 @@ extension DataFlowSemaPhase {
         // runtime entry so that member dispatch resolves without a supertype walk.
         registerFileMemberFunction(
             named: "readBytes",
-            externalLinkName: "kk_input_stream_readAllBytes",
+            externalLinkName: "__kk_input_stream_readAllBytes",
             ownerSymbol: bufferedInputStreamSymbol,
             ownerType: bufferedInputStreamType,
             parameters: [],
@@ -1442,7 +1382,7 @@ extension DataFlowSemaPhase {
         // InputStream.buffered() -> BufferedInputStream (uses DEFAULT_BUFFER_SIZE = 8 * 1024)
         registerFileMemberFunction(
             named: "buffered",
-            externalLinkName: "kk_input_stream_buffered_default",
+            externalLinkName: "__kk_input_stream_buffered_default",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -1454,7 +1394,7 @@ extension DataFlowSemaPhase {
         // InputStream.buffered(bufferSize: Int) -> BufferedInputStream
         registerFileMemberFunction(
             named: "buffered",
-            externalLinkName: "kk_input_stream_buffered",
+            externalLinkName: "__kk_input_stream_buffered",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [("bufferSize", intType)],
@@ -1483,7 +1423,7 @@ extension DataFlowSemaPhase {
                 ("bufferSize", types.intType),
             ],
             returnType: types.longType,
-            externalLinkName: "kk_input_stream_copyTo",
+            externalLinkName: "__kk_input_stream_copyTo",
             valueParameterHasDefaultValues: [false, true],
             valueParameterIsVararg: [false, false],
             symbols: symbols,
@@ -1492,7 +1432,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "read",
-            externalLinkName: "kk_sequence_input_stream_read",
+            externalLinkName: "__kk_sequence_input_stream_read",
             ownerSymbol: sequenceInputStreamSymbol,
             ownerType: sequenceInputStreamType,
             parameters: [],
@@ -1503,7 +1443,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "available",
-            externalLinkName: "kk_sequence_input_stream_available",
+            externalLinkName: "__kk_sequence_input_stream_available",
             ownerSymbol: sequenceInputStreamSymbol,
             ownerType: sequenceInputStreamType,
             parameters: [],
@@ -1514,7 +1454,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "kk_sequence_input_stream_close",
+            externalLinkName: "__kk_sequence_input_stream_close",
             ownerSymbol: sequenceInputStreamSymbol,
             ownerType: sequenceInputStreamType,
             parameters: [],
@@ -1525,7 +1465,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "write",
-            externalLinkName: "kk_output_stream_write_byte",
+            externalLinkName: "__kk_output_stream_write_byte",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [("value", intType)],
@@ -1536,7 +1476,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "write",
-            externalLinkName: "kk_output_stream_write_bytes",
+            externalLinkName: "__kk_output_stream_write_bytes",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [("buffer", listOfIntType)],
@@ -1547,7 +1487,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "flush",
-            externalLinkName: "kk_output_stream_flush",
+            externalLinkName: "__kk_output_stream_flush",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [],
@@ -1558,7 +1498,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "kk_output_stream_close",
+            externalLinkName: "__kk_output_stream_close",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [],
@@ -1575,7 +1515,7 @@ extension DataFlowSemaPhase {
         // contract at the Sema surface — callers can chain `.write(...)` / `.flush()` / `.close()` etc.
         registerFileMemberFunction(
             named: "buffered",
-            externalLinkName: "kk_output_stream_buffered",
+            externalLinkName: "__kk_output_stream_buffered",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [],
@@ -1586,7 +1526,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "buffered",
-            externalLinkName: "kk_output_stream_buffered_sized",
+            externalLinkName: "__kk_output_stream_buffered_sized",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [("bufferSize", intType)],
@@ -1599,7 +1539,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "getResource",
-            externalLinkName: "kk_classloader_getResource",
+            externalLinkName: "__kk_classloader_getResource",
             ownerSymbol: classLoaderSymbol,
             ownerType: classLoaderType,
             parameters: [("name", types.stringType)],
@@ -1610,7 +1550,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "getResourceAsStream",
-            externalLinkName: "kk_classloader_getResourceAsStream",
+            externalLinkName: "__kk_classloader_getResourceAsStream",
             ownerSymbol: classLoaderSymbol,
             ownerType: classLoaderType,
             parameters: [("name", types.stringType)],
@@ -1624,7 +1564,7 @@ extension DataFlowSemaPhase {
             name: "getSystemClassLoader",
             parameters: [],
             returnType: classLoaderType,
-            externalLinkName: "kk_classloader_getSystemClassLoader",
+            externalLinkName: "__kk_classloader_getSystemClassLoader",
             symbols: symbols,
             interner: interner
         )
@@ -1634,7 +1574,7 @@ extension DataFlowSemaPhase {
             name: "resourceExists",
             parameters: [("name", types.stringType)],
             returnType: types.booleanType,
-            externalLinkName: "kk_resource_exists",
+            externalLinkName: "__kk_resource_exists",
             symbols: symbols,
             interner: interner
         )
@@ -1643,7 +1583,7 @@ extension DataFlowSemaPhase {
             name: "readResourceAsText",
             parameters: [("name", types.stringType)],
             returnType: types.stringType,
-            externalLinkName: "kk_readResourceAsText",
+            externalLinkName: "__kk_readResourceAsText",
             symbols: symbols,
             interner: interner
         )
@@ -1685,7 +1625,7 @@ extension DataFlowSemaPhase {
             receiverType: outputStreamType,
             parameters: [("charset", outputStreamCharsetType)],
             returnType: bufferedWriterType,
-            externalLinkName: "kk_output_stream_bufferedWriter",
+            externalLinkName: "__kk_output_stream_bufferedWriter",
             valueParameterHasDefaultValues: [true],
             valueParameterIsVararg: [false],
             symbols: symbols,
@@ -1717,7 +1657,7 @@ extension DataFlowSemaPhase {
         // File.printWriter() -> PrintWriter
         registerFileMemberFunction(
             named: "printWriter",
-            externalLinkName: "kk_file_printWriter",
+            externalLinkName: "__kk_file_printWriter",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
@@ -1729,7 +1669,7 @@ extension DataFlowSemaPhase {
         // PrintWriter.print(text: String) -> Unit
         registerFileMemberFunction(
             named: "print",
-            externalLinkName: "kk_print_writer_print",
+            externalLinkName: "__kk_print_writer_print",
             ownerSymbol: printWriterSymbol,
             ownerType: printWriterType,
             parameters: [("text", types.stringType)],
@@ -1741,7 +1681,7 @@ extension DataFlowSemaPhase {
         // PrintWriter.println(text: String) -> Unit
         registerFileMemberFunction(
             named: "println",
-            externalLinkName: "kk_print_writer_println",
+            externalLinkName: "__kk_print_writer_println",
             ownerSymbol: printWriterSymbol,
             ownerType: printWriterType,
             parameters: [("text", types.stringType)],
@@ -1753,7 +1693,7 @@ extension DataFlowSemaPhase {
         // PrintWriter.println() -> Unit  (no-arg overload)
         registerFileMemberFunction(
             named: "println",
-            externalLinkName: "kk_print_writer_println_no_arg",
+            externalLinkName: "__kk_print_writer_println_no_arg",
             ownerSymbol: printWriterSymbol,
             ownerType: printWriterType,
             parameters: [],
@@ -1765,7 +1705,7 @@ extension DataFlowSemaPhase {
         // PrintWriter.write(text: String) -> Unit
         registerFileMemberFunction(
             named: "write",
-            externalLinkName: "kk_print_writer_write",
+            externalLinkName: "__kk_print_writer_write",
             ownerSymbol: printWriterSymbol,
             ownerType: printWriterType,
             parameters: [("text", types.stringType)],
@@ -1777,7 +1717,7 @@ extension DataFlowSemaPhase {
         // PrintWriter.flush() -> Unit
         registerFileMemberFunction(
             named: "flush",
-            externalLinkName: "kk_print_writer_flush",
+            externalLinkName: "__kk_print_writer_flush",
             ownerSymbol: printWriterSymbol,
             ownerType: printWriterType,
             parameters: [],
@@ -1789,7 +1729,7 @@ extension DataFlowSemaPhase {
         // PrintWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "kk_print_writer_close",
+            externalLinkName: "__kk_print_writer_close",
             ownerSymbol: printWriterSymbol,
             ownerType: printWriterType,
             parameters: [],
@@ -1815,7 +1755,7 @@ extension DataFlowSemaPhase {
                 ("bufferSize", types.intType),
             ],
             returnType: fileType,
-            externalLinkName: "kk_file_copyTo",
+            externalLinkName: "__kk_file_copyTo",
             valueParameterHasDefaultValues: [false, true, true],
             valueParameterIsVararg: [false, false, false],
             symbols: symbols,
@@ -1827,7 +1767,7 @@ extension DataFlowSemaPhase {
         // Kotlin signature: `public fun Reader.readText(): String` declared in
         // the `kotlin.io` package. Reads the entire remaining content of the
         // receiver into a single `String`. Mirrors the stdlib semantics of
-        // exhausting the reader; the runtime helper `kk_reader_readText`
+        // exhausting the reader; the runtime helper `__kk_reader_readText`
         // delegates to `RuntimeBufferedReaderBox.readText()`.
         registerKotlinIOExtensionFunction(
             named: "readText",
@@ -1835,7 +1775,7 @@ extension DataFlowSemaPhase {
             receiverType: readerType,
             parameters: [],
             returnType: types.stringType,
-            externalLinkName: "kk_reader_readText",
+            externalLinkName: "__kk_reader_readText",
             symbols: symbols,
             interner: interner
         )
@@ -1863,7 +1803,7 @@ extension DataFlowSemaPhase {
                 ("bufferSize", intType),
             ],
             returnType: types.longType,
-            externalLinkName: "kk_reader_copyTo",
+            externalLinkName: "__kk_reader_copyTo",
             valueParameterHasDefaultValues: [false, false],
             valueParameterIsVararg: [false, false],
             symbols: symbols,
@@ -1879,7 +1819,7 @@ extension DataFlowSemaPhase {
             receiverType: readerType,
             parameters: [("out", writerType)],
             returnType: types.longType,
-            externalLinkName: "kk_reader_copyTo_default",
+            externalLinkName: "__kk_reader_copyTo_default",
             symbols: symbols,
             interner: interner
         )
@@ -1901,7 +1841,7 @@ extension DataFlowSemaPhase {
             // STDLIB-IO-FN-020: ByteArray.inputStream() -> ByteArrayInputStream
             registerSyntheticStringExtensionFunction(
                 named: "inputStream",
-                externalLinkName: "kk_bytearray_inputStream",
+                externalLinkName: "__kk_bytearray_inputStream",
                 receiverType: byteArrayType,
                 parameters: [],
                 returnType: byteArrayInputStreamType,
@@ -1913,7 +1853,7 @@ extension DataFlowSemaPhase {
             // STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int) -> ByteArrayInputStream
             registerSyntheticStringExtensionFunction(
                 named: "inputStream",
-                externalLinkName: "kk_bytearray_inputStream_range",
+                externalLinkName: "__kk_bytearray_inputStream_range",
                 receiverType: byteArrayType,
                 parameters: [
                     ("offset", types.intType, false, false),
@@ -1935,7 +1875,7 @@ extension DataFlowSemaPhase {
             receiverType: writerType,
             parameters: [],
             returnType: bufferedWriterType,
-            externalLinkName: "kk_writer_buffered_default",
+            externalLinkName: "__kk_writer_buffered_default",
             symbols: symbols,
             interner: interner
         )
@@ -1945,7 +1885,7 @@ extension DataFlowSemaPhase {
             receiverType: writerType,
             parameters: [("bufferSize", intType)],
             returnType: bufferedWriterType,
-            externalLinkName: "kk_writer_buffered",
+            externalLinkName: "__kk_writer_buffered",
             symbols: symbols,
             interner: interner
         )
@@ -1971,7 +1911,7 @@ extension DataFlowSemaPhase {
             receiverType: inputStreamType,
             parameters: [("charset", resolvedCharsetType)],
             returnType: bufferedReaderType,
-            externalLinkName: "kk_input_stream_bufferedReader",
+            externalLinkName: "__kk_input_stream_bufferedReader",
             valueParameterHasDefaultValues: [true],
             symbols: symbols,
             interner: interner
@@ -2002,7 +1942,7 @@ extension DataFlowSemaPhase {
                 ("overwrite", types.booleanType),
             ],
             returnType: types.booleanType,
-            externalLinkName: "kk_file_copyRecursively",
+            externalLinkName: "__kk_file_copyRecursively",
             valueParameterHasDefaultValues: [false, true],
             valueParameterIsVararg: [false, false],
             symbols: symbols,
