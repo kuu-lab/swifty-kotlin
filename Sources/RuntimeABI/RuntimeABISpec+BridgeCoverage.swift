@@ -34,7 +34,6 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
 ]
 
 private let listClosureBridgeNames = [
-    "kk_list_distinctBy",
     "kk_list_maxOf",
     "kk_list_maxWith",
     "kk_list_maxWithOrNull",
@@ -79,13 +78,7 @@ private let listComparatorBridgeFunctions = [
 private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
 private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_list_intersect", section: "Collection", params: ["listRaw", "otherRaw"],
-            isThrowing: false),
     bridgeSpec("kk_list_of_not_null", section: "Collection", params: ["arrayRaw", "count"]),
-    bridgeSpec("kk_list_subtract", section: "Collection", params: ["listRaw", "otherRaw"],
-            isThrowing: false),
-    bridgeSpec("kk_list_union", section: "Collection", params: ["listRaw", "otherRaw"],
-            isThrowing: false),
 ]
 
 private let mapBridgeFunctions = [
@@ -176,20 +169,20 @@ public extension RuntimeABISpec {
             "kk_char_toIntOrNull",
         ].map { bridgeSpec($0, section: "Char", params: ["value"]) }
         + [
-            bridgeSpec("kk_double_fromBits", section: "NumericConversion", params: ["bits"],
+            bridgeSpec("__kk_double_fromBits", section: "NumericConversion", params: ["bits"],
             isThrowing: false),
-            bridgeSpec("kk_double_toBits", section: "NumericConversion", params: ["value"],
+            bridgeSpec("__kk_double_toBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
-            bridgeSpec("kk_double_toRawBits", section: "NumericConversion", params: ["value"],
+            bridgeSpec("__kk_double_toRawBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("kk_double_to_char", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_double_to_uint", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_double_to_ulong", section: "NumericConversion", params: ["value"]),
-            bridgeSpec("kk_float_fromBits", section: "NumericConversion", params: ["bits"],
+            bridgeSpec("__kk_float_fromBits", section: "NumericConversion", params: ["bits"],
             isThrowing: false),
-            bridgeSpec("kk_float_toBits", section: "NumericConversion", params: ["value"],
+            bridgeSpec("__kk_float_toBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
-            bridgeSpec("kk_float_toRawBits", section: "NumericConversion", params: ["value"],
+            bridgeSpec("__kk_float_toRawBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("kk_float_to_char", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_float_to_double_bits", section: "NumericConversion", params: ["value"],

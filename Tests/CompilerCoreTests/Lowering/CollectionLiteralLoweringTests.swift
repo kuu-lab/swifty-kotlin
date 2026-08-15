@@ -1370,29 +1370,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListReversed() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "reversed")
-        #expect(
-            callees.contains("kk_list_reversed"),
-            "virtualCall(reversed) on List-typed parameter should be rewritten to kk_list_reversed, got: \(callees)"
-        )
-    }
-
-    @Test
     func testVirtualCallOnListTypedParameterKeepsSourceBackedSortedCall() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
         #expect(
             !callees.contains("kk_list_sorted"),
             "source-backed sorted on List-typed parameter must not emit kk_list_sorted, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDistinct() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "distinct")
-        #expect(
-            callees.contains("kk_list_distinct"),
-            "virtualCall(distinct) on List-typed parameter should be rewritten to kk_list_distinct, got: \(callees)"
         )
     }
 

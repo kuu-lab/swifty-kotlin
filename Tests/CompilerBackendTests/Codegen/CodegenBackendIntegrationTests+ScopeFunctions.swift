@@ -90,6 +90,25 @@ struct CodegenBackendScopeFunctionsTests {
     }
 
     @Test
+    func testReceiverScopeFunctionBodyPassesImplicitReceiver() throws {
+        let source = """
+        class Box {
+            var value: Int = 0
+        }
+
+        fun main() {
+            val box = Box().apply {
+                value = 42
+            }
+            println(box.value)
+            println("Hello".run { length })
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "ScopeFunctionReceiverRegression", expected: "42\n5\n")
+    }
+
+    @Test
     func testCodegenCompilesStringBuilderAppendVarargInReceiverLambda() throws {
         let source = """
         fun buildGreeting(action: StringBuilder.() -> Unit): String {

@@ -198,10 +198,12 @@ extension CallTypeChecker {
             }
         }
 
-        // STDLIB-NUM-130 / KSP-638: floating-point precision helpers are declared
-        // by bundled Kotlin source. Their internal __kk_* bridges are ordinary
-        // source declarations, so they must flow through normal extension
-        // resolution instead of a primitive name-based fast path.
+        // STDLIB-NUM-130 / KSP-638 / KSP-647: floating-point precision and bit helpers
+        // (isNaN / isInfinite / isFinite / toBits / toRawBits) are declared by bundled
+        // Kotlin source. Their internal __kk_* bridges are ordinary source declarations,
+        // so they must flow through normal extension resolution instead of a primitive
+        // name-based fast path. ulp / nextUp / nextDown remain runtime-backed synthetic
+        // functions until their respective migrations.
 
         // Unsigned coercion (UByte/UShort/UInt/ULong) is handled by bundled Kotlin source
         // (RangeCoercion.kt); no primitive fast-path is needed.

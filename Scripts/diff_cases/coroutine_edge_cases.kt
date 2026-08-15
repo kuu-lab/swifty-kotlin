@@ -1,4 +1,5 @@
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.*
 
 // TEST-CORO-003: Coroutine edge cases — empty scope, immediate cancellation,
 // yield behaviour, and nested runBlocking equivalents.
@@ -18,19 +19,19 @@ fun main() = runBlocking {
 
     // 3. yield() gives other coroutines a chance to run
     val order = mutableListOf<Int>()
-    val job1 = launch {
-        order.add(1)
+    val orderMutex = Mutex()
+    val first = launch {
+        orderMutex.withLock { order.add(1) }
         yield()
-        order.add(3)
+        orderMutex.withLock { order.add(3) }
     }
-    val job2 = launch {
-        order.add(2)
+    val second = launch {
+        orderMutex.withLock { order.add(2) }
         yield()
-        order.add(4)
+        orderMutex.withLock { order.add(4) }
     }
-    yield()
-    job1.join()
-    job2.join()
+    first.join()
+    second.join()
     println("order ok: ${order.size == 4}")
 
     // 4. Nested async — result is available after await

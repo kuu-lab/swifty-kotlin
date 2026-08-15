@@ -327,23 +327,74 @@ func runtimeCharRangeCount(_ range: RuntimeRangeBox) -> Int {
 }
 
 func runtimeSignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
-    let count = runtimeSignedRangeCount(range)
-    guard count > 0 else { return runtimeNullSentinelInt }
-    let index = runtimeRandomIndex(count: count, randomRaw: randomRaw)
-    return range.first &+ (range.step &* index)
+    guard range.step != 0 else { return runtimeNullSentinelInt }
+    let ascending = range.step > 0
+    guard ascending ? range.first <= range.last : range.first >= range.last else {
+        return runtimeNullSentinelInt
+    }
+    let absStep = UInt64(range.step.magnitude)
+    let signMask = UInt64(1) << 63
+    let firstOrdered = UInt64(bitPattern: Int64(range.first)) ^ signMask
+    let lastOrdered = UInt64(bitPattern: Int64(range.last)) ^ signMask
+    let distance = ascending ? lastOrdered &- firstOrdered : firstOrdered &- lastOrdered
+    if absStep == 1 && distance == UInt64.max {
+        let bits: UInt64
+        if let randomRaw {
+            bits = runtimeRandomBits(from: randomRaw)
+        } else {
+            var rng = SystemRandomNumberGenerator()
+            bits = rng.next()
+        }
+        return Int(bitPattern: UInt(truncatingIfNeeded: bits))
+    }
+    let count = distance / absStep + 1
+    let index: UInt64
+    if let randomRaw {
+        index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
+    } else if count == UInt64.max {
+        var rng = SystemRandomNumberGenerator()
+        index = rng.next() % count
+    } else {
+        index = UInt64.random(in: 0 ..< count)
+    }
+    let offset = index &* absStep
+    let chosenOrdered = ascending ? firstOrdered &+ offset : firstOrdered &- offset
+    return Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask))
 }
 
 func runtimeUnsignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
-    let count = runtimeUnsignedRangeCount(range)
-    guard count > 0 else { return runtimeNullSentinelInt }
-    let index = UInt(runtimeRandomIndex(count: count, randomRaw: randomRaw))
-    let first = UInt(bitPattern: range.first)
-    if range.step > 0 {
-        let step = UInt(bitPattern: range.step)
-        return Int(bitPattern: first &+ (step &* index))
+    guard range.step != 0 else { return runtimeNullSentinelInt }
+    let first = UInt64(UInt(bitPattern: range.first))
+    let last = UInt64(UInt(bitPattern: range.last))
+    let ascending = range.step > 0
+    guard ascending ? first <= last : first >= last else {
+        return runtimeNullSentinelInt
     }
-    let step = UInt(range.step.magnitude)
-    return Int(bitPattern: first &- (step &* index))
+    let absStep = UInt64(range.step.magnitude)
+    let distance = ascending ? last &- first : first &- last
+    if absStep == 1 && distance == UInt64.max {
+        let bits: UInt64
+        if let randomRaw {
+            bits = runtimeRandomBits(from: randomRaw)
+        } else {
+            var rng = SystemRandomNumberGenerator()
+            bits = rng.next()
+        }
+        return Int(bitPattern: UInt(truncatingIfNeeded: bits))
+    }
+    let count = distance / absStep + 1
+    let index: UInt64
+    if let randomRaw {
+        index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
+    } else if count == UInt64.max {
+        var rng = SystemRandomNumberGenerator()
+        index = rng.next() % count
+    } else {
+        index = UInt64.random(in: 0 ..< count)
+    }
+    let offset = index &* absStep
+    let chosen = ascending ? first &+ offset : first &- offset
+    return Int(bitPattern: UInt(truncatingIfNeeded: chosen))
 }
 
 func runtimeCharRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
@@ -352,6 +403,20 @@ func runtimeCharRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> 
     let index = runtimeRandomIndex(count: count, randomRaw: randomRaw)
     let first = kk_unbox_char(range.first)
     let value = first &+ (range.step &* index)
+    return kk_box_char(value)
+}
+
+func runtimeCharRangeRandom(
+    _ range: RuntimeRangeBox,
+    randomRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let count = runtimeCharRangeCount(range)
+    guard count > 0 else { return runtimeRangeRandomError(outThrown) }
+    let index = runtimeRandomIndex(upperBound: UInt64(count), randomRaw: randomRaw)
+    let first = kk_unbox_char(range.first)
+    let value = first &+ (range.step &* Int(truncatingIfNeeded: index))
     return kk_box_char(value)
 }
 
@@ -1136,35 +1201,36 @@ public func kk_char_range_sorted(_ rangeRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
-@_cdecl("kk_char_range_randomOrNull")
-public func kk_char_range_randomOrNull(_ rangeRaw: Int) -> Int {
+@_cdecl("__kk_char_range_randomOrNull")
+public func __kk_char_range_randomOrNull(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_randomOrNull")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_char_range_randomOrNull")
     }
     return runtimeCharRangeRandomOrNull(range, randomRaw: nil)
 }
 
-@_cdecl("kk_char_range_randomOrNull_random")
-public func kk_char_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
+@_cdecl("__kk_char_range_randomOrNull_random")
+public func __kk_char_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_randomOrNull_random")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_char_range_randomOrNull_random")
     }
     return runtimeCharRangeRandomOrNull(range, randomRaw: randomRaw)
 }
 
-@_cdecl("kk_char_range_random_random")
-public func kk_char_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_char_range_random")
+public func __kk_char_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_random_random")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_char_range_random")
     }
-    return runtimeSignedRangeRandom(
-        first: range.first,
-        last: range.last,
-        step: range.step,
-        randomRaw: randomRaw,
-        outThrown: outThrown
-    )
+    return runtimeCharRangeRandom(range, randomRaw: 0, outThrown: outThrown)
+}
+
+@_cdecl("__kk_char_range_random_random")
+public func __kk_char_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_char_range_random_random")
+    }
+    return runtimeCharRangeRandom(range, randomRaw: randomRaw, outThrown: outThrown)
 }
 
 // MARK: - Progression fromClosedRange (STDLIB-RANGE-039)

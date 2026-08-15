@@ -594,7 +594,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_long_range_randomOrNull",
+            name: "__kk_long_range_randomOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -602,7 +602,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_long_range_randomOrNull_random",
+            name: "__kk_long_range_randomOrNull_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -633,7 +633,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_long_range_random",
+            name: "__kk_long_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -642,7 +642,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_long_range_random_random",
+            name: "__kk_long_range_random_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -825,7 +825,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_range_randomOrNull",
+            name: "__kk_char_range_randomOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -833,7 +833,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_range_randomOrNull_random",
+            name: "__kk_char_range_randomOrNull_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -842,7 +842,16 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_range_random_random",
+            name: "__kk_char_range_random",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_range_random_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -868,7 +877,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_randomOrNull",
+            name: "__kk_range_randomOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -876,7 +885,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_randomOrNull_random",
+            name: "__kk_range_randomOrNull_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -885,7 +894,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_random",
+            name: "__kk_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -894,7 +903,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_random_random",
+            name: "__kk_range_random_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -1182,7 +1191,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_randomOrNull",
+            name: "__kk_uint_range_randomOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -1190,7 +1199,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_randomOrNull_random",
+            name: "__kk_uint_range_randomOrNull_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -1199,7 +1208,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_random",
+            name: "__kk_uint_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -1208,7 +1217,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_random_random",
+            name: "__kk_uint_range_random_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -1506,7 +1515,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_randomOrNull",
+            name: "__kk_ulong_range_randomOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -1514,7 +1523,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_randomOrNull_random",
+            name: "__kk_ulong_range_randomOrNull_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
@@ -1523,7 +1532,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_random",
+            name: "__kk_ulong_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -1532,7 +1541,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_random_random",
+            name: "__kk_ulong_range_random_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),

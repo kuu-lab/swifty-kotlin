@@ -12,16 +12,6 @@ import kotlin.random.Random
 // synthetic ABI registrations remain only as compatibility fallbacks outside
 // the bundled source path.
 
-public fun <T> List<T>.reversed(): List<T> {
-    val result = mutableListOf<T>()
-    var i = size - 1
-    while (i >= 0) {
-        result.add(this[i])
-        i--
-    }
-    return result
-}
-
 public inline fun <T : Comparable<T>> List<T>.sorted(): List<T> {
     val result = mutableListOf<T>()
     var i = 0

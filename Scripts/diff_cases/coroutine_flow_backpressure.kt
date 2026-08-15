@@ -1,7 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-003): delay() inside a flow{} emitter resumes on a GCD
-// global-queue thread, but RuntimeFlowCollectContext is tracked via pthread
-// thread-local storage, so emits after the first delay are dropped (see
-// docs/diff-skip-inventory.md).
+// Regression coverage for Flow collect context across emitter suspension.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 

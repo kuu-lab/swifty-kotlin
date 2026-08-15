@@ -38,32 +38,8 @@ struct BuildKIRCodegenRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_list_intersect")))
-        #expect(callees.contains(interner.intern("kk_list_union")))
-        #expect(callees.contains(interner.intern("kk_list_subtract")))
         #expect(callees.contains(interner.intern("__kk_set_contains")))
         #expect(callees.contains(interner.intern("__kk_set_size")))
-    }
-
-    @Test
-    func testBuildKIRLowersListUnionToCollectionRuntimeCall() throws {
-        let source = """
-        fun main(values: List<Int>, other: List<Int>) {
-            values.union(other)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callNames.contains("kk_list_union"))
-            #expect(!(callNames.contains("union")))
-        }
     }
 
     @Test

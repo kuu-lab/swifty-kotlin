@@ -288,7 +288,7 @@ extension KIRLoweringDriver {
                  "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
                  "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 return true
-            case "reversed", "shuffled":
+            case "shuffled":
                 // These List overloads still have dedicated runtime lowering;
                 // Set overloads in SetHOF.kt remain ordinary source declarations.
                 return !isSetReceiverFunction(symbol: symbol, sema: sema, interner: interner)
