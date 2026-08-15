@@ -1,5 +1,11 @@
 import Foundation
 
+package enum MetadataModality: String {
+    case final
+    case open
+    case abstract
+}
+
 // MARK: - Shared Metadata Record
 
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
@@ -56,6 +62,9 @@ package struct MetadataRecord {
     /// Whether a nominal declaration is explicitly open and may be subclassed.
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
+    /// Declaration modality for classes and members. Final is omitted from the
+    /// wire format so older artifacts remain compact and decode as final.
+    package let modality: MetadataModality
 
     // P5-74: sealed class flag
     package let isSealedClass: Bool
@@ -140,6 +149,7 @@ package struct MetadataRecord {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
@@ -189,6 +199,7 @@ package struct MetadataRecord {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
         self.annotations = annotations
@@ -637,6 +648,9 @@ package final class MetadataEncoder {
                     superFQName: computedSuperFQName,
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
+                    modality: symbol.flags.contains(.abstractType)
+                        ? .abstract
+                        : (symbol.flags.contains(.openType) ? .open : .final),
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
@@ -651,6 +665,9 @@ package final class MetadataEncoder {
                 superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
+                modality: symbol.flags.contains(.abstractType)
+                    ? .abstract
+                    : (symbol.flags.contains(.openType) ? .open : .final),
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
@@ -864,6 +881,13 @@ package final class MetadataEncoder {
 
         let isDataClass = symbol.flags.contains(.dataType)
         let isOpenClass = symbol.flags.contains(.openType)
+        let modality: MetadataModality = if symbol.flags.contains(.abstractType) {
+            .abstract
+        } else if symbol.flags.contains(.openType) {
+            .open
+        } else {
+            .final
+        }
         let isSealedClass = symbol.flags.contains(.sealedType)
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
@@ -932,6 +956,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
+            modality: modality,
             isSealedClass: isSealedClass,
             isFunInterface: isFunInterface,
             annotations: annotationEntries,
@@ -1152,6 +1177,9 @@ package final class MetadataEncoder {
             }
             if record.isOpenClass {
                 fields.append("openClass=1")
+            }
+            if record.modality != .final {
+                fields.append("modality=\(record.modality.rawValue)")
             }
             if record.isSealedClass {
                 fields.append("sealedClass=1")
@@ -1422,6 +1450,7 @@ final class MetadataDecoder {
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isOpenClass: rec.isOpenClass,
+                modality: rec.modality,
                 isSealedClass: rec.isSealedClass,
                 isFunInterface: rec.isFunInterface,
                 annotations: rec.annotations,
@@ -1477,6 +1506,7 @@ final class MetadataDecoder {
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
+        var modality: MetadataModality = .final
         var isSealedClass: Bool = false
         var isFunInterface: Bool = false
         var isValueClass: Bool = false
@@ -1565,6 +1595,8 @@ final class MetadataDecoder {
             record.isDataClass = value == "1" || value == "true"
         case "openClass":
             record.isOpenClass = value == "1" || value == "true"
+        case "modality":
+            record.modality = MetadataModality(rawValue: value) ?? .final
         case "sealedClass":
             record.isSealedClass = value == "1" || value == "true"
         case "funInterface":

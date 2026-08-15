@@ -69,6 +69,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
+        normalizeImportedLibraryMemberSignatures(
+            importDeferredWork,
+            symbols: symbols,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         collectAllHeaders(
