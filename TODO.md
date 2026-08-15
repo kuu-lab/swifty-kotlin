@@ -307,7 +307,7 @@
   - 検証: `swift build --jobs 2`、focused Sema/KIR/Codegen、`RuntimeMath`（`SWIFT_TEST_PARALLEL=0`）、Sema Golden 36件、Runtime ABI link 4件、対象 `diff_kotlinc` 2件が PASS。全体 diff は 857件中856 PASS/36 SKIPで、唯一の `coroutine_edge_cases.kt` 差分（KSP-638変更範囲外）は単独再実行で PASS となる非決定的な既存ケースだった。定義行の TODO ID 重複と `git diff --check` は PASS。
 - [x] KSP-641: coerce の Comparable 総称版・ClosedFloatingPointRange range 版を**新規実装**する（本家 API `T.coerceIn(min?, max?)` / `coerceIn(ClosedFloatingPointRange)` が現状全く存在しない。前提: KSP-639, KSP-652）
 - [x] KSP-643: countOneBits/countLeadingZeroBits/countTrailingZeroBits を Kotlin 化する（**BUG-015 修正込み: Long 版は Sema 通過後に KIR で握りつぶされる壊れたパス** — Kotlin 実装で Int/Long 両対応に。Int 版 kk_* 3 削除。diff: count 系新規）
-- [ ] KSP-644: takeHighestOneBit/takeLowestOneBit/highestOneBit/lowestOneBit を Kotlin 化する（Int/Long 版 kk_* 8 削除・残留ゼロ）
+- [x] KSP-644: takeHighestOneBit/takeLowestOneBit/highestOneBit/lowestOneBit を Kotlin 化する（Int/Long 版 kk_* 8 削除・残留ゼロ）
 - [x] KSP-647: toBits/toRawBits/fromBits を `__kk_` 降格する（ビットパターン変換窓口。kk_* 6 + fromBits トップレベル登録。nextTowards は KSP-637 側）
 
 #### time / sequences / ranges

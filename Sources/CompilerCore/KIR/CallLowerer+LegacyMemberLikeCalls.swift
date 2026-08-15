@@ -486,75 +486,8 @@ extension CallLowerer {
             return result
         }
 
-        // Int bit extraction functions (STDLIB-BIT-007).
-        // NOTE: This lowering logic is intentionally duplicated in
-        // CallLowerer+SafeMemberCalls.swift for the safe-call (?.) path.
-        // If you change the callee-name -> runtime-name mapping here, update
-        // the other file as well. Consider extracting a shared helper if the
-        // number of bit-operation intrinsics grows further.
-        if args.isEmpty {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit" {
-                let intType = sema.types.intType
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if nonNullReceiverType == intType {
-                    let runtimeName: String
-                    switch calleeStr {
-                    case "highestOneBit": runtimeName = "kk_int_highestOneBit"
-                    case "lowestOneBit": runtimeName = "kk_int_lowestOneBit"
-                    case "takeHighestOneBit": runtimeName = "kk_int_takeHighestOneBit"
-                    case "takeLowestOneBit": runtimeName = "kk_int_takeLowestOneBit"
-                    default: fatalError("unreachable: calleeStr already guarded to bit operation functions")
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
-
         // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
         // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
-
-        // Long bit manipulation functions (STDLIB-BIT-007)
-        let longType = sema.types.longType
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-
-        if nonNullReceiverType == longType {
-            let calleeStr = interner.resolve(calleeName)
-
-            // Zero-argument functions
-            if args.isEmpty {
-                let runtimeName: String?
-                switch calleeStr {
-                case "highestOneBit": runtimeName = "kk_long_highestOneBit"
-                case "lowestOneBit": runtimeName = "kk_long_lowestOneBit"
-                case "takeHighestOneBit": runtimeName = "kk_long_takeHighestOneBit"
-                case "takeLowestOneBit": runtimeName = "kk_long_takeLowestOneBit"
-                default: runtimeName = nil
-                }
-
-                if let name = runtimeName {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(name),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
 
         // Boolean.not() → kk_op_not (STDLIB-308)
         if calleeName == interner.intern("not"),

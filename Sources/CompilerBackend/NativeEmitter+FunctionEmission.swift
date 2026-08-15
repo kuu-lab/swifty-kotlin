@@ -3234,10 +3234,6 @@ extension NativeEmitter {
         case "__floatRoundToInt": "kk_float_roundToInt"
         case "__doubleRoundToLong": "kk_double_roundToLong"
         case "__floatRoundToLong": "kk_float_roundToLong"
-        case "__intHighestOneBit": "kk_int_highestOneBit"
-        case "__intLowestOneBit": "kk_int_lowestOneBit"
-        case "__longHighestOneBit": "kk_long_highestOneBit"
-        case "__longLowestOneBit": "kk_long_lowestOneBit"
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
         default: nil

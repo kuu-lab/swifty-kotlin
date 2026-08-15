@@ -487,6 +487,85 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-644: one-bit operations are implemented by bundled Kotlin source for both
+    /// Int and Long, including zero, negative values, sign boundaries, and mixed bits.
+    @Test
+    func testOneBitFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun printIntOneBitOperations(value: Int) {
+                println(value.highestOneBit())
+                println(value.lowestOneBit())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printLongOneBitOperations(value: Long) {
+                println(value.highestOneBit())
+                println(value.lowestOneBit())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun main() {
+                printIntOneBitOperations(0)
+                printIntOneBitOperations(-1)
+                printIntOneBitOperations(Int.MAX_VALUE)
+                printIntOneBitOperations(Int.MIN_VALUE)
+                printIntOneBitOperations(0x12345678)
+                printLongOneBitOperations(0L)
+                printLongOneBitOperations(-1L)
+                printLongOneBitOperations(Long.MAX_VALUE)
+                printLongOneBitOperations(Long.MIN_VALUE)
+                printLongOneBitOperations(0x12345678L)
+            }
+            """,
+            expectedOutput: """
+            0
+            0
+            0
+            0
+            -2147483648
+            1
+            -2147483648
+            1
+            1073741824
+            1
+            1073741824
+            1
+            -2147483648
+            -2147483648
+            -2147483648
+            -2147483648
+            268435456
+            8
+            268435456
+            8
+            0
+            0
+            0
+            0
+            -9223372036854775808
+            1
+            -9223372036854775808
+            1
+            4611686018427387904
+            1
+            4611686018427387904
+            1
+            -9223372036854775808
+            -9223372036854775808
+            -9223372036854775808
+            -9223372036854775808
+            268435456
+            8
+            268435456
+            8
+
+            """
+        )
+    }
+
     /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
     /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
