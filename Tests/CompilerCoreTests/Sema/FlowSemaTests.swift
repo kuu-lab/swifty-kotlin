@@ -160,6 +160,21 @@ struct FlowSemaTests {
                 }.collect { println(it) }
             }
         }
+        """,
+        """
+        package sample12
+        fun main() {
+            runBlocking {
+                val source = flow { emit(1); emit(2) }
+                source.map { it + 1 }
+                    .filter { it > 1 }
+                    .take(1)
+                    .toList()
+                source.first()
+                source.fold(0) { acc, value -> acc + value }
+                source.reduce { acc, value -> acc + value }
+            }
+        }
         """
     ]
 
@@ -336,6 +351,28 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+    }
+
+    @Test func testBundledFlowOperatorsWinOverIntrinsicFallback() throws {
+        let ctx = try cleanCtx()
+        let sema = try #require(ctx.sema)
+        let migratedOperators: Set = ["map", "filter", "take", "toList", "first", "fold", "reduce"]
+
+        let chosenCallees = sema.bindings.callBindings.values.compactMap(\.chosenCallee).filter { callee in
+            guard let symbol = sema.symbols.symbol(callee) else { return false }
+            let fqName = symbol.fqName.map(ctx.interner.resolve).joined(separator: ".")
+            return migratedOperators.contains(ctx.interner.resolve(symbol.name))
+                && fqName.hasPrefix("kotlinx.coroutines.flow.")
+        }
+        let chosenNames = Set(chosenCallees.compactMap { callee in
+            sema.symbols.symbol(callee).map { ctx.interner.resolve($0.name) }
+        })
+        #expect(migratedOperators.isSubset(of: chosenNames),
+            "Expected every migrated Flow operator to be bound to bundled Kotlin")
+        for callee in chosenCallees {
+            #expect(sema.symbols.isSourceBackedSymbol(callee))
+            #expect(CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee)))
+        }
     }
 
     @Test func testFlowErrorHandlingMembersTypeCheck() throws {

@@ -18,18 +18,19 @@ fun main() = runBlocking {
 
     // 3. yield() gives other coroutines a chance to run
     val order = mutableListOf<Int>()
-    launch {
+    val job1 = launch {
         order.add(1)
         yield()
         order.add(3)
     }
-    launch {
+    val job2 = launch {
         order.add(2)
         yield()
         order.add(4)
     }
     yield()
-    yield()
+    job1.join()
+    job2.join()
     println("order ok: ${order.size == 4}")
 
     // 4. Nested async — result is available after await

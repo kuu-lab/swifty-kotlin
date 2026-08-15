@@ -188,9 +188,9 @@ extension CallLowerer {
                 fallbackType: sema.types.makeNullable(sema.types.anyType)
             )
 
-        // KSP-496: kept as compiler special cases — see KClassMemberIntrospection.kt
-        // for why (runtime handles aren't wired for genuine interface-conformance
-        // checks, so casting them to their Kotlin-visible interface type throws).
+        // KSP-496: the collection APIs remain compiler special cases because
+        // their generic public signatures are not yet represented by bundled
+        // Kotlin declarations. The returned handles are interface-compatible.
         case "members":
             return emitRuntimeCall(
                 callee: "__kk_kclass_members",

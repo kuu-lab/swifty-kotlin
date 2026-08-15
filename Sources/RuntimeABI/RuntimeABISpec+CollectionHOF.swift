@@ -241,6 +241,52 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
+        let listSliceTakeDropSpecs = [
+            RuntimeABIFunctionSpec(
+                name: "kk_list_take",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "kk_list_takeLast",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "kk_list_drop",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "kk_list_dropLast",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "count", type: .intptr),
+                ],
+                returnType: .intptr,
+                section: "Collection",
+                isThrowing: false
+            ),
+            hofSpec("kk_list_takeWhile"),
+            hofSpec("kk_list_takeLastWhile"),
+            hofSpec("kk_list_dropWhile"),
+            hofSpec("kk_list_dropLastWhile"),
+        ]
         let maxOrNullSpec = RuntimeABIFunctionSpec(
             name: "kk_list_maxOrNull",
             parameters: [
@@ -414,6 +460,9 @@ public extension RuntimeABISpec {
                 sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
                 sortedPrimitiveSpec,
                 shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
+            ]
+            + listSliceTakeDropSpecs
+            + [
 
                 RuntimeABIFunctionSpec(
                     name: "kk_list_sortedDescending",

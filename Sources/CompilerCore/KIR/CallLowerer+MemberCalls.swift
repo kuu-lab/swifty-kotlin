@@ -15,13 +15,10 @@ extension CallLowerer {
     //   declaredMemberProperties/functions/memberFunctions/
     //   declaredMemberFunctions/nestedClasses/supertypes return a
     //   KFunction/KCallable/KClass/KType-shaped collection or value backed by
-    //   a runtime handle. Casting such a handle to its interface type at the
-    //   Kotlin level throws at runtime (these handles aren't wired for
-    //   genuine interface-conformance checks / polymorphic dispatch — e.g.
-    //   `KCallable.name` resolves to a single fixed implementation
-    //   regardless of whether the handle is actually a KFunction or a
-    //   KProperty). See KClassMemberIntrospection.kt for details. Fixing
-    //   this needs Runtime object-model work beyond this ticket's scope.
+    //   a runtime handle. Reflection handles carry stable nominal IDs, and
+    //   KCallable.name dispatches across function, constructor, and property
+    //   boxes. The collection APIs remain compiler special cases because their
+    //   generic public signatures are not yet represented by bundled Kotlin.
     private static let kclassMembers: Set<String> = [
         "findAnnotation", "findAssociatedObject",
         "members", "constructors", "primaryConstructor",
@@ -60,7 +57,7 @@ extension CallLowerer {
             return lateinitStatus
         }
 
-        // ── KProperty<*>.name → __kk_kproperty_stub_name(receiver) ────────
+        // ── KCallable.name → __kk_kcallable_get_name(receiver) ────────────
         if let kPropertyResult = tryLowerKPropertyMemberAccess(
             exprID,
             receiverExpr: receiverExpr,
@@ -212,7 +209,7 @@ extension CallLowerer {
                 instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_flow_single"),
+                    callee: interner.intern("__kk_flow_single"),
                     arguments: [loweredReceiver, zeroExpr],
                     result: result,
                     canThrow: true,

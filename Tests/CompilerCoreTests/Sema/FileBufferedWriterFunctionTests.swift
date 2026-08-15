@@ -6,7 +6,7 @@ import Testing
 /// STDLIB-IO-FN-010: Validates that `File.bufferedWriter()` resolves through Sema
 /// for the `java.io.File` receiver and produces a `java.io.BufferedWriter`.
 ///
-/// The runtime link name exercised here is `kk_file_bufferedWriter`.
+/// The runtime link name exercised here is `__kk_file_bufferedWriter`.
 ///
 /// Kotlin signature:
 ///
@@ -362,7 +362,7 @@ struct FileBufferedWriterFunctionTests {
                 }, "Expected to find java.io.File.bufferedWriter() with receiver=File, params=[], ret=BufferedWriter")
 
                 #expect(
-                    symbols.externalLinkName(for: bufferedWriter) == "kk_file_bufferedWriter"
+                    symbols.externalLinkName(for: bufferedWriter) == "__kk_file_bufferedWriter"
                 )
 
                 let signature = try #require(symbols.functionSignature(for: bufferedWriter))
