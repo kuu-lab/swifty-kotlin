@@ -531,6 +531,31 @@ extension CallTypeChecker {
                 } else {
                     callReturnType
                 }
+
+                // File.forEachLine/useLines are bundled Kotlin source functions.
+                // This special path owns lambda inference, so it must also bind the
+                // call to the source symbol; otherwise lowering leaves a raw
+                // `forEachLine`/`useLines` linker name instead of inlining the body.
+                let fileIOFunction = sema.symbols.lookupAll(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("io"),
+                    calleeName,
+                ]).first { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.receiverType == sema.types.makeNonNullable(receiverType)
+                        && signature.parameterTypes.count == 1
+                }
+                if let fileIOFunction {
+                    let substitutions = calleeStr == "useLines" ? [finalReturnType] : []
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: fileIOFunction,
+                        substitutedTypeArguments: substitutions,
+                        parameterMapping: [0: 0]
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(fileIOFunction))
+                }
                 let finalType = safeCall ? sema.types.makeNullable(finalReturnType) : finalReturnType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType

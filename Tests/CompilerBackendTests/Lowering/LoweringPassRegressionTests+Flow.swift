@@ -11,6 +11,90 @@ private struct FlowTestFailure: Error, CustomStringConvertible {
 @Suite
 struct LoweringFlowCodegenTests {
     @Test
+    func testBundledFlowOperatorsWinOverIntrinsicRewrite() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+
+        fun main() {
+            runBlocking {
+                val source = flow {
+                    emit(1)
+                    emit(2)
+                }
+                println(source.map { it * 2 }.toList())
+                println(source.filter { it == 2 }.first())
+                println(source.fold(0) { acc, value -> acc + value })
+                println(source.reduce { acc, value -> acc + value })
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowBundledPriority", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            guard let module = ctx.kir else {
+                throw FlowTestFailure(description: "KIR module not produced after lowering.")
+            }
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+
+            // KSP-CAP-010: the real bundled declarations remain ordinary calls;
+            // only the retained cold-flow core is lowered to the public bridges.
+            #expect(allCallees.contains("map"))
+            #expect(allCallees.contains("filter"))
+            #expect(allCallees.contains("toList"))
+            #expect(allCallees.contains("first"))
+            #expect(allCallees.contains("fold"))
+            #expect(allCallees.contains("reduce"))
+            #expect(allCallees.contains("kk_flow_create"))
+            #expect(allCallees.contains("kk_flow_emit"))
+            #expect(!allCallees.contains("__kk_flow_to_list"))
+            #expect(!allCallees.contains("__kk_flow_first"))
+            #expect(!allCallees.contains("__kk_flow_single"))
+            #expect(!allCallees.contains("__kk_flow_fold"))
+            #expect(!allCallees.contains("__kk_flow_reduce"))
+        }
+    }
+
+    @Test
+    func testCapturedSuspendFunctionUsesTwoArgumentInvokeABI() throws {
+        let source = """
+        interface TestFlow
+
+        suspend fun TestFlow.collect(collector: suspend (Int) -> Unit) {}
+
+        suspend fun TestFlow.fold(
+            initial: Int,
+            operation: suspend (Int, Int) -> Int
+        ): Int {
+            collect { value -> operation(initial, value) }
+            return initial
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowSuspendFunctionCapture", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            guard let module = ctx.kir else {
+                throw FlowTestFailure(description: "KIR module not produced after lowering.")
+            }
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+
+            // A captured suspend (Int, Int) -> Int must use the dedicated
+            // two-argument runtime entry point instead of a native symbol.
+            #expect(allCallees.contains("kk_suspend_function_invoke_2"))
+            #expect(!allCallees.contains("operation"))
+        }
+    }
+
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {
@@ -47,12 +131,12 @@ struct LoweringFlowCodegenTests {
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
             #expect(allCallees.contains("kk_flow_collect"))
-            #expect(allCallees.contains("kk_flow_single"))
+            #expect(allCallees.contains("single"))
             #expect(!allCallees.contains("flow"))
             #expect(!allCallees.contains("transform"))
             #expect(!allCallees.contains("collect"))
             #expect(!allCallees.contains("emit"))
-            #expect(!allCallees.contains("single"))
+            #expect(!allCallees.contains("__kk_flow_single"))
         }
     }
 
@@ -154,6 +238,30 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testNestedFlowCollectorsDoNotReenterTheInnerCollector() throws {
+        let source = """
+        fun main() {
+            runBlocking {
+                flow { emit(1); emit(2) }
+                    .map { it * 2 }
+                    .collect { println(it) }
+
+                val values = flow { emit(1); emit(2); emit(3) }
+                    .map { it * 10 }
+                    .filter { it > 10 }
+                    .toList()
+                println(values)
+            }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "FlowNestedCollectorOwnership",
+            expectedStdout: "2\n4\n[20, 30]\n"
+        )
+    }
+
+    @Test
     func testFlowCollectTwiceLowersBothCollectCalls() throws {
         let source = """
         suspend fun runFlowCollectTwice() {
@@ -223,7 +331,7 @@ struct LoweringFlowCodegenTests {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            #expect(allCallees.contains("kk_flow_release"))
+            #expect(allCallees.contains("__kk_flow_release"))
         }
     }
 

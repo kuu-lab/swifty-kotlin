@@ -3837,3 +3837,24 @@ public func kk_suspend_function_invoke(
     outThrown?.pointee = thrown
     return result
 }
+
+/// Invoke a suspend function with 2 arguments using the function-value ABI.
+@_silgen_name("kk_suspend_function_invoke_2")
+public func kk_suspend_function_invoke_2(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard functionRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
+        return 0
+    }
+
+    let callerState = RuntimeContinuationState.current
+    var thrown = 0
+    let result = kk_function_invoke_2(functionRaw, arg1, arg2, &thrown)
+    callerState?.thrownException = thrown
+    outThrown?.pointee = thrown
+    return result
+}

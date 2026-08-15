@@ -128,38 +128,38 @@ private func runtimeCreateDeprecatedTempDirectory(
 
 // MARK: - STDLIB-320: File constructor and basic operations
 
-@_cdecl("kk_file_new")
-public func kk_file_new(_ pathRaw: Int) -> Int {
+@_cdecl("__kk_file_new")
+public func __kk_file_new(_ pathRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pathRaw),
           let path = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_new received invalid path")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_new received invalid path")
     }
     return registerRuntimeObject(RuntimeFileBox(path))
 }
 
 /// File(parent: String, child: String) constructor (STDLIB-IO-087)
-@_cdecl("kk_file_new_parent_child")
-public func kk_file_new_parent_child(_ parentRaw: Int, _ childRaw: Int) -> Int {
+@_cdecl("__kk_file_new_parent_child")
+public func __kk_file_new_parent_child(_ parentRaw: Int, _ childRaw: Int) -> Int {
     guard let parentPtr = UnsafeMutableRawPointer(bitPattern: parentRaw),
           let parent = extractString(from: parentPtr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_new_parent_child received invalid parent")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_new_parent_child received invalid parent")
     }
     guard let childPtr = UnsafeMutableRawPointer(bitPattern: childRaw),
           let child = extractString(from: childPtr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_new_parent_child received invalid child")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_new_parent_child received invalid child")
     }
     let path = (parent as NSString).appendingPathComponent(child)
     return registerRuntimeObject(RuntimeFileBox(path))
 }
 
-@_cdecl("kk_file_readText")
-public func kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_readText")
+public func __kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_readText received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readText received invalid File handle")
     }
     do {
         let content = try String(contentsOfFile: file.path, encoding: .utf8)
@@ -173,15 +173,15 @@ public func kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<I
     }
 }
 
-@_cdecl("kk_classloader_getSystemClassLoader")
-public func kk_classloader_getSystemClassLoader() -> Int {
+@_cdecl("__kk_classloader_getSystemClassLoader")
+public func __kk_classloader_getSystemClassLoader() -> Int {
     registerRuntimeObject(RuntimeClassLoaderBox())
 }
 
-@_cdecl("kk_classloader_getResource")
-public func kk_classloader_getResource(_ loaderRaw: Int, _ nameRaw: Int) -> Int {
+@_cdecl("__kk_classloader_getResource")
+public func __kk_classloader_getResource(_ loaderRaw: Int, _ nameRaw: Int) -> Int {
     guard UnsafeMutableRawPointer(bitPattern: loaderRaw).flatMap({ tryCast($0, to: RuntimeClassLoaderBox.self) }) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_classloader_getResource received invalid ClassLoader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_classloader_getResource received invalid ClassLoader handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
           let name = extractString(from: ptr),
@@ -192,10 +192,10 @@ public func kk_classloader_getResource(_ loaderRaw: Int, _ nameRaw: Int) -> Int 
     return fileMakeStringRaw(url.path)
 }
 
-@_cdecl("kk_classloader_getResourceAsStream")
-public func kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: Int) -> Int {
+@_cdecl("__kk_classloader_getResourceAsStream")
+public func __kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: Int) -> Int {
     guard UnsafeMutableRawPointer(bitPattern: loaderRaw).flatMap({ tryCast($0, to: RuntimeClassLoaderBox.self) }) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_classloader_getResourceAsStream received invalid ClassLoader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_classloader_getResourceAsStream received invalid ClassLoader handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
           let name = extractString(from: ptr),
@@ -207,23 +207,23 @@ public func kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: Int)
     return registerRuntimeObject(RuntimeInputStreamBox(data: data))
 }
 
-@_cdecl("kk_resource_exists")
-public func kk_resource_exists(_ nameRaw: Int) -> Int {
+@_cdecl("__kk_resource_exists")
+public func __kk_resource_exists(_ nameRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
           let name = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_resource_exists received invalid name")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_resource_exists received invalid name")
     }
     return kk_box_bool(existingResourceURL(named: name) != nil ? 1 : 0)
 }
 
-@_cdecl("kk_readResourceAsText")
-public func kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_readResourceAsText")
+public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
           let name = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_readResourceAsText received invalid name")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
     }
     guard let url = existingResourceURL(named: name) else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Resource not found: \(name)")
@@ -237,33 +237,33 @@ public func kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
     }
 }
 
-@_cdecl("kk_resource_stream_read")
-public func kk_resource_stream_read(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_resource_stream_read")
+public func __kk_resource_stream_read(_ streamRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_resource_stream_read received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_resource_stream_read received invalid InputStream handle")
     }
     return stream.readByte()
 }
 
-@_cdecl("kk_resource_stream_close")
-public func kk_resource_stream_close(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_resource_stream_close")
+public func __kk_resource_stream_close(_ streamRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_resource_stream_close received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_resource_stream_close received invalid InputStream handle")
     }
     stream.close()
     return 0
 }
 
-@_cdecl("kk_file_writeText")
-public func kk_file_writeText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_writeText")
+public func __kk_file_writeText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_writeText received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_writeText received invalid File handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
           let text = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_writeText received invalid text")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_writeText received invalid text")
     }
     do {
         try text.write(toFile: file.path, atomically: true, encoding: .utf8)
@@ -278,16 +278,16 @@ public func kk_file_writeText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: Unsaf
 
 // MARK: - STDLIB-664: File.appendText()
 
-@_cdecl("kk_file_appendText")
-public func kk_file_appendText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_appendText")
+public func __kk_file_appendText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_appendText received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_appendText received invalid File handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
           let text = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_appendText received invalid text")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_appendText received invalid text")
     }
     do {
         let url = URL(fileURLWithPath: file.path)
@@ -310,11 +310,11 @@ public func kk_file_appendText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: Unsa
     return 0
 }
 
-@_cdecl("kk_file_readLines")
-public func kk_file_readLines(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_readLines")
+public func __kk_file_readLines(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_readLines received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readLines received invalid File handle")
     }
     do {
         let content = try String(contentsOfFile: file.path, encoding: .utf8)
@@ -331,11 +331,11 @@ public func kk_file_readLines(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<
 
 // MARK: - STDLIB-665: File.readBytes()
 
-@_cdecl("kk_file_readBytes")
-public func kk_file_readBytes(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_readBytes")
+public func __kk_file_readBytes(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_readBytes received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readBytes received invalid File handle")
     }
     do {
         let data = try Data(contentsOf: URL(fileURLWithPath: file.path))
@@ -352,11 +352,11 @@ public func kk_file_readBytes(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<
 
 // MARK: - STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
 
-@_cdecl("kk_file_appendBytes")
-public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_appendBytes")
+public func __kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_appendBytes received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_appendBytes received invalid File handle")
     }
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> array")
@@ -384,11 +384,11 @@ public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Un
 
 // MARK: - MIGRATION-IO-001: File.writeBytes(array: ByteArray)
 
-@_cdecl("kk_file_writeBytes")
-public func kk_file_writeBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_writeBytes")
+public func __kk_file_writeBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_writeBytes received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_writeBytes received invalid File handle")
     }
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> array")
@@ -407,66 +407,66 @@ public func kk_file_writeBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Uns
 
 // MARK: - STDLIB-321: File properties and existence checks
 
-@_cdecl("kk_file_exists")
-public func kk_file_exists(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_exists")
+public func __kk_file_exists(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_exists received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_exists received invalid File handle")
     }
     return kk_box_bool(FileManager.default.fileExists(atPath: file.path) ? 1 : 0)
 }
 
-@_cdecl("kk_file_isFile")
-public func kk_file_isFile(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_isFile")
+public func __kk_file_isFile(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_isFile received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_isFile received invalid File handle")
     }
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: file.path, isDirectory: &isDir)
     return kk_box_bool(exists && !isDir.boolValue ? 1 : 0)
 }
 
-@_cdecl("kk_file_isDirectory")
-public func kk_file_isDirectory(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_isDirectory")
+public func __kk_file_isDirectory(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_isDirectory received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_isDirectory received invalid File handle")
     }
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: file.path, isDirectory: &isDir)
     return kk_box_bool(exists && isDir.boolValue ? 1 : 0)
 }
 
-@_cdecl("kk_file_path")
-public func kk_file_path(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_path")
+public func __kk_file_path(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_path received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_path received invalid File handle")
     }
     return fileMakeStringRaw(file.path)
 }
 
 // MARK: - STDLIB-IO-087: Additional File properties and operations
 
-@_cdecl("kk_file_absolutePath")
-public func kk_file_absolutePath(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_absolutePath")
+public func __kk_file_absolutePath(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_absolutePath received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_absolutePath received invalid File handle")
     }
     let url = URL(fileURLWithPath: file.path)
     return fileMakeStringRaw(url.path)
 }
 
-@_cdecl("kk_file_canonicalPath")
-public func kk_file_canonicalPath(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_canonicalPath")
+public func __kk_file_canonicalPath(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_canonicalPath received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_canonicalPath received invalid File handle")
     }
     let resolved = (file.path as NSString).standardizingPath
     return fileMakeStringRaw(resolved)
 }
 
-@_cdecl("kk_file_length")
-public func kk_file_length(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_length")
+public func __kk_file_length(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_length received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_length received invalid File handle")
     }
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
           let size = attrs[.size] as? Int else {
@@ -475,10 +475,10 @@ public func kk_file_length(_ fileRaw: Int) -> Int {
     return size
 }
 
-@_cdecl("kk_file_lastModified")
-public func kk_file_lastModified(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_lastModified")
+public func __kk_file_lastModified(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_lastModified received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_lastModified received invalid File handle")
     }
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
           let modDate = attrs[.modificationDate] as? Date else {
@@ -488,10 +488,10 @@ public func kk_file_lastModified(_ fileRaw: Int) -> Int {
     return Int(modDate.timeIntervalSince1970 * 1000)
 }
 
-@_cdecl("kk_file_createNewFile")
-public func kk_file_createNewFile(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_createNewFile")
+public func __kk_file_createNewFile(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_createNewFile received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_createNewFile received invalid File handle")
     }
     if FileManager.default.fileExists(atPath: file.path) {
         return kk_box_bool(0) // false: file already exists
@@ -500,37 +500,37 @@ public func kk_file_createNewFile(_ fileRaw: Int) -> Int {
     return kk_box_bool(created ? 1 : 0)
 }
 
-@_cdecl("kk_file_canRead")
-public func kk_file_canRead(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_canRead")
+public func __kk_file_canRead(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_canRead received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_canRead received invalid File handle")
     }
     return kk_box_bool(FileManager.default.isReadableFile(atPath: file.path) ? 1 : 0)
 }
 
-@_cdecl("kk_file_canWrite")
-public func kk_file_canWrite(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_canWrite")
+public func __kk_file_canWrite(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_canWrite received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_canWrite received invalid File handle")
     }
     return kk_box_bool(FileManager.default.isWritableFile(atPath: file.path) ? 1 : 0)
 }
 
-@_cdecl("kk_file_canExecute")
-public func kk_file_canExecute(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_canExecute")
+public func __kk_file_canExecute(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_canExecute received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_canExecute received invalid File handle")
     }
     return kk_box_bool(FileManager.default.isExecutableFile(atPath: file.path) ? 1 : 0)
 }
 
 // MARK: - STDLIB-322: File line-by-line operations
 
-@_cdecl("kk_file_forEachLine")
-public func kk_file_forEachLine(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_forEachLine")
+public func __kk_file_forEachLine(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_forEachLine received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_forEachLine received invalid File handle")
     }
     guard let content = try? String(contentsOfFile: file.path, encoding: .utf8) else {
         outThrown?.pointee = runtimeAllocateFileSystemException(
@@ -601,22 +601,22 @@ private func fileForEachBlockImpl(
     return 0
 }
 
-@_cdecl("kk_file_forEachBlock")
-public func kk_file_forEachBlock(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_forEachBlock")
+public func __kk_file_forEachBlock(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     fileForEachBlockImpl(fileRaw: fileRaw, blockSize: fileForEachBlockDefaultSize, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
 }
 
-@_cdecl("kk_file_forEachBlock_blockSize")
-public func kk_file_forEachBlock_blockSize(_ fileRaw: Int, _ blockSizeRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_forEachBlock_blockSize")
+public func __kk_file_forEachBlock_blockSize(_ fileRaw: Int, _ blockSizeRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     fileForEachBlockImpl(fileRaw: fileRaw, blockSize: kk_unbox_int(blockSizeRaw), fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)}
 
 // MARK: - STDLIB-566: File.useLines {}
 
-@_cdecl("kk_file_useLines")
-public func kk_file_useLines(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_useLines")
+public func __kk_file_useLines(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_useLines received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_useLines received invalid File handle")
     }
     guard let content = try? String(contentsOfFile: file.path, encoding: .utf8) else {
         outThrown?.pointee = runtimeAllocateFileSystemException(
@@ -639,26 +639,26 @@ public func kk_file_useLines(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
 
 // MARK: - STDLIB-323: File filesystem operations
 
-@_cdecl("kk_file_delete")
-public func kk_file_delete(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_delete")
+public func __kk_file_delete(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_delete received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_delete received invalid File handle")
     }
     return kk_box_bool((try? FileManager.default.removeItem(atPath: file.path)) != nil ? 1 : 0)
 }
 
-@_cdecl("kk_file_mkdirs")
-public func kk_file_mkdirs(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_mkdirs")
+public func __kk_file_mkdirs(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_mkdirs received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_mkdirs received invalid File handle")
     }
     return kk_box_bool((try? FileManager.default.createDirectory(atPath: file.path, withIntermediateDirectories: true)) != nil ? 1 : 0)
 }
 
-@_cdecl("kk_file_listFiles")
-public func kk_file_listFiles(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_listFiles")
+public func __kk_file_listFiles(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_listFiles received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_listFiles received invalid File handle")
     }
     guard let entries = try? FileManager.default.contentsOfDirectory(atPath: file.path) else {
         return runtimeNullSentinelInt
@@ -670,10 +670,10 @@ public func kk_file_listFiles(_ fileRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
-@_cdecl("kk_file_walk")
-public func kk_file_walk(_ fileRaw: Int) -> Int {
+@_cdecl("__kk_file_walk")
+public func __kk_file_walk(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walk received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_walk received invalid File handle")
     }
     var results: [Int] = []
     fileWalkCollect(at: file.path, results: &results)
@@ -715,8 +715,8 @@ private func fileWalkCollect(at path: String, results: inout [Int]) {
 // - Copies via a buffered loop sized by `bufferSize` so the I/O behaviour
 //   matches Kotlin's implementation.
 // - Returns the target File handle.
-@_cdecl("kk_file_copyTo")
-public func kk_file_copyTo(
+@_cdecl("__kk_file_copyTo")
+public func __kk_file_copyTo(
     _ fileRaw: Int,
     _ targetRaw: Int,
     _ overwriteRaw: Int,
@@ -725,10 +725,10 @@ public func kk_file_copyTo(
 ) -> Int {
     outThrown?.pointee = 0
     guard let source = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_copyTo received invalid source File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_copyTo received invalid source File handle")
     }
     guard let target = runtimeFileBox(from: targetRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_copyTo received invalid target File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_copyTo received invalid target File handle")
     }
     let overwrite = kk_unbox_bool(overwriteRaw) != 0
     let bufferSize = max(1, kk_unbox_int(bufferSizeRaw))
@@ -861,8 +861,8 @@ public func kk_file_copyTo(
 //   re-throws the first encountered exception).
 // - Creates target directories as needed.
 // - Returns true on success.
-@_cdecl("kk_file_copyRecursively")
-public func kk_file_copyRecursively(
+@_cdecl("__kk_file_copyRecursively")
+public func __kk_file_copyRecursively(
     _ fileRaw: Int,
     _ targetRaw: Int,
     _ overwriteRaw: Int,
@@ -870,10 +870,10 @@ public func kk_file_copyRecursively(
 ) -> Int {
     outThrown?.pointee = 0
     guard let source = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_copyRecursively received invalid source File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_copyRecursively received invalid source File handle")
     }
     guard let target = runtimeFileBox(from: targetRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_copyRecursively received invalid target File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_copyRecursively received invalid target File handle")
     }
     let overwrite = kk_unbox_bool(overwriteRaw) != 0
     let fm = FileManager.default
@@ -1023,11 +1023,11 @@ private func runtimeOutputStreamBox(from raw: Int) -> RuntimeOutputStreamBox? {
     return tryCast(ptr, to: RuntimeOutputStreamBox.self)
 }
 
-@_cdecl("kk_file_bufferedReader")
-public func kk_file_bufferedReader(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_bufferedReader")
+public func __kk_file_bufferedReader(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_bufferedReader received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_bufferedReader received invalid File handle")
     }
     do {
         let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: file.path))
@@ -1041,10 +1041,10 @@ public func kk_file_bufferedReader(_ fileRaw: Int, _ outThrown: UnsafeMutablePoi
     }
 }
 
-@_cdecl("kk_buffered_reader_readLine")
-public func kk_buffered_reader_readLine(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_reader_readLine")
+public func __kk_buffered_reader_readLine(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_readLine received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_readLine received invalid BufferedReader handle")
     }
     guard let line = reader.readLine() else {
         return runtimeNullSentinelInt
@@ -1052,36 +1052,36 @@ public func kk_buffered_reader_readLine(_ readerRaw: Int) -> Int {
     return fileMakeStringRaw(line)
 }
 
-@_cdecl("kk_buffered_reader_readLines")
-public func kk_buffered_reader_readLines(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_reader_readLines")
+public func __kk_buffered_reader_readLines(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_readLines received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_readLines received invalid BufferedReader handle")
     }
     let lines = reader.readLines()
     return registerRuntimeObject(RuntimeListBox(elements: lines.map { fileMakeStringRaw($0) }))
 }
 
-@_cdecl("kk_buffered_reader_close")
-public func kk_buffered_reader_close(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_reader_close")
+public func __kk_buffered_reader_close(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_close received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_close received invalid BufferedReader handle")
     }
     reader.close()
     return 0
 }
 
-@_cdecl("kk_buffered_reader_read")
-public func kk_buffered_reader_read(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_reader_read")
+public func __kk_buffered_reader_read(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_read received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_read received invalid BufferedReader handle")
     }
     return reader.read()
 }
 
-@_cdecl("kk_buffered_reader_ready")
-public func kk_buffered_reader_ready(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_reader_ready")
+public func __kk_buffered_reader_ready(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_ready received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_ready received invalid BufferedReader handle")
     }
     return kk_box_bool(reader.ready() ? 1 : 0)
 }
@@ -1096,10 +1096,10 @@ public func kk_buffered_reader_ready(_ readerRaw: Int) -> Int {
 // `RuntimeListIteratorBox` dispatch in `kk_iterator_hasNext` / `kk_iterator_next`.
 // The observable behaviour (iteration order, blank line handling, EOF) matches
 // `readLine()` because we delegate to it.
-@_cdecl("kk_buffered_reader_iterator")
-public func kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_reader_iterator")
+public func __kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_iterator received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_iterator received invalid BufferedReader handle")
     }
     let lineRaws = reader.readLines().map { fileMakeStringRaw($0) }
     return registerRuntimeObject(RuntimeListIteratorBox(elements: lineRaws))
@@ -1112,15 +1112,15 @@ public func kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
 // the receiver before returning the block's result (Reader subclasses such as
 // `BufferedReader` inherit this overload). Our implementation materialises the
 // receiver's remaining lines into a `List<String>` (the same surface returned by
-// `kk_file_useLines`), invokes the supplied lambda once via the collection HOF
+// `__kk_file_useLines`), invokes the supplied lambda once via the collection HOF
 // closure ABI, and closes the underlying buffered reader after the block runs —
 // mirroring the JVM contract where the reader is closed even when the lambda
 // returns or throws.
-@_cdecl("kk_buffered_reader_useLines")
-public func kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_buffered_reader_useLines")
+public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_useLines received invalid BufferedReader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_useLines received invalid BufferedReader handle")
     }
     let lines = reader.readLines()
     let linesList = RuntimeListBox(elements: lines.map { fileMakeStringRaw($0) })
@@ -1143,8 +1143,8 @@ public func kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ closur
 // stops early when the action throws (the thrown value is propagated via `outThrown`).
 // Unlike `useLines`, the reader is NOT automatically closed after iteration ends —
 // this mirrors the JVM contract where `forEachLine` leaves the reader open.
-@_cdecl("kk_buffered_reader_forEachLine")
-public func kk_buffered_reader_forEachLine(
+@_cdecl("__kk_buffered_reader_forEachLine")
+public func __kk_buffered_reader_forEachLine(
     _ readerRaw: Int,
     _ fnPtr: Int,
     _ closureRaw: Int,
@@ -1153,7 +1153,7 @@ public func kk_buffered_reader_forEachLine(
     outThrown?.pointee = 0
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
         fatalError(
-            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_reader_forEachLine received invalid BufferedReader handle"
+            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_forEachLine received invalid BufferedReader handle"
         )
     }
     for line in reader.readLines() {
@@ -1179,10 +1179,10 @@ public func kk_buffered_reader_forEachLine(
 // exception, mirroring the lenient behaviour of our other reader helpers
 // (`readLine`, `readLines`). The Sema extension signature is `() -> String`,
 // so the only ABI argument is the receiver handle — no `outThrown` parameter.
-@_cdecl("kk_reader_readText")
-public func kk_reader_readText(_ readerRaw: Int) -> Int {
+@_cdecl("__kk_reader_readText")
+public func __kk_reader_readText(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_reader_readText received invalid Reader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_readText received invalid Reader handle")
     }
     return fileMakeStringRaw(reader.readText())
 }
@@ -1195,8 +1195,8 @@ public func kk_reader_readText(_ readerRaw: Int) -> Int {
 // UTF-8, matching the rest of the `BufferedReader` API (see
 // `RuntimeBufferedReaderBox.readLine`). The `charsetRaw` argument is accepted
 // for ABI compatibility with future charset support and is otherwise ignored.
-@_cdecl("kk_input_stream_bufferedReader")
-public func kk_input_stream_bufferedReader(
+@_cdecl("__kk_input_stream_bufferedReader")
+public func __kk_input_stream_bufferedReader(
     _ streamRaw: Int,
     _ charsetRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -1204,7 +1204,7 @@ public func kk_input_stream_bufferedReader(
     _ = charsetRaw
     outThrown?.pointee = 0
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_bufferedReader received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_bufferedReader received invalid InputStream handle")
     }
     let remaining = stream.drainRemaining()
     return registerRuntimeObject(RuntimeBufferedReaderBox(data: remaining))
@@ -1217,11 +1217,11 @@ private func runtimeBufferedWriterBox(from raw: Int) -> RuntimeBufferedWriterBox
     return tryCast(ptr, to: RuntimeBufferedWriterBox.self)
 }
 
-@_cdecl("kk_file_bufferedWriter")
-public func kk_file_bufferedWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_bufferedWriter")
+public func __kk_file_bufferedWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_bufferedWriter received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_bufferedWriter received invalid File handle")
     }
     let url = URL(fileURLWithPath: file.path)
     if !FileManager.default.fileExists(atPath: file.path) {
@@ -1240,16 +1240,16 @@ public func kk_file_bufferedWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePoi
     }
 }
 
-@_cdecl("kk_buffered_writer_write")
-public func kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_buffered_writer_write")
+public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_writer_write received invalid BufferedWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid BufferedWriter handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
           let text = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_writer_write received invalid text")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid text")
     }
     do {
         try writer.write(text)
@@ -1259,11 +1259,11 @@ public func kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThro
     return 0
 }
 
-@_cdecl("kk_buffered_writer_new_line")
-public func kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_buffered_writer_new_line")
+public func __kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_writer_new_line received invalid BufferedWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_new_line received invalid BufferedWriter handle")
     }
     do {
         try writer.newLine()
@@ -1273,11 +1273,11 @@ public func kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeMut
     return 0
 }
 
-@_cdecl("kk_buffered_writer_flush")
-public func kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_buffered_writer_flush")
+public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_writer_flush received invalid BufferedWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_flush received invalid BufferedWriter handle")
     }
     do {
         try writer.flush()
@@ -1287,10 +1287,10 @@ public func kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutabl
     return 0
 }
 
-@_cdecl("kk_buffered_writer_close")
-public func kk_buffered_writer_close(_ writerRaw: Int) -> Int {
+@_cdecl("__kk_buffered_writer_close")
+public func __kk_buffered_writer_close(_ writerRaw: Int) -> Int {
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_buffered_writer_close received invalid BufferedWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_close received invalid BufferedWriter handle")
     }
     writer.close()
     return 0
@@ -1299,12 +1299,12 @@ public func kk_buffered_writer_close(_ writerRaw: Int) -> Int {
 // MARK: - STDLIB-IO-FN-027: PrintWriter
 
 /// `PrintWriter` shares the same `RuntimeBufferedWriterBox` as `BufferedWriter`.
-/// `kk_file_printWriter` creates a fresh writer identical to `kk_file_bufferedWriter`.
-@_cdecl("kk_file_printWriter")
-public func kk_file_printWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+/// `__kk_file_printWriter` creates a fresh writer identical to `__kk_file_bufferedWriter`.
+@_cdecl("__kk_file_printWriter")
+public func __kk_file_printWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_printWriter received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_printWriter received invalid File handle")
     }
     let url = URL(fileURLWithPath: file.path)
     if !FileManager.default.fileExists(atPath: file.path) {
@@ -1324,16 +1324,16 @@ public func kk_file_printWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePointe
 }
 
 /// `PrintWriter.print(text)` — writes the text string without a trailing newline.
-@_cdecl("kk_print_writer_print")
-public func kk_print_writer_print(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_print_writer_print")
+public func __kk_print_writer_print(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_print received invalid PrintWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_print received invalid PrintWriter handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
           let text = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_print received invalid text")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_print received invalid text")
     }
     do {
         try writer.write(text)
@@ -1344,16 +1344,16 @@ public func kk_print_writer_print(_ writerRaw: Int, _ textRaw: Int, _ outThrown:
 }
 
 /// `PrintWriter.println(text)` — writes the text string followed by a newline.
-@_cdecl("kk_print_writer_println")
-public func kk_print_writer_println(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_print_writer_println")
+public func __kk_print_writer_println(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_println received invalid PrintWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_println received invalid PrintWriter handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
           let text = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_println received invalid text")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_println received invalid text")
     }
     do {
         try writer.write(text + "\n")
@@ -1364,11 +1364,11 @@ public func kk_print_writer_println(_ writerRaw: Int, _ textRaw: Int, _ outThrow
 }
 
 /// `PrintWriter.println()` — writes a newline only (no-arg overload).
-@_cdecl("kk_print_writer_println_no_arg")
-public func kk_print_writer_println_no_arg(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_print_writer_println_no_arg")
+public func __kk_print_writer_println_no_arg(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_println_no_arg received invalid PrintWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_println_no_arg received invalid PrintWriter handle")
     }
     do {
         try writer.newLine()
@@ -1379,17 +1379,17 @@ public func kk_print_writer_println_no_arg(_ writerRaw: Int, _ outThrown: Unsafe
 }
 
 /// `PrintWriter.write(text)` — writes a string (equivalent to `print(text)`).
-@_cdecl("kk_print_writer_write")
-public func kk_print_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_print_writer_print(writerRaw, textRaw, outThrown)
+@_cdecl("__kk_print_writer_write")
+public func __kk_print_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return __kk_print_writer_print(writerRaw, textRaw, outThrown)
 }
 
 /// `PrintWriter.flush()` — flushes buffered data to the underlying file.
-@_cdecl("kk_print_writer_flush")
-public func kk_print_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_print_writer_flush")
+public func __kk_print_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_flush received invalid PrintWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_flush received invalid PrintWriter handle")
     }
     do {
         try writer.flush()
@@ -1400,10 +1400,10 @@ public func kk_print_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePo
 }
 
 /// `PrintWriter.close()` — flushes and closes the underlying writer.
-@_cdecl("kk_print_writer_close")
-public func kk_print_writer_close(_ writerRaw: Int) -> Int {
+@_cdecl("__kk_print_writer_close")
+public func __kk_print_writer_close(_ writerRaw: Int) -> Int {
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_print_writer_close received invalid PrintWriter handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_print_writer_close received invalid PrintWriter handle")
     }
     writer.close()
     return 0
@@ -1411,29 +1411,29 @@ public func kk_print_writer_close(_ writerRaw: Int) -> Int {
 
 // MARK: - STDLIB-IO-FN-006: Writer.buffered(bufferSize)
 
-@_cdecl("kk_writer_buffered_default")
-public func kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    kk_writer_buffered(writerRaw, 8192, outThrown)
+@_cdecl("__kk_writer_buffered_default")
+public func __kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    __kk_writer_buffered(writerRaw, 8192, outThrown)
 }
 
-@_cdecl("kk_writer_buffered")
-public func kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_writer_buffered")
+public func __kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard bufferSizeRaw > 0 else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bufferSize must be positive")
         return 0
     }
     guard runtimeBufferedWriterBox(from: writerRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_writer_buffered received invalid Writer handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_writer_buffered received invalid Writer handle")
     }
     return writerRaw
 }
 
-@_cdecl("kk_file_inputStream")
-public func kk_file_inputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_inputStream")
+public func __kk_file_inputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_inputStream received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_inputStream received invalid File handle")
     }
     do {
         let data = try Data(contentsOf: URL(fileURLWithPath: file.path))
@@ -1447,8 +1447,8 @@ public func kk_file_inputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointe
     }
 }
 
-@_cdecl("kk_bytearrayinputstream_new")
-public func kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_bytearrayinputstream_new")
+public func __kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let bytes = runtimeByteArrayBytes(from: bufferRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
@@ -1459,8 +1459,8 @@ public func kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMut
 
 // STDLIB-IO-FN-020: ByteArray.inputStream() — wraps the entire byte array as a
 // ByteArrayInputStream. Mirrors the Kotlin stdlib `public fun ByteArray.inputStream()`.
-@_cdecl("kk_bytearray_inputStream")
-public func kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_bytearray_inputStream")
+public func __kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
@@ -1472,8 +1472,8 @@ public func kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutable
 // STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int) — wraps a
 // subrange of the byte array as a ByteArrayInputStream. Mirrors the Kotlin stdlib
 // `public fun ByteArray.inputStream(offset: Int, length: Int)`.
-@_cdecl("kk_bytearray_inputStream_range")
-public func kk_bytearray_inputStream_range(
+@_cdecl("__kk_bytearray_inputStream_range")
+public func __kk_bytearray_inputStream_range(
     _ arrayRaw: Int,
     _ offsetRaw: Int,
     _ lengthRaw: Int,
@@ -1499,8 +1499,8 @@ public func kk_bytearray_inputStream_range(
 // STDLIB-IO-FN-011: String.byteInputStream() — encodes the receiver as UTF-8 and
 // returns a ByteArrayInputStream over the resulting bytes. Default charset overload
 // mirrors `String.toByteArray()` semantics for behavioral consistency.
-@_cdecl("kk_string_byteInputStream_flat")
-public func kk_string_byteInputStream_flat(
+@_cdecl("__kk_string_byteInputStream_flat")
+public func __kk_string_byteInputStream_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -1512,8 +1512,8 @@ public func kk_string_byteInputStream_flat(
 
 // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset) — charset-aware
 // overload. Reuses the same charset table as String.toByteArray(charset).
-@_cdecl("kk_string_byteInputStream_charset_flat")
-public func kk_string_byteInputStream_charset_flat(
+@_cdecl("__kk_string_byteInputStream_charset_flat")
+public func __kk_string_byteInputStream_charset_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -1539,11 +1539,11 @@ private func runtimeStringByteInputStream(_ source: String, charsetTag: Int) -> 
     return registerRuntimeObject(RuntimeInputStreamBox(data: Data(unsignedBytes)))
 }
 
-@_cdecl("kk_file_outputStream")
-public func kk_file_outputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_file_outputStream")
+public func __kk_file_outputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_outputStream received invalid File handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_outputStream received invalid File handle")
     }
     let url = URL(fileURLWithPath: file.path)
     if !FileManager.default.fileExists(atPath: file.path) {
@@ -1562,37 +1562,37 @@ public func kk_file_outputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePoint
     }
 }
 
-@_cdecl("kk_input_stream_read")
-public func kk_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_read")
+public func __kk_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_read received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read received invalid InputStream handle")
     }
     return stream.readByte()
 }
 
-@_cdecl("kk_input_stream_available")
-public func kk_input_stream_available(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_input_stream_available")
+public func __kk_input_stream_available(_ streamRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_available received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_available received invalid InputStream handle")
     }
     return stream.available()
 }
 
-@_cdecl("kk_input_stream_skip")
-public func kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_skip")
+public func __kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_skip received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_skip received invalid InputStream handle")
     }
     return stream.skip(countRaw)
 }
 
-@_cdecl("kk_input_stream_read_bytes")
-public func kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_read_bytes")
+public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_read_bytes received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read_bytes received invalid InputStream handle")
     }
     guard let list = runtimeListBox(from: bytesRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
@@ -1609,15 +1609,15 @@ public func kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outT
 // The extension reads all remaining bytes from `this` into a freshly allocated
 // ByteArray. We model `ByteArray` as a `List<Int>` whose elements are signed
 // Int values in [-128, 127] (matching the rest of the runtime's ByteArray
-// representation, e.g. `kk_file_readBytes`).
+// representation, e.g. `__kk_file_readBytes`).
 //
 // The implementation drains the underlying `RuntimeInputStreamBox` in a single
 // pass (or, for `SequenceInputStream`, walks both chained streams to EOF).
 // The receiver is not closed — `InputStream.readBytes()` mirrors JVM
 // `InputStream.readAllBytes()` in that the caller is responsible for closing
 // the stream (typically via `.use { it.readBytes() }`).
-@_cdecl("kk_input_stream_readAllBytes")
-public func kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_readAllBytes")
+public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     // Try a plain InputStream first.
     if let stream = runtimeInputStreamBox(from: streamRaw) {
@@ -1631,23 +1631,23 @@ public func kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: UnsafeMu
         let bytes = sequenceStream.readAllBytes()
         return registerRuntimeObject(RuntimeListBox(elements: bytes))
     }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_readAllBytes received invalid InputStream handle")
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_readAllBytes received invalid InputStream handle")
 }
 
-@_cdecl("kk_input_stream_mark")
-public func kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int {
+@_cdecl("__kk_input_stream_mark")
+public func __kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_mark received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_mark received invalid InputStream handle")
     }
     stream.mark(readLimit: readLimitRaw)
     return 0
 }
 
-@_cdecl("kk_input_stream_reset")
-public func kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_reset")
+public func __kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_reset received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reset received invalid InputStream handle")
     }
     if !stream.reset() {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: mark/reset not supported")
@@ -1655,18 +1655,18 @@ public func kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutablePo
     return 0
 }
 
-@_cdecl("kk_input_stream_mark_supported")
-public func kk_input_stream_mark_supported(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_input_stream_mark_supported")
+public func __kk_input_stream_mark_supported(_ streamRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_mark_supported received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_mark_supported received invalid InputStream handle")
     }
     return kk_box_bool(stream.markSupported() ? 1 : 0)
 }
 
-@_cdecl("kk_input_stream_close")
-public func kk_input_stream_close(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_input_stream_close")
+public func __kk_input_stream_close(_ streamRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_close received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_close received invalid InputStream handle")
     }
     stream.close()
     return 0
@@ -1684,8 +1684,8 @@ public func kk_input_stream_close(_ streamRaw: Int) -> Int {
 // all available bytes have been read, returning the total byte count as a
 // boxed Long.  The InputStream is not closed after copying (matching
 // Kotlin/JVM behaviour).
-@_cdecl("kk_input_stream_copyTo")
-public func kk_input_stream_copyTo(
+@_cdecl("__kk_input_stream_copyTo")
+public func __kk_input_stream_copyTo(
     _ streamRaw: Int,
     _ outStreamRaw: Int,
     _ bufferSizeRaw: Int,
@@ -1693,10 +1693,10 @@ public func kk_input_stream_copyTo(
 ) -> Int {
     outThrown?.pointee = 0
     guard let inputStream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_copyTo received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid InputStream handle")
     }
     guard let outputStream = runtimeOutputStreamBox(from: outStreamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_copyTo received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid OutputStream handle")
     }
     let bufferSize = max(1, kk_unbox_int(bufferSizeRaw))
     var totalBytesCopied: Int = 0
@@ -1734,11 +1734,11 @@ public func kk_input_stream_copyTo(
 // If a future revision introduces a dedicated BufferedInputStreamBox with
 // look-ahead semantics, this function will continue to be the single seam
 // for materialising one from an arbitrary InputStream handle.
-@_cdecl("kk_input_stream_buffered_default")
-public func kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_buffered_default")
+public func __kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard runtimeInputStreamBox(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_buffered_default received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered_default received invalid InputStream handle")
     }
     // The underlying RuntimeInputStreamBox already buffers via Data, so we
     // can hand out the same handle re-typed.  Returning the same raw value
@@ -1746,11 +1746,11 @@ public func kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: Unsa
     return streamRaw
 }
 
-@_cdecl("kk_input_stream_buffered")
-public func kk_input_stream_buffered(_ streamRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_input_stream_buffered")
+public func __kk_input_stream_buffered(_ streamRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard runtimeInputStreamBox(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_buffered received invalid InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered received invalid InputStream handle")
     }
     // Kotlin's reference implementation throws IllegalArgumentException for
     // non-positive buffer sizes (BufferedInputStream's underlying JVM type
@@ -1770,48 +1770,48 @@ private func runtimeSequenceInputStreamBox(from raw: Int) -> RuntimeSequenceInpu
     return tryCast(ptr, to: RuntimeSequenceInputStreamBox.self)
 }
 
-@_cdecl("kk_sequence_input_stream_new")
-public func kk_sequence_input_stream_new(_ firstRaw: Int, _ secondRaw: Int) -> Int {
+@_cdecl("__kk_sequence_input_stream_new")
+public func __kk_sequence_input_stream_new(_ firstRaw: Int, _ secondRaw: Int) -> Int {
     guard let first = runtimeInputStreamBox(from: firstRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_input_stream_new: invalid first InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_new: invalid first InputStream handle")
     }
     guard let second = runtimeInputStreamBox(from: secondRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_input_stream_new: invalid second InputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_new: invalid second InputStream handle")
     }
     return registerRuntimeObject(RuntimeSequenceInputStreamBox(first: first, second: second))
 }
 
-@_cdecl("kk_sequence_input_stream_read")
-public func kk_sequence_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_sequence_input_stream_read")
+public func __kk_sequence_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_input_stream_read received invalid SequenceInputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_read received invalid SequenceInputStream handle")
     }
     return stream.readByte()
 }
 
-@_cdecl("kk_sequence_input_stream_available")
-public func kk_sequence_input_stream_available(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_sequence_input_stream_available")
+public func __kk_sequence_input_stream_available(_ streamRaw: Int) -> Int {
     guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_input_stream_available received invalid SequenceInputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_available received invalid SequenceInputStream handle")
     }
     return stream.available()
 }
 
-@_cdecl("kk_sequence_input_stream_close")
-public func kk_sequence_input_stream_close(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_sequence_input_stream_close")
+public func __kk_sequence_input_stream_close(_ streamRaw: Int) -> Int {
     guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_input_stream_close received invalid SequenceInputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_close received invalid SequenceInputStream handle")
     }
     stream.close()
     return 0
 }
 
-@_cdecl("kk_output_stream_write_byte")
-public func kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_output_stream_write_byte")
+public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_write_byte received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_byte received invalid OutputStream handle")
     }
     do {
         try stream.writeByte(valueRaw)
@@ -1821,11 +1821,11 @@ public func kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ out
     return 0
 }
 
-@_cdecl("kk_output_stream_write_bytes")
-public func kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_output_stream_write_bytes")
+public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_write_bytes received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_bytes received invalid OutputStream handle")
     }
     guard let list = runtimeListBox(from: bytesRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
@@ -1839,11 +1839,11 @@ public func kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ ou
     return 0
 }
 
-@_cdecl("kk_output_stream_flush")
-public func kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_output_stream_flush")
+public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_flush received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_flush received invalid OutputStream handle")
     }
     do {
         try stream.flush()
@@ -1853,10 +1853,10 @@ public func kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutableP
     return 0
 }
 
-@_cdecl("kk_output_stream_close")
-public func kk_output_stream_close(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_output_stream_close")
+public func __kk_output_stream_close(_ streamRaw: Int) -> Int {
     guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_close received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_close received invalid OutputStream handle")
     }
     stream.close()
     return 0
@@ -1888,23 +1888,23 @@ private func outputStreamEncoding(for charsetRaw: Int) -> String.Encoding {
 /// over this output stream using the specified charset.  Subsequent writes/closes
 /// of the returned writer affect the underlying stream; the original `OutputStream`
 /// handle should no longer be used directly.
-@_cdecl("kk_output_stream_bufferedWriter")
-public func kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: Int) -> Int {
+@_cdecl("__kk_output_stream_bufferedWriter")
+public func __kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: Int) -> Int {
     guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_bufferedWriter received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_bufferedWriter received invalid OutputStream handle")
     }
     let encoding = outputStreamEncoding(for: charsetRaw)
     guard let writer = stream.makeBufferedWriter(encoding: encoding) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_bufferedWriter cannot wrap non-file-handle OutputStream")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_bufferedWriter cannot wrap non-file-handle OutputStream")
     }
     return registerRuntimeObject(writer)
 }
 
 /// Charset-less default overload — `kotlin.io.bufferedWriter()` with no
 /// argument should use `Charsets.UTF_8`.  STDLIB-IO-FN-009.
-@_cdecl("kk_output_stream_bufferedWriter_default")
-public func kk_output_stream_bufferedWriter_default(_ streamRaw: Int) -> Int {
-    kk_output_stream_bufferedWriter(streamRaw, 0)
+@_cdecl("__kk_output_stream_bufferedWriter_default")
+public func __kk_output_stream_bufferedWriter_default(_ streamRaw: Int) -> Int {
+    __kk_output_stream_bufferedWriter(streamRaw, 0)
 }
 
 // MARK: - STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize)
@@ -1914,10 +1914,10 @@ public func kk_output_stream_bufferedWriter_default(_ streamRaw: Int) -> Int {
 /// FileHandle (which performs its own buffering), the wrapped handle is the
 /// receiver itself — matching Kotlin's identity contract for an already-buffered
 /// stream (`if (this is BufferedOutputStream) this else BufferedOutputStream(this)`).
-@_cdecl("kk_output_stream_buffered")
-public func kk_output_stream_buffered(_ streamRaw: Int) -> Int {
+@_cdecl("__kk_output_stream_buffered")
+public func __kk_output_stream_buffered(_ streamRaw: Int) -> Int {
     guard runtimeOutputStreamBox(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_buffered received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_buffered received invalid OutputStream handle")
     }
     return streamRaw
 }
@@ -1926,11 +1926,11 @@ public func kk_output_stream_buffered(_ streamRaw: Int) -> Int {
 /// honored by the underlying OS-level FileHandle, so this overload also returns
 /// the receiver handle. Reserved for a future BufferedOutputStream-backed
 /// implementation that respects the requested buffer size explicitly.
-@_cdecl("kk_output_stream_buffered_sized")
-public func kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: Int) -> Int {
+@_cdecl("__kk_output_stream_buffered_sized")
+public func __kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: Int) -> Int {
     _ = bufferSize // Reserved for explicit BufferedOutputStream implementation.
     guard runtimeOutputStreamBox(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_buffered_sized received invalid OutputStream handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_buffered_sized received invalid OutputStream handle")
     }
     return streamRaw
 }
@@ -1957,8 +1957,8 @@ private let kReaderCopyToDefaultBufferSize: Int = 16 * 1024
 /// `RuntimeBufferedReaderBox` and `RuntimeBufferedWriterBox` — the only
 /// character-stream types modelled in the synthetic stubs.  Passing any other
 /// box panics with a clear diagnostic so test failures surface immediately.
-@_cdecl("kk_reader_copyTo")
-public func kk_reader_copyTo(
+@_cdecl("__kk_reader_copyTo")
+public func __kk_reader_copyTo(
     _ readerRaw: Int,
     _ writerRaw: Int,
     _ bufferSizeRaw: Int,
@@ -1967,10 +1967,10 @@ public func kk_reader_copyTo(
     outThrown?.pointee = 0
 
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_reader_copyTo received invalid Reader handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Reader handle")
     }
     guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_reader_copyTo received invalid Writer handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Writer handle")
     }
 
     if bufferSizeRaw <= 0 {
@@ -2029,13 +2029,13 @@ public func kk_reader_copyTo(
 
 /// Zero-bufferSize overload — `Reader.copyTo(out)` defaults to
 /// `DEFAULT_BUFFER_SIZE`.  STDLIB-IO-FN-014.
-@_cdecl("kk_reader_copyTo_default")
-public func kk_reader_copyTo_default(
+@_cdecl("__kk_reader_copyTo_default")
+public func __kk_reader_copyTo_default(
     _ readerRaw: Int,
     _ writerRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_reader_copyTo(readerRaw, writerRaw, kReaderCopyToDefaultBufferSize, outThrown)
+    __kk_reader_copyTo(readerRaw, writerRaw, kReaderCopyToDefaultBufferSize, outThrown)
 }
 
 // MARK: - STDLIB-IO-090: Files utility (java.nio.file.Files)
@@ -2071,12 +2071,12 @@ private func runtimeFileIOStringArgument(_ raw: Int, caller: StaticString) -> St
 }
 
 /// Files.createFile(path) — creates a new empty file, returns the path.
-@_cdecl("kk_files_createFile")
-public func kk_files_createFile(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_createFile")
+public func __kk_files_createFile(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_createFile received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_createFile received invalid Path handle")
     }
     if FileManager.default.fileExists(atPath: path.pathString) {
         outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(file: path.pathString)
@@ -2093,12 +2093,12 @@ public func kk_files_createFile(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: Un
 }
 
 /// Files.delete(path) — deletes a file or empty directory.
-@_cdecl("kk_files_delete")
-public func kk_files_delete(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_delete")
+public func __kk_files_delete(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_delete received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_delete received invalid Path handle")
     }
     guard FileManager.default.fileExists(atPath: path.pathString) else {
         outThrown?.pointee = runtimeAllocateNoSuchFileException(file: path.pathString)
@@ -2116,15 +2116,15 @@ public func kk_files_delete(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: Unsafe
 }
 
 /// Files.copy(source, target) — copies a file, returns the target path.
-@_cdecl("kk_files_copy")
-public func kk_files_copy(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_copy")
+public func __kk_files_copy(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let source = runtimePathBox(from: sourceRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_copy received invalid source Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_copy received invalid source Path handle")
     }
     guard let target = runtimePathBox(from: targetRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_copy received invalid target Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_copy received invalid target Path handle")
     }
     do {
         try FileManager.default.copyItem(atPath: source.pathString, toPath: target.pathString)
@@ -2139,15 +2139,15 @@ public func kk_files_copy(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _
 }
 
 /// Files.move(source, target) — moves/renames a file, returns the target path.
-@_cdecl("kk_files_move")
-public func kk_files_move(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_move")
+public func __kk_files_move(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let source = runtimePathBox(from: sourceRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_move received invalid source Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_move received invalid source Path handle")
     }
     guard let target = runtimePathBox(from: targetRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_move received invalid target Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_move received invalid target Path handle")
     }
     do {
         try FileManager.default.moveItem(atPath: source.pathString, toPath: target.pathString)
@@ -2162,12 +2162,12 @@ public func kk_files_move(_ filesRaw: Int, _ sourceRaw: Int, _ targetRaw: Int, _
 }
 
 /// Files.createDirectory(path) — creates a single directory, returns the path.
-@_cdecl("kk_files_createDirectory")
-public func kk_files_createDirectory(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_createDirectory")
+public func __kk_files_createDirectory(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_createDirectory received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_createDirectory received invalid Path handle")
     }
     do {
         _ = try FileManager.default.createDirectory(atPath: path.pathString, withIntermediateDirectories: false)
@@ -2181,12 +2181,12 @@ public func kk_files_createDirectory(_ filesRaw: Int, _ pathRaw: Int, _ outThrow
 }
 
 /// Files.createDirectories(path) — creates directory tree, returns the path.
-@_cdecl("kk_files_createDirectories")
-public func kk_files_createDirectories(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_createDirectories")
+public func __kk_files_createDirectories(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_createDirectories received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_createDirectories received invalid Path handle")
     }
     do {
         _ = try FileManager.default.createDirectory(atPath: path.pathString, withIntermediateDirectories: true)
@@ -2200,12 +2200,12 @@ public func kk_files_createDirectories(_ filesRaw: Int, _ pathRaw: Int, _ outThr
 }
 
 /// Files.size(path) — returns file size in bytes.
-@_cdecl("kk_files_size")
-public func kk_files_size(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_size")
+public func __kk_files_size(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_size received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_size received invalid Path handle")
     }
     do {
         let attrs = try FileManager.default.attributesOfItem(atPath: path.pathString)
@@ -2220,12 +2220,12 @@ public func kk_files_size(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMu
 }
 
 /// Files.getLastModifiedTime(path) — returns the modification time as a FileTime.
-@_cdecl("kk_files_getLastModifiedTime")
-public func kk_files_getLastModifiedTime(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_getLastModifiedTime")
+public func __kk_files_getLastModifiedTime(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_getLastModifiedTime received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_getLastModifiedTime received invalid Path handle")
     }
     do {
         let attrs = try FileManager.default.attributesOfItem(atPath: path.pathString)
@@ -2243,20 +2243,20 @@ public func kk_files_getLastModifiedTime(_ filesRaw: Int, _ pathRaw: Int, _ outT
 }
 
 /// FileTime.toMillis() — returns the stored epoch millis.
-@_cdecl("kk_fileTime_toMillis")
-public func kk_fileTime_toMillis(_ fileTimeRaw: Int) -> Int {
+@_cdecl("__kk_fileTime_toMillis")
+public func __kk_fileTime_toMillis(_ fileTimeRaw: Int) -> Int {
     guard let fileTime = runtimeFileTimeBox(from: fileTimeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_fileTime_toMillis received invalid FileTime handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_fileTime_toMillis received invalid FileTime handle")
     }
     return fileTime.milliseconds
 }
 
 /// Files.isRegularFile(path) — returns true if the path is a regular file.
-@_cdecl("kk_files_isRegularFile")
-public func kk_files_isRegularFile(_ filesRaw: Int, _ pathRaw: Int) -> Int {
+@_cdecl("__kk_files_isRegularFile")
+public func __kk_files_isRegularFile(_ filesRaw: Int, _ pathRaw: Int) -> Int {
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_isRegularFile received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_isRegularFile received invalid Path handle")
     }
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: path.pathString, isDirectory: &isDir)
@@ -2264,11 +2264,11 @@ public func kk_files_isRegularFile(_ filesRaw: Int, _ pathRaw: Int) -> Int {
 }
 
 /// Files.isDirectory(path) — returns true if the path is a directory.
-@_cdecl("kk_files_isDirectory")
-public func kk_files_isDirectory(_ filesRaw: Int, _ pathRaw: Int) -> Int {
+@_cdecl("__kk_files_isDirectory")
+public func __kk_files_isDirectory(_ filesRaw: Int, _ pathRaw: Int) -> Int {
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_isDirectory received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_isDirectory received invalid Path handle")
     }
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: path.pathString, isDirectory: &isDir)
@@ -2276,22 +2276,22 @@ public func kk_files_isDirectory(_ filesRaw: Int, _ pathRaw: Int) -> Int {
 }
 
 /// Files.exists(path) — returns true if the path exists.
-@_cdecl("kk_files_exists")
-public func kk_files_exists(_ filesRaw: Int, _ pathRaw: Int) -> Int {
+@_cdecl("__kk_files_exists")
+public func __kk_files_exists(_ filesRaw: Int, _ pathRaw: Int) -> Int {
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_exists received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_exists received invalid Path handle")
     }
     return kk_box_bool(FileManager.default.fileExists(atPath: path.pathString) ? 1 : 0)
 }
 
 /// Files.walk(path) — recursively walks the directory tree, returns List<Path>.
-@_cdecl("kk_files_walk")
-public func kk_files_walk(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_walk")
+public func __kk_files_walk(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_walk received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_walk received invalid Path handle")
     }
     // Include root as first element, matching Kotlin Files.walk() behaviour
     var paths: [Int] = [registerRuntimeObject(RuntimePathBox(path.pathString))]
@@ -2305,12 +2305,12 @@ public func kk_files_walk(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMu
 }
 
 /// Files.list(path) — lists direct children of a directory, returns List<Path>.
-@_cdecl("kk_files_list")
-public func kk_files_list(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_list")
+public func __kk_files_list(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_list received invalid Path handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_files_list received invalid Path handle")
     }
     do {
         let entries = try FileManager.default.contentsOfDirectory(atPath: path.pathString)
@@ -2329,14 +2329,14 @@ public func kk_files_list(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMu
 }
 
 /// Files.newDirectoryStream(path) — alias for list(), returns List<Path>.
-@_cdecl("kk_files_newDirectoryStream")
-public func kk_files_newDirectoryStream(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    kk_files_list(filesRaw, pathRaw, outThrown)
+@_cdecl("__kk_files_newDirectoryStream")
+public func __kk_files_newDirectoryStream(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    __kk_files_list(filesRaw, pathRaw, outThrown)
 }
 
 /// Files.createTempFile(prefix, suffix) — creates a temporary file, returns Path.
-@_cdecl("kk_files_createTempFile")
-public func kk_files_createTempFile(_ filesRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_createTempFile")
+public func __kk_files_createTempFile(_ filesRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     let prefix = runtimeFileIOStringArgument(prefixRaw, caller: #function)
@@ -2356,8 +2356,8 @@ public func kk_files_createTempFile(_ filesRaw: Int, _ prefixRaw: Int, _ suffixR
 }
 
 /// Files.createTempDirectory(prefix) — creates a temporary directory, returns Path.
-@_cdecl("kk_files_createTempDirectory")
-public func kk_files_createTempDirectory(_ filesRaw: Int, _ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_files_createTempDirectory")
+public func __kk_files_createTempDirectory(_ filesRaw: Int, _ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     _ = filesRaw
     let prefix = runtimeFileIOStringArgument(prefixRaw, caller: #function)
@@ -2375,8 +2375,8 @@ public func kk_files_createTempDirectory(_ filesRaw: Int, _ prefixRaw: Int, _ ou
     return registerRuntimeObject(RuntimePathBox(fullPath))
 }
 
-@_cdecl("kk_io_createTempDir_default")
-public func kk_io_createTempDir_default(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempDir_default")
+public func __kk_io_createTempDir_default(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempDirectory(
         prefixRaw: runtimeNullSentinelInt,
         suffixRaw: runtimeNullSentinelInt,
@@ -2385,8 +2385,8 @@ public func kk_io_createTempDir_default(_ outThrown: UnsafeMutablePointer<Int>?)
     )
 }
 
-@_cdecl("kk_io_createTempDir_prefix")
-public func kk_io_createTempDir_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempDir_prefix")
+public func __kk_io_createTempDir_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempDirectory(
         prefixRaw: prefixRaw,
         suffixRaw: runtimeNullSentinelInt,
@@ -2395,8 +2395,8 @@ public func kk_io_createTempDir_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMuta
     )
 }
 
-@_cdecl("kk_io_createTempDir_prefix_suffix")
-public func kk_io_createTempDir_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempDir_prefix_suffix")
+public func __kk_io_createTempDir_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempDirectory(
         prefixRaw: prefixRaw,
         suffixRaw: suffixRaw,
@@ -2405,8 +2405,8 @@ public func kk_io_createTempDir_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int
     )
 }
 
-@_cdecl("kk_io_createTempDir")
-public func kk_io_createTempDir(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempDir")
+public func __kk_io_createTempDir(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempDirectory(
         prefixRaw: prefixRaw,
         suffixRaw: suffixRaw,
@@ -2415,8 +2415,8 @@ public func kk_io_createTempDir(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryR
     )
 }
 
-@_cdecl("kk_io_createTempFile_default")
-public func kk_io_createTempFile_default(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempFile_default")
+public func __kk_io_createTempFile_default(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempFile(
         prefixRaw: runtimeNullSentinelInt,
         suffixRaw: runtimeNullSentinelInt,
@@ -2425,8 +2425,8 @@ public func kk_io_createTempFile_default(_ outThrown: UnsafeMutablePointer<Int>?
     )
 }
 
-@_cdecl("kk_io_createTempFile_prefix")
-public func kk_io_createTempFile_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempFile_prefix")
+public func __kk_io_createTempFile_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempFile(
         prefixRaw: prefixRaw,
         suffixRaw: runtimeNullSentinelInt,
@@ -2435,8 +2435,8 @@ public func kk_io_createTempFile_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMut
     )
 }
 
-@_cdecl("kk_io_createTempFile_prefix_suffix")
-public func kk_io_createTempFile_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempFile_prefix_suffix")
+public func __kk_io_createTempFile_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempFile(
         prefixRaw: prefixRaw,
         suffixRaw: suffixRaw,
@@ -2445,8 +2445,8 @@ public func kk_io_createTempFile_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: In
     )
 }
 
-@_cdecl("kk_io_createTempFile")
-public func kk_io_createTempFile(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_io_createTempFile")
+public func __kk_io_createTempFile(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeCreateDeprecatedTempFile(
         prefixRaw: prefixRaw,
         suffixRaw: suffixRaw,

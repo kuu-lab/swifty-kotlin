@@ -10,7 +10,7 @@ import kotlin.comparisons.compareValuesUnchecked
 //
 // Migration source:
 //   Sources/Runtime/RuntimeArrayDequeAndUtility.swift (kk_array_sortedArray*)
-//   Sources/Runtime/RuntimeCollectionHOFArray.swift    (kk_array_sortedArrayWith / kk_array_binarySearch_compare)
+//   bundled Kotlin source (generic and primitive-array sorting/search helpers)
 //   Sources/Runtime/RuntimeArrayBasics.swift           (kk_array_binarySearch / kk_<prim>Array_binarySearch)
 //
 // The sorts are stable insertion sorts, matching the tie-breaking of the
