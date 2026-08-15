@@ -720,6 +720,9 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 valueParameterIsVararg: signature.valueParameterIsVararg.isEmpty
                     ? params.map { _ in false }
                     : signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn.isEmpty
+                    ? params.map { _ in true }
+                    : signature.valueParameterAllowsNonLocalReturn,
                 typeParameterSymbols: []
             ),
             for: functionSymbol

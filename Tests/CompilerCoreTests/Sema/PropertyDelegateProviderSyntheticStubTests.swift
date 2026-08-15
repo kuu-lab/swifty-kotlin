@@ -3,7 +3,7 @@
 import Testing
 
 @Suite
-struct PropertyDelegateProviderSyntheticStubTests {
+struct PropertyDelegateProviderSourceTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
@@ -34,7 +34,8 @@ struct PropertyDelegateProviderSyntheticStubTests {
         let providerInfo = try #require(sema.symbols.symbol(providerSymbol))
         #expect(providerInfo.kind == .interface)
         #expect(providerInfo.flags.contains(.funInterface))
-        #expect(providerInfo.flags.contains(.synthetic))
+        #expect(!providerInfo.flags.contains(.synthetic))
+        #expect(providerInfo.declSite != nil)
 
         let typeParameters = sema.types.nominalTypeParameterSymbols(for: providerSymbol)
         #expect(try resolvedNames(typeParameters, sema: sema, interner: interner) == ["T", "D"])
@@ -63,7 +64,9 @@ struct PropertyDelegateProviderSyntheticStubTests {
         let provideSymbol = try #require(sema.symbols.lookup(fqName: providerFQName + [interner.intern("provideDelegate")]))
         let provideInfo = try #require(sema.symbols.symbol(provideSymbol))
         #expect(provideInfo.kind == .function)
-        #expect(provideInfo.flags.isSuperset(of: [.abstractType, .operatorFunction, .synthetic]))
+        #expect(provideInfo.flags.isSuperset(of: [.abstractType, .operatorFunction]))
+        #expect(!provideInfo.flags.contains(.synthetic))
+        #expect(provideInfo.declSite != nil)
 
         let signature = try #require(sema.symbols.functionSignature(for: provideSymbol))
         #expect(signature.receiverType == providerType)

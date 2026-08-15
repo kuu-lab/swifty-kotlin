@@ -4,10 +4,6 @@ symbol fq=__local_2.dToLong kind=local vis=private flags=_ type=Long
 symbol fq=__local_3.f kind=local vis=private flags=_ type=Float
 symbol fq=__local_4.fToInt kind=local vis=private flags=_ type=Int
 symbol fq=__local_5.fToLong kind=local vis=private flags=_ type=Long
-symbol fq=kotlin.math.roundToInt#0 kind=function vis=public flags=synthetic sig=recv=Double params=[] ret=Int
-symbol fq=kotlin.math.roundToInt#1 kind=function vis=public flags=synthetic sig=recv=Float params=[] ret=Int
-symbol fq=kotlin.math.roundToLong#0 kind=function vis=public flags=synthetic sig=recv=Double params=[] ret=Long
-symbol fq=kotlin.math.roundToLong#1 kind=function vis=public flags=synthetic sig=recv=Float params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fnumeric_rounding package=_
   decl main fun main sym=main

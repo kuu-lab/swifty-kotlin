@@ -29,6 +29,14 @@ struct NativeEmitter {
     /// Print and println are source-backed, so this intentionally stays empty.
     static let knownVoidNoArgCallees: Set<String> = []
 
+    // These calls receive a function value as their first argument; the KIR
+    // symbol is only an inline-lowering hint and never a direct native callee.
+    static let functionValueInvokeCallees: Set<String> = [
+        "kk_function_invoke", "kk_function_invoke_0",
+        "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
+        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
+    ]
+
     /// Quick lookup for runtime ABI function specs by symbol name.
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })

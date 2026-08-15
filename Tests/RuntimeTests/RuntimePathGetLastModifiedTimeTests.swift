@@ -27,7 +27,7 @@ struct RuntimePathGetLastModifiedTimeTests {
         let fileTimeRaw = kk_path_getLastModifiedTime(pathRaw, 0, &thrown)
 
         #expect(thrown == 0)
-        let millis = kk_fileTime_toMillis(fileTimeRaw)
+        let millis = __kk_fileTime_toMillis(fileTimeRaw)
         // The modification time should be a positive number of milliseconds
         // since the Unix epoch (i.e. after 1970-01-01).
         #expect(millis > 0)
@@ -60,6 +60,6 @@ struct RuntimePathGetLastModifiedTimeTests {
 
         #expect(thrown1 == 0)
         #expect(thrown2 == 0)
-        #expect(kk_fileTime_toMillis(fileTimeRaw1) == kk_fileTime_toMillis(fileTimeRaw2))
+        #expect(__kk_fileTime_toMillis(fileTimeRaw1) == __kk_fileTime_toMillis(fileTimeRaw2))
     }
 }

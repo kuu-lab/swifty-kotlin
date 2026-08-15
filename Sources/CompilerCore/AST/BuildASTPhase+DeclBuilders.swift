@@ -685,6 +685,18 @@ extension BuildASTPhase {
             }
             return false
         })
+        let isCrossinline = withoutDefault.contains(where: { token in
+            if case .keyword(.crossinline) = token.kind {
+                return true
+            }
+            return false
+        })
+        let isNoinline = withoutDefault.contains(where: { token in
+            if case .keyword(.noinline) = token.kind {
+                return true
+            }
+            return false
+        })
         let isValProperty = withoutDefault.contains(where: { $0.kind == .keyword(.val) })
         let isVarProperty = withoutDefault.contains(where: { $0.kind == .keyword(.var) })
         let isOverrideProperty = withoutDefault.contains(where: { $0.kind == .keyword(.override) })
@@ -706,6 +718,8 @@ extension BuildASTPhase {
             isOverrideProperty: isOverrideProperty,
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
+            isCrossinline: isCrossinline,
+            isNoinline: isNoinline,
             defaultValue: defaultValueExpr,
             annotations: parsedAnnotations
         ))
