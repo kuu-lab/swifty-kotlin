@@ -75,7 +75,7 @@ extension CallTypeChecker {
             {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0026",
-                    "only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver",
+                    "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
                     range: range
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)

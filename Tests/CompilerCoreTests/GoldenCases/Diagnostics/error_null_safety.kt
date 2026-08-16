@@ -6,7 +6,7 @@ fun main() {
 
     // ERROR: Calling method on potentially null value without safe call
     val maybeNull: String? = "hello"
-    val length = maybeNull.length  // KSWIFTK-SEMA-0026: only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver
+    val length = maybeNull.length  // KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
 
     // ERROR: Passing nullable where non-nullable is required
     val nullable: Int? = 10
