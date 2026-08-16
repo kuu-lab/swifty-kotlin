@@ -22,6 +22,7 @@ package kotlin
     AnnotationTarget.FUNCTION,
     AnnotationTarget.PROPERTY_GETTER,
     AnnotationTarget.PROPERTY_SETTER,
+    AnnotationTarget.TYPE,
     AnnotationTarget.EXPRESSION,
     AnnotationTarget.FILE,
     AnnotationTarget.TYPEALIAS
