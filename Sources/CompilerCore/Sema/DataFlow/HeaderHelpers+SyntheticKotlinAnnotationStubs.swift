@@ -205,22 +205,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "MustUseReturnValues",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
-            named: "BuilderInference",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
@@ -250,37 +235,7 @@ extension DataFlowSemaPhase {
             symbols.setAnnotations(annotations, for: optInSymbol)
         }
 
-        if let builderInferenceSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("BuilderInference")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.VALUE_PARAMETER",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                    ]
-                ),
-                to: builderInferenceSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: builderInferenceSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.experimentalTypeInference.qualifiedName
-                ),
-                to: builderInferenceSymbol,
-                symbols: symbols
-            )
-        }
+
 
         // kotlin.experimental.ExperimentalTypeInference is now provided by the
         // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
@@ -643,22 +598,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner
-            )
-        }
-
-        if let mustUseReturnValuesSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("MustUseReturnValues")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.FILE",
-                        "AnnotationTarget.CLASS",
-                    ]
-                ),
-                to: mustUseReturnValuesSymbol,
-                symbols: symbols
             )
         }
 
