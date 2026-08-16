@@ -91,14 +91,6 @@ extension DataFlowSemaPhase {
             }
             symbols.setAnnotations(annotations, for: extFunctionTypeSymbol)
         }
-        registerSyntheticContextFunctionTypeParamsAnnotation(
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         registerSyntheticAnnotationClass(
             named: "Metadata",
             packageFQName: kotlinPkg,

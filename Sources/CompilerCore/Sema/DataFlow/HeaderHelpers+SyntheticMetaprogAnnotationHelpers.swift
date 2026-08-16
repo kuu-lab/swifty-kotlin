@@ -115,65 +115,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticContextFunctionTypeParamsAnnotation(
-        packageFQName: [InternedString],
-        packageSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let className = interner.intern(KnownCompilerAnnotation.contextFunctionTypeParams.simpleName)
-        let classFQName = packageFQName + [className]
-        let classSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: classFQName) {
-            classSymbol = existing
-        } else {
-            classSymbol = symbols.define(
-                kind: .annotationClass,
-                name: className,
-                fqName: classFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if packageSymbol != .invalid {
-            symbols.setParentSymbol(packageSymbol, for: classSymbol)
-        }
-
-        appendSyntheticAnnotation(
-            MetadataAnnotationRecord(
-                annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                arguments: ["AnnotationTarget.TYPE"]
-            ),
-            to: classSymbol,
-            symbols: symbols
-        )
-
-        let classType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerSyntheticAnnotationIntProperty(
-            named: "count",
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticAnnotationIntConstructor(
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            ownerType: classType,
-            parameterName: "count",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
-
     func registerSyntheticAnnotationIntProperty(
         named name: String,
         ownerSymbol: SymbolID,
