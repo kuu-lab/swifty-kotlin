@@ -993,13 +993,14 @@
     - `kotlin.AutoCloseable` — interface kotlin.AutoCloseable  -- `abstract interface kotlin/AutoCloseable {`
     - `kotlin.AutoCloseable` — fun AutoCloseable(Function0): AutoCloseable  -- `final inline fun kotlin/AutoCloseable(crossinline kotlin/Function0<kotlin/Unit>): kotlin/AutoCloseable`
 
-- [ ] KSP-722: kotlin.BuilderInference-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-722: kotlin.BuilderInference-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `BuilderInference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/BuilderInference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_BuilderInference.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了（2026-08-16、PR #5850）：`Sources/CompilerCore/Stdlib/kotlin/BuilderInference.kt` に stdlib 2.3.10 宣言を追加、`HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` から `BuilderInference` 合成スタブを削除、`AnnotationSemanticTests` を source-backed 宣言用に更新、golden/diff ケースを追加。検証: `bash Scripts/swift_test.sh --filter Golden` pass、`DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` pass、`bash Scripts/validate_runtime_abi_links.sh` pass、`bash Scripts/check_todo_ids.sh` pass。フル `diff_kotlinc` は 892/895 pass、失敗 3 件（`jvm_preview.kt`、`num_conversions.kt`、`num_float_tostring.kt`）は JDK17 環境下の既存 JDK21 差分。
   - 未実装シンボル一覧:
     - `kotlin.BuilderInference` — class kotlin.BuilderInference  -- `open annotation class kotlin/BuilderInference : kotlin/Annotation {`
 
