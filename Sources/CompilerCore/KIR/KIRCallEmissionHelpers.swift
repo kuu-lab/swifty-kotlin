@@ -256,34 +256,21 @@ private func emitEnumOrdinalBoxCall(
     result: KIRExprID,
     resultType: TypeID?,
     types: TypeSystem,
-    symbols: SymbolTable?,
+    symbols: SymbolTable,
     interner: StringInterner,
     arena: KIRArena,
     into instructions: inout [KIRInstruction]
 ) {
-    guard let classSym = symbols?.symbol(classSymbol),
+    guard let classSym = symbols.symbol(classSymbol),
           classSym.kind == .enumClass,
           !classSym.flags.contains(.synthetic)
     else {
-        // No usable helper: fall back to a plain untagged box. This matches
-        // the previous behaviour for synthetic header-only enum classes.
-        let emptyName = interner.intern("")
-        let emptyExpr = arena.appendExpr(.stringLiteral(emptyName), type: types.stringType)
-        instructions.append(.constValue(result: emptyExpr, value: .stringLiteral(emptyName)))
-        let intType = types.make(.primitive(.int, .nonNull))
-        let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
-        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-        let boxCallee = interner.intern("kk_enum_box_ordinal")
-        instructions.append(.call(
-            symbol: nil, callee: boxCallee, arguments: [ordinal, emptyExpr, classIDExpr],
-            result: result, canThrow: false, thrownResult: nil
-        ))
-        return
+        preconditionFailure("emitEnumOrdinalBoxCall requires a non-synthetic, source-backed enum class symbol")
     }
 
     let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
-    let helperSymbol = symbols?.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
-        symbols?.symbol(id).map { $0.kind == .function } ?? false
+    let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
+        symbols.symbol(id).map { $0.kind == .function } ?? false
     }
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
@@ -291,9 +278,9 @@ private func emitEnumOrdinalBoxCall(
         result: nameResult, canThrow: false, thrownResult: nil
     ))
 
-    let classID = symbols.map {
-        RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner)
-    } ?? 0
+    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: classSymbol, symbols: symbols, interner: interner
+    )
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
