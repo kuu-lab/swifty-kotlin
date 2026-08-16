@@ -1,7 +1,10 @@
 @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 annotation class Marker
 
+annotation class Ann(val message: String)
+
 @SubclassOptInRequired(Marker::class)
+@Ann("regression coverage")
 open class Base
 
 @Marker

@@ -6,4 +6,4 @@ file fstdlib_kotlin_n_SubclassOptInRequired package=golden.sema
   decl golden.sema.Marker class Marker sym=golden.sema.Marker
   decl golden.sema.Base class Base sym=golden.sema.Base
   decl golden.sema.useSubclassOptInRequired fun useSubclassOptInRequired sym=golden.sema.useSubclassOptInRequired
-expr e@9:64 int(0) type=Int
+expr e@10:64 int(0) type=Int

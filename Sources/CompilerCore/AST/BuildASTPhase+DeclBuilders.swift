@@ -1,5 +1,27 @@
 
 extension BuildASTPhase {
+    /// Returns the index of the `class` keyword that introduces a class declaration,
+    /// skipping `class` tokens inside annotation arguments, type arguments, or
+    /// `Foo::class` class-literal expressions that appear before the declaration.
+    private func classDeclarationKeywordIndex(in tokens: [Token]) -> Int? {
+        var depth = BracketDepth()
+        var previousToken: Token?
+        for (index, token) in tokens.enumerated() {
+            if depth.isAtTopLevel,
+               case .keyword(.class) = token.kind,
+               let previous = previousToken,
+               previous.kind == .symbol(.doubleColon) {
+                previousToken = token
+                continue
+            }
+            if depth.isAtTopLevel, case .keyword(.class) = token.kind {
+                return index
+            }
+            depth.track(token.kind)
+            previousToken = token
+        }
+        return nil
+    }
     func makeClassDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ClassDecl {
         let node = arena.node(nodeID)
         let primaryConstructorParams = declarationValueParameters(
@@ -53,28 +75,29 @@ extension BuildASTPhase {
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> [AnnotationNode] {
         let tokens = collectTokens(from: nodeID, in: arena)
-        var sawClassKeyword = false
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
+            return []
+        }
+        var index = classIndex + 1
         var sawClassName = false
-        var angleBracketDepth = 0
+        var depth = BracketDepth()
         var annotations: [AnnotationNode] = []
-        var index = 0
-
         while index < tokens.count {
             let token = tokens[index]
-            if !sawClassKeyword {
-                if case .keyword(.class) = token.kind { sawClassKeyword = true }
-                index += 1
-                continue
-            }
+            depth.track(token.kind)
             if !sawClassName {
-                if case .identifier = token.kind { sawClassName = true }
-                else if case .backtickedIdentifier = token.kind { sawClassName = true }
+                if case .identifier = token.kind {
+                    sawClassName = true
+                } else if case .backtickedIdentifier = token.kind {
+                    sawClassName = true
+                }
                 index += 1
                 continue
             }
-            if token.kind == .symbol(.lessThan) { angleBracketDepth += 1; index += 1; continue }
-            if token.kind == .symbol(.greaterThan) { angleBracketDepth = max(0, angleBracketDepth - 1); index += 1; continue }
-            if angleBracketDepth > 0 { index += 1; continue }
+            if !depth.isAtTopLevel {
+                index += 1
+                continue
+            }
             switch token.kind {
             case .keyword(.constructor), .softKeyword(.constructor),
                  .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
@@ -101,36 +124,27 @@ extension BuildASTPhase {
     /// class header, e.g. `class Foo private constructor()`.
     func declarationPrimaryConstructorModifiers(from nodeID: NodeID, in arena: SyntaxArena) -> Modifiers {
         let tokens = collectTokens(from: nodeID, in: arena)
-        var sawClassKeyword = false
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
+            return []
+        }
+        var index = classIndex + 1
         var sawClassName = false
-        var angleBracketDepth = 0
+        var depth = BracketDepth()
         var constructorModifiers: Modifiers = []
-
-        for token in tokens {
-            if !sawClassKeyword {
-                if case .keyword(.class) = token.kind {
-                    sawClassKeyword = true
-                }
-                continue
-            }
+        while index < tokens.count {
+            let token = tokens[index]
+            depth.track(token.kind)
             if !sawClassName {
-                switch token.kind {
-                case .identifier, .backtickedIdentifier:
+                if case .identifier = token.kind {
                     sawClassName = true
-                default:
-                    break
+                } else if case .backtickedIdentifier = token.kind {
+                    sawClassName = true
                 }
+                index += 1
                 continue
             }
-            if token.kind == .symbol(.lessThan) {
-                angleBracketDepth += 1
-                continue
-            }
-            if token.kind == .symbol(.greaterThan) {
-                angleBracketDepth = max(0, angleBracketDepth - 1)
-                continue
-            }
-            if angleBracketDepth > 0 {
+            if !depth.isAtTopLevel {
+                index += 1
                 continue
             }
             switch token.kind {
@@ -144,8 +158,8 @@ extension BuildASTPhase {
             if let modifier = modifier(from: token) {
                 constructorModifiers.insert(modifier)
             }
+            index += 1
         }
-
         return []
     }
 
@@ -172,31 +186,34 @@ extension BuildASTPhase {
         let tokens = collectTokens(from: nodeID, in: arena)
         // Skip past the class keyword and name (and optional type params in `<>`).
         // A `(` before any `:` or `{` indicates primary constructor syntax.
-        var angleBracketDepth = 0
-        var pastClassName = false
-        for token in tokens {
-            if !pastClassName {
-                if case .keyword(.class) = token.kind {
-                    pastClassName = true
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
+            return false
+        }
+        var depth = BracketDepth()
+        var index = classIndex + 1
+        if index < tokens.count, TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
+            index += 1
+        }
+        if index < tokens.count, tokens[index].kind == .symbol(.lessThan) {
+            index = skipBalancedBracket(
+                in: tokens,
+                from: index,
+                open: .symbol(.lessThan),
+                close: .symbol(.greaterThan)
+            )
+        }
+        while index < tokens.count {
+            let token = tokens[index]
+            if depth.isAtTopLevel {
+                if case .symbol(.lParen) = token.kind {
+                    return true
                 }
-                continue
+                if token.kind == .symbol(.colon) || token.kind == .symbol(.lBrace) {
+                    return false
+                }
             }
-            // Skip type parameter angle brackets: `class Foo<T>(...)`
-            if token.kind == .symbol(.lessThan) {
-                angleBracketDepth += 1
-                continue
-            }
-            if token.kind == .symbol(.greaterThan) {
-                angleBracketDepth = max(0, angleBracketDepth - 1)
-                continue
-            }
-            if angleBracketDepth > 0 { continue }
-            if case .symbol(.lParen) = token.kind {
-                return true
-            }
-            if token.kind == .symbol(.colon) || token.kind == .symbol(.lBrace) {
-                return false
-            }
+            depth.track(token.kind)
+            index += 1
         }
         return false
     }
@@ -523,8 +540,16 @@ extension BuildASTPhase {
     }
 
     func declarationIntroducerIndex(in tokens: [Token]) -> Int? {
+        var depth = BracketDepth()
+        var previousToken: Token?
         for (index, token) in tokens.enumerated() {
-            guard case let .keyword(keyword) = token.kind else {
+            depth.track(token.kind)
+            defer { previousToken = token }
+            guard depth.isAtTopLevel else { continue }
+            guard case let .keyword(keyword) = token.kind else { continue }
+            if keyword == .class,
+               let previous = previousToken,
+               previous.kind == .symbol(.doubleColon) {
                 continue
             }
             switch keyword {
@@ -557,9 +582,7 @@ extension BuildASTPhase {
     }
 
     func classPrimaryConstructorOpenParenIndex(in tokens: [Token]) -> Int? {
-        guard let classIndex = tokens.firstIndex(where: { token in
-            token.kind == .keyword(.class)
-        }) else {
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
             return nil
         }
         var index = classIndex + 1
@@ -574,14 +597,19 @@ extension BuildASTPhase {
                 close: .symbol(.greaterThan)
             )
         }
+        var depth = BracketDepth()
         while index < tokens.count {
-            let kind = tokens[index].kind
-            if kind == .symbol(.lParen) {
-                return index
+            let token = tokens[index]
+            if depth.isAtTopLevel {
+                let kind = token.kind
+                if kind == .symbol(.lParen) {
+                    return index
+                }
+                if kind == .symbol(.colon) || kind == .symbol(.lBrace) || kind == .symbol(.assign) {
+                    return nil
+                }
             }
-            if kind == .symbol(.colon) || kind == .symbol(.lBrace) || kind == .symbol(.assign) {
-                return nil
-            }
+            depth.track(token.kind)
             index += 1
         }
         return nil

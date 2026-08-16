@@ -4,6 +4,7 @@ package golden.sema
 annotation class Marker
 
 @SubclassOptInRequired(Marker::class)
+@Deprecated("use Base2 instead")
 open class Base
 
 fun useSubclassOptInRequired(x: SubclassOptInRequired?): Int = 0
