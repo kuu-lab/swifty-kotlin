@@ -1337,13 +1337,21 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticNumberStub(
+    func resolveNumberClassSymbol(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
         kotlinPkg: [InternedString]? = nil
     ) {
         let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        let numberName = interner.intern("Number")
+        let numberFQName = kotlinPkg + [numberName]
+
+        if let numberSymbol = symbols.lookup(fqName: numberFQName) {
+            types.numberClassSymbol = numberSymbol
+            return
+        }
+
         guard let anySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Any")]) else { return }
 
         let numberSymbol = ensureClassSymbol(
