@@ -627,6 +627,57 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-637: Exercise Kotlin-source transcendental wrappers and their libm
+    /// bridges through the complete compiler and runtime pipeline.
+    @Test
+    func testMathTranscendentalFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.math.*
+
+            fun main() {
+                println(sin(0.0) == 0.0)
+                println(cos(0.0) == 1.0)
+                println(atan2(1.0, 0.0) > 1.57 && atan2(1.0, 0.0) < 1.58)
+                println(exp(0.0) == 1.0)
+                println(ln(1.0) == 0.0)
+                println(log(8.0, 2.0) == 3.0)
+                println(sinh(0.0) == 0.0)
+                println(acosh(1.0) == 0.0)
+                println(cbrt(-8.0) == -2.0)
+                println(hypot(3.0, 4.0) == 5.0)
+                println(sqrt(9.0f) == 3.0f)
+                println(2.0.pow(3) == 8.0)
+                println(7.0.IEEErem(2.5) == -0.5)
+                println(1.0.nextTowards(2.0) > 1.0)
+                println(sin(Double.POSITIVE_INFINITY).isNaN())
+                println(log(-1.0, 2.0).isNaN())
+                println(atanh(1.0).isInfinite())
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+
+            """
+        )
+    }
+
     // KSP-472: measureTime / measureTimedValue が bundled Kotlin の inline 関数として
     // 展開され、ラムダ・関数参照・例外伝播のいずれでも正しく動くことを検証する。
     @Test

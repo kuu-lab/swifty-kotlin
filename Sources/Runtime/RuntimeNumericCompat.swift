@@ -384,30 +384,30 @@ public func kk_float_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_sqrt")
-public func kk_math_sqrt(_ value: Int) -> Int {
+@_cdecl("__kk_math_sqrt")
+public func __kk_math_sqrt(_ value: Int) -> Int {
     kk_double_to_bits(sqrt(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_pow")
-public func kk_math_pow(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow")
+public func __kk_math_pow(_ base: Int, _ exp: Int) -> Int {
     let rawBase = kk_bits_to_double(base)
     let rawExp = kk_bits_to_double(exp)
     return kk_double_to_bits(pow(rawBase, rawExp))
 }
 
-@_cdecl("kk_math_pow_float")
-public func kk_math_pow_float(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow_float")
+public func __kk_math_pow_float(_ base: Int, _ exp: Int) -> Int {
     kk_float_to_bits(powf(kk_bits_to_float(base), kk_bits_to_float(exp)))
 }
 
-@_cdecl("kk_math_pow_int")
-public func kk_math_pow_int(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow_int")
+public func __kk_math_pow_int(_ base: Int, _ exp: Int) -> Int {
     kk_double_to_bits(pow(kk_bits_to_double(base), Double(exp)))
 }
 
-@_cdecl("kk_math_pow_float_int")
-public func kk_math_pow_float_int(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow_float_int")
+public func __kk_math_pow_float_int(_ base: Int, _ exp: Int) -> Int {
     kk_float_to_bits(powf(kk_bits_to_float(base), Float(exp)))
 }
 
@@ -498,112 +498,112 @@ public func __kk_math_round(_ value: Int) -> Int {
 // surface is auditable in code review and prevents optimizer surprises from
 // indirect-call thunks in hot numeric paths.
 
-@_cdecl("kk_math_sin")
-public func kk_math_sin(_ value: Int) -> Int {
+@_cdecl("__kk_math_sin")
+public func __kk_math_sin(_ value: Int) -> Int {
     kk_double_to_bits(sin(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_cos")
-public func kk_math_cos(_ value: Int) -> Int {
+@_cdecl("__kk_math_cos")
+public func __kk_math_cos(_ value: Int) -> Int {
     kk_double_to_bits(cos(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_tan")
-public func kk_math_tan(_ value: Int) -> Int {
+@_cdecl("__kk_math_tan")
+public func __kk_math_tan(_ value: Int) -> Int {
     kk_double_to_bits(tan(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_sinh")
-public func kk_math_sinh(_ value: Int) -> Int {
+@_cdecl("__kk_math_sinh")
+public func __kk_math_sinh(_ value: Int) -> Int {
     kk_double_to_bits(sinh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_cosh")
-public func kk_math_cosh(_ value: Int) -> Int {
+@_cdecl("__kk_math_cosh")
+public func __kk_math_cosh(_ value: Int) -> Int {
     kk_double_to_bits(cosh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_tanh")
-public func kk_math_tanh(_ value: Int) -> Int {
+@_cdecl("__kk_math_tanh")
+public func __kk_math_tanh(_ value: Int) -> Int {
     kk_double_to_bits(tanh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_cbrt")
-public func kk_math_cbrt(_ value: Int) -> Int {
+@_cdecl("__kk_math_cbrt")
+public func __kk_math_cbrt(_ value: Int) -> Int {
     kk_double_to_bits(cbrt(kk_bits_to_double(value)))
 }
 
 // MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Double)
 
-@_cdecl("kk_math_acosh")
-public func kk_math_acosh(_ value: Int) -> Int {
+@_cdecl("__kk_math_acosh")
+public func __kk_math_acosh(_ value: Int) -> Int {
     kk_double_to_bits(acosh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_asinh")
-public func kk_math_asinh(_ value: Int) -> Int {
+@_cdecl("__kk_math_asinh")
+public func __kk_math_asinh(_ value: Int) -> Int {
     kk_double_to_bits(asinh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_atanh")
-public func kk_math_atanh(_ value: Int) -> Int {
+@_cdecl("__kk_math_atanh")
+public func __kk_math_atanh(_ value: Int) -> Int {
     kk_double_to_bits(atanh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_asin")
-public func kk_math_asin(_ value: Int) -> Int {
+@_cdecl("__kk_math_asin")
+public func __kk_math_asin(_ value: Int) -> Int {
     kk_double_to_bits(asin(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_acos")
-public func kk_math_acos(_ value: Int) -> Int {
+@_cdecl("__kk_math_acos")
+public func __kk_math_acos(_ value: Int) -> Int {
     kk_double_to_bits(acos(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_atan")
-public func kk_math_atan(_ value: Int) -> Int {
+@_cdecl("__kk_math_atan")
+public func __kk_math_atan(_ value: Int) -> Int {
     kk_double_to_bits(atan(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_atan2")
-public func kk_math_atan2(_ y: Int, _ x: Int) -> Int {
+@_cdecl("__kk_math_atan2")
+public func __kk_math_atan2(_ y: Int, _ x: Int) -> Int {
     kk_double_to_bits(atan2(kk_bits_to_double(y), kk_bits_to_double(x)))
 }
 
 // MARK: - STDLIB-431: exp/ln/log functions
 
-@_cdecl("kk_math_exp")
-public func kk_math_exp(_ value: Int) -> Int {
+@_cdecl("__kk_math_exp")
+public func __kk_math_exp(_ value: Int) -> Int {
     kk_double_to_bits(exp(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_expm1")
-public func kk_math_expm1(_ value: Int) -> Int {
+@_cdecl("__kk_math_expm1")
+public func __kk_math_expm1(_ value: Int) -> Int {
     kk_double_to_bits(expm1(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_ln")
-public func kk_math_ln(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln")
+public func __kk_math_ln(_ value: Int) -> Int {
     kk_double_to_bits(log(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_ln1p")
-public func kk_math_ln1p(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln1p")
+public func __kk_math_ln1p(_ value: Int) -> Int {
     kk_double_to_bits(log1p(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_log2")
-public func kk_math_log2(_ value: Int) -> Int {
+@_cdecl("__kk_math_log2")
+public func __kk_math_log2(_ value: Int) -> Int {
     kk_double_to_bits(log2(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_log10")
-public func kk_math_log10(_ value: Int) -> Int {
+@_cdecl("__kk_math_log10")
+public func __kk_math_log10(_ value: Int) -> Int {
     kk_double_to_bits(log10(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_log")
-public func kk_math_log(_ x: Int, _ base: Int) -> Int {
+@_cdecl("__kk_math_log")
+public func __kk_math_log(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawBase = kk_bits_to_double(base)
 
@@ -628,8 +628,8 @@ public func kk_math_log(_ x: Int, _ base: Int) -> Int {
 
 // MARK: - STDLIB-432: hypot
 
-@_cdecl("kk_math_hypot")
-public func kk_math_hypot(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_hypot")
+public func __kk_math_hypot(_ x: Int, _ y: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawY = kk_bits_to_double(y)
     return kk_double_to_bits(hypot(rawX, rawY))
@@ -648,82 +648,82 @@ private func applyFloatUnaryOp(_ v: Int, _ op: (Float) -> Float) -> Int {
     kk_float_to_bits(op(kk_bits_to_float(v)))
 }
 
-@_cdecl("kk_math_sin_float")
-public func kk_math_sin_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_sin_float")
+public func __kk_math_sin_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sinf)
 }
 
-@_cdecl("kk_math_cos_float")
-public func kk_math_cos_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_cos_float")
+public func __kk_math_cos_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, cosf)
 }
 
-@_cdecl("kk_math_tan_float")
-public func kk_math_tan_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_tan_float")
+public func __kk_math_tan_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, tanf)
 }
 
-@_cdecl("kk_math_sinh_float")
-public func kk_math_sinh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_sinh_float")
+public func __kk_math_sinh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sinhf)
 }
 
-@_cdecl("kk_math_cosh_float")
-public func kk_math_cosh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_cosh_float")
+public func __kk_math_cosh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, coshf)
 }
 
-@_cdecl("kk_math_tanh_float")
-public func kk_math_tanh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_tanh_float")
+public func __kk_math_tanh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, tanhf)
 }
 
-@_cdecl("kk_math_cbrt_float")
-public func kk_math_cbrt_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_cbrt_float")
+public func __kk_math_cbrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, cbrtf)
 }
 
 // MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Float)
 
-@_cdecl("kk_math_acosh_float")
-public func kk_math_acosh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_acosh_float")
+public func __kk_math_acosh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, acoshf)
 }
 
-@_cdecl("kk_math_asinh_float")
-public func kk_math_asinh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_asinh_float")
+public func __kk_math_asinh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, asinhf)
 }
 
-@_cdecl("kk_math_atanh_float")
-public func kk_math_atanh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_atanh_float")
+public func __kk_math_atanh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, atanhf)
 }
 
-@_cdecl("kk_math_asin_float")
-public func kk_math_asin_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_asin_float")
+public func __kk_math_asin_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, asinf)
 }
 
-@_cdecl("kk_math_acos_float")
-public func kk_math_acos_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_acos_float")
+public func __kk_math_acos_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, acosf)
 }
 
-@_cdecl("kk_math_atan_float")
-public func kk_math_atan_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_atan_float")
+public func __kk_math_atan_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, atanf)
 }
 
-@_cdecl("kk_math_atan2_float")
-public func kk_math_atan2_float(_ y: Int, _ x: Int) -> Int {
+@_cdecl("__kk_math_atan2_float")
+public func __kk_math_atan2_float(_ y: Int, _ x: Int) -> Int {
     let fy = kk_bits_to_float(y)
     let fx = kk_bits_to_float(x)
     return kk_float_to_bits(atan2f(fy, fx))
 }
 
-@_cdecl("kk_math_sqrt_float")
-public func kk_math_sqrt_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_sqrt_float")
+public func __kk_math_sqrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sqrtf)
 }
 
@@ -744,38 +744,38 @@ public func __kk_math_floor_float(_ v: Int) -> Int {
 
 // MARK: - STDLIB-430: additional Float overloads (exp, expm1, ln, ln1p, log2, log10, log, hypot)
 
-@_cdecl("kk_math_exp_float")
-public func kk_math_exp_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_exp_float")
+public func __kk_math_exp_float(_ value: Int) -> Int {
     kk_float_to_bits(exp(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_expm1_float")
-public func kk_math_expm1_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_expm1_float")
+public func __kk_math_expm1_float(_ value: Int) -> Int {
     kk_float_to_bits(expm1f(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_ln_float")
-public func kk_math_ln_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln_float")
+public func __kk_math_ln_float(_ value: Int) -> Int {
     kk_float_to_bits(log(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_ln1p_float")
-public func kk_math_ln1p_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln1p_float")
+public func __kk_math_ln1p_float(_ value: Int) -> Int {
     kk_float_to_bits(log1pf(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_log2_float")
-public func kk_math_log2_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_log2_float")
+public func __kk_math_log2_float(_ value: Int) -> Int {
     kk_float_to_bits(log2(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_log10_float")
-public func kk_math_log10_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_log10_float")
+public func __kk_math_log10_float(_ value: Int) -> Int {
     kk_float_to_bits(log10(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_log_float")
-public func kk_math_log_float(_ x: Int, _ base: Int) -> Int {
+@_cdecl("__kk_math_log_float")
+public func __kk_math_log_float(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_float(x)
     let rawBase = kk_bits_to_float(base)
 
@@ -798,8 +798,8 @@ public func kk_math_log_float(_ x: Int, _ base: Int) -> Int {
     return kk_float_to_bits(log(rawX) / log(rawBase))
 }
 
-@_cdecl("kk_math_hypot_float")
-public func kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_hypot_float")
+public func __kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
     let rawX = kk_bits_to_float(x)
     let rawY = kk_bits_to_float(y)
     return kk_float_to_bits(hypot(rawX, rawY))
@@ -1002,25 +1002,25 @@ public func __kk_math_truncate_float(_ value: Int) -> Int {
     kk_float_to_bits(truncf(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_IEEErem")
-public func kk_math_IEEErem(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_IEEErem")
+public func __kk_math_IEEErem(_ x: Int, _ y: Int) -> Int {
     kk_double_to_bits(remainder(kk_bits_to_double(x), kk_bits_to_double(y)))
 }
 
-@_cdecl("kk_math_IEEErem_float")
-public func kk_math_IEEErem_float(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_IEEErem_float")
+public func __kk_math_IEEErem_float(_ x: Int, _ y: Int) -> Int {
     kk_float_to_bits(remainderf(kk_bits_to_float(x), kk_bits_to_float(y)))
 }
 
-@_cdecl("kk_math_nextTowards")
-public func kk_math_nextTowards(_ from: Int, _ to: Int) -> Int {
+@_cdecl("__kk_math_nextTowards")
+public func __kk_math_nextTowards(_ from: Int, _ to: Int) -> Int {
     let rawFrom = kk_bits_to_double(from)
     let rawTo = kk_bits_to_double(to)
     return kk_double_to_bits(nextafter(rawFrom, rawTo))
 }
 
-@_cdecl("kk_math_nextTowards_float")
-public func kk_math_nextTowards_float(_ from: Int, _ to: Int) -> Int {
+@_cdecl("__kk_math_nextTowards_float")
+public func __kk_math_nextTowards_float(_ from: Int, _ to: Int) -> Int {
     let rawFrom = kk_bits_to_float(from)
     let rawTo = kk_bits_to_float(to)
     return kk_float_to_bits(nextafterf(rawFrom, rawTo))

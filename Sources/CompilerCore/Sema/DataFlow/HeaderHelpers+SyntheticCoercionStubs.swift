@@ -19,19 +19,7 @@ extension DataFlowSemaPhase {
                 symbols.setParentSymbol(kotlinSym, for: mathSym)
             }
         }
-        if let mathPackageSymbol = symbols.lookup(fqName: kotlinMathPkg) {
-            registerSyntheticCoercionFunction(
-                named: "pow",
-                externalLinkName: "kk_math_pow",
-                receiverType: types.doubleType,
-                parameters: [(name: "x", type: types.doubleType)],
-                returnType: types.doubleType,
-                packageFQName: kotlinMathPkg,
-                packageSymbol: mathPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+
 
         // STDLIB-NUM-130: isNaN / isInfinite / isFinite
 
