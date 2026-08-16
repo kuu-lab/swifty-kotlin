@@ -779,7 +779,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Enum` — class kotlin.Enum  -- `abstract class <#A: kotlin/Enum<#A>> kotlin/Enum : kotlin/Comparable<#A> {`
 
-- [ ] KSP-733: kotlin.ExperimentalContextParameters-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-733: kotlin.ExperimentalContextParameters-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalContextParameters`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ContextParameters.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
