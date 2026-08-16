@@ -1,11 +1,21 @@
+symbol fq=golden.sema.Direction kind=enumClass vis=public flags=_
+symbol fq=golden.sema.Direction.NORTH kind=field vis=public flags=_ type=golden.sema.Direction
 symbol fq=golden.sema.identity kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.identity.$0.T] ret=golden.sema.identity.$0.T bounds=[kotlin.Enum<golden.sema.identity.$0.T>]
 symbol fq=golden.sema.identity.$0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.identity.$0.value kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=kotlin.Comparable kind=interface vis=public flags=_
 symbol fq=kotlin.Enum kind=class vis=public flags=abstractType|openType
 file fstdlib_kotlin_n_Enum package=golden.sema
   decl golden.sema.identity fun identity sym=golden.sema.identity
+  decl golden.sema.Direction class Direction sym=golden.sema.Direction
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@3:43 name(value) type=golden.sema.identity.$0.T ref=golden.sema.identity.$0.value
-expr e@6:13 string(ok) type=String
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println#1
+expr e@8:13 name(Direction) type=golden.sema.Direction ref=golden.sema.Direction
+expr e@8:13#1 memberCall recv=e@8:13 callee=NORTH args=[] type=golden.sema.Direction ref=golden.sema.Direction.NORTH
+expr e@8:13#2 isCheck expr=e@8:13#1 type=kotlin.Enum<*> type=Boolean
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#2] type=Unit call=kotlin.io.println#1
+expr e@9:13 name(Direction) type=golden.sema.Direction ref=golden.sema.Direction
+expr e@9:13#1 memberCall recv=e@9:13 callee=NORTH args=[] type=golden.sema.Direction ref=golden.sema.Direction.NORTH
+expr e@9:13#2 isCheck expr=e@9:13#1 type=kotlin.Comparable<*> type=Boolean
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#2] type=Unit call=kotlin.io.println#1
