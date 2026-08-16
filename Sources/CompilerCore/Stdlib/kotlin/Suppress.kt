@@ -28,4 +28,4 @@ package kotlin
     AnnotationTarget.TYPEALIAS
 )
 @kotlin.annotation.Retention(AnnotationRetention.SOURCE)
-public open annotation class Suppress(vararg val names: String)
+public annotation class Suppress(vararg val names: String)
