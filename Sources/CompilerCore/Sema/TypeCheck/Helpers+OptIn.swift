@@ -589,6 +589,13 @@ extension TypeCheckHelpers {
             return (start <= end ? String(value[start..<end]) : "", false)
         }
 
+        // Empty multi-dollar regular strings (`$$""`) are reconstructed as
+        // `$$"$$"`, which must not fall through to the single-quote fallback.
+        let emptyRegular = dollarPrefix + String(quoteChar) + dollarPrefix + String(quoteChar)
+        if value == emptyRegular {
+            return ("", false)
+        }
+
         // Synthetic stub metadata provides string arguments with a single pair
         // of delimiter quotes, rather than the double-wrapped form produced by
         // tokenRawText for source-derived annotation arguments.
