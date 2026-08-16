@@ -537,6 +537,12 @@ extension TypeCheckHelpers {
     private func normalizeOptInStringLiteral(_ raw: String) -> String {
         var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Annotation arguments are rebuilt from raw tokens, so plain
+        // triple-quoted (raw) strings look like """"content"""". They must
+        // not be escape-decoded, otherwise literal backslash sequences such
+        // as \n turn into newlines.
+        let isRaw = isRawOptInStringLiteral(value)
+
         func isQuoteEscaped(_ quoteIndex: String.Index) -> Bool {
             guard quoteIndex > value.startIndex else { return false }
             var index = value.index(before: quoteIndex)
@@ -560,7 +566,30 @@ extension TypeCheckHelpers {
             value.removeLast()
         }
 
+        if isRaw {
+            return value
+        }
         return decodeKotlinStringEscapes(value)
+    }
+
+    private func isRawOptInStringLiteral(_ value: String) -> Bool {
+        var index = value.startIndex
+        while index < value.endIndex, value[index] == "$" {
+            value.formIndex(after: &index)
+        }
+
+        var quoteCount = 0
+        var i = index
+        while i < value.endIndex, value[i] == "\"" {
+            quoteCount += 1
+            value.formIndex(after: &i)
+        }
+
+        // Raw string literals begin with `"""` (triple quotes). Because the
+        // segment token is also wrapped in a single `"` by tokenRawText,
+        // the reconstructed argument starts with at least four quotes
+        // after any leading multi-dollar prefix.
+        return quoteCount >= 3
     }
 
 
