@@ -10,6 +10,6 @@ package kotlin
 /**
  * Instructs the Kotlin compiler to allow the return value of the annotated function to be ignored.
  */
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.Target(AnnotationTarget.FUNCTION)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
 public annotation class IgnorableReturnValue
