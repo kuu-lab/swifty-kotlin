@@ -1,0 +1,5 @@
+symbol fq=golden.sema.AnnotatedClass kind=class vis=public flags=_
+symbol fq=golden.sema.PrivateCopy kind=class vis=public flags=dataType
+file fstdlib_kotlin_n_ConsistentCopyVisibility package=golden.sema
+  decl golden.sema.AnnotatedClass class AnnotatedClass sym=golden.sema.AnnotatedClass
+  decl golden.sema.PrivateCopy class PrivateCopy sym=golden.sema.PrivateCopy

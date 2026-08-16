@@ -169,13 +169,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "ConsistentCopyVisibility",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "ExposedCopyVisibility",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -482,19 +475,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner
-            )
-        }
-
-        if let consistentCopyVisibilitySymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("ConsistentCopyVisibility")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.CLASS"]
-                ),
-                to: consistentCopyVisibilitySymbol,
-                symbols: symbols
             )
         }
 
