@@ -1,4 +1,4 @@
-// SKIP-DIFF (KSP-1503): primitive Number virtual dispatch not yet implemented
+// SKIP-DIFF (KSP-1540): primitive Number virtual dispatch not yet implemented
 
 fun main() {
     val n: Number = 42
