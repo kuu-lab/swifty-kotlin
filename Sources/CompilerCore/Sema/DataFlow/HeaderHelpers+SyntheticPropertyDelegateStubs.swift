@@ -23,68 +23,13 @@ extension DataFlowSemaPhase {
                 fqName: rootLazyFQName + [rootLazyTypeParamName],
                 declSite: nil,
                 visibility: .private,
-                flags: [.synthetic]
+                flags: []
             )
             symbols.setParentSymbol(rootLazyInterfaceSymbol, for: symbol)
             return symbol
         }()
         types.setNominalTypeParameterSymbols([rootLazyTypeParamSymbol], for: rootLazyInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: rootLazyInterfaceSymbol)
-        let rootLazyTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: rootLazyTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        let rootLazyInterfaceType = types.make(.classType(ClassType(
-            classSymbol: rootLazyInterfaceSymbol,
-            args: [.invariant(rootLazyTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let lazyValueName = interner.intern("value")
-        let lazyValueFQName = rootLazyFQName + [lazyValueName]
-        if symbols.lookup(fqName: lazyValueFQName) == nil {
-            let valueSymbol = symbols.define(
-                kind: .property,
-                name: lazyValueName,
-                fqName: lazyValueFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rootLazyInterfaceSymbol, for: valueSymbol)
-            symbols.setPropertyType(rootLazyTypeParamType, for: valueSymbol)
-            symbols.setExternalLinkName("kk_lazy_get_value", for: valueSymbol)
-        }
-
-        let lazyIsInitializedName = interner.intern("isInitialized")
-        let lazyIsInitializedFQName = rootLazyFQName + [lazyIsInitializedName]
-        if symbols.lookup(fqName: lazyIsInitializedFQName) == nil {
-            let isInitializedSymbol = symbols.define(
-                kind: .function,
-                name: lazyIsInitializedName,
-                fqName: lazyIsInitializedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rootLazyInterfaceSymbol, for: isInitializedSymbol)
-            symbols.setExternalLinkName("kk_lazy_is_initialized", for: isInitializedSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: rootLazyInterfaceType,
-                    parameterTypes: [],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    valueParameterSymbols: [],
-                    valueParameterHasDefaultValues: [],
-                    valueParameterIsVararg: [],
-                    typeParameterSymbols: [rootLazyTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: isInitializedSymbol
-            )
-        }
-
         // ObservableProperty and Delegates remain synthetic until KSP-681, so
         // they need a nominal ReadWriteProperty anchor during the pre-source
         // synthetic registration pass. Interfaces.kt reuses this shell when

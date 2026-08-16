@@ -194,24 +194,24 @@ struct PropertyDelegateSyntheticStubTests {
         )
 
         let lazyTypeParams = sema.types.nominalTypeParameterSymbols(for: lazySymbol)
-        let lazyTypeParamType = sema.types.make(.typeParam(TypeParamType(
-            symbol: lazyTypeParams[0],
-            nullability: .nonNull
-        )))
-        let lazyType = sema.types.make(.classType(ClassType(
-            classSymbol: lazySymbol,
-            args: [.invariant(lazyTypeParamType)],
-            nullability: .nonNull
-        )))
+        #expect(lazyTypeParams.count == 1)
+        let lazyTParamSymbol = try #require(lazyTypeParams.first)
+        let lazyTParamType = sema.types.make(.typeParam(TypeParamType(symbol: lazyTParamSymbol, nullability: .nonNull)))
+        let lazyType = sema.types.make(.classType(ClassType(classSymbol: lazySymbol, args: [.invariant(lazyTParamType)], nullability: .nonNull)))
 
         let valueSymbol = try #require(sema.symbols.lookup(fqName: lazyFQName + [interner.intern("value")]))
-        #expect(sema.symbols.propertyType(for: valueSymbol) == lazyTypeParamType)
-        #expect(sema.symbols.externalLinkName(for: valueSymbol) == "kk_lazy_get_value")
+        let valueInfo = try #require(sema.symbols.symbol(valueSymbol))
+        #expect(valueInfo.kind == .property)
+        #expect(!valueInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: valueSymbol) == lazySymbol)
+        #expect(sema.symbols.propertyType(for: valueSymbol) == lazyTParamType)
 
         let isInitializedSymbol = try #require(
             sema.symbols.lookup(fqName: lazyFQName + [interner.intern("isInitialized")])
         )
-        #expect(sema.symbols.externalLinkName(for: isInitializedSymbol) == "kk_lazy_is_initialized")
+        let isInitializedInfo = try #require(sema.symbols.symbol(isInitializedSymbol))
+        #expect(isInitializedInfo.kind == .function)
+        #expect(!isInitializedInfo.flags.contains(.synthetic))
         let isInitializedSignature = try #require(sema.symbols.functionSignature(for: isInitializedSymbol))
         #expect(isInitializedSignature.receiverType == lazyType)
         #expect(isInitializedSignature.parameterTypes == [])
