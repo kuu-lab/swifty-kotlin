@@ -514,7 +514,7 @@ extension BuildASTPhase {
         // Only look for the opening `(` that occurs before any `{` (class body).
         // This prevents picking up `(` from member function declarations like
         // `class F { operator fun invoke(x: Int) }` as constructor parameters.
-        guard let startIndex = declarationParameterOpenParenIndex(in: tokens, nodeKind: nodeKind) else {
+        guard let startIndex = declarationParameterOpenParenIndex(in: tokens, nodeKind: nodeKind, interner: interner) else {
             return []
         }
 
@@ -573,12 +573,16 @@ extension BuildASTPhase {
         return nil
     }
 
-    func declarationParameterOpenParenIndex(in tokens: [Token], nodeKind: SyntaxKind) -> Int? {
+    func declarationParameterOpenParenIndex(
+        in tokens: [Token],
+        nodeKind: SyntaxKind,
+        interner: StringInterner
+    ) -> Int? {
         switch nodeKind {
         case .funDecl:
             functionParameterOpenParenIndex(in: tokens)
         case .classDecl:
-            classPrimaryConstructorOpenParenIndex(in: tokens)
+            classPrimaryConstructorOpenParenIndex(in: tokens, interner: interner)
         case .constructorDecl:
             constructorParameterOpenParenIndex(in: tokens)
         default:
@@ -588,7 +592,10 @@ extension BuildASTPhase {
         }
     }
 
-    func classPrimaryConstructorOpenParenIndex(in tokens: [Token]) -> Int? {
+    func classPrimaryConstructorOpenParenIndex(
+        in tokens: [Token],
+        interner: StringInterner
+    ) -> Int? {
         guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
             return nil
         }
@@ -614,6 +621,16 @@ extension BuildASTPhase {
                 }
                 if kind == .symbol(.colon) || kind == .symbol(.lBrace) || kind == .symbol(.assign) {
                     return nil
+                }
+                if kind == .symbol(.at) {
+                    if let parsed = AnnotationParsingSupport.parseAnnotation(
+                        from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                    ) {
+                        index = parsed.nextIndex
+                    } else {
+                        index += 1
+                    }
+                    continue
                 }
             }
             depth.track(token.kind)

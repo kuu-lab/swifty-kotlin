@@ -21,9 +21,12 @@ class Server internal constructor() {
     val port = 80
 }
 
+class Container @Ann("x") constructor(val a: Int)
+
 @OptIn(Marker::class)
 fun main() {
     println(Derived().answer())
     println(Service().port)
     println(Server().port)
+    println(Container(42).a)
 }
