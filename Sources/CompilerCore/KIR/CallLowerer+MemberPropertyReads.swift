@@ -408,9 +408,16 @@ extension CallLowerer {
             let entryName = interner.resolve(entryInfo.name)
             let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
             let helperName = interner.intern(entryName + helperSuffix)
+            let helperSymbol: SymbolID? = {
+                guard entryInfo.fqName.count >= 2 else { return nil }
+                let ownerFQName = Array(entryInfo.fqName.dropLast())
+                return sema.symbols.lookupAll(fqName: ownerFQName + [helperName]).first { id in
+                    sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+                }
+            }()
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
+                symbol: helperSymbol,
                 callee: helperName,
                 arguments: [],
                 result: result,

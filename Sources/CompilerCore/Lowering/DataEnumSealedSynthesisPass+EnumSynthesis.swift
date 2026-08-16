@@ -241,7 +241,7 @@ extension DataEnumSealedSynthesisPass {
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        let name = interner.intern("$enumOrdinalToName$\(owner.id.rawValue)")
+        let name = interner.intern("$enumOrdinalToName$\(interner.resolve(owner.name))")
         let fqName = owner.fqName + [name]
         let paramName = interner.intern("$ordinal")
         let paramSymbol = sema.symbols.define(

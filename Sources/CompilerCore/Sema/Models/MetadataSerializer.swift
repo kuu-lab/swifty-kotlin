@@ -279,7 +279,13 @@ package final class MetadataEncoder {
                         symbols: symbols,
                         excludedSourceFileIDs: excludeSourceFileIDs
                     )
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember {
+                let keepAsEnumClassMember = !includeSynthetic
+                    && Self.isSourceBackedEnumClassMember(
+                        symbol.id,
+                        symbols: symbols,
+                        excludedSourceFileIDs: excludeSourceFileIDs
+                    )
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -299,7 +305,7 @@ package final class MetadataEncoder {
                 // Source-backed declarations (e.g. bundled stdlib functions under a
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
-                if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember {
+                if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember, !keepAsEnumClassMember {
                     var parentID = symbols.parentSymbol(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -1034,6 +1040,42 @@ package final class MetadataEncoder {
                     return false
                 }
                 return true
+            }
+            currentID = symbols.parentSymbol(for: parentID)
+        }
+        return false
+    }
+
+    /// True when `symbolID` is a compiler-generated member of a source-backed enum
+    /// class (name, ordinal, values) or its companion (valueOf, entries). These
+    /// symbols are synthesized by HeaderCollection but are part of the public
+    /// surface of an enum class, so consumers that import the class from a
+    /// precompiled artifact must be able to resolve them.
+    private static func isSourceBackedEnumClassMember(
+        _ symbolID: SymbolID,
+        symbols: SymbolTable,
+        excludedSourceFileIDs: Set<Int32>
+    ) -> Bool {
+        var currentID = symbols.parentSymbol(for: symbolID)
+        while let parentID = currentID, let parent = symbols.symbol(parentID) {
+            if Self.nominalKinds.contains(parent.kind) {
+                if parent.kind == .enumClass,
+                   !parent.flags.contains(.synthetic),
+                   parent.declSite != nil {
+                    if let sourceFileID = symbols.sourceFileID(for: parent.id),
+                       excludedSourceFileIDs.contains(sourceFileID.rawValue)
+                    {
+                        return false
+                    }
+                    return true
+                }
+                // Synthetic companions / nested anchors may sit between the
+                // member and the owning enum class; keep walking.
+                if parent.flags.contains(.synthetic) {
+                    currentID = symbols.parentSymbol(for: parentID)
+                    continue
+                }
+                return false
             }
             currentID = symbols.parentSymbol(for: parentID)
         }

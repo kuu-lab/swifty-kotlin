@@ -704,6 +704,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             visibility: .public,
             flags: [.synthetic, .static]
         )
+        sema.symbols.setParentSymbol(owner.id, for: functionSymbol)
         if existingFunctionSymbols.contains(functionSymbol) {
             return
         }
