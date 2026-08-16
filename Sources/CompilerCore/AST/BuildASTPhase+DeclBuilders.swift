@@ -49,7 +49,7 @@ extension BuildASTPhase {
             isInner: modifiers.contains(.inner),
             typeParams: typeParams,
             primaryConstructorParams: primaryConstructorParams,
-            primaryConstructorModifiers: declarationPrimaryConstructorModifiers(from: nodeID, in: arena),
+            primaryConstructorModifiers: declarationPrimaryConstructorModifiers(from: nodeID, in: arena, interner: interner),
             primaryConstructorAnnotations: declarationPrimaryConstructorAnnotations(from: nodeID, in: arena, interner: interner),
             hasPrimaryConstructorSyntax: declarationHasPrimaryConstructorSyntax(from: nodeID, in: arena),
             superTypeEntries: declarationSuperTypeEntries(from: nodeID, in: arena, interner: interner, astArena: astArena),
@@ -84,7 +84,6 @@ extension BuildASTPhase {
         var annotations: [AnnotationNode] = []
         while index < tokens.count {
             let token = tokens[index]
-            depth.track(token.kind)
             if !sawClassName {
                 if case .identifier = token.kind {
                     sawClassName = true
@@ -94,27 +93,26 @@ extension BuildASTPhase {
                 index += 1
                 continue
             }
-            if !depth.isAtTopLevel {
-                index += 1
-                continue
-            }
-            switch token.kind {
-            case .keyword(.constructor), .softKeyword(.constructor),
-                 .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
-                return annotations
-            case .symbol(.at):
-                if let parsed = AnnotationParsingSupport.parseAnnotation(
-                    from: tokens, start: index, interner: interner, allowUseSiteTarget: false
-                ) {
-                    annotations.append(parsed.annotation)
-                    index = parsed.nextIndex
-                } else {
-                    index += 1
+            if depth.isAtTopLevel {
+                switch token.kind {
+                case .keyword(.constructor), .softKeyword(.constructor),
+                     .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
+                    return annotations
+                case .symbol(.at):
+                    if let parsed = AnnotationParsingSupport.parseAnnotation(
+                        from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                    ) {
+                        annotations.append(parsed.annotation)
+                        index = parsed.nextIndex
+                    } else {
+                        index += 1
+                    }
+                    continue
+                default:
+                    break
                 }
-                continue
-            default:
-                break
             }
+            depth.track(token.kind)
             index += 1
         }
         return annotations
@@ -122,7 +120,9 @@ extension BuildASTPhase {
 
     /// Extracts modifiers attached to the primary constructor declaration in a
     /// class header, e.g. `class Foo private constructor()`.
-    func declarationPrimaryConstructorModifiers(from nodeID: NodeID, in arena: SyntaxArena) -> Modifiers {
+    func declarationPrimaryConstructorModifiers(
+        from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
+    ) -> Modifiers {
         let tokens = collectTokens(from: nodeID, in: arena)
         guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
             return []
@@ -133,7 +133,6 @@ extension BuildASTPhase {
         var constructorModifiers: Modifiers = []
         while index < tokens.count {
             let token = tokens[index]
-            depth.track(token.kind)
             if !sawClassName {
                 if case .identifier = token.kind {
                     sawClassName = true
@@ -143,21 +142,29 @@ extension BuildASTPhase {
                 index += 1
                 continue
             }
-            if !depth.isAtTopLevel {
-                index += 1
-                continue
+            if depth.isAtTopLevel {
+                switch token.kind {
+                case .keyword(.constructor), .softKeyword(.constructor):
+                    return constructorModifiers
+                case .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
+                    return []
+                case .symbol(.at):
+                    if let parsed = AnnotationParsingSupport.parseAnnotation(
+                        from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                    ) {
+                        index = parsed.nextIndex
+                    } else {
+                        index += 1
+                    }
+                    continue
+                default:
+                    break
+                }
+                if let modifier = modifier(from: token) {
+                    constructorModifiers.insert(modifier)
+                }
             }
-            switch token.kind {
-            case .keyword(.constructor), .softKeyword(.constructor):
-                return constructorModifiers
-            case .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
-                return []
-            default:
-                break
-            }
-            if let modifier = modifier(from: token) {
-                constructorModifiers.insert(modifier)
-            }
+            depth.track(token.kind)
             index += 1
         }
         return []
