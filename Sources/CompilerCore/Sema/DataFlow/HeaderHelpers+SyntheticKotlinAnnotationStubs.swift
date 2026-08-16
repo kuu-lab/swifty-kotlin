@@ -24,13 +24,6 @@ extension DataFlowSemaPhase {
 
         // Suppress, Deprecated, ReplaceWith, and DeprecatedSinceKotlin are provided by bundled Kotlin source
         // (Sources/CompilerCore/Stdlib/kotlin/Suppress.kt, Deprecated.kt, and DeprecatedSinceKotlin.kt).
-        registerSyntheticDeprecationLevelEnum(
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
 
         registerSyntheticAnnotationClass(
             named: "WasExperimental",
@@ -71,13 +64,6 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticAnnotationClass(
             named: "ParameterName",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
-            named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
@@ -173,12 +159,6 @@ extension DataFlowSemaPhase {
             }
             symbols.setAnnotations(annotations, for: retentionSymbol)
         }
-
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(annotationFQName: "kotlin.RequiresOptIn"),
-            to: kotlinPkg + [interner.intern("ExperimentalStdlibApi")],
-            symbols: symbols
-        )
 
         registerSyntheticAnnotationTargetEnum(
             packageFQName: kotlinAnnotationPkg,
