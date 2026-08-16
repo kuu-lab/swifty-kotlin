@@ -198,13 +198,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticAnnotationClass(
-            named: "IgnorableReturnValue",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "MustUseReturnValues",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -510,19 +503,6 @@ extension DataFlowSemaPhase {
                     ]
                 ),
                 to: publishedApiSymbol,
-                symbols: symbols
-            )
-        }
-
-        if let ignorableReturnValueSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("IgnorableReturnValue")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.FUNCTION"]
-                ),
-                to: ignorableReturnValueSymbol,
                 symbols: symbols
             )
         }
