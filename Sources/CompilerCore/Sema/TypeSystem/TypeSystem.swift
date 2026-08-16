@@ -15,6 +15,13 @@ public final class TypeSystem {
     /// The symbol ID of the `kotlin.AutoCloseable` interface, set during registration.
     public internal(set) var closeableInterfaceSymbol: SymbolID?
 
+    /// The symbol ID of the `kotlin.io.Closeable` interface, set during registration.
+    /// Used to register synthetic IO nominals as subtypes of `Closeable` (which itself
+    /// extends `AutoCloseable`) so that user code can assign a stream/reader to a
+    /// `Closeable`-typed variable while `.use {}` lowering resolves `close()` from
+    /// the root `AutoCloseable` interface.
+    public internal(set) var ioCloseableInterfaceSymbol: SymbolID?
+
     /// The symbol ID of the synthetic `kotlin.CharSequence` interface, set during registration.
     public internal(set) var charSequenceInterfaceSymbol: SymbolID?
 

@@ -58,7 +58,9 @@ extension DataFlowSemaPhase {
             arity: 1
         )
         let autoCloseableSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: autoCloseableFQName) {
+        if let existing = symbols.lookupAll(fqName: autoCloseableFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .interface
+        }) {
             autoCloseableSymbol = existing
         } else {
             let symbol = symbols.define(
@@ -107,7 +109,9 @@ extension DataFlowSemaPhase {
         let closeableName = interner.intern("Closeable")
         let closeableFQName = kotlinIOPkg + [closeableName]
         let closeableSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: closeableFQName) {
+        if let existing = symbols.lookupAll(fqName: closeableFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .interface
+        }) {
             closeableSymbol = existing
         } else {
             let symbol = symbols.define(
@@ -122,6 +126,8 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([autoCloseableSymbol], for: symbol)
             closeableSymbol = symbol
         }
+
+        types.ioCloseableInterfaceSymbol = closeableSymbol
 
         let closeableType = types.make(.classType(ClassType(
             classSymbol: closeableSymbol, args: [], nullability: .nonNull

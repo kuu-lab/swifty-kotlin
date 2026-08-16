@@ -591,18 +591,22 @@ extension CallTypeChecker {
                 }
             }
         }
-        // Fallback: check if the class explicitly declares AutoCloseable (or Closeable)
+        // Fallback: check if the class explicitly declares AutoCloseable or Closeable
         // in its registered supertype list.  This handles synthetic IO types
         // (BufferedReader, BufferedWriter, InputStream, OutputStream) whose supertypes
         // are registered via registerSyntheticFileIOStubs / setDirectSupertypes, without
         // accidentally treating every class that happens to define close() as closeable.
-        guard let closeableSymbol = sema.types.closeableInterfaceSymbol,
+        let closeableSymbols: [SymbolID] = [
+            sema.types.closeableInterfaceSymbol,
+            sema.types.ioCloseableInterfaceSymbol
+        ].compactMap { $0 }
+        guard !closeableSymbols.isEmpty,
               case let .classType(classType) = sema.types.kind(of: nonNullReceiver)
         else {
             return false
         }
         let directSupertypes = sema.symbols.directSupertypes(for: classType.classSymbol)
-        return directSupertypes.contains(closeableSymbol)
+        return closeableSymbols.contains(where: { directSupertypes.contains($0) })
     }
 
     /// Extracts the native struct type T from a `CValue<T>` receiver.

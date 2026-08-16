@@ -362,6 +362,15 @@ struct KotlinIOCommonEdgeCaseTests {
             fun main32() {
                 val x: Unit = println("unit-check")
             }
+            """,
+            """
+            package sample33
+            import java.io.File
+
+            fun main33() {
+                val c: Closeable = File("/dev/null").bufferedReader()
+                c.close()
+            }
             """
         ]
         var result: CompilationContext?
@@ -849,6 +858,66 @@ struct KotlinIOCommonEdgeCaseTests {
         #expect(
             !(ctx.diagnostics.hasError),
             "println() return type should be Unit: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+    }
+
+
+    // MARK: - KSP-721 regression: closeable marker is the AutoCloseable interface, not the factory
+
+
+    @Test
+    func testCloseableInterfaceSymbolIsNotTheFactoryFunction() throws {
+        let ctx = try sharedIOCtx()
+        let sema = try #require(ctx.sema)
+        let closeableSymbol = try #require(
+            sema.types.closeableInterfaceSymbol,
+            "closeableInterfaceSymbol should be set"
+        )
+        let info = try #require(
+            sema.symbols.symbol(closeableSymbol),
+            "closeableInterfaceSymbol should be a valid symbol"
+        )
+        #expect(
+            info.kind == .interface,
+            "types.closeableInterfaceSymbol must be kotlin.AutoCloseable the interface, not the factory function"
+        )
+    }
+
+
+    // MARK: - KSP-721 regression: synthetic IO nominals are subtypes of kotlin.io.Closeable
+
+
+    @Test
+    func testBufferedReaderIsSubtypeOfIOCloseable() throws {
+        let ctx = try sharedIOCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let bufferedReaderFQN = [interner.intern("java"), interner.intern("io"), interner.intern("BufferedReader")]
+        let bufferedReaderSymbol = try #require(
+            sema.symbols.lookup(fqName: bufferedReaderFQN),
+            "java.io.BufferedReader should be registered"
+        )
+        let ioCloseableFQN = [interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")]
+        let ioCloseableSymbol = try #require(
+            sema.symbols.lookup(fqName: ioCloseableFQN),
+            "kotlin.io.Closeable should be registered"
+        )
+
+        #expect(
+            sema.symbols.directSupertypes(for: bufferedReaderSymbol).contains(ioCloseableSymbol),
+            "java.io.BufferedReader direct supertypes should include kotlin.io.Closeable"
+        )
+
+        let bufferedReaderType = sema.types.make(.classType(ClassType(
+            classSymbol: bufferedReaderSymbol, args: [], nullability: .nonNull
+        )))
+        let ioCloseableType = sema.types.make(.classType(ClassType(
+            classSymbol: ioCloseableSymbol, args: [], nullability: .nonNull
+        )))
+        #expect(
+            sema.types.isSubtype(bufferedReaderType, ioCloseableType),
+            "java.io.BufferedReader should be a subtype of kotlin.io.Closeable"
         )
     }
 
