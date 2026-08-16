@@ -578,7 +578,7 @@
   - 前提: KSP-426, KSP-706
 
 - [ ] KSP-1509: `List<E>` の `random`/`randomOrNull` を Kotlin 化し `HeaderHelpers+SyntheticListAggregateMembers.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（KSP-1505〜724 完了後の残余 + `registerListAggregateMembers` orchestrator）
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（KSP-1505〜1508 完了後の残余 + `registerListAggregateMembers` orchestrator）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListAccessHOF.kt` 追記
   - 削除/降格 kk_*: `kk_list_random`, `kk_list_randomOrNull`（`Random` 引数版含む）。乱数コアは `__kk_random_*` へ降格
   - 手順: T
@@ -642,7 +642,7 @@
   - 前提: KSP-1513, KSP-1514
 
 - [ ] KSP-1517: `booleanArrayOf`/`byteArrayOf`/`charArrayOf`/`doubleArrayOf`/`floatArrayOf`/`intArrayOf`/`longArrayOf`/`shortArrayOf` と unsigned 版 factory を Kotlin 化し `HeaderHelpers+SyntheticArrayStubs.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（`*ArrayOf` factory + class shell。KSP-1514〜732 完了後の残余）
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（`*ArrayOf` factory + class shell。KSP-1514〜1516 完了後の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayConversions.kt` / `UArrays.kt`（class shell は `ArrayIntrinsics.kt`）
   - 削除/降格 kk_*: `kk_array_of` ほか着手時 `rg -o '@_cdecl\("kk_[a-zA-Z]*[Aa]rray_?of[a-zA-Z0-9_]*"\)' Sources/Runtime` で列挙。vararg 実体化が compiler intrinsic 依存なら該当分のみ (c) 残置理由をファイル削除見送りの根拠として記録
   - 手順: T
@@ -756,7 +756,7 @@
 - [ ] KSP-1531: プリミティブ数値変換 `toInt()`/`toLong()`/`toUInt()` 等の (b)/(c) 分類を確定する（コード変更なしの分類タスク）
   - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残存変換登録と、対応する `kk_(int|long|float|double|char|uint|ulong|ubyte|ushort)_to_*`（実測 60件超。`rg -o '@_cdecl\("kk_[a-z]+_to_[a-z_]+"\)' Sources/Runtime | sort -u` で列挙）
   - 判定基準: KIR で 1 命令の数値変換に lowering されるものは (c) compiler intrinsic として残置、boxing/丸め/文字コード変換など stdlib 意味論を持つものは (b) 移行対象
-  - 完了条件: `docs/stdlib-pipeline.md` §9 分類表に受け手型ごとの (b)/(c) 判定と根拠を追記し、(b) 判定分が KSP-1532〜755 のスコープと一致することを確認（不一致なら該当タスクの範囲を修正）。実装変更なし
+  - 完了条件: `docs/stdlib-pipeline.md` §9 分類表に受け手型ごとの (b)/(c) 判定と根拠を追記し、(b) 判定分が KSP-1532〜1539 のスコープと一致することを確認（不一致なら該当タスクの範囲を修正）。実装変更なし
   - 手順: 分類のみ（U → TODO/docs 更新）
   - 前提: KSP-637, KSP-638
 
@@ -817,7 +817,7 @@
   - 前提: KSP-1531, KSP-1536
 
 - [ ] KSP-1539: `Char` の数値変換メンバを Kotlin 化し `HeaderHelpers+SyntheticCoercionStubs.swift` の変換残余を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Char 受け手分 + KSP-1532〜754 完了後の残余。coercion 本体は `RangeCoercion.kt` で source 化済み）
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Char 受け手分 + KSP-1532〜1538 完了後の残余。coercion 本体は `RangeCoercion.kt` で source 化済み）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記（`Char.code` 経路と整合）
   - 削除/降格 kk_*: `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong`（`kk_math_pow` が同ファイルに残る場合は KSP-637 と重複しないよう確認）
   - 手順: T
