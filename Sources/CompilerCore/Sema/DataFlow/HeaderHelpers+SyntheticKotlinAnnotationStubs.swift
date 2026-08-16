@@ -23,13 +23,6 @@ extension DataFlowSemaPhase {
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
         registerSyntheticAnnotationClass(
-            named: "Suppress",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "Deprecated",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
