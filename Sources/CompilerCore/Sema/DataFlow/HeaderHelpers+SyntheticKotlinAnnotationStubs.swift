@@ -250,32 +250,6 @@ extension DataFlowSemaPhase {
             symbols.setAnnotations(annotations, for: optInSymbol)
         }
 
-        registerSyntheticAnnotationClass(
-            named: "OverloadResolutionByLambdaReturnType",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let overloadSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("OverloadResolutionByLambdaReturnType")]
-        ) {
-            let targetRecord = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.FUNCTION"]
-            )
-            let experimentalRecord = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.experimental.ExperimentalTypeInference"
-            )
-            var annotations = symbols.annotations(for: overloadSymbol)
-            if !annotations.contains(targetRecord) {
-                annotations.append(targetRecord)
-            }
-            if !annotations.contains(experimentalRecord) {
-                annotations.append(experimentalRecord)
-            }
-            symbols.setAnnotations(annotations, for: overloadSymbol)
-        }
         if let builderInferenceSymbol = symbols.lookup(
             fqName: kotlinPkg + [interner.intern("BuilderInference")]
         ) {
