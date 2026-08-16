@@ -589,6 +589,19 @@ extension TypeCheckHelpers {
             return (start <= end ? String(value[start..<end]) : "", false)
         }
 
+        // Synthetic stub metadata provides string arguments with a single pair
+        // of delimiter quotes, rather than the double-wrapped form produced by
+        // tokenRawText for source-derived annotation arguments.
+        let singlePrefix = dollarPrefix + String(quoteChar)
+        if value.count > singlePrefix.count,
+           value.hasPrefix(singlePrefix),
+           value.hasSuffix(String(quoteChar))
+        {
+            let start = value.index(value.startIndex, offsetBy: singlePrefix.count)
+            let end = value.index(before: value.endIndex)
+            return (start <= end ? String(value[start..<end]) : "", false)
+        }
+
         return nil
     }
 
