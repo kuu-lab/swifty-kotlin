@@ -14,8 +14,8 @@ package kotlin
  * can be made only without an implicit receiver (i.e. an implicit receiver from the outer scope
  * is not available for those calls).
  */
-@Target(AnnotationTarget.ANNOTATION_CLASS)
-@Retention(AnnotationRetention.BINARY)
-@MustBeDocumented
-@SinceKotlin("1.1")
+@kotlin.annotation.Target(AnnotationTarget.ANNOTATION_CLASS)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.MustBeDocumented
+@kotlin.SinceKotlin("1.1")
 public annotation class DslMarker
