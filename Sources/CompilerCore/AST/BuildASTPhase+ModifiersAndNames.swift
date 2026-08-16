@@ -22,12 +22,31 @@ extension BuildASTPhase {
         var modifiers: Modifiers = []
         let children = arena.children(of: nodeID)
         var index = children.startIndex
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+
+        func updateDepth(for token: Token) {
+            switch token.kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            default: break
+            }
+        }
+
+        func isAtTopLevel() -> Bool { parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 }
+
         while index < children.endIndex {
             let child = children[index]
             if case let .token(tokenID) = child,
                let token = resolveToken(tokenID, in: arena)
             {
-                if case let .keyword(keyword) = token.kind {
+                updateDepth(for: token)
+                if isAtTopLevel(), case let .keyword(keyword) = token.kind {
                     switch keyword {
                     case .fun:
                         let nextKeyword: Keyword? = if children.index(after: index) < children.endIndex {
@@ -55,7 +74,7 @@ extension BuildASTPhase {
                         break
                     }
                 }
-                if let modifier = modifier(from: token) {
+                if isAtTopLevel(), let modifier = modifier(from: token) {
                     modifiers.insert(modifier)
                     index = children.index(after: index)
                     continue
