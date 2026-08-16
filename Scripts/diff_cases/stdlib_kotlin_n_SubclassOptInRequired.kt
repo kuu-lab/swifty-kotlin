@@ -21,7 +21,13 @@ class Server internal constructor() {
     val port = 80
 }
 
+open class PlainBase {
+    fun base() = 1
+}
+
 class Container @Ann("x") constructor(val a: Int)
+
+class AnnotatedCtor @Ann("x") constructor(val a: Int) : PlainBase()
 
 @OptIn(Marker::class)
 fun main() {
@@ -29,4 +35,6 @@ fun main() {
     println(Service().port)
     println(Server().port)
     println(Container(42).a)
+    println(AnnotatedCtor(1).base())
+    println(AnnotatedCtor(1).a)
 }
