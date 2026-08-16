@@ -659,6 +659,43 @@ extension DataFlowSemaPhase {
                 ownerSymbol: nestedSymbol,
                 thisType: nestedType
             )
+
+            collectNestedTypeAliases(
+                nestedClass.nestedTypeAliases,
+                ownerFQName: nestedFQName,
+                sourceFileID: sourceFileID,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+
+            // Nested class/object headers must be collected before the primary
+            // constructor parameter types are resolved, because those parameter
+            // types (or their default values) may reference a nested type
+            // (e.g. `annotation class Marker(val level: Level = Level.ERROR)`).
+            collectMemberHeaders(
+                members: MemberDeclarations(
+                    functions: [],
+                    properties: [],
+                    nestedClasses: nestedClass.nestedClasses,
+                    nestedObjects: nestedClass.nestedObjects
+                ),
+                owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: nestedScope,
+                diagnostics: diagnostics,
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParamSymbols,
+                classLocalTypeParameters: nestedLocalTypeParameters
+            )
+
             let ctorName = interner.intern("<init>")
             let nestedCtorFQName = nestedFQName + [ctorName]
             let nestedHasPrimaryCtorSyntax = nestedClass.hasPrimaryConstructorSyntax
@@ -687,6 +724,8 @@ extension DataFlowSemaPhase {
                         declSite: nestedClass.range,
                         ast: ast, symbols: symbols, types: types,
                         interner: interner,
+                        localTypeParameters: nestedLocalTypeParameters,
+                        relativeOwnerFQName: nestedFQName,
                         currentPackageFQName: sourcePackageFQName,
                         imports: sourceImports,
                         diagnostics: diagnostics,
@@ -700,7 +739,9 @@ extension DataFlowSemaPhase {
                             valueParameterSymbols: params.paramSymbols,
                             valueParameterHasDefaultValues: params.paramHasDefaultValues,
                             valueParameterIsVararg: params.paramIsVararg,
-                            valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn
+                            valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                            typeParameterSymbols: nestedTypeParamSymbols,
+                            classTypeParameterCount: nestedTypeParamSymbols.count
                         ),
                         for: nestedPrimaryCtorSymbol
                     )
@@ -724,6 +765,8 @@ extension DataFlowSemaPhase {
                     declSite: secondaryCtor.range,
                     ast: ast, symbols: symbols, types: types,
                     interner: interner,
+                    localTypeParameters: nestedLocalTypeParameters,
+                    relativeOwnerFQName: nestedFQName,
                     currentPackageFQName: sourcePackageFQName,
                     imports: sourceImports,
                     diagnostics: diagnostics,
@@ -737,7 +780,9 @@ extension DataFlowSemaPhase {
                         valueParameterSymbols: params.paramSymbols,
                         valueParameterHasDefaultValues: params.paramHasDefaultValues,
                         valueParameterIsVararg: params.paramIsVararg,
-                        valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn
+                        valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                        typeParameterSymbols: nestedTypeParamSymbols,
+                        classTypeParameterCount: nestedTypeParamSymbols.count
                     ),
                     for: secCtorSymbol
                 )
@@ -762,6 +807,7 @@ extension DataFlowSemaPhase {
                         types: types,
                         interner: interner,
                         localTypeParameters: nestedLocalTypeParameters,
+                        relativeOwnerFQName: nestedFQName,
                         currentPackageFQName: sourcePackageFQName,
                         imports: sourceImports,
                         diagnostics: diagnostics
@@ -833,22 +879,12 @@ extension DataFlowSemaPhase {
                     localTypeParameters: nestedLocalTypeParameters
                 )
             }
-            collectNestedTypeAliases(
-                nestedClass.nestedTypeAliases,
-                ownerFQName: nestedFQName,
-                sourceFileID: sourceFileID,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics,
-                interner: interner
-            )
             collectMemberHeaders(
                 members: MemberDeclarations(
                     functions: nestedClass.memberFunctions,
                     properties: nestedClass.memberProperties,
-                    nestedClasses: nestedClass.nestedClasses,
-                    nestedObjects: nestedClass.nestedObjects
+                    nestedClasses: [],
+                    nestedObjects: []
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
@@ -859,7 +895,9 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 scope: nestedScope,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParamSymbols,
+                classLocalTypeParameters: nestedLocalTypeParameters
             )
             if nestedClass.modifiers.contains(.data) {
                 collectSyntheticDataClassMethods(
