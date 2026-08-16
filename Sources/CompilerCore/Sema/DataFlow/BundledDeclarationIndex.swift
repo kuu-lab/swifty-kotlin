@@ -997,7 +997,6 @@ struct BundledDeclarationIndex: Sendable {
                 "UByteArray", "UShortArray", "UIntArray", "ULongArray",
                 "Pair", "Triple", "Result",
                 "Throwable", "Exception", "Error", "RuntimeException",
-                "Comparator",
             ]),
             ([kotlin, reflect], [
                 "KClass", "KClassifier", "KType", "KTypeParameter",

@@ -46,7 +46,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -58,7 +59,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -70,7 +72,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -82,7 +85,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -94,7 +98,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -106,7 +111,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -118,7 +124,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -130,7 +137,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -142,7 +150,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -154,7 +163,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -166,7 +176,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             // Long conversion functions
@@ -179,7 +190,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -191,7 +203,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -203,7 +216,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -215,7 +229,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -227,7 +242,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -239,7 +255,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -251,7 +268,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -263,7 +281,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -275,7 +294,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -287,7 +307,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             // Float conversion functions
@@ -300,7 +321,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -312,7 +334,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -324,7 +347,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -336,7 +360,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -348,7 +373,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -360,7 +386,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -372,7 +399,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -384,7 +412,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             // Double conversion functions
@@ -397,7 +426,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -409,7 +439,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -421,7 +452,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -433,7 +465,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -445,7 +478,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -457,7 +491,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -469,7 +504,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -481,7 +517,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             // Char conversion functions
@@ -494,7 +531,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -506,7 +544,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -518,7 +557,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -530,7 +570,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -542,7 +583,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
 
             registerSyntheticCoercionFunction(
@@ -554,7 +596,8 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                types: types
             )
         }
 
@@ -653,11 +696,16 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         packageSymbol: SymbolID,
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        types: TypeSystem
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
-        let deprecatedAnnotations = syntheticDeprecatedAnnotationsForCoercion(name: name)
+        let deprecatedAnnotations = syntheticDeprecatedAnnotationsForCoercion(
+            name: name,
+            receiverType: receiverType,
+            types: types
+        )
 
         // Check if already registered with same signature
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
@@ -719,9 +767,16 @@ extension DataFlowSemaPhase {
     }
 
     private func syntheticDeprecatedAnnotationsForCoercion(
-        name: String
+        name: String,
+        receiverType: TypeID,
+        types: TypeSystem
     ) -> [MetadataAnnotationRecord] {
         guard name == "toChar" else {
+            return []
+        }
+        // Int.toChar() is not deprecated in Kotlin 2.3.10; all other primitive
+        // toChar() conversions (Long/Float/Double/Byte/Short) are deprecated.
+        guard receiverType != types.intType else {
             return []
         }
         let deprecatedMessage = "Use toInt().toChar() or Char(code) instead."
