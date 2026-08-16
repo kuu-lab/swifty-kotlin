@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "deprecated_message_with_quotes_and_newline.kt",
+      "range": {
+        "start": { "line": 8, "character": 20 },
+        "end": { "line": 8, "character": 38 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.oldQuotedMessage' is deprecated. say \"hi\"",
+      "codeActions": []
+    },
+    {
+      "file": "deprecated_message_with_quotes_and_newline.kt",
+      "range": {
+        "start": { "line": 8, "character": 41 },
+        "end": { "line": 8, "character": 60 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.oldNewlineMessage' is deprecated. line1\nline2",
+      "codeActions": []
+    }
+  ]
+}
