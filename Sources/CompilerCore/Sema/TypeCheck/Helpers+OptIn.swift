@@ -535,42 +535,22 @@ extension TypeCheckHelpers {
     }
 
     private func normalizeOptInStringLiteral(_ raw: String) -> String {
-        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Annotation arguments are rebuilt from raw tokens. Raw string
-        // literals must not be escape-decoded, otherwise literal backslash
-        // sequences such as \n turn into newlines.
-        if let rawContent = extractRawOptInStringLiteral(value) {
-            return rawContent
-        }
-
-        func isQuoteEscaped(_ quoteIndex: String.Index) -> Bool {
-            guard quoteIndex > value.startIndex else { return false }
-            var index = value.index(before: quoteIndex)
-            var backslashCount = 0
-            while index >= value.startIndex, value[index] == "\\" {
-                backslashCount += 1
-                guard index > value.startIndex else { break }
-                index = value.index(before: index)
-            }
-            return backslashCount % 2 == 1
-        }
-
-        while value.count >= 2,
-              let first = value.first,
-              let last = value.last,
-              first == last,
-              (first == "\"" || first == "'"),
-              !isQuoteEscaped(value.index(before: value.endIndex))
-        {
-            value.removeFirst()
-            value.removeLast()
+        // Annotation arguments are rebuilt from raw tokens. Determine whether
+        // the value is a string literal (regular or raw, with optional
+        // multi-dollar prefix) and extract its content. Raw strings must not
+        // be escape-decoded; regular strings are decoded like any other
+        // Kotlin string literal.
+        if let extraction = extractOptInStringLiteral(value) {
+            return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
         }
 
         return decodeKotlinStringEscapes(value)
     }
 
-    private func extractRawOptInStringLiteral(_ value: String) -> String? {
+    private func extractOptInStringLiteral(_ value: String) -> (content: String, isRaw: Bool)? {
+        // Count optional leading dollar prefix used by multi-dollar strings.
         var index = value.startIndex
         var dollarCount = 0
         while index < value.endIndex, value[index] == "$" {
@@ -582,38 +562,34 @@ extension TypeCheckHelpers {
         let quoteChar = value[index]
         guard quoteChar == "\"" || quoteChar == "'" else { return nil }
 
-        var quoteCount = 0
-        var i = index
-        while i < value.endIndex, value[i] == quoteChar {
-            quoteCount += 1
-            value.formIndex(after: &i)
-        }
-
-        // Raw string literals begin with `"""` (triple quotes). Because the
-        // segment token is also wrapped in a single quote by tokenRawText,
-        // a non-empty raw argument starts with `$...$""""` and ends with
-        // `"$...$"""` (segment wrapper + raw close). An empty raw string is
-        // exactly `$...$"""$...$"""`.
-        guard quoteCount >= 3 else { return nil }
-
         let dollarPrefix = String(repeating: "$", count: dollarCount)
-        let tripleQuote = String(repeating: quoteChar, count: 3)
 
-        let emptyRaw = dollarPrefix + tripleQuote + dollarPrefix + tripleQuote
+        // tokenRawText wraps a string segment in an extra pair of quotes. So:
+        // - Regular `$"abc"` becomes `$""abc"$"`.
+        // - Raw `$$"""abc"""` becomes `$$""""abc"$$"""`.
+        // - Empty raw `$$""""""` becomes `$$"""$$"""`.
+        let rawPrefix = dollarPrefix + String(repeating: quoteChar, count: 4)
+        let rawSuffix = String(quoteChar) + dollarPrefix + String(repeating: quoteChar, count: 3)
+        let emptyRaw = dollarPrefix + String(repeating: quoteChar, count: 3) + dollarPrefix + String(repeating: quoteChar, count: 3)
+
         if value == emptyRaw {
-            return ""
+            return ("", true)
+        }
+        if value.hasPrefix(rawPrefix), value.hasSuffix(rawSuffix) {
+            let start = value.index(value.startIndex, offsetBy: rawPrefix.count)
+            let end = value.index(value.endIndex, offsetBy: -rawSuffix.count)
+            return (start <= end ? String(value[start..<end]) : "", true)
         }
 
-        let prefix = dollarPrefix + String(repeating: quoteChar, count: 4)
-        let suffix = String(quoteChar) + dollarPrefix + tripleQuote
-        guard value.hasPrefix(prefix), value.hasSuffix(suffix) else {
-            return nil
+        let regularPrefix = dollarPrefix + String(repeating: quoteChar, count: 2)
+        let regularSuffix = String(quoteChar) + dollarPrefix + String(quoteChar)
+        if value.hasPrefix(regularPrefix), value.hasSuffix(regularSuffix) {
+            let start = value.index(value.startIndex, offsetBy: regularPrefix.count)
+            let end = value.index(value.endIndex, offsetBy: -regularSuffix.count)
+            return (start <= end ? String(value[start..<end]) : "", false)
         }
 
-        let start = value.index(value.startIndex, offsetBy: prefix.count)
-        let end = value.index(value.endIndex, offsetBy: -suffix.count)
-        guard start <= end else { return "" }
-        return String(value[start..<end])
+        return nil
     }
 
 
