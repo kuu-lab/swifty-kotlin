@@ -997,7 +997,8 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.declSite != nil, "SinceKotlin should be source-backed")
+            #expect(!symbol.flags.contains(.synthetic))
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbolID)

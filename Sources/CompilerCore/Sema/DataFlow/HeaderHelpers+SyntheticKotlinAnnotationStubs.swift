@@ -91,13 +91,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "SinceKotlin",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "DslMarker",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -581,34 +574,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        if let sinceKotlinSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SinceKotlin")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.FIELD",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.TYPEALIAS",
-                    ]
-                ),
-                to: sinceKotlinSymbol,
-                symbols: symbols
-            )
-            registerSyntheticStringAnnotationPropertyAndConstructor(
-                ownerSymbol: sinceKotlinSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("SinceKotlin")],
-                propertyName: "version",
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
         if let dslMarkerSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("DslMarker")]) {
             appendSyntheticAnnotation(
                 MetadataAnnotationRecord(
