@@ -10370,3 +10370,10 @@
     - `kotlin.uuid.Uuid.Companion.parseHexOrNull` — fun Companion.parseHexOrNull(String): Uuid  -- `final fun parseHexOrNull(kotlin/String): kotlin.uuid/Uuid?`
     - `kotlin.uuid.Uuid.Companion.parseOrNull` — fun Companion.parseOrNull(String): Uuid  -- `final fun parseOrNull(kotlin/String): kotlin.uuid/Uuid?`
     - `kotlin.uuid.Uuid.Companion.random` — fun Companion.random(): Uuid  -- `final fun random(): kotlin.uuid/Uuid`
+
+## Runtime follow-up
+
+- [ ] KSP-1503: primitive 値を Number 型変数に代入した際の Number.to*() 仮想メソッド dispatch を実装する
+  - 背景: KSP-747 で `kotlin.Number` を bundled stdlib ソース化したが、`val n: Number = 42` のように primitive を Number 型で受けた場合、`n.toDouble()` 等が正しく primitive 値に dispatch されていない
+  - 再現ケース: `Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt`（SKIP-DIFF 中）
+  - 完了条件: 上記 diff ケースの `SKIP-DIFF` を解除し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt` が green になること

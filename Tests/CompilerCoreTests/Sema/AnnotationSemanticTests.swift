@@ -1206,6 +1206,21 @@ struct AnnotationSemanticTests {
         }
     }
 
+    @Test func testIntToCharNotDeprecated() throws {
+        let source = """
+        package test
+
+        fun caller(): Char = 65.toChar()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let deprecatedDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
+
+        #expect(
+            deprecatedDiagnostics.isEmpty,
+            "Int.toChar() should not be deprecated in Kotlin 2.3.10, got: \(deprecatedDiagnostics)"
+        )
+    }
 
 
 
