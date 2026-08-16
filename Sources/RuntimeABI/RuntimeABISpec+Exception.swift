@@ -281,6 +281,24 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
+        // Bridge-only allocation entry points for the bundled Kotlin
+        // `kotlin.OutOfMemoryError` declaration (KSP-750).
+        RuntimeABIFunctionSpec(
+            name: "__kk_out_of_memory_error_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_out_of_memory_error_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_assertion_error_new",
             parameters: [],

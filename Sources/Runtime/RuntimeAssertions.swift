@@ -282,6 +282,24 @@ final class RuntimeErrorBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeOutOfMemoryErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.OutOfMemoryError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.OutOfMemoryError",
+            "kotlin.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("OutOfMemoryError", message)
+    }
+}
+
 final class RuntimeNotImplementedErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.NotImplementedError"
@@ -524,6 +542,16 @@ func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0
 /// Allocates an `Error` with the given message.
 func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeErrorBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates an `OutOfMemoryError` with the given message.
+func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeOutOfMemoryErrorBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -917,6 +945,16 @@ public func kk_error_new_cause(_ causeRaw: Int) -> Int {
         message: nil,
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
+}
+
+@_cdecl("__kk_out_of_memory_error_new")
+public func kk_out_of_memory_error_new() -> Int {
+    runtimeAllocateOutOfMemoryError(message: nil)
+}
+
+@_cdecl("__kk_out_of_memory_error_new_message")
+public func kk_out_of_memory_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateOutOfMemoryError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
 @_cdecl("__kk_not_implemented_error_new")
