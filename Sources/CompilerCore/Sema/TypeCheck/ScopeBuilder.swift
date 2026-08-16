@@ -256,13 +256,12 @@ struct TypeCheckScopeBuilder {
         return true
     }
 
-    /// Returns true for operator extension functions that should not be inserted
-    /// into the default-import or wildcard-import scopes. This includes the
-    /// synthetic operator extensions covered by STDLIB-SHARED-009 and, after
-    /// KSP-724, the source-backed kotlin.text.CharSequence.get extension, which
-    /// has the same implicit-receiver shadowing problem. Member-style and
-    /// operator syntax (e.g. `cs[0]`) still resolve these through CallTypeChecker
-    /// fallback paths.
+    /// Returns true for symbols that should not be inserted into the
+    /// default-import or wildcard-import scopes. This includes the synthetic
+    /// operator extensions covered by STDLIB-SHARED-009 and, after KSP-724, the
+    /// source-backed `kotlin.text.CharSequence.get` extension, which has the same
+    /// implicit-receiver shadowing problem. Member-style and operator syntax
+    /// (e.g. `cs[0]`) still resolve these through CallTypeChecker fallback paths.
     private func shouldSkipDefaultImport(
         _ symbolID: SymbolID,
         sema: SemaModule,
@@ -272,11 +271,14 @@ struct TypeCheckScopeBuilder {
             return true
         }
 
+        // KSP-724: Keep source-backed CharSequence.get out of default imports so
+        // it does not shadow StringBuilder.get on implicit receivers. The check
+        // intentionally does not require .operatorFunction, so it stays robust
+        // even if HeaderCollection changes how that flag is set.
         guard let symbol = sema.symbols.symbol(symbolID),
               symbol.kind == .function,
               let signature = sema.symbols.functionSignature(for: symbolID),
               let receiverType = signature.receiverType,
-              symbol.flags.contains(.operatorFunction),
               sema.symbols.isSourceBackedSymbol(symbolID),
               interner.resolve(symbol.name) == "get",
               case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
