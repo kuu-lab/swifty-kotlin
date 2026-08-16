@@ -1,6 +1,6 @@
 symbol fq=golden.sema.lazyVal kind=property vis=public flags=_ type=String
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.Lazy kind=interface vis=public flags=synthetic
+symbol fq=kotlin.Lazy kind=interface vis=public flags=_
 symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> kotlin.lazy.T] ret=kotlin.Lazy<kotlin.lazy.T>
 symbol fq=kotlin.lazy.T kind=typeParameter vis=private flags=synthetic
 file fdelegate_property package=golden.sema

@@ -1155,6 +1155,8 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> [[InternedString]] {
         let names: [[String]] = switch sourceManager.path(of: file.fileID) {
+        case "__bundled_kotlin/Lazy.kt":
+            [["kotlin", "Lazy"]]
         case "__bundled_kotlin/Comparable.kt":
             [["kotlin", "Comparable"]]
         case "__bundled_kotlin/io/Closeable.kt":

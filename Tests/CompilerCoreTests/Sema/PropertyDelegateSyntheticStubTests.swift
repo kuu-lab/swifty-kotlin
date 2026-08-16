@@ -193,31 +193,29 @@ struct PropertyDelegateSyntheticStubTests {
             interner: interner
         )
 
-        let lazyTypeParams = sema.types.nominalTypeParameterSymbols(for: lazySymbol)
-        let lazyTypeParamType = sema.types.make(.typeParam(TypeParamType(
-            symbol: lazyTypeParams[0],
-            nullability: .nonNull
-        )))
-        let lazyType = sema.types.make(.classType(ClassType(
-            classSymbol: lazySymbol,
-            args: [.invariant(lazyTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let valueSymbol = try #require(sema.symbols.lookup(fqName: lazyFQName + [interner.intern("value")]))
-        #expect(sema.symbols.propertyType(for: valueSymbol) == lazyTypeParamType)
-        #expect(sema.symbols.externalLinkName(for: valueSymbol) == "kk_lazy_get_value")
+        let valueSymbol = try #require(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("value")]))
+        #expect(!sema.symbols.symbol(valueSymbol)!.flags.contains(.synthetic))
+        let valueSignature = try #require(sema.symbols.functionSignature(for: valueSymbol))
+        #expect(valueSignature.parameterTypes == [])
+        #expect(valueSignature.classTypeParameterCount == 0)
+        let valueTParam = try #require(valueSignature.typeParameterSymbols.first)
+        let valueTParamType = sema.types.make(.typeParam(TypeParamType(symbol: valueTParam, nullability: .nonNull)))
+        let valueLazyType = sema.types.make(.classType(ClassType(classSymbol: lazySymbol, args: [.invariant(valueTParamType)], nullability: .nonNull)))
+        #expect(valueSignature.receiverType == valueLazyType)
+        #expect(valueSignature.returnType == valueTParamType)
 
         let isInitializedSymbol = try #require(
-            sema.symbols.lookup(fqName: lazyFQName + [interner.intern("isInitialized")])
+            sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("isInitialized")])
         )
-        #expect(sema.symbols.externalLinkName(for: isInitializedSymbol) == "kk_lazy_is_initialized")
+        #expect(!sema.symbols.symbol(isInitializedSymbol)!.flags.contains(.synthetic))
         let isInitializedSignature = try #require(sema.symbols.functionSignature(for: isInitializedSymbol))
-        #expect(isInitializedSignature.receiverType == lazyType)
         #expect(isInitializedSignature.parameterTypes == [])
+        #expect(isInitializedSignature.classTypeParameterCount == 0)
+        let initTParam = try #require(isInitializedSignature.typeParameterSymbols.first)
+        let initTParamType = sema.types.make(.typeParam(TypeParamType(symbol: initTParam, nullability: .nonNull)))
+        let initLazyType = sema.types.make(.classType(ClassType(classSymbol: lazySymbol, args: [.invariant(initTParamType)], nullability: .nonNull)))
+        #expect(isInitializedSignature.receiverType == initLazyType)
         #expect(isInitializedSignature.returnType == sema.types.booleanType)
-        #expect(isInitializedSignature.typeParameterSymbols == lazyTypeParams)
-        #expect(isInitializedSignature.classTypeParameterCount == 1)
 
         let lazyOfSymbol = try #require(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("lazyOf")]))
         #expect(sema.symbols.externalLinkName(for: lazyOfSymbol) == "kk_lazy_of")
