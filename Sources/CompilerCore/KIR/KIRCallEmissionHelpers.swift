@@ -25,7 +25,7 @@ func emitNonThrowingCall(
 /// (`.classType` never matches `BoxingCalleeTable`'s primitive-only lookup on
 /// its own), then tags the box appropriately (`emitBoxCallWithValueClassTag`:
 /// `kk_tag_value_class_box` for value classes, `kk_enum_box_ordinal` +
-/// `$enumOrdinalToName$<id>` for enums). Returns `value` unchanged when no
+/// `$enumOrdinalToName$<encodedFqName>` for enums). Returns `value` unchanged when no
 /// boxing is needed.
 func boxValueForAnySlot(
     _ value: KIRExprID,
@@ -194,7 +194,7 @@ func emitBoxCallWithValueClassTag(
     // ensureSyntheticPlatformEnumClass / rewriteSyntheticEnumEntryRefs) are
     // header-only symbols with no source declSite: they never get a
     // `.nominalType` KIR declaration, so DataEnumSealedSynthesisPass never
-    // synthesizes their `$enumOrdinalToName$<classShortName>` helper. Fall back to a
+    // synthesizes their `$enumOrdinalToName$<encodedFqName>` helper. Fall back to a
     // plain (untagged) box for these — same as before this function grew
     // enum awareness — rather than emitting a call to a helper that will
     // never exist.
@@ -240,7 +240,7 @@ func emitBoxCallWithValueClassTag(
 
 /// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name, classID)`
 /// (BUG-177 / BUG-182), resolving `name` at runtime through the enum class's
-/// `$enumOrdinalToName$<classShortName>` helper and tagging the box with the
+/// `$enumOrdinalToName$<encodedFqName>` helper and tagging the box with the
 /// enum class's stable nominal type ID so `is`/`as`/`as?`/`KClass.isInstance`
 /// work after widening to `Any`.
 ///
@@ -281,8 +281,7 @@ private func emitEnumOrdinalBoxCall(
         return
     }
 
-    let classShortName = interner.resolve(classSym.name)
-    let nameHelperCallee = interner.intern("$enumOrdinalToName$\(classShortName)")
+    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
     let helperSymbol = symbols?.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
         symbols?.symbol(id).map { $0.kind == .function } ?? false
     }

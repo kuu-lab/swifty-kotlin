@@ -1075,6 +1075,16 @@ package final class MetadataEncoder {
                     currentID = symbols.parentSymbol(for: parentID)
                     continue
                 }
+                // valueOf / entries are synthesized on the companion object,
+                // which may be a user-declared (non-synthetic) companion. Walk
+                // through it to reach the owning enum class.
+                if parent.kind == .object,
+                   let grandparentID = symbols.parentSymbol(for: parentID),
+                   symbols.companionObjectSymbol(for: grandparentID) == parentID
+                {
+                    currentID = grandparentID
+                    continue
+                }
                 return false
             }
             currentID = symbols.parentSymbol(for: parentID)

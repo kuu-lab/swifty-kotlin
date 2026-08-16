@@ -195,16 +195,15 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         )
         let stringType = sema.types.stringType
         for (ordinal, entry) in entries.enumerated() {
-            let entryName = ctx.interner.resolve(entry.name)
             appendSyntheticCountFunctionIfNeeded(
-                name: ctx.interner.intern("\(entryName)$enumOrdinal"),
+                name: NameMangler.enumEntryOrdinalHelperName(for: entry, interner: ctx.interner),
                 owner: nominalSymbol, value: Int64(ordinal),
                 returnType: intType, module: module, sema: sema,
                 existingFunctionSymbols: existingFunctionSymbols
             )
             appendSyntheticStringFunctionIfNeeded(
-                name: ctx.interner.intern("\(entryName)$enumName"),
-                owner: nominalSymbol, value: ctx.interner.intern(entryName),
+                name: NameMangler.enumEntryNameHelperName(for: entry, interner: ctx.interner),
+                owner: nominalSymbol, value: entry.name,
                 returnType: stringType, module: module, sema: sema,
                 existingFunctionSymbols: existingFunctionSymbols
             )

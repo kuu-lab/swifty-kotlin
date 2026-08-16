@@ -349,3 +349,34 @@ package final class NameMangler {
         return String(format: "%08x", hash)
     }
 }
+
+extension NameMangler {
+    /// Returns a stable, module-unique suffix for a class based on its fully
+    /// qualified name. Length-prefixed encoding avoids ambiguity when components
+    /// contain separators or digits, so e.g. `A.B` and `AB` cannot collide.
+    package static func enumClassNameSuffix(for fqName: [InternedString], interner: StringInterner) -> String {
+        fqName.map { component in
+            let name = interner.resolve(component)
+            return "\(name.count)\(name)"
+        }.joined()
+    }
+
+    package static func enumOrdinalToNameHelperName(for classSymbol: SemanticSymbol, interner: StringInterner) -> InternedString {
+        let suffix = enumClassNameSuffix(for: classSymbol.fqName, interner: interner)
+        return interner.intern("$enumOrdinalToName$\(suffix)")
+    }
+
+    package static func enumEntryNameHelperName(for entrySymbol: SemanticSymbol, interner: StringInterner) -> InternedString {
+        let entryName = interner.resolve(entrySymbol.name)
+        let classFqName = Array(entrySymbol.fqName.dropLast())
+        let suffix = enumClassNameSuffix(for: classFqName, interner: interner)
+        return interner.intern("\(entryName)$enumName$\(suffix)")
+    }
+
+    package static func enumEntryOrdinalHelperName(for entrySymbol: SemanticSymbol, interner: StringInterner) -> InternedString {
+        let entryName = interner.resolve(entrySymbol.name)
+        let classFqName = Array(entrySymbol.fqName.dropLast())
+        let suffix = enumClassNameSuffix(for: classFqName, interner: interner)
+        return interner.intern("\(entryName)$enumOrdinal$\(suffix)")
+    }
+}

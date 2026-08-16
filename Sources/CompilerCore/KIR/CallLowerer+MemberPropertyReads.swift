@@ -405,16 +405,13 @@ extension CallLowerer {
            isEnumEntryField(entrySym, sema: sema),
            let entryInfo = sema.symbols.symbol(entrySym)
         {
-            let entryName = interner.resolve(entryInfo.name)
-            let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
-            let helperName = interner.intern(entryName + helperSuffix)
-            let helperSymbol: SymbolID? = {
-                guard entryInfo.fqName.count >= 2 else { return nil }
-                let ownerFQName = Array(entryInfo.fqName.dropLast())
-                return sema.symbols.lookupAll(fqName: ownerFQName + [helperName]).first { id in
-                    sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-                }
-            }()
+            let helperName = calleeStr == "name"
+                ? NameMangler.enumEntryNameHelperName(for: entryInfo, interner: interner)
+                : NameMangler.enumEntryOrdinalHelperName(for: entryInfo, interner: interner)
+            let ownerFQName = Array(entryInfo.fqName.dropLast())
+            let helperSymbol = sema.symbols.lookupAll(fqName: ownerFQName + [helperName]).first { id in
+                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+            }
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: helperSymbol,

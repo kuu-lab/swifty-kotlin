@@ -92,7 +92,7 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
-    /// The `$enumOrdinalToName$<classShortName>(ordinal): String` helper for `type`,
+    /// The `$enumOrdinalToName$<encodedFqName>(ordinal): String` helper for `type`,
     /// when `type` is a non-null enum class that has one.
     ///
     /// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
@@ -114,8 +114,7 @@ extension CallLowerer {
         else {
             return nil
         }
-        let classShortName = interner.resolve(symbol.name)
-        let helperName = interner.intern("$enumOrdinalToName$\(classShortName)")
+        let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
         let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
             sema.symbols.symbol(id).map { $0.kind == .function } ?? false
         }
@@ -147,7 +146,7 @@ extension CallLowerer {
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
         // A statically enum-typed value is represented as its bare ordinal, so
         // `kk_any_to_string` would render the number. The enum class's
-        // `$enumOrdinalToName$<classShortName>` helper maps it back to the entry name —
+        // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
         // the same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
         // an Any-erased boundary.
         if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
