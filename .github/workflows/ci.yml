@@ -145,7 +145,6 @@ jobs:
 
   verify-self-hosted:
     name: Verification 2-3/5 (Backend, Runtime, CLI, and LSP)
-    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
