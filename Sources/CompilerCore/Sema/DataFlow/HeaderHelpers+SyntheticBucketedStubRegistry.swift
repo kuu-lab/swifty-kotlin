@@ -229,9 +229,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Uuid") { phase, symbols, types, interner in
             phase.registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "URL") { phase, symbols, types, interner in
-            phase.registerSyntheticURLStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in
             phase.registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)
         },
