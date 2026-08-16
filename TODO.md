@@ -523,7 +523,7 @@
 
 #### bucket (b) 未起票追補 第2弾（2026-08-16）
 
-> 「Kotlin source 以外（Synthetic Swift stub / Runtime 公開 `kk_*` / Sema 名前特例）で実装が残っている stdlib 面」を master `eacdb9026` で再棚卸しし、既存 KSP タスクにどのタスクでも追跡されていなかった残余を 1タスク=1PR で起票したもの。当初 KSP-719〜755 で起票したが、同時期にマージされた stdlib gap audit タスク（KSP-719〜1502）と ID が衝突したため KSP-1503〜1539 へ採番し直した。
+> 「Kotlin source 以外（Synthetic Swift stub / Runtime 公開 `kk_*` / Sema 名前特例）で実装が残っている stdlib 面」を master `eacdb9026` で再棚卸しし、既存 KSP タスクにどのタスクでも追跡されていなかった残余を 1タスク=1PR で起票したもの。Stdlib gap audit 2.3.10（KSP-719〜KSP-1502）との重複を避けるため採番は KSP-1502 の続き（KSP-1503〜）。
 >
 > 実測（2026-08-16, master `eacdb9026`）: bundled Kotlin source 153ファイル/23,266行、Synthetic stub 68ファイル/45,516行、Runtime 公開 `kk_*` 1,175、bridge `__kk_*` 688、`excludedBundledStdlibFiles` 0件。
 >
@@ -972,7 +972,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Annotation` — interface kotlin.Annotation  -- `abstract interface kotlin/Annotation`
 
-- [ ] KSP-720: kotlin.ArrayIndexOutOfBoundsException-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-720: kotlin.ArrayIndexOutOfBoundsException-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ArrayIndexOutOfBoundsException`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ArrayIndexOutOfBoundsException.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -993,13 +993,14 @@
     - `kotlin.AutoCloseable` — interface kotlin.AutoCloseable  -- `abstract interface kotlin/AutoCloseable {`
     - `kotlin.AutoCloseable` — fun AutoCloseable(Function0): AutoCloseable  -- `final inline fun kotlin/AutoCloseable(crossinline kotlin/Function0<kotlin/Unit>): kotlin/AutoCloseable`
 
-- [ ] KSP-722: kotlin.BuilderInference-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-722: kotlin.BuilderInference-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `BuilderInference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/BuilderInference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_BuilderInference.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了（2026-08-16、PR #5850）：`Sources/CompilerCore/Stdlib/kotlin/BuilderInference.kt` に stdlib 2.3.10 宣言を追加、`HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` から `BuilderInference` 合成スタブを削除、`AnnotationSemanticTests` を source-backed 宣言用に更新、golden/diff ケースを追加。検証: `bash Scripts/swift_test.sh --filter Golden` pass、`DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` pass、`bash Scripts/validate_runtime_abi_links.sh` pass、`bash Scripts/check_todo_ids.sh` pass。フル `diff_kotlinc` は 892/895 pass、失敗 3 件（`jvm_preview.kt`、`num_conversions.kt`、`num_float_tostring.kt`）は JDK17 環境下の既存 JDK21 差分。
   - 未実装シンボル一覧:
     - `kotlin.BuilderInference` — class kotlin.BuilderInference  -- `open annotation class kotlin/BuilderInference : kotlin/Annotation {`
 
@@ -1084,7 +1085,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DeprecationLevel` — enumClass kotlin.DeprecationLevel  -- `final enum class kotlin/DeprecationLevel : kotlin/Enum<kotlin/DeprecationLevel> {`
 
-- [ ] KSP-731: kotlin.DslMarker-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-731: kotlin.DslMarker-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `DslMarker`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DslMarker.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1134,15 +1135,14 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalStdlibApi` — class kotlin.ExperimentalStdlibApi  -- `open annotation class kotlin/ExperimentalStdlibApi : kotlin/Annotation {`
 
-- [ ] KSP-736: kotlin.ExperimentalSubclassOptIn-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-736: kotlin.ExperimentalSubclassOptIn-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalSubclassOptIn`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotations/OptIn.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_ExperimentalSubclassOptIn.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_ExperimentalSubclassOptIn.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_ExperimentalSubclassOptIn.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.ExperimentalSubclassOptIn` — class kotlin.ExperimentalSubclassOptIn  -- `open annotation class kotlin/ExperimentalSubclassOptIn : kotlin/Annotation {`
+  - 完了根拠: `kotlin.ExperimentalSubclassOptIn` は既に `Sources/CompilerCore/Stdlib/kotlin/annotations/OptIn.kt` に実装済みで bridge/stub 撤去対象なし。golden / diff ケースを追加し、`swift_test.sh --filter Golden`、`diff_kotlinc.sh Scripts/diff_cases`、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` が green。
 
 - [ ] KSP-737: kotlin.ExperimentalUnsignedTypes-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalUnsignedTypes`
@@ -1154,7 +1154,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalUnsignedTypes` — class kotlin.ExperimentalUnsignedTypes  -- `open annotation class kotlin/ExperimentalUnsignedTypes : kotlin/Annotation {`
 
-- [ ] KSP-738: kotlin.ExposedCopyVisibility-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-738: kotlin.ExposedCopyVisibility-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExposedCopyVisibility`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExposedCopyVisibility.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

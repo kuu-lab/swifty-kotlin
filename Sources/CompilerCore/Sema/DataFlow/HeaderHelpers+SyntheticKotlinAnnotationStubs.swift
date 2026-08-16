@@ -98,13 +98,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "DslMarker",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "IntroducedAt",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -176,13 +169,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "ExposedCopyVisibility",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "ParameterName",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -199,13 +185,6 @@ extension DataFlowSemaPhase {
 
         registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
-            named: "BuilderInference",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
@@ -260,37 +239,6 @@ extension DataFlowSemaPhase {
                 annotations.append(experimentalRecord)
             }
             symbols.setAnnotations(annotations, for: overloadSymbol)
-        }
-        if let builderInferenceSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("BuilderInference")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.VALUE_PARAMETER",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                    ]
-                ),
-                to: builderInferenceSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: builderInferenceSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.experimentalTypeInference.qualifiedName
-                ),
-                to: builderInferenceSymbol,
-                symbols: symbols
-            )
         }
 
         // kotlin.experimental.ExperimentalTypeInference is now provided by the
@@ -499,19 +447,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let exposedCopyVisibilitySymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("ExposedCopyVisibility")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.CLASS"]
-                ),
-                to: exposedCopyVisibilitySymbol,
-                symbols: symbols
-            )
-        }
-
         if let optionalExpectationSymbol = symbols.lookup(
             fqName: kotlinPkg + [interner.intern("OptionalExpectation")]
         ) {
@@ -578,38 +513,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner
-            )
-        }
-
-        if let dslMarkerSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("DslMarker")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-                ),
-                to: dslMarkerSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: dslMarkerSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
-                to: dslMarkerSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
-                    arguments: ["1.1"]
-                ),
-                to: dslMarkerSymbol,
-                symbols: symbols
             )
         }
 

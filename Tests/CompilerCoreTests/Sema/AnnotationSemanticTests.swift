@@ -818,7 +818,7 @@ struct AnnotationSemanticTests {
             package sample4
             fun marker(x: MustUseReturnValues?): Int = 0
             """,
-            // testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted
+            // testBuilderInferenceAnnotationSurfaceIsRegisteredAndTargeted
             """
             package sample5
             fun noop() {}
@@ -1015,7 +1015,7 @@ struct AnnotationSemanticTests {
 
             #expect(symbol.kind == .annotationClass)
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
 
             let annotations = sema.symbols.annotations(for: symbolID)
             let v20 = annotations.contains {
@@ -1104,7 +1104,7 @@ struct AnnotationSemanticTests {
 
             #expect(declaration.kind == .annotationClass)
             #expect(declaration.visibility == .public)
-            #expect(declaration.flags.contains(.synthetic))
+            #expect(!declaration.flags.contains(.synthetic))
 
             let annotations = sema.symbols.annotations(for: symbol)
             let v27 = annotations.contains {

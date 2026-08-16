@@ -174,11 +174,11 @@ struct ABIMismatchTests {
 
     @Test
     func kkArrayIndexOutOfBoundsExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("kk_array_index_out_of_bounds_exception_new")
+        let noArg = try requireSpec("__kk_array_index_out_of_bounds_exception_new")
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("kk_array_index_out_of_bounds_exception_new_message")
+        let message = try requireSpec("__kk_array_index_out_of_bounds_exception_new_message")
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
     }

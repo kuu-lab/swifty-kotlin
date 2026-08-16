@@ -1,0 +1,3 @@
+symbol fq=golden.sema.AnnotatedBox kind=class vis=public flags=_
+file fstdlib_kotlin_n_ExposedCopyVisibility package=golden.sema
+  decl golden.sema.AnnotatedBox class AnnotatedBox sym=golden.sema.AnnotatedBox
