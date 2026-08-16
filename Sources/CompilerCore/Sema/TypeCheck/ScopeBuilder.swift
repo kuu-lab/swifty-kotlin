@@ -259,7 +259,7 @@ struct TypeCheckScopeBuilder {
     /// Returns true for symbols that should not be inserted into the
     /// default-import or wildcard-import scopes. This includes the synthetic
     /// operator extensions covered by STDLIB-SHARED-009 and, after KSP-724, the
-    /// source-backed `kotlin.text.CharSequence.get` extension, which has the same
+    /// bundled `kotlin.text.CharSequence.get` extension, which has the same
     /// implicit-receiver shadowing problem. Member-style and operator syntax
     /// (e.g. `cs[0]`) still resolve these through CallTypeChecker fallback paths.
     private func shouldSkipDefaultImport(
@@ -271,16 +271,22 @@ struct TypeCheckScopeBuilder {
             return true
         }
 
-        // KSP-724: Keep source-backed CharSequence.get out of default imports so
-        // it does not shadow StringBuilder.get on implicit receivers. The check
-        // intentionally does not require .operatorFunction, so it stays robust
-        // even if HeaderCollection changes how that flag is set.
+        // KSP-724: Keep the bundled kotlin.text.CharSequence.get extension out of
+        // default/wildcard import scopes so it does not shadow StringBuilder.get
+        // on implicit receivers. The FQ-name guard limits the exclusion to the
+        // bundled stdlib declaration; user-defined CharSequence.get extensions in
+        // other packages are still imported normally.
+        let bundledKotlinTextGet = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("get"),
+        ]
         guard let symbol = sema.symbols.symbol(symbolID),
               symbol.kind == .function,
+              symbol.fqName == bundledKotlinTextGet,
               let signature = sema.symbols.functionSignature(for: symbolID),
               let receiverType = signature.receiverType,
               sema.symbols.isSourceBackedSymbol(symbolID),
-              interner.resolve(symbol.name) == "get",
               case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
               receiverClassType.classSymbol == sema.types.charSequenceInterfaceSymbol
         else {
