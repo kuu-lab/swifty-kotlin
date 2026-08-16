@@ -23,7 +23,7 @@ package kotlin
  *
  * @see [kotlin.annotations.ConsistentCopyVisibility]
  */
-@Target(AnnotationTarget.CLASS)
-@Retention(AnnotationRetention.SOURCE)
+@kotlin.annotation.Target(AnnotationTarget.CLASS)
+@kotlin.annotation.Retention(AnnotationRetention.SOURCE)
 @SinceKotlin("2.0")
 public annotation class ConsistentCopyVisibility
