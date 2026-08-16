@@ -198,13 +198,12 @@ extension CallLowerer {
             let closeName = interner.intern("close")
             let closeResult = arena.appendTemporary(type: sema.types.unitType
             )
-            // Resolve the close() symbol from the Closeable interface and use
+            // Resolve the close() symbol from the AutoCloseable interface and use
             // virtualCall with interface dispatch instead of a static .call.
-            let closeableFQName: [InternedString] = [
-                interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")
-            ]
-            let closeFQName = closeableFQName + [closeName]
-            let closeSymbol = sema.symbols.lookup(fqName: closeFQName)
+            let closeSymbol: SymbolID? = sema.types.closeableInterfaceSymbol.flatMap { closeableSymbol in
+                let closeableFQName = sema.symbols.symbol(closeableSymbol)?.fqName ?? []
+                return sema.symbols.lookup(fqName: closeableFQName + [closeName])
+            }
             let closeDispatch: KIRDispatchKind? = closeSymbol.flatMap { sym in
                 resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             }

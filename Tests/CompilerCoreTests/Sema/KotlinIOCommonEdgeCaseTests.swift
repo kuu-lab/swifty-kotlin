@@ -7,7 +7,7 @@ import Testing
 //
 // Tests for common-range kotlin.io surfaces:
 //   - Closeable.use { } extension
-//   - AutoCloseable type alias resolution
+//   - AutoCloseable interface resolution
 //   - println / print / readLine / readln / readlnOrNull stubs
 //   - StringBuilder.appendLine member
 //   - String.lineSequence member
@@ -16,7 +16,7 @@ import Testing
 // Edges exercised for .use { }:
 //   closes resource on normal return, on exception, on null receiver short-circuit,
 //   returns block result, lambda this-type = receiver (kotlin.io.Closeable),
-//   AutoCloseable alias resolves to same Closeable symbol,
+//   AutoCloseable resolves to its own interface symbol,
 //   nested class implementing Closeable accepted by use.
 
 @Suite
@@ -479,12 +479,12 @@ struct KotlinIOCommonEdgeCaseTests {
         let tUpperBound = try #require(signature.typeParameterUpperBoundsList.first?.first)
         #expect(sema.types.nullability(of: tUpperBound) == .nullable)
         let nonNullBound = sema.types.makeNonNullable(tUpperBound)
-        let closeableFQN = kotlinFQN + [interner.intern("io"), interner.intern("Closeable")]
-        let closeableSymbol = try #require(sema.symbols.lookup(fqName: closeableFQN))
+        let autoCloseableFQN = kotlinFQN + [interner.intern("AutoCloseable")]
+        let autoCloseableSymbol = try #require(sema.symbols.lookup(fqName: autoCloseableFQN))
         guard case let .classType(boundClass) = sema.types.kind(of: nonNullBound) else {
-            Issue.record("kotlin.use T upper bound should resolve to kotlin.io.Closeable?"); return
+            Issue.record("kotlin.use T upper bound should resolve to kotlin.AutoCloseable?"); return
         }
-        #expect(boundClass.classSymbol == closeableSymbol)
+        #expect(boundClass.classSymbol == autoCloseableSymbol)
     }
 
 
@@ -507,7 +507,7 @@ struct KotlinIOCommonEdgeCaseTests {
     }
 
 
-    // MARK: - AutoCloseable type alias visible in sema symbol table
+    // MARK: - AutoCloseable interface visible in sema symbol table
 
 
     @Test
@@ -518,8 +518,8 @@ struct KotlinIOCommonEdgeCaseTests {
 
         let kotlinFQN: [InternedString] = [interner.intern("kotlin")]
         let autoCloseableFQN = kotlinFQN + [interner.intern("AutoCloseable")]
-        let symbol = sema.symbols.lookup(fqName: autoCloseableFQN)
-        #expect(symbol != nil, "kotlin.AutoCloseable should be registered as a synthetic type alias symbol")
+        let symbol = try #require(sema.symbols.lookup(fqName: autoCloseableFQN), "kotlin.AutoCloseable should be registered as a source-backed interface symbol")
+        #expect(sema.symbols.symbol(symbol)?.kind == .interface, "kotlin.AutoCloseable should be an interface symbol")
     }
 
 
@@ -541,13 +541,13 @@ struct KotlinIOCommonEdgeCaseTests {
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        // KSP-611: the factory is Kotlin source (Stdlib/kotlin/io/Closeable.kt)
+        // KSP-721: the factory is Kotlin source (Stdlib/kotlin/AutoCloseable.kt)
         // declared as an external function bound to the runtime bridge.
-        let autoCloseableFQN = [interner.intern("kotlin"), interner.intern("io"), interner.intern("AutoCloseable")]
+        let autoCloseableFQN = [interner.intern("kotlin"), interner.intern("AutoCloseable")]
         let functionSymbol = sema.symbols.lookupAll(fqName: autoCloseableFQN).first { symbolID in
             sema.symbols.symbol(symbolID)?.kind == .function
         }
-        let symbol = try #require(functionSymbol, "kotlin.io.AutoCloseable factory should be registered")
+        let symbol = try #require(functionSymbol, "kotlin.AutoCloseable factory should be registered")
         #expect(sema.symbols.externalLinkName(for: symbol) == "__kk_auto_closeable_create")
     }
 
@@ -563,20 +563,18 @@ struct KotlinIOCommonEdgeCaseTests {
 
         let kotlinIOFQN: [InternedString] = [interner.intern("kotlin"), interner.intern("io")]
         let closeableFQN = kotlinIOFQN + [interner.intern("Closeable")]
-        let symbol = sema.symbols.lookup(fqName: closeableFQN)
-        #expect(symbol != nil, "kotlin.io.Closeable should be registered as a synthetic interface symbol")
+        let symbol = try #require(sema.symbols.lookup(fqName: closeableFQN), "kotlin.io.Closeable should be registered as an interface symbol")
+        #expect(sema.symbols.symbol(symbol)?.kind == .interface, "kotlin.io.Closeable should be an interface symbol")
     }
 
 
-    // MARK: - Class implementing the AutoCloseable alias
+    // MARK: - Class implementing AutoCloseable
 
-    /// KSP-611: `kotlin.AutoCloseable` is a type alias for `kotlin.io.Closeable`, so a
-    /// class listing it as a supertype must record the aliased interface — otherwise the
-    /// alias symbol (neither open nor an interface, and without a layout) both fails the
-    /// subclassability check and suppresses itable synthesis for `close()`.
+    /// KSP-721: `kotlin.AutoCloseable` is now a source-backed interface, so a
+    /// class listing it as a supertype records the AutoCloseable symbol itself.
 
     @Test
-    func testClassImplementingAutoCloseableAliasRecordsCloseableSupertype() throws {
+    func testClassImplementingAutoCloseableRecordsAutoCloseableSupertype() throws {
         let ctx = try sharedIOCtx()
         #expect(
             !(ctx.diagnostics.hasError),
@@ -585,10 +583,10 @@ struct KotlinIOCommonEdgeCaseTests {
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let resourceSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("sample12"), interner.intern("AliasResource")]))
-        let closeableSymbol = try #require(sema.symbols.lookup(
-            fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")]
+        let autoCloseableSymbol = try #require(sema.symbols.lookup(
+            fqName: [interner.intern("kotlin"), interner.intern("AutoCloseable")]
         ))
-        #expect(sema.symbols.directSupertypes(for: resourceSymbol).contains(closeableSymbol))
+        #expect(sema.symbols.directSupertypes(for: resourceSymbol).contains(autoCloseableSymbol))
     }
 
 

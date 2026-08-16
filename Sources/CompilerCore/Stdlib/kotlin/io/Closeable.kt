@@ -7,22 +7,16 @@
 
 package kotlin.io
 
-import kotlin.internal.KsSymbolName
+import kotlin.AutoCloseable
 
-// KSP-611: Closeable / AutoCloseable / use are migrated to Kotlin source. The
-// interface reuses the synthetic shell on bundle load so `TypeSystem.closeableTypeID`
-// (a compiler residual used by the `.use {}` try-finally inline lowering in
-// CallLowerer+ScopeFunctionLowering.swift) keeps pointing at the same symbol.
-// The only remaining runtime bridge is the demoted __kk_auto_closeable_create
-// factory (Sources/Runtime/RuntimeCollectionHOF.swift), which builds a Closeable
-// whose close() invokes the given lambda.
+// KSP-721: `kotlin.AutoCloseable` is now a source-backed interface in
+// `Stdlib/kotlin/AutoCloseable.kt`. `kotlin.io.Closeable` extends `AutoCloseable`
+// and redeclares `close()` so that the JVM-compatible `Closeable` subtype is
+// preserved. `kotlin.io.use` remains a source-backed extension for `Closeable?`.
 
-public interface Closeable {
-    public fun close()
+public interface Closeable : AutoCloseable {
+    public override fun close()
 }
-
-@KsSymbolName("__kk_auto_closeable_create")
-public external fun AutoCloseable(closeAction: () -> Unit): Closeable
 
 public fun <T : Closeable?, R> T.use(block: (T) -> R): R {
     val resource = this
