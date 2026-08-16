@@ -5,5 +5,5 @@ file fstdlib_kotlin_n_ExperimentalUnsignedTypes package=golden.sema
   decl golden.sema.MyUnsignedMarker class MyUnsignedMarker sym=golden.sema.MyUnsignedMarker
   decl golden.sema.experimentalUnsigned fun experimentalUnsigned sym=golden.sema.experimentalUnsigned
   decl golden.sema.caller fun caller sym=golden.sema.caller
-expr e@7:35#1 int(42) type=Int
-expr e@10:21#5 call callee=e@10:21#4 args=[] type=Int call=golden.sema.experimentalUnsigned
+expr e@7:35 int(42) type=Int
+expr e@10:21 call callee=e@10:21#1 args=[] type=Int call=golden.sema.experimentalUnsigned
