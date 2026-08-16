@@ -246,6 +246,25 @@ final class RuntimeRuntimeExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeKotlinNothingValueExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.KotlinNothingValueException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.KotlinNothingValueException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("KotlinNothingValueException", message)
+    }
+}
+
 final class RuntimeErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.Error"
@@ -260,6 +279,24 @@ final class RuntimeErrorBox: RuntimeThrowableBox {
 
     override var renderedMessage: String {
         runtimeRenderedExceptionMessage("Error", message)
+    }
+}
+
+final class RuntimeOutOfMemoryErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.OutOfMemoryError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.OutOfMemoryError",
+            "kotlin.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("OutOfMemoryError", message)
     }
 }
 
@@ -492,9 +529,29 @@ func runtimeAllocateRuntimeException(message: String?, cause: Int = 0) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// Allocates a `KotlinNothingValueException` with the given message.
+func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 /// Allocates an `Error` with the given message.
 func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeErrorBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates an `OutOfMemoryError` with the given message.
+func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeOutOfMemoryErrorBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -838,6 +895,32 @@ public func kk_runtime_exception_new_cause(_ causeRaw: Int) -> Int {
     )
 }
 
+@_cdecl("__kk_kotlin_nothing_value_exception_new")
+public func kk_kotlin_nothing_value_exception_new() -> Int {
+    runtimeAllocateKotlinNothingValueException(message: nil)
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new_message")
+public func kk_kotlin_nothing_value_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateKotlinNothingValueException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new_message_cause")
+public func kk_kotlin_nothing_value_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateKotlinNothingValueException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new_cause")
+public func kk_kotlin_nothing_value_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateKotlinNothingValueException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
 @_cdecl("__kk_error_new")
 public func kk_error_new() -> Int {
     runtimeAllocateError(message: nil)
@@ -862,6 +945,16 @@ public func kk_error_new_cause(_ causeRaw: Int) -> Int {
         message: nil,
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
+}
+
+@_cdecl("__kk_out_of_memory_error_new")
+public func kk_out_of_memory_error_new() -> Int {
+    runtimeAllocateOutOfMemoryError(message: nil)
+}
+
+@_cdecl("__kk_out_of_memory_error_new_message")
+public func kk_out_of_memory_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateOutOfMemoryError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
 @_cdecl("__kk_not_implemented_error_new")

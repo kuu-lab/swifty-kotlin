@@ -12,7 +12,7 @@ private enum SyntheticAnnotationAPISurfaceForHelpers {
 
 /// Helpers used by the synthetic Metaprog stub registration:
 /// annotation class registration, JVM annotation registration,
-/// AnnotationTarget / Retention / DeprecationLevel / RequiresOptInLevel
+/// AnnotationTarget / Retention / DeprecationLevel
 /// enums, the throws-exception-classes property/constructor, and
 /// generic String / Boolean / Int annotation property/constructor
 /// registration helpers.
@@ -113,65 +113,6 @@ extension DataFlowSemaPhase {
             annotations.append(annotation)
             symbols.setAnnotations(annotations, for: symbol)
         }
-    }
-
-    func registerSyntheticContextFunctionTypeParamsAnnotation(
-        packageFQName: [InternedString],
-        packageSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let className = interner.intern(KnownCompilerAnnotation.contextFunctionTypeParams.simpleName)
-        let classFQName = packageFQName + [className]
-        let classSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: classFQName) {
-            classSymbol = existing
-        } else {
-            classSymbol = symbols.define(
-                kind: .annotationClass,
-                name: className,
-                fqName: classFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if packageSymbol != .invalid {
-            symbols.setParentSymbol(packageSymbol, for: classSymbol)
-        }
-
-        appendSyntheticAnnotation(
-            MetadataAnnotationRecord(
-                annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                arguments: ["AnnotationTarget.TYPE"]
-            ),
-            to: classSymbol,
-            symbols: symbols
-        )
-
-        let classType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerSyntheticAnnotationIntProperty(
-            named: "count",
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticAnnotationIntConstructor(
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            ownerType: classType,
-            parameterName: "count",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     func registerSyntheticAnnotationIntProperty(
@@ -423,61 +364,6 @@ extension DataFlowSemaPhase {
             if symbols.propertyType(for: entrySymbol) == nil {
                 symbols.setPropertyType(enumType, for: entrySymbol)
             }
-        }
-    }
-
-    func registerSyntheticRequiresOptInLevelEnum(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        packageSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let levelName = interner.intern("Level")
-        let levelFQName = ownerFQName + [levelName]
-        let levelSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: levelFQName) {
-            levelSymbol = existing
-        } else {
-            levelSymbol = symbols.define(
-                kind: .enumClass,
-                name: levelName,
-                fqName: levelFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: levelSymbol)
-        if packageSymbol != .invalid {
-            symbols.setSourceFileID(symbols.sourceFileID(for: packageSymbol) ?? FileID(rawValue: 0), for: levelSymbol)
-        }
-
-        let levelType = types.make(.classType(ClassType(
-            classSymbol: levelSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        for entryName in ["WARNING", "ERROR"] {
-            let entry = interner.intern(entryName)
-            let entryFQName = levelFQName + [entry]
-            let entrySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: entryFQName) {
-                entrySymbol = existing
-            } else {
-                entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entry,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(levelSymbol, for: entrySymbol)
-            symbols.setPropertyType(levelType, for: entrySymbol)
         }
     }
 

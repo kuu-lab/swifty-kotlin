@@ -364,6 +364,31 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
+            // Nested class/object headers must be collected before the primary
+            // constructor parameter types are resolved, because those parameter
+            // types (or their default values) may reference a nested type
+            // (e.g. `annotation class RequiresOptIn(val level: Level = Level.ERROR)`).
+            collectMemberHeaders(
+                members: MemberDeclarations(
+                    functions: [],
+                    properties: [],
+                    nestedClasses: classDecl.nestedClasses,
+                    nestedObjects: classDecl.nestedObjects
+                ),
+                owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
+                sourceFileID: file.fileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: classScope,
+                diagnostics: diagnostics,
+                interner: interner,
+                classTypeParameterSymbols: classTypeParamSymbols,
+                classLocalTypeParameters: classLocalTypeParameters
+            )
+
             let ctorName = interner.intern("<init>")
             let primaryCtorFQName = fqName + [ctorName]
 
@@ -400,6 +425,7 @@ extension DataFlowSemaPhase {
                         ast: ast, symbols: symbols, types: types,
                         interner: interner,
                         localTypeParameters: classLocalTypeParameters,
+                        relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
                         imports: file.imports,
                         diagnostics: diagnostics,
@@ -450,6 +476,7 @@ extension DataFlowSemaPhase {
                     ast: ast, symbols: symbols, types: types,
                     interner: interner,
                     localTypeParameters: classLocalTypeParameters,
+                    relativeOwnerFQName: fqName,
                     currentPackageFQName: package,
                     imports: file.imports,
                     diagnostics: diagnostics,
@@ -499,6 +526,7 @@ extension DataFlowSemaPhase {
                         types: types,
                         interner: interner,
                         localTypeParameters: classLocalTypeParameters,
+                        relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
                         imports: file.imports,
                         diagnostics: diagnostics,
@@ -575,8 +603,8 @@ extension DataFlowSemaPhase {
                 members: MemberDeclarations(
                     functions: classDecl.memberFunctions,
                     properties: classDecl.memberProperties,
-                    nestedClasses: classDecl.nestedClasses,
-                    nestedObjects: classDecl.nestedObjects
+                    nestedClasses: [],
+                    nestedObjects: []
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
                 sourceFileID: file.fileID,
