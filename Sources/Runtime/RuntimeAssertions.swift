@@ -357,6 +357,26 @@ final class RuntimeClassCastExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeTypeCastExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.TypeCastException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.TypeCastException",
+            "kotlin.ClassCastException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("TypeCastException", message)
+    }
+}
+
 final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.NullPointerException"
@@ -548,6 +568,16 @@ func runtimeAllocateNoSuchElementException(message: String?, cause: Int = 0) -> 
 /// Allocates a `ClassCastException` with the given message.
 func runtimeAllocateClassCastException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeClassCastExceptionBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates a `TypeCastException` with the given message.
+func runtimeAllocateTypeCastException(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeTypeCastExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -933,6 +963,16 @@ public func kk_class_cast_exception_new() -> Int {
 @_cdecl("__kk_class_cast_exception_new_message")
 public func kk_class_cast_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateClassCastException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_type_cast_exception_new")
+public func kk_type_cast_exception_new() -> Int {
+    runtimeAllocateTypeCastException(message: nil)
+}
+
+@_cdecl("__kk_type_cast_exception_new_message")
+public func kk_type_cast_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateTypeCastException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
 @_cdecl("__kk_null_pointer_exception_new")
