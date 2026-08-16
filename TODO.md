@@ -1056,7 +1056,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ContextFunctionTypeParams` — class kotlin.ContextFunctionTypeParams  -- `open annotation class kotlin/ContextFunctionTypeParams : kotlin/Annotation {`
 
-- [ ] KSP-728: kotlin.Deprecated-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-728: kotlin.Deprecated-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Deprecated`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Deprecated.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
