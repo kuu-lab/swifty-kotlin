@@ -37,13 +37,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "DeprecatedSinceKotlin",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "ReplaceWith",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -57,17 +50,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        if let deprecatedSinceKotlinSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("DeprecatedSinceKotlin")]
-        ) {
-            registerSyntheticDeprecatedSinceKotlinMembers(
-                ownerSymbol: deprecatedSinceKotlinSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("DeprecatedSinceKotlin")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
 
         registerSyntheticAnnotationClass(
             named: "WasExperimental",

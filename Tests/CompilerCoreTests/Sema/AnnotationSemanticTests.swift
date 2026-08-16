@@ -867,7 +867,6 @@ struct AnnotationSemanticTests {
 
             #expect(symbol.kind == .annotationClass)
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
 
             let annotations = sema.symbols.annotations(for: symbolID)
             let v6 = annotations.contains {
