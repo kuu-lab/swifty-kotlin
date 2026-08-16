@@ -279,12 +279,12 @@
 
 #### collections
 
-- [ ] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
+- [x] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
 - [ ] KSP-621: joinToString/joinTo の Iterable/Sequence 版を統一する（前提: KSP-620。削除 kk_* 4: `kk_iterable_joinTo`, `kk_iterable_joinToString`, `kk_sequence_joinTo`, `kk_sequence_joinToString` + `CallLowerer+UnresolvedMemberCalls.swift` の収束特例。diff: Iterable 版・joinTo 単独ケース追加）
 - [x] KSP-624: buildString を Kotlin 化する（前提: KSP-622, KSP-311。完了: PR #5060 で `buildString`/`buildStringBuilder` を `StringBuilder.kt` の source-backed API へ移設）
   - 実装: `builderDSLKind` の buildString 系分岐、`CallLowerer.swift` の append 引数ボクシング特例、旧 `kk_build_string*` の builder DSL 窓口を撤去。可変バッファに必要な `__kk_string_builder_*` 最小ブリッジは維持
   - 検証: KSP-311（PR #4996/#5060）、KSP-622（PR #5702）、KSP-CAP-008（PR #4991）の master 反映を確認。Sema/lowering/codegen、ABI、capacity/empty/chained append/nullable・primitive boxing/receiver lambda/nested builder の回帰、指定 diff 8 ケース、TODO-ID、`git diff --check` を実施
-- [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
+- [x] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`。完了: bundled Kotlin の source-backed 実装、identity/lazy/one-shot/empty/partial-consumption 回帰、focused golden/diff/ABI 検証）
 - [x] KSP-687: primitive array（IntArray/LongArray/DoubleArray/FloatArray/CharArray 等）の HOF を Kotlin 化する（KSP-433 完了メモが「`kk_array_*` ブリッジ削除には primitive array HOF の Kotlin 化（**別タスク**）が前提」と明記したまま未起票だった — 2026-08-12 追補、2026-08-14 完了）
   - 対象: `RuntimeCollectionHOFArray.swift` の 40 関数（2026-08-12 実測。generic `Array<T>` 経路は KSP-433 で source 化済みだが、primitive レシーバは `CallTypeChecker+ArrayMemberFallback.swift` の合成フォールバック経由で今も全ブリッジへ到達する）と、`CollectionLiteralLoweringPass+LookupTables+Array.swift` / `CallLowerer+UnresolvedMemberCalls.swift` の未解決メンバ fallback 表の該当分
   - 併せて解消: `Array<T>.joinToString(..., transform)` が synthetic メンバ優先で `kk_array_joinToString_transform` に残る問題（KSP-433 記載・BUG-158 と共有）、fold アキュムレータの raw 表現規約（KSP-433 の同 PR 修正参照）の source 実装への引き継ぎ
@@ -315,7 +315,7 @@
 
 - [x] KSP-649: TimeSource/Monotonic を Kotlin 化し ValueTimeMark を**新規実装**する（残留: `__kk_time_source_mark_now`/`__kk_time_source_monotonic_mark_now`/`__kk_time_source_as_clock`（単調クロック読み）。**本家 `TimeSource.Monotonic.ValueTimeMark`（value class）はリポジトリに存在しない — 新規追加**。前提: value class 対応の確認 + KSP-648）
   - 完了根拠（現行master `0a9c0c248`）: PR #5673 / merge commit `8b2b1f6fb` の実装が `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource.kt` と `Sources/CompilerCore/Stdlib/kotlin/time/TimeMark.kt`、Runtime/ABI bridge に反映済み。`ExperimentalTimeSourceSyntheticSurfaceTests` 13件、`CodegenBackendExperimentalTimeEdgeCasesTests` 2件、`Scripts/diff_cases/experimental_time.kt`、Runtime ABI外部リンク検証4件がPASS。
-- [ ] KSP-650: TestTimeSource/AbstractLongTimeSource/AbstractDoubleTimeSource を Kotlin 化する（削除 kk_*: `kk_test_time_source_new/plus_assign/mark_now/read` 4。前提: KSP-648）
+- [x] KSP-650: TestTimeSource/AbstractLongTimeSource/AbstractDoubleTimeSource を Kotlin 化する（削除 kk_*: `kk_test_time_source_new/plus_assign/mark_now/read` 4。前提: KSP-648）
 - [x] KSP-651: SequenceFactories を移設する（`kotlin/sequences/SequenceFactories.kt` を bundled ツリーへ移設し、`emptySequence`/`sequenceOf`/`generateSequence` を source-backed 化。runtime factory bridge 4件を `__kk_` へ降格し、`kk_sequence_of_single` は Sequence + element の lowering 用として存続。CallTypeChecker の factory 特例、CollectionLiteralLoweringPass の factory rewrite、CallLowerer の generateSequence 直書きを撤去。sequence{} builder は KSP-CAP-001 の既存 synthetic 経路を維持し、lazy/one-shot/seed/null termination と source-backed overload を回帰固定）
 #### 例外・言語コア表面（(c) 再監査 2026-07-10 で b-reclass 確定分）
 

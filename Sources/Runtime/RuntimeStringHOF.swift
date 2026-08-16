@@ -104,6 +104,22 @@ public func __kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     kk_string_splitToSequence(strRaw, delimRaw)
 }
 
+// Retained as a private compatibility bridge for older bundled stdlib
+// artifacts. Current List/Array join APIs are source-backed and do not use it.
+@_cdecl("__kk_string_joinToString")
+public func __kk_string_joinToString(
+    _ listRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int
+) -> Int {
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeListBox(from: listRaw)?.values.map(runtimeElementToString) ?? []
+    return runtimeMakeStringRaw(prefix + elements.joined(separator: separator) + postfix)
+}
+
 @_cdecl("kk_string_splitToSequence_flat")
 public func kk_string_splitToSequence_flat(
     _ data: UnsafePointer<UInt8>?,

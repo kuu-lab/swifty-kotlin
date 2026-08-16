@@ -268,41 +268,5 @@ public extension RuntimeABISpec {
             section: "Duration",
             isThrowing: false
         ),
-        // STDLIB-TIME-TYPE-009: TestTimeSource
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_plus_assign",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_mark_now",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_read",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
     ]
 }

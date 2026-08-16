@@ -1,5 +1,16 @@
 package kotlin.text
 
+import kotlin.internal.KsSymbolName
+
+// Retained for compatibility with older bundled callers. Current collection
+// join APIs live in kotlin.collections and do not route through this bridge.
+@KsSymbolName("__kk_string_joinToString")
+private external fun <T> List<T>.__kkStringJoinToString(
+    separator: String,
+    prefix: String,
+    postfix: String
+): String
+
 // MIGRATION-TEXT-004 / RF-STDLIB-005
 // Public split APIs are now source-backed. Runtime fast paths are retained as
 // private __kk_* bridges so public kk_string_split* symbols disappear from
