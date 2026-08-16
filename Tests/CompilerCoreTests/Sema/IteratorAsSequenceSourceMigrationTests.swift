@@ -34,7 +34,7 @@ struct IteratorAsSequenceSourceMigrationTests {
                 return ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/sequences/Sequences.kt"
             }
 
-            #expect(sourceSymbols.count == 2, "Expected Iterable and Iterator asSequence source overloads")
+            #expect(sourceSymbols.count == 3, "Expected Iterable, Iterator, and Sequence asSequence source overloads")
             let iteratorTypeSymbol = sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
