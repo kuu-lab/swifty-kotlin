@@ -351,13 +351,13 @@ internal external fun __kkFloatNextDown(x: Float): Float
 
 public fun sqrt(x: Double): Double = __kkMathSqrt(x)
 
-public fun pow(x: Double, y: Double): Double = __kkMathPow(x, y)
+public fun Double.pow(x: Double): Double = __kkMathPow(this, x)
 
-public fun pow(x: Double, n: Int): Double = __kkMathPowInt(x, n)
+public fun Double.pow(n: Int): Double = __kkMathPowInt(this, n)
 
-public fun IEEErem(x: Double, divisor: Double): Double = __kkMathIEEErem(x, divisor)
+public fun Double.IEEErem(divisor: Double): Double = __kkMathIEEErem(this, divisor)
 
-public fun nextTowards(x: Double, to: Double): Double = __kkMathNextTowards(x, to)
+public fun Double.nextTowards(to: Double): Double = __kkMathNextTowards(this, to)
 
 public fun sin(x: Double): Double = __kkMathSin(x)
 
@@ -405,13 +405,13 @@ public fun hypot(x: Double, y: Double): Double = __kkMathHypot(x, y)
 
 public fun sqrt(x: Float): Float = __kkMathSqrtFloat(x)
 
-public fun pow(x: Float, y: Float): Float = __kkMathPowFloat(x, y)
+public fun Float.pow(x: Float): Float = __kkMathPowFloat(this, x)
 
-public fun pow(x: Float, n: Int): Float = __kkMathPowFloatInt(x, n)
+public fun Float.pow(n: Int): Float = __kkMathPowFloatInt(this, n)
 
-public fun IEEErem(x: Float, divisor: Float): Float = __kkMathIEEEremFloat(x, divisor)
+public fun Float.IEEErem(divisor: Float): Float = __kkMathIEEEremFloat(this, divisor)
 
-public fun nextTowards(x: Float, to: Float): Float = __kkMathNextTowardsFloat(x, to)
+public fun Float.nextTowards(to: Float): Float = __kkMathNextTowardsFloat(this, to)
 
 public fun sin(x: Float): Float = __kkMathSinFloat(x)
 
