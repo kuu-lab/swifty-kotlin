@@ -570,12 +570,13 @@
   - 連動整理: Runtime `Sources/Runtime/RuntimeURI.swift`（`kk_uri_*` 29件）、`Sources/Runtime/RuntimePath.swift` 内 URI 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URI ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURITests.swift`、`Tests/RuntimeTests/RuntimeURITests.swift`/`RuntimeURLTests.swift`、diff case `url_basic.kt` 内 URI 使用箇所の確認
   - 完了 (2026-08-14): URL 本体と Network の HTTP request builder 用 URI handoff は CLEANUP-STUB-124 の責務境界として保持し、Java URI の公開 Sema/runtime surface のみ除去
-- [ ] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
+- [x] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURLStubs.swift`（332行）
   - 削除内容: `registerSyntheticURLStubs(...)` および `java.net.URL` クラス・コンストラクタ / `readText` / `readBytes` / `openConnection` 等の登録を削除
   - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:260`（`name: "URL"`）を削除
   - 連動整理: Runtime `Sources/Runtime/RuntimeNetwork.swift`（`kk_url_*`/`kk_uri_*` 36件）、`Sources/Runtime/RuntimePath.swift` 内 URL 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URL ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURLTests.swift`、`Tests/RuntimeTests/RuntimeURLTests.swift`、diff case `url_basic.kt` の整理
+  - 完了 (2026-08-14): HTTP request builder 用の内部 URI handoff は保持し、Java URL の公開 Sema/runtime surface のみ除去
 - [x] CLEANUP-STUB-125: `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` の JVM 固有注釈を (a) 分割・削除する（§9 の同ファイル注記「split JVM-only annotations into (a) before table migration」と KSP-668 スコープ外メモ「JVM 固有注釈は (a) 分割してから」の実行体 — 2026-08-12 追補。対象は着手時に `rg -n 'Jvm[A-Z][a-zA-Z]*' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` で全列挙し、KSwiftK ターゲット（macOS ネイティブ）で意味を持たない JVM 専用注釈（`@JvmStatic`/`@JvmOverloads`/`@JvmField` 系等）を (a)、`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` 等の共通注釈インフラ（AnnotationTargetValidation・opt-in 機構が依存）を (c) 残置に分類してから削除する。手順: RF-STUB-002 レシピ）
   - 完了 (2026-08-14): 着手時の指定 `rg` は両対象ファイルで0件。JVM固有注釈の登録・JVM専用回帰テスト群は CLEANUP-STUB-084 (#3954, `ace371605`) で既に削除・共通注釈実装から分離済み。`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` と `AnnotationTargetValidation`・opt-in 回帰は現行コードに残置し、注釈固有のRuntime ABI追加・削除は無い。実装変更なしのTODO同期として完了。
 
