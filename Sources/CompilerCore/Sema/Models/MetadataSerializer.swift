@@ -1,5 +1,11 @@
 import Foundation
 
+package enum MetadataModality: String {
+    case final
+    case open
+    case abstract
+}
+
 // MARK: - Shared Metadata Record
 
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
@@ -17,6 +23,9 @@ package struct MetadataRecord {
     let typeSignature: String?
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
+    /// Per-parameter flags indicating whether a function-type argument may
+    /// contain a non-local return when the callable is inline-expanded.
+    package let valueParameterAllowsNonLocalReturn: [Bool]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
     /// Whether the function/constructor is declared `throws`.
@@ -53,6 +62,9 @@ package struct MetadataRecord {
     /// Whether a nominal declaration is explicitly open and may be subclassed.
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
+    /// Declaration modality for classes and members. Final is omitted from the
+    /// wire format so older artifacts remain compact and decode as final.
+    package let modality: MetadataModality
 
     // P5-74: sealed class flag
     package let isSealedClass: Bool
@@ -116,6 +128,7 @@ package struct MetadataRecord {
         isOverride: Bool = false,
         typeSignature: String? = nil,
         valueParameterIsVararg: [Bool] = [],
+        valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
@@ -136,6 +149,7 @@ package struct MetadataRecord {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
@@ -164,6 +178,7 @@ package struct MetadataRecord {
         self.isOverride = isOverride
         self.typeSignature = typeSignature
         self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
@@ -184,6 +199,7 @@ package struct MetadataRecord {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
         self.annotations = annotations
@@ -415,7 +431,8 @@ package final class MetadataEncoder {
             expandedType,
             symbols: symbols,
             types: types,
-            nameResolver: nameResolver
+            nameResolver: nameResolver,
+            unboxValueClasses: false
         )
     }
 
@@ -631,6 +648,9 @@ package final class MetadataEncoder {
                     superFQName: computedSuperFQName,
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
+                    modality: symbol.flags.contains(.abstractType)
+                        ? .abstract
+                        : (symbol.flags.contains(.openType) ? .open : .final),
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
@@ -645,6 +665,9 @@ package final class MetadataEncoder {
                 superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
+                modality: symbol.flags.contains(.abstractType)
+                    ? .abstract
+                    : (symbol.flags.contains(.openType) ? .open : .final),
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
@@ -660,6 +683,7 @@ package final class MetadataEncoder {
         var isOverride = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var canThrow = false
         var valueParameterNames: [String] = []
@@ -678,6 +702,7 @@ package final class MetadataEncoder {
             isOperator = symbol.flags.contains(.operatorFunction)
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
+            valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
             valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
             canThrow = signature.canThrow
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
@@ -688,7 +713,8 @@ package final class MetadataEncoder {
                 for: symbol,
                 symbols: symbols,
                 types: types,
-                nameResolver: { interner.resolve($0) }
+                nameResolver: { interner.resolve($0) },
+                unboxValueClasses: false
             )
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             if signature.valueParameterHasDefaultValues.contains(true) {
@@ -855,6 +881,13 @@ package final class MetadataEncoder {
 
         let isDataClass = symbol.flags.contains(.dataType)
         let isOpenClass = symbol.flags.contains(.openType)
+        let modality: MetadataModality = if symbol.flags.contains(.abstractType) {
+            .abstract
+        } else if symbol.flags.contains(.openType) {
+            .open
+        } else {
+            .final
+        }
         let isSealedClass = symbol.flags.contains(.sealedType)
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
@@ -902,6 +935,7 @@ package final class MetadataEncoder {
             isOverride: isOverride,
             typeSignature: typeSignature,
             valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
@@ -922,6 +956,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
+            modality: modality,
             isSealedClass: isSealedClass,
             isFunInterface: isFunInterface,
             annotations: annotationEntries,
@@ -1034,6 +1069,10 @@ package final class MetadataEncoder {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
                 }
+                if !record.valueParameterAllowsNonLocalReturn.isEmpty {
+                    let mask = record.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }.joined()
+                    fields.append("nonLocal=\(mask)")
+                }
                 if !record.valueParameterHasDefaultValues.isEmpty {
                     let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
                     fields.append("default=\(mask)")
@@ -1138,6 +1177,9 @@ package final class MetadataEncoder {
             }
             if record.isOpenClass {
                 fields.append("openClass=1")
+            }
+            if record.modality != .final {
+                fields.append("modality=\(record.modality.rawValue)")
             }
             if record.isSealedClass {
                 fields.append("sealedClass=1")
@@ -1387,6 +1429,7 @@ final class MetadataDecoder {
                 isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
@@ -1407,6 +1450,7 @@ final class MetadataDecoder {
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isOpenClass: rec.isOpenClass,
+                modality: rec.modality,
                 isSealedClass: rec.isSealedClass,
                 isFunInterface: rec.isFunInterface,
                 annotations: rec.annotations,
@@ -1441,6 +1485,7 @@ final class MetadataDecoder {
         var isOverride: Bool = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
@@ -1461,6 +1506,7 @@ final class MetadataDecoder {
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
+        var modality: MetadataModality = .final
         var isSealedClass: Bool = false
         var isFunInterface: Bool = false
         var isValueClass: Bool = false
@@ -1497,6 +1543,8 @@ final class MetadataDecoder {
             record.isOverride = value == "1" || value == "true"
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
+        case "nonLocal":
+            record.valueParameterAllowsNonLocalReturn = value.map { $0 == "1" }
         case "default":
             record.valueParameterHasDefaultValues = value.map { $0 == "1" }
         case "canThrow":
@@ -1547,6 +1595,8 @@ final class MetadataDecoder {
             record.isDataClass = value == "1" || value == "true"
         case "openClass":
             record.isOpenClass = value == "1" || value == "true"
+        case "modality":
+            record.modality = MetadataModality(rawValue: value) ?? .final
         case "sealedClass":
             record.isSealedClass = value == "1" || value == "true"
         case "funInterface":

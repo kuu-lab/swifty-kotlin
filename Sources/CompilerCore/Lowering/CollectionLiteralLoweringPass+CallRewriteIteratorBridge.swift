@@ -103,19 +103,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-189: Rewrite kk_range_iterator on String -> kk_string_iterator_flat
-            if state.stringExprIDs.contains(argID.rawValue) {
-                if let result { state.stringIteratorExprIDs.insert(result.rawValue) }
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkStringIteratorName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
             // STDLIB-331/564: iterator {} result is already an iterator; pass through
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 if let result {
@@ -173,18 +160,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMapIteratorHasNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            // STDLIB-189: Rewrite kk_range_hasNext on string iterator → kk_string_iterator_hasNext
-            if state.stringIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkStringIteratorHasNextName,
                     arguments: arguments,
                     result: result,
                     canThrow: false,
@@ -252,18 +227,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMapIteratorNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            // STDLIB-189: Rewrite kk_range_next on string iterator → kk_string_iterator_next
-            if state.stringIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkStringIteratorNextName,
                     arguments: arguments,
                     result: result,
                     canThrow: false,

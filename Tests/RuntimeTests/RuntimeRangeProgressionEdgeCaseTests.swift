@@ -702,6 +702,44 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(values == [1, 4, 7, 10])
     }
 
+    // BUG-198: the compiler-lowered fast path must match RangeIterators.kt,
+    // including stopping after an arithmetic overflow instead of wrapping into
+    // another valid-looking element.
+    @Test func forInFastPath_stepsAndStopsAtOverflow() {
+        let range = kk_op_rangeTo(Int.max - 1, Int.max)
+        let iter = kk_range_for_in_iterator(range)
+        var values: [Int] = []
+        while kk_range_for_in_hasNext(iter) != 0 {
+            values.append(kk_range_for_in_next(iter))
+        }
+        #expect(values == [Int.max - 1, Int.max])
+        #expect(kk_range_for_in_hasNext(iter) == 0)
+    }
+
+    @Test func forInFastPath_descendingStopsAtUnderflow() {
+        let range = __kk_op_downTo(Int.min + 1, Int.min)
+        let iter = kk_range_for_in_iterator(range)
+        var values: [Int] = []
+        while kk_range_for_in_hasNext(iter) != 0 {
+            values.append(kk_range_for_in_next(iter))
+        }
+        #expect(values == [Int.min + 1, Int.min])
+        #expect(kk_range_for_in_hasNext(iter) == 0)
+    }
+
+    @Test func forInFastPath_emptyAndSteppedRanges() {
+        let empty = kk_range_for_in_iterator(kk_op_rangeTo(5, 1))
+        #expect(kk_range_for_in_hasNext(empty) == 0)
+
+        let stepped = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
+        let iter = kk_range_for_in_iterator(stepped)
+        var values: [Int] = []
+        while kk_range_for_in_hasNext(iter) != 0 {
+            values.append(kk_range_for_in_next(iter))
+        }
+        #expect(values == [1, 4, 7, 10])
+    }
+
     // MARK: - sum / isEmpty on progressions
 
     @Test func progressionSum_empty() {

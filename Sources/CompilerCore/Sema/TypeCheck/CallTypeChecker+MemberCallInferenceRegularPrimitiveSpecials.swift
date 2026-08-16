@@ -198,36 +198,15 @@ extension CallTypeChecker {
             }
         }
 
-        // STDLIB-NUM-130 (previous fast-path) removed:
-        // isNaN / isInfinite / isFinite / toBits / toRawBits / ulp / nextUp / nextDown
-        // are registered as real extension functions with external link names
-        // (kk_{double,float}_*) in HeaderHelpers+SyntheticCoercionStubs.swift. Letting
-        // them flow through the normal extension-function resolution path carries the
-        // link name into codegen; the old early-return bound only the result type, so
-        // the linker saw raw "_isNaN"/"_nextUp" symbols.
+        // STDLIB-NUM-130 / KSP-638 / KSP-647: floating-point precision and bit helpers
+        // (isNaN / isInfinite / isFinite / toBits / toRawBits) are declared by bundled
+        // Kotlin source. Their internal __kk_* bridges are ordinary source declarations,
+        // so they must flow through normal extension resolution instead of a primitive
+        // name-based fast path. ulp / nextUp / nextDown remain runtime-backed synthetic
+        // functions until their respective migrations.
 
         // Unsigned coercion (UByte/UShort/UInt/ULong) is handled by bundled Kotlin source
         // (RangeCoercion.kt); no primitive fast-path is needed.
-
-        // Int/Long bit extraction functions preserve the receiver type (STDLIB-BIT-007).
-        // count* are resolved as bundled Kotlin extensions (KSP-643).
-        if args.isEmpty {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit"
-                || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit"
-            {
-                let intType = sema.types.intType
-                let longType = sema.types.longType
-                let receiverForCheck = safeCall
-                    ? sema.types.makeNonNullable(lookupReceiverType)
-                    : lookupReceiverType
-                if receiverForCheck == intType || receiverForCheck == longType {
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
 
         // KSP-642: Int/Long rotateLeft / rotateRight resolve through the bundled Kotlin
         // declarations in `Stdlib/kotlin/Numbers.kt`, so no special inference is needed.

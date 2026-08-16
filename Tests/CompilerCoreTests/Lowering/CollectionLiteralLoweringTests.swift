@@ -149,12 +149,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(
-            callees.contains("kk_string_iterator_flat"),
-            "String iterator lowering should target the flat ABI, got: \(callees)"
-        )
-        #expect(
-            !callees.contains("kk_string_iterator"),
-            "String iterator lowering must not leave the raw String ABI, got: \(callees)"
+            !callees.contains { $0.hasPrefix("kk_string_") && $0.contains("iterator") },
+            "String iterator lowering must use the bundled Kotlin iterator, got: \(callees)"
         )
     }
 
@@ -1312,14 +1308,12 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayAll() throws {
+    func testVirtualCallOnArrayTypedParameterDoesNotRewriteArrayHOFToRuntime() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
-        #expect(
-            callees.contains("kk_array_all"),
-            "virtualCall(all) on Array-typed parameter should be rewritten to kk_array_all, got: \(callees)"
-        )
+        #expect(!callees.contains("kk_array_all"),
+                "source-backed Array HOF must not be rewritten to a removed runtime bridge, got: \(callees)")
     }
 
     @Test
@@ -1372,29 +1366,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListReversed() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "reversed")
-        #expect(
-            callees.contains("kk_list_reversed"),
-            "virtualCall(reversed) on List-typed parameter should be rewritten to kk_list_reversed, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListSorted() throws {
+    func testVirtualCallOnListTypedParameterKeepsSourceBackedSortedCall() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
         #expect(
-            callees.contains("kk_list_sorted"),
-            "virtualCall(sorted) on List-typed parameter should be rewritten to kk_list_sorted, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDistinct() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "distinct")
-        #expect(
-            callees.contains("kk_list_distinct"),
-            "virtualCall(distinct) on List-typed parameter should be rewritten to kk_list_distinct, got: \(callees)"
+            !callees.contains("kk_list_sorted"),
+            "source-backed sorted on List-typed parameter must not emit kk_list_sorted, got: \(callees)"
         )
     }
 

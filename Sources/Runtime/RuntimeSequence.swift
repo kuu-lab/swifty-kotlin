@@ -65,6 +65,7 @@ private func runtimeIteratorMethodCall(
 private func runtimeTraverseSourceSequenceObject(
     _ rawValue: Int,
     outThrown: UnsafeMutablePointer<Int>?,
+    iterator: ((Int) -> Void)? = nil,
     yield: (Int) -> Bool
 ) -> Bool {
     let iteratorFnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeSequenceInterfaceTypeID), 0)
@@ -77,6 +78,7 @@ private func runtimeTraverseSourceSequenceObject(
     )
     var thrown: Int = 0
     let iterRaw = iteratorFn(rawValue, &thrown)
+    iterator?(iterRaw)
     if thrown != 0 {
         if let outThrown {
             outThrown.pointee = thrown
@@ -163,10 +165,16 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
-        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
-            values.append(RuntimeValue(raw: elem))
-            return true
-        }) {
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: nil,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
             return values
         }
         return nil
@@ -230,10 +238,16 @@ private func runtimeSequenceSourceValuesOrThrow(
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
-        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
-            values.append(RuntimeValue(raw: elem))
-            return true
-        }) {
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: outThrown,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
             return values
         }
     }
@@ -340,7 +354,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -635,7 +649,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // See kk_array_map: keep the transform's already-boxed result as-is.
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -2649,16 +2663,6 @@ public func kk_sequence_findLast(
     return hasMatch ? found : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_sequence_asIterable")
-public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
-    // Sequence is already an Iterable, so return the same handle
-    return seqRaw
-}
-
-@_cdecl("kk_sequence_asSequence")
-public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
-    return seqRaw
-}
 
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -3019,13 +3023,18 @@ public func kk_sequence_elementAtOrElse(
 @_cdecl("kk_sequence_sum")
 public func kk_sequence_sum(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_sum(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    var total = 0
+    for element in elements { total &+= maybeUnbox(element) }
+    return total
 }
 
 @_cdecl("kk_sequence_average")
 public func kk_sequence_average(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_average(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    guard !elements.isEmpty else { return kk_double_to_bits(Double.nan) }
+    var total = 0.0
+    for element in elements { total += Double(maybeUnbox(element)) }
+    return kk_double_to_bits(total / Double(elements.count))
 }
 
 @_cdecl("kk_sequence_toMutableList")

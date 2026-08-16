@@ -359,11 +359,9 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticDurationCompatibilityStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // measureTime / measureTimedValue live in bundled Kotlin source
+        // (Stdlib/kotlin/time/MeasureTime.kt).
+
         // --- STDLIB-HOF-029: 関数型完全実装 ---
         registerSyntheticFunctionTypes(
             symbols: symbols,

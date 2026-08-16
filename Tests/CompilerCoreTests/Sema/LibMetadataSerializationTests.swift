@@ -16,6 +16,7 @@ struct LibMetadataSerializationTests {
             isSuspend: false,
             isInline: true,
             typeSignature: "F1<I,I>",
+            valueParameterAllowsNonLocalReturn: [false],
             externalLinkName: "_ext_id"
         )
         let encoder = MetadataEncoder()
@@ -32,6 +33,7 @@ struct LibMetadataSerializationTests {
         #expect(r.isSuspend == false)
         #expect(r.isInline == true)
         #expect(r.typeSignature == "F1<I,I>")
+        #expect(r.valueParameterAllowsNonLocalReturn == [false])
         #expect(r.externalLinkName == "_ext_id")
     }
 
@@ -101,6 +103,42 @@ struct LibMetadataSerializationTests {
         let decoded = decoder.decode(serialized)
         #expect(decoded.count == 1)
         #expect(decoded[0].isOpenClass)
+    }
+
+    @Test func testMetadataModalityRoundTripsForNominalsAndMembers() {
+        let records = [
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_kk_abstract_Collection",
+                fqName: "demo.AbstractCollection",
+                isOpenClass: true,
+                modality: .abstract
+            ),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_open_iterator",
+                fqName: "demo.AbstractCollection.iterator",
+                modality: .open
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_kk_abstract_size",
+                fqName: "demo.AbstractCollection.size",
+                modality: .abstract
+            ),
+        ]
+        let serialized = MetadataEncoder().serialize(records)
+        #expect(serialized.contains("modality=abstract"))
+        #expect(serialized.contains("modality=open"))
+
+        let decoded = MetadataDecoder().decode(serialized)
+        #expect(decoded.map(\.modality) == [.abstract, .open, .abstract])
+
+        let legacy = MetadataDecoder().decode(
+            "symbols=1\nfunction _kk_legacy fq=demo.legacy schema=v1 arity=0 sig=F0<I>\n"
+        )
+        #expect(legacy.count == 1)
+        #expect(legacy[0].modality == .final)
     }
 
     @Test func testMetadataEncoderDecoderRoundTripForSealedClassFlag() {

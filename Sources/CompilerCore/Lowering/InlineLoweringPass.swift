@@ -443,7 +443,7 @@ final class InlineLoweringPass: LoweringPass {
             }
 
             let resolvedArguments = arguments.map { resolveAlias(of: $0, aliases: aliases) }
-            if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0"].contains(ctx.interner.resolve(callee)),
+            if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
                let callableExpr = resolvedArguments.first,
                let lambdaFunction = resolveLambdaFunction(
                    argExpr: callableExpr,
@@ -691,7 +691,7 @@ final class InlineLoweringPass: LoweringPass {
     static let erasedFunctionInvokeCallees: Set<String> = [
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3",
-        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0",
+        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
     ]
 
     /// Box the arguments an inline expansion passes to an erased function-value
@@ -1132,7 +1132,7 @@ final class InlineLoweringPass: LoweringPass {
                     let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
                     let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
                     let valueArgs: [KIRExprID]
-                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0"]
+                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"]
                         .contains(ctx.interner.resolve(callee))
                     {
                         valueArgs = Array(resolvedArgs.dropFirst())
@@ -1154,6 +1154,8 @@ final class InlineLoweringPass: LoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx
                     ) {
+                        hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
+                        hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
@@ -1181,7 +1183,7 @@ final class InlineLoweringPass: LoweringPass {
                 // local alias map, inline its body here as well so returned
                 // function values preserve their captures.
                 let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0"].contains(ctx.interner.resolve(callee)),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -1207,6 +1209,8 @@ final class InlineLoweringPass: LoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx
                     ) {
+                        hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
+                        hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
@@ -1549,6 +1553,8 @@ final class InlineLoweringPass: LoweringPass {
         var lowered: [KIRInstruction] = []
         lowered.reserveCapacity(lambdaFunction.body.count)
         var returnedExpr: KIRExprID?
+        var hasNonLocalReturn = false
+        var hasNormalReturn = false
 
         // Count return instructions to decide whether we need a merge label.
         // Lambda bodies with control flow (if/else branches) can contain
@@ -1621,6 +1627,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case .returnUnit:
+                hasNormalReturn = true
                 if needsMergeLabel {
                     if mergeResult == nil {
                         returnedExpr = nil
@@ -1631,6 +1638,7 @@ final class InlineLoweringPass: LoweringPass {
                 }
 
             case let .returnValue(value):
+                hasNormalReturn = true
                 let resolved = resolveAlias(of: value, aliases: localExprMap)
                 if needsMergeLabel, let dest = mergeResult {
                     lowered.append(.copy(from: resolved, to: dest))
@@ -1663,7 +1671,7 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, _):
                 let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0"].contains(ctx.interner.resolve(callee)),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let nestedLambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -1682,6 +1690,8 @@ final class InlineLoweringPass: LoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx
                     ) {
+                        hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
+                        hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr {
@@ -1798,6 +1808,7 @@ final class InlineLoweringPass: LoweringPass {
             case let .nonLocalReturn(value):
                 // Non-local return from a nested lambda. Preserve it so the
                 // caller's inlineTransform can convert it to a real return.
+                hasNonLocalReturn = true
                 if let value {
                     lowered.append(.nonLocalReturn(resolveAlias(of: value, aliases: localExprMap)))
                 } else {
@@ -1820,8 +1831,8 @@ final class InlineLoweringPass: LoweringPass {
         return InlineExpansion(
             instructions: lowered,
             returnedExpr: returnedExpr,
-            hasNonLocalReturn: false,
-            hasNormalReturn: false
+            hasNonLocalReturn: hasNonLocalReturn,
+            hasNormalReturn: hasNormalReturn
         )
     }
 

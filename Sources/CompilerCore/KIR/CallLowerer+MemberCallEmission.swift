@@ -257,7 +257,7 @@ extension CallLowerer {
             arguments: &finalArguments
         )
 
-        var loweredCallee = loweredMemberCalleeName(
+        let loweredCallee = loweredMemberCalleeName(
             chosenCallee: chosenCallee,
             fallback: calleeName,
             receiverExpr: receiver.expr,
@@ -279,70 +279,55 @@ extension CallLowerer {
         {
             finalArguments.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        let receiverIsRandom = isRandomType(
-            sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema, interner: interner
-        )
-        // KSP-466: nextInt(until: Int)/nextLong(until: Long) are now real Kotlin
-        // members (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt), so Sema
-        // resolves `r.nextInt(someIntRange)` to that (wrong) overload's real,
-        // internally-compiled symbol with loweredCallee == "nextInt"/"nextLong"
-        // (never the old synthetic-stub names "kk_random_nextInt_until"/
-        // "kk_random_nextLong_until", which no longer exist anywhere in Sema's
-        // registration since Random stopped being a synthetic object). loweredCallee
-        // gets corrected to the range-object bridge name below, but
-        // emitFunctionBody's call emission path prefers calling
-        // `symbol`'s own internal compiled body over `callee`'s name whenever
-        // `symbol` resolves to a known internal function — so without also
-        // clearing the symbol here, the corrected callee *name* is silently
-        // ignored and the wrong (real Int-arity) overload's compiled body still
-        // runs with the range handle reinterpreted as an Int. Confirmed via a
-        // hung/garbage-value repro before this fix (Random(7).nextInt(10..15)
-        // returned an out-of-range value). Resetting callSymbol to nil restores
-        // the originally-intended "chosenCallee == nil" fallback path so codegen
-        // resolves purely by the (corrected) external ABI name.
         var callSymbol = chosenCallee
-        if receiverIsRandom, loweredCallee == interner.intern("nextLong"),
+        // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
+        // so lower the concrete Double/Float overload directly to the range ABI.
+        // The source-backed generic declaration remains available for overload
+        // resolution, while this path preserves the stdlib's empty-range and NaN
+        // behavior without dispatching synthetic range accessors through an
+        // unpopulated itable.
+        if interner.resolve(calleeName) == "coerceIn",
            sourceArgExprs.count == 1,
-           sema.bindings.isRangeExpr(sourceArgExprs[0])
+           sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
         {
-            loweredCallee = interner.intern("kk_random_nextLong_rangeObject")
-            callSymbol = nil
-        }
-        if receiverIsRandom, loweredCallee == interner.intern("nextInt"),
-           sourceArgExprs.count == 1,
-           sema.bindings.isRangeExpr(sourceArgExprs[0])
-            || nominalRangeElementType(
-                for: sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) == sema.types.intType
-        {
-            loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
-            callSymbol = nil
-        }
-        // When Sema failed to resolve nextLong/nextInt on Random (chosenCallee == nil),
-        // appendReceiverToMemberArguments skips the receiver. Insert it now so the
-        // runtime ABI (randomRaw, rangeRaw, outThrown) is satisfied.
-        if (loweredCallee == interner.intern("kk_random_nextLong_rangeObject")
-            || loweredCallee == interner.intern("kk_random_nextInt_rangeObject")),
-           finalArguments.count == 1
-        {
-            finalArguments.insert(receiver.loweredID, at: 0)
-        }
-        // Array.count() with no predicate: kk_array_count's native signature always
-        // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
-        // lambda argument, finalArguments only has the receiver. Without this padding,
-        // fnPtr/closureRaw read whatever garbage occupies those ABI slots, and
-        // kk_array_count's `if fnPtr == 0` fast path is skipped, crashing when it tries
-        // to invoke the garbage pointer as a closure.
-        if loweredCallee == interner.intern("kk_array_count"),
-           finalArguments.count == 1
-        {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            finalArguments.append(zeroExpr)
-            finalArguments.append(zeroExpr)
+            let receiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+            )
+            let floatingRangeCallee: InternedString? = if receiverType == sema.types.floatType {
+                interner.intern("__kk_float_coerceIn_range")
+            } else if receiverType == sema.types.doubleType {
+                interner.intern("__kk_double_coerceIn_range")
+            } else {
+                nil
+            }
+            if let floatingRangeCallee {
+                var rangeArguments = finalArguments
+                if rangeArguments.count == 1 {
+                    rangeArguments.insert(receiver.loweredID, at: 0)
+                }
+                guard rangeArguments.count == 2 else {
+                    preconditionFailure("KSP-641 range coerceIn must lower to receiver and range arguments")
+                }
+                let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: floatingRangeCallee,
+                    arguments: rangeArguments,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                let continueLabel = driver.ctx.makeLoopLabel()
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: thrownResult))
+                instructions.append(.label(continueLabel))
+                return
+            }
         }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,
@@ -394,25 +379,6 @@ extension CallLowerer {
                 sourceArgLabels: sourceArgLabels
             )
         }
-        if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
-           finalArguments.count >= 3
-        {
-            switch loweredCallee {
-            case interner.intern("__kk_mutable_list_sortBy"):
-                loweredCallee = interner.intern("__kk_mutable_list_sortBy_primitive")
-            case interner.intern("__kk_mutable_list_sortByDescending"):
-                loweredCallee = interner.intern("__kk_mutable_list_sortByDescending_primitive")
-            default:
-                break
-            }
-            if loweredCallee == interner.intern("__kk_mutable_list_sortBy_primitive")
-                || loweredCallee == interner.intern("__kk_mutable_list_sortByDescending_primitive")
-            {
-                let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveSelectorKind.rawValue)), type: sema.types.intType)
-                instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
-                finalArguments.append(kindExpr)
-            }
-        }
         finalArguments = adaptComparatorBackedCollectionArguments(
             loweredCallee: loweredCallee,
             finalArguments: finalArguments,
@@ -447,7 +413,6 @@ extension CallLowerer {
             )
         }
         if loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
-            || loweredCallee == interner.intern("kk_array_joinToString_transform")
         {
             let originalArgumentCount = finalArguments.count
             let lambdaArgIndex = originalArgumentCount - 1
@@ -548,20 +513,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_list_sumOf")
-            || loweredCallee == interner.intern("kk_list_sumBy")
-            || loweredCallee == interner.intern("kk_list_sumByDouble"),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
         if loweredCallee == interner.intern("kk_array_copyOf_newSize_init"),
            finalArguments.count == 3
         {
@@ -617,42 +568,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = [finalArguments[0]] + successArgs + failureArgs
-        }
-        if let primitiveKind = collectionElementPrimitiveCompareKind(
-            of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema
-        ) {
-            let primitiveSortCallees: Set<InternedString> = [
-                interner.intern("kk_list_sorted_primitive"),
-                interner.intern("kk_list_sortedDescending_primitive"),
-                interner.intern("__kk_mutable_list_sort_primitive"),
-                interner.intern("__kk_mutable_list_sortDescending_primitive"),
-            ]
-            if primitiveSortCallees.contains(loweredCallee),
-               finalArguments.count == 1
-            {
-                let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveKind.rawValue)), type: sema.types.intType)
-                instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveKind.rawValue))))
-                finalArguments.append(kindExpr)
-            }
-        }
-        let comparatorOnlyCallees: Set<InternedString> = [
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_maxWithOrNull"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_minWithOrNull"),
-            interner.intern("kk_list_sortedWith"),
-        ]
-        if comparatorOnlyCallees.contains(loweredCallee),
-           finalArguments.count == 2
-        {
-            let comparatorArgs = makeComparatorObjectArgumentPair(
-                loweredComparatorID: finalArguments[1],
-                sema: sema,
-                arena: arena,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0]] + comparatorArgs
         }
         if loweredCallee == interner.intern("kk_channel_send")
             || loweredCallee == interner.intern("kk_channel_receive")
@@ -765,20 +680,6 @@ extension CallLowerer {
         Set([
             interner.intern("kk_list_random"),
             interner.intern("kk_sequence_takeLast"),
-            interner.intern("kk_list_max"),
-            interner.intern("kk_list_minBy"),
-            interner.intern("kk_list_min"),
-            interner.intern("kk_list_maxOf"),
-            interner.intern("kk_list_minOf"),
-            interner.intern("kk_list_maxBy"),
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_maxOfWith"),
-            interner.intern("kk_list_minOfWith"),
-            interner.intern("kk_list_sumOf"),
-            interner.intern("kk_list_sumBy"),
-            interner.intern("kk_list_sumByDouble"),
-            interner.intern("kk_list_distinctBy"),
             interner.intern("__kk_iterable_firstNotNullOf"),
             interner.intern("__kk_iterable_firstNotNullOfOrNull"),
             interner.intern("__kk_iterable_any"),
@@ -789,18 +690,20 @@ extension CallLowerer {
             interner.intern("__kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
-            interner.intern("kk_range_random"),
-            interner.intern("kk_range_random_random"),
-            interner.intern("kk_random_nextInt_rangeObject"),
-            interner.intern("kk_random_nextLong_rangeObject"),
+            interner.intern("__kk_range_random"),
+            interner.intern("__kk_range_random_random"),
+            interner.intern("__kk_char_range_random"),
+            interner.intern("__kk_char_range_random_random"),
+            interner.intern("__kk_random_nextInt_rangeObject"),
+            interner.intern("__kk_random_nextLong_rangeObject"),
             interner.intern("kk_range_reduce"),
             interner.intern("kk_range_reduceIndexed"),
-            interner.intern("kk_long_range_random"),
-            interner.intern("kk_long_range_random_random"),
-            interner.intern("kk_uint_range_random"),
-            interner.intern("kk_uint_range_random_random"),
-            interner.intern("kk_ulong_range_random"),
-            interner.intern("kk_ulong_range_random_random"),
+            interner.intern("__kk_long_range_random"),
+            interner.intern("__kk_long_range_random_random"),
+            interner.intern("__kk_uint_range_random"),
+            interner.intern("__kk_uint_range_random_random"),
+            interner.intern("__kk_ulong_range_random"),
+            interner.intern("__kk_ulong_range_random_random"),
             interner.intern("__kk_int_progression_fromClosedRange"),
             interner.intern("__kk_long_progression_fromClosedRange"),
             interner.intern("__kk_uint_progression_fromClosedRange"),

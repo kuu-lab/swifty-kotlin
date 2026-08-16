@@ -982,51 +982,6 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toList_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toList_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCharArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCharArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toTypedArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toTypedArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toSortedSet_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toSortedSet_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCollection_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCollection_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_withIndex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_withIndex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_iterator_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_iterator_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asIterable_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asIterable_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "kk_string_split_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_split_flat",
                     stringArgumentCount: 2,
@@ -1420,13 +1375,13 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_flat",
+                "__kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_byteInputStream_charset_flat",
+                "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_byteInputStream_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
@@ -2364,7 +2319,17 @@ extension NativeEmitter {
                     continue
                 }
 
-                let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
+                // Function-value invokes carry the callable value as their first
+                // argument.  The KIR symbol is intentionally retained for
+                // InlineLoweringPass to match an inline function parameter, but
+                // it must not be treated as a direct callee here: doing so turns
+                // a captured parameter such as `transform` into an undefined
+                // external `_transform` symbol (KSP-499 compiler regression).
+                let isFunctionValueInvoke = Self.functionValueInvokeCallees.contains(calleeName)
+                let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
+                                                       let symbol,
+                                                       symbol != .invalid
+                {
                     symbol
                 } else {
                     SymbolID?.none
@@ -3288,20 +3253,10 @@ extension NativeEmitter {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"
-        case "__doubleToBits": "kk_double_toBits"
-        case "__doubleToRawBits": "kk_double_toRawBits"
-        case "__floatToBits": "kk_float_toBits"
-        case "__floatToRawBits": "kk_float_toRawBits"
-        case "__doubleFromBits": "kk_double_fromBits"
-        case "__floatFromBits": "kk_float_fromBits"
         case "__doubleRoundToInt": "kk_double_roundToInt"
         case "__floatRoundToInt": "kk_float_roundToInt"
         case "__doubleRoundToLong": "kk_double_roundToLong"
         case "__floatRoundToLong": "kk_float_roundToLong"
-        case "__intHighestOneBit": "kk_int_highestOneBit"
-        case "__intLowestOneBit": "kk_int_lowestOneBit"
-        case "__longHighestOneBit": "kk_long_highestOneBit"
-        case "__longLowestOneBit": "kk_long_lowestOneBit"
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
         default: nil

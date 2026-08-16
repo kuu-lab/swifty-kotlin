@@ -55,7 +55,22 @@ extension CallTypeChecker {
                     break
                 }
             }
-            return sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            let inferredType = sema.bindings.exprType(for: arg.expr)
+                ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            if calleeName == interner.intern("coerceIn"),
+               let rangeType = floatingPointRangeArgumentType(
+                   arg.expr,
+                   ast: ast,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                // Floating-point range expressions use a scalar lowering type for
+                // the existing range runtime path, but source-backed coerceIn
+                // resolves against ClosedFloatingPointRange<T>.
+                return rangeType
+            }
+            return inferredType
         }
 
         let hasLeadingLocaleArgument = calleeName == interner.intern("format")
@@ -638,8 +653,19 @@ extension CallTypeChecker {
             } else {
                 []
             }
+            let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            )
             let memberCandidates: [SymbolID]
-            if !rangeSourceCandidates.isEmpty {
+            if !primitiveArraySourceCandidates.isEmpty {
+                // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
+                // exact source receiver over synthetic member stubs, including
+                // joinToString(transform), whose legacy stub shares the same name.
+                memberCandidates = primitiveArraySourceCandidates
+            } else if !rangeSourceCandidates.isEmpty {
                 memberCandidates = rangeSourceCandidates
             } else if !atomicSourceCandidates.isEmpty {
                 memberCandidates = atomicSourceCandidates
@@ -691,10 +717,24 @@ extension CallTypeChecker {
                         }
                         return true
                     }
+                    // Primitive-array HOFs are top-level extensions in
+                    // kotlin.collections. Default-import lookup may stop at a
+                    // same-named Sequence extension first (notably for
+                    // UByteArray/UShortArray), so prefer the exact source
+                    // receiver overload when one is present.
+                    let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
+                        named: calleeName,
+                        receiverType: nonNullReceiverForScope,
+                        sema: sema,
+                        interner: interner
+                    )
+                    if !primitiveArraySourceCandidates.isEmpty {
+                        scopeCandidates = primitiveArraySourceCandidates
+                    }
                     // Extension functions are excluded from scope by the scope
                     // builder so they don't shadow top-level calls.  Fall back
                     // to a direct symbol-table lookup by short name to find
-                    // synthetic extension functions (e.g. Double.pow, roundToInt).
+                    // synthetic extension functions (e.g. Double.pow).
                     if scopeCandidates.isEmpty {
                         let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
                         scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -847,6 +887,58 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if interner.resolve(calleeName) == "coerceIn",
+           !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
+        {
+            // The generic ClosedFloatingPointRange overload must not turn a
+            // scalar call with the wrong arity or argument type into a type
+            // constraint failure. Kotlin reports those calls as no overload.
+            candidates.removeAll { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      signature.parameterTypes.count == 1,
+                      let (_, parameterSymbol) = resolveClassTypeSymbol(
+                          signature.parameterTypes[0], sema: sema
+                      )
+                else {
+                    return false
+                }
+                return interner.resolve(parameterSymbol.name) == "ClosedFloatingPointRange"
+            }
+        }
+        if interner.resolve(calleeName) == "coerceIn",
+           args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
+        {
+            // Imported `.kklib` metadata does not make a generic extension whose
+            // receiver is a type parameter visible through the receiver-type
+            // fallback above. Recover the source-backed range overloads here so
+            // the same call resolves with bundled source injection and a library.
+            let genericRangeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      signature.parameterTypes.count == 1,
+                      let (_, parameterSymbol) = resolveClassTypeSymbol(
+                          signature.parameterTypes[0], sema: sema
+                      )
+                else {
+                    return false
+                }
+                let parameterName = interner.resolve(parameterSymbol.name)
+                return parameterName == "ClosedFloatingPointRange"
+            }
+            candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
+        }
+        if interner.resolve(calleeName) == "toList" {
+            candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
         if ["sumBy", "sumByDouble", "sumOf"].contains(interner.resolve(calleeName)) {
             let desc = candidates.map { c in
                 let name = sema.symbols.symbol(c).map { interner.resolve($0.name) } ?? "?"
@@ -978,8 +1070,14 @@ extension CallTypeChecker {
         let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
         let memberNameText = interner.resolve(calleeName)
+        // KSP-687 resolves Array.joinToString through the dedicated primitive
+        // and generic-array source candidates. KSP-429's broad trailing-lambda
+        // gate is for List/Iterable source calls; applying it to Array receivers
+        // prevents the array resolver from binding the source overload.
+        let isArrayJoinToString = memberNameText == "joinToString"
+            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
-            || sourceBackedTrailingLambdaMemberNames.contains(memberNameText)
+            || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
@@ -1464,6 +1562,38 @@ extension CallTypeChecker {
         return finalType
     }
 
+    private func floatingPointRangeArgumentType(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard sema.bindings.isFloatingPointRangeExpr(exprID),
+              let rangeSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("ranges"),
+                  interner.intern("ClosedFloatingPointRange"),
+              ])
+        else {
+            return nil
+        }
+        let elementType: TypeID = if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID) {
+            elementType
+        } else if case let .binary(_, lhs, rhs, _) = ast.arena.expr(exprID),
+                  sema.bindings.exprType(for: lhs) == sema.types.floatType
+                      || sema.bindings.exprType(for: rhs) == sema.types.floatType
+        {
+            sema.types.floatType
+        } else {
+            sema.types.doubleType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: rangeSymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
     /// Whether `receiverType`'s nominal owner is one of the atomic stdlib classes
     /// whose bundled `*At`/alias source is the live implementation. Gates the
     /// importless bundled-extension member fallback so it never surfaces the
@@ -1574,7 +1704,7 @@ extension CallTypeChecker {
         switch interner.resolve(calleeName) {
         case "contains", "isEmpty", "iterator",
              "toList", "forEach", "map", "filter",
-             "take", "drop", "sorted", "average":
+             "take", "drop", "sorted", "average", "random", "randomOrNull":
             return true
         default:
             return false

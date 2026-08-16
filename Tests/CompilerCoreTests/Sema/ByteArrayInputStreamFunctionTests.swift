@@ -7,8 +7,8 @@ import Testing
 /// `ByteArray.inputStream(offset, length)` (STDLIB-IO-FN-021).
 ///
 /// Two overloads are exposed from `kotlin.io`:
-///   - `ByteArray.inputStream(): ByteArrayInputStream` → `kk_bytearray_inputStream`
-///   - `ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream` → `kk_bytearray_inputStream_range`
+///   - `ByteArray.inputStream(): ByteArrayInputStream` → `__kk_bytearray_inputStream`
+///   - `ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream` → `__kk_bytearray_inputStream_range`
 ///
 /// Both return `java.io.ByteArrayInputStream`, which is registered as an
 /// `InputStream` subtype so that resource-management surfaces (`.use {}`) work
@@ -21,7 +21,7 @@ import Testing
 ///
 /// The extension is wired through the synthetic File IO stub registry in
 /// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift`, and is
-/// expected to bind to the runtime helper `kk_bytearray_inputStream` declared in
+/// expected to bind to the runtime helper `__kk_bytearray_inputStream` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 @Suite
 struct ByteArrayInputStreamFunctionTests {
@@ -185,7 +185,7 @@ struct ByteArrayInputStreamFunctionTests {
                     return interner.resolve(callee) == "inputStream"
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_bytearray_inputStream")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_bytearray_inputStream")
 
                 // The function should live in kotlin.io
                 let chosenInfo = try #require(sema.symbols.symbol(chosenCallee))
@@ -235,7 +235,7 @@ struct ByteArrayInputStreamFunctionTests {
                     return interner.resolve(callee) == "inputStream"
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_bytearray_inputStream_range")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_bytearray_inputStream_range")
 
                 // The overload must have two Int parameters: offset and length
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))

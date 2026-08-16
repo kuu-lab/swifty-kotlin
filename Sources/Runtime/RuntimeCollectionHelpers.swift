@@ -180,9 +180,6 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeCollectionValues(from: rawValue) {
         return values
     }
-    if let stringIterable = runtimeStringIterableBox(from: rawValue) {
-        return stringIterable.source.utf16.map { RuntimeValue(charScalar: Int($0)) }
-    }
     if let indexingIterable = runtimeIndexingIterableBox(from: rawValue),
        let list = runtimeListBox(from: indexingIterable.listRaw)
     {
@@ -195,7 +192,46 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeSequenceSourceValues(from: rawValue) {
         return values
     }
+    // Kotlin source implementations of Iterable (for example
+    // `String.asIterable()`) are ordinary objects with an Iterable itable, not
+    // runtime collection boxes or Sequence objects. Drive their iterator
+    // through the same dynamic interface used by generic for-loops.
+    if let iteratorRaw = runtimeSourceIterableIterator(rawValue) {
+        var values: [RuntimeValue] = []
+        while kk_iterator_hasNext(iteratorRaw) != 0 {
+            let element = kk_iterator_next(iteratorRaw)
+            values.append(runtimeSourceIteratorValue(element, iteratorRaw: iteratorRaw))
+        }
+        return values
+    }
     return nil
+}
+
+private let ksp409CharSequenceIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.text.Ksp409CharSequenceIterator"
+)
+
+/// Source-backed `CharIterator` returns its concrete Char representation at
+/// the iterator ABI boundary. Preserve that type when a generic runtime bridge
+/// materializes the iterator as `RuntimeValue`.
+func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeValue {
+    let isCharSequenceIterator: Bool = if runtimeObjectTypeID(rawValue: iteratorRaw) == ksp409CharSequenceIteratorTypeID {
+        true
+    } else if let pointer = UnsafeMutableRawPointer(bitPattern: iteratorRaw),
+              runtimeIsObjectPointer(pointer),
+              let iterator = tryCast(pointer, to: RuntimeObjectBox.self),
+              let source = iterator.values.first?.legacyRawValue
+    {
+        // Library-produced object literals may use classID 0, but the
+        // KSP-409 iterator still captures its CharSequence as the first slot.
+        runtimeStringFromRaw(source) != nil
+    } else {
+        false
+    }
+    if isCharSequenceIterator {
+        return RuntimeValue(charScalar: kk_unbox_char(rawValue))
+    }
+    return RuntimeValue(raw: rawValue)
 }
 
 func runtimeIterableElements(from rawValue: Int) -> [Int]? {
@@ -213,32 +249,6 @@ func runtimeListIteratorBox(from rawValue: Int) -> RuntimeListIteratorBox? {
         return nil
     }
     return tryCast(ptr, to: RuntimeListIteratorBox.self)
-}
-
-func runtimeStringIteratorBox(from rawValue: Int) -> RuntimeStringIteratorBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeStringIteratorBox.self)
-}
-
-func runtimeStringIterableBox(from rawValue: Int) -> RuntimeStringIterableBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeStringIterableBox.self)
 }
 
 func runtimeIndexingIterableBox(from rawValue: Int) -> RuntimeIndexingIterableBox? {
@@ -434,22 +444,6 @@ func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {
     return raw
 }
 
-private let runtimeStringIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_string_iterator_hasNext(iterRaw)
-}
-
-private let runtimeStringIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_string_iterator_next(iterRaw)
-}
-
-func registerRuntimeObject(_ box: RuntimeStringIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    registerIteratorItable(raw: raw, hasNext: runtimeStringIteratorHasNextThunk, next: runtimeStringIteratorNextThunk)
-    return raw
-}
-
 func maybeUnbox(_ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
         return value
@@ -496,7 +490,7 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
         return nil
     }
     // `raw` is a transform's return value, already boxed by KIR's ABILoweringPass
-    // for its Any-typed return (see kk_array_map's comment). Callers store or
+    // for its Any-typed return. Callers store or
     // forward this verbatim into a generically-typed collection/result, so it
     // must stay boxed here too — unboxing would strip the type tag a later
     // Boolean/Char render depends on.

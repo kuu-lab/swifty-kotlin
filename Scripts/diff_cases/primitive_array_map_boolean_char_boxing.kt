@@ -1,9 +1,8 @@
 fun main() {
     // A transform lambda's Boolean/Char result must stay boxed when a HOF
     // stores/forwards it into a generically-typed List for later rendering
-    // (kk_array_map and friends used to call maybeUnbox on it, which stripped
-    // the type tag and made these print as a raw 0/1 or code point instead of
-    // true/false or the character).
+    // Primitive-array source HOFs must preserve the type tag so these print as
+    // true/false or the character rather than a raw 0/1 or code point.
     println(intArrayOf(1, 6, 3).map { it > 5 })
     println(booleanArrayOf(true, false).map { it == true })
     println(booleanArrayOf(true, false).map { it })

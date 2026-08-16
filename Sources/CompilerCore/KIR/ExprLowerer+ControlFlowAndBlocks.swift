@@ -166,7 +166,6 @@ extension ExprLowerer {
                 let resultType = boundType ?? sema.types.anyType
                 let result = arena.appendTemporary(type: resultType
                 )
-
                 // String properties
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
@@ -383,6 +382,30 @@ extension ExprLowerer {
                     let id = arena.appendExpr(constant, type: boundType)
                     instructions.append(.constValue(result: id, value: constant))
                     return id
+                }
+                // Synthetic top-level properties backed by a runtime bridge
+                // have no global storage. Emit their zero-argument bridge
+                // before the ordinary top-level property load path (for
+                // example, the bare kotlinx.coroutines.isActive property).
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                   let externalLinkName = sema.symbols.externalLinkName(for: symbol),
+                   !externalLinkName.isEmpty
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: symbol,
+                        callee: interner.intern(externalLinkName),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
                 }
                 // Native stub properties with externalLinkName: call native function
                 // directly via the implicit receiver, bypassing field-offset dispatch.
@@ -1428,7 +1451,7 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
-        case let .returnExpr(value, _, _):
+        case let .returnExpr(value, label, _):
             if let value {
                 let lowered = lowerExpr(
                     value,
@@ -1445,7 +1468,11 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                instructions.append(.returnValue(lowered))
+                if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                    instructions.append(.nonLocalReturn(lowered))
+                } else {
+                    instructions.append(.returnValue(lowered))
+                }
             } else {
                 // CODE-001: Inline all enclosing finally blocks before return.
                 inlineAllEnclosingFinallyBlocks(
@@ -1453,7 +1480,11 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                instructions.append(.returnUnit)
+                if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                    instructions.append(.nonLocalReturn(nil))
+                } else {
+                    instructions.append(.returnUnit)
+                }
             }
             let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -2182,10 +2213,13 @@ extension ExprLowerer {
             return unit
 
         case let .lambdaLiteral(params, bodyExpr, _, _):
+            let allowsNonLocalReturn = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = false
             return driver.lambdaLowerer.lowerLambdaLiteralExpr(
                 exprID,
                 params: params,
                 bodyExpr: bodyExpr,
+                allowsNonLocalReturn: allowsNonLocalReturn,
                 ast: ast,
                 sema: sema,
                 arena: arena,

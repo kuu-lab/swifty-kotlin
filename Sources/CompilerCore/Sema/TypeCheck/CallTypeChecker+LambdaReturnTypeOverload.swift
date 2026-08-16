@@ -28,6 +28,7 @@ extension CallTypeChecker {
         expectedTypeOverrides: [Int: TypeID] = [:],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
+        lambdaContextOverrides: [Int: TypeInferenceContext] = [:],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> PreparedCallArguments {
@@ -173,9 +174,10 @@ extension CallTypeChecker {
             }
 
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
+                let inferenceContext = lambdaContextOverrides[index] ?? ctx
                 let inferredType = driver.inferExpr(
                     argument.expr,
-                    ctx: ctx,
+                    ctx: inferenceContext,
                     locals: &locals,
                     expectedType: contextualExpectedType
                 )

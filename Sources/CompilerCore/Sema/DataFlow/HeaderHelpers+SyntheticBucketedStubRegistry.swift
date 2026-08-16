@@ -55,7 +55,7 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
             )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Random") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
+            phase.registerSyntheticRandomStubs(symbols: symbols, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Collections") { phase, symbols, types, interner, context in
             phase.registerSyntheticCollectionStubs(
@@ -100,9 +100,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Math") { phase, symbols, types, interner, _ in
             phase.registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ScopeFunction") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coroutine") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
@@ -196,12 +193,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileWalkDirection") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "OnErrorAction") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FilesUtility") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)

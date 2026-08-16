@@ -68,7 +68,7 @@ public struct SemanticSymbol: Sendable {
     public let kind: SymbolKind
     public let name: InternedString
     public let fqName: [InternedString]
-    public let declSite: SourceRange?
+    public var declSite: SourceRange?
     public let visibility: Visibility
     public var flags: SymbolFlags
 }
@@ -114,6 +114,9 @@ public struct FunctionSignature: Hashable, Sendable {
     public let valueParameterSymbols: [SymbolID]
     public let valueParameterHasDefaultValues: [Bool]
     public let valueParameterIsVararg: [Bool]
+    /// Whether a function parameter may carry non-local returns from a lambda
+    /// argument. `crossinline` and `noinline` parameters are false.
+    public let valueParameterAllowsNonLocalReturn: [Bool]
     public let typeParameterSymbols: [SymbolID]
     public let reifiedTypeParameterIndices: Set<Int>
     public let typeParameterUpperBounds: [TypeID?]
@@ -133,6 +136,7 @@ public struct FunctionSignature: Hashable, Sendable {
         valueParameterSymbols: [SymbolID] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterIsVararg: [Bool] = [],
+        valueParameterAllowsNonLocalReturn: [Bool] = [],
         typeParameterSymbols: [SymbolID] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
         typeParameterUpperBounds: [TypeID?] = [],
@@ -147,6 +151,7 @@ public struct FunctionSignature: Hashable, Sendable {
         self.valueParameterSymbols = valueParameterSymbols
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.typeParameterSymbols = typeParameterSymbols
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
         let normalizedUpperBoundsList: [[TypeID]] = if !typeParameterUpperBoundsList.isEmpty {
@@ -486,6 +491,14 @@ public final class SymbolTable {
             return
         }
         symbolsStorage[index].flags.subtract(flags)
+    }
+
+    public func setDeclSite(_ declSite: SourceRange?, for symbol: SymbolID) {
+        let index = Int(symbol.rawValue)
+        guard index >= 0, index < symbolsStorage.count else {
+            return
+        }
+        symbolsStorage[index].declSite = declSite
     }
 
     public func lookup(fqName: [InternedString]) -> SymbolID? {
@@ -1222,6 +1235,8 @@ public final class BindingTable {
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
+    public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
+    public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1281,6 +1296,10 @@ public final class BindingTable {
     /// Maps nameRef expression IDs to their member name when they were resolved
     /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
+    /// Calls resolved through the ambient CoroutineScope of a coroutine builder
+    /// need a runtime receiver even though the builder lambda keeps a no-receiver
+    /// function ABI.
+    public private(set) var coroutineScopeImplicitReceiverCallExprs: Set<ExprID> = []
     /// Maps callable reference expression IDs to their kind (function vs property)
     /// so that KIR lowering can emit KFunction / KProperty type identity (REFL-003).
     public private(set) var callableRefKinds: [ExprID: CallableRefKind] = [:]
@@ -1428,6 +1447,15 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+        floatingPointRangeExprIDs.insert(expr)
+        floatingPointRangeElementTypesByExpr[expr] = type
+    }
+
+    public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
+        floatingPointRangeElementTypesByExpr[expr]
+    }
+
     public func markFlowExpr(_ expr: ExprID) {
         flowExprIDs.insert(expr)
     }
@@ -1515,6 +1543,15 @@ public final class BindingTable {
 
     public func isFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
         floatingPointRangeSymbolIDs.contains(symbol)
+    }
+
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+        floatingPointRangeSymbolIDs.insert(symbol)
+        floatingPointRangeElementTypesBySymbol[symbol] = type
+    }
+
+    public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
+        floatingPointRangeElementTypesBySymbol[symbol]
     }
 
     public func markFlowSymbol(_ symbol: SymbolID) {
@@ -1743,6 +1780,14 @@ public final class BindingTable {
     /// Mark a nameRef expression as an implicit receiver member access (STDLIB-004).
     public func markImplicitReceiverMember(_ expr: ExprID, name: InternedString) {
         implicitReceiverMemberNames[expr] = name
+    }
+
+    public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {
+        coroutineScopeImplicitReceiverCallExprs.insert(expr)
+    }
+
+    public func isCoroutineScopeImplicitReceiverCall(_ expr: ExprID) -> Bool {
+        coroutineScopeImplicitReceiverCallExprs.contains(expr)
     }
 
     /// Bind a callable reference expression to its kind (REFL-003).

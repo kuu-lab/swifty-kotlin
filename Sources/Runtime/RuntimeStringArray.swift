@@ -27,7 +27,7 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
         return throwable.renderedMessage
     }
     if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
-        return cancellation.message
+        return cancellation.message ?? "CancellationException"
     }
     return ""
 }
@@ -102,7 +102,7 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
         return runtimeNullSentinelInt
     }
-    let message: String
+    let message: String?
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         message = throwable.message
     } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
@@ -110,6 +110,7 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     } else {
         return runtimeNullSentinelInt
     }
+    guard let message else { return runtimeNullSentinelInt }
     let box = RuntimeStringBox(message)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -1758,9 +1759,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         let hex = String(format: "%x", UInt(bitPattern: raw) % 0x1_0000_0000)
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
-    if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        return runtimeRenderStringIterableForPrint(iterableBox.source)
-    }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
@@ -1797,11 +1795,6 @@ func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
     default:
         return runtimeRenderAnyForPrint(value.payload0)
     }
-}
-
-private func runtimeRenderStringIterableForPrint(_ string: String) -> String {
-    let rendered = string.unicodeScalars.map { String(Character($0)) }.joined(separator: ", ")
-    return "[\(rendered)]"
 }
 
 private func runtimeNormalizeScientificExponent(_ rendered: String) -> String {

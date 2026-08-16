@@ -891,7 +891,8 @@ extension DataFlowSemaPhase {
                 returnType: ownerType,
                 valueParameterSymbols: copyParams.paramSymbols,
                 valueParameterHasDefaultValues: Array(repeating: true, count: copyParams.paramSymbols.count),
-                valueParameterIsVararg: copyParams.paramIsVararg
+                valueParameterIsVararg: copyParams.paramIsVararg,
+                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn
             ),
             for: copySymbol
         )
@@ -975,7 +976,8 @@ extension DataFlowSemaPhase {
     }
 
     /// Collects value parameters into parallel arrays of types, symbols, default-value flags,
-    /// and vararg flags.  Shared by constructor and function header collection.
+    /// vararg flags, and non-local-return permissions. Shared by constructor and function
+    /// header collection.
     func collectValueParameters(
         _ valueParams: [ValueParamDecl],
         localNamespaceFQName: [InternedString],
@@ -990,11 +992,12 @@ extension DataFlowSemaPhase {
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
         fallbackType: TypeID
-    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool]) {
+    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool], paramAllowsNonLocalReturn: [Bool]) {
         var paramTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         var paramHasDefaultValues: [Bool] = []
         var paramIsVararg: [Bool] = []
+        var paramAllowsNonLocalReturn: [Bool] = []
         for valueParam in valueParams {
             let paramFQName = localNamespaceFQName + [valueParam.name]
             let paramSymbol = symbols.define(
@@ -1022,8 +1025,9 @@ extension DataFlowSemaPhase {
             paramSymbols.append(paramSymbol)
             paramHasDefaultValues.append(valueParam.hasDefaultValue)
             paramIsVararg.append(valueParam.isVararg)
+            paramAllowsNonLocalReturn.append(!valueParam.isCrossinline && !valueParam.isNoinline)
         }
-        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg)
+        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg, paramAllowsNonLocalReturn)
     }
 
     /// Collects type parameters from a function declaration, defining symbols and resolving
@@ -1179,7 +1183,7 @@ extension DataFlowSemaPhase {
             skipStats.logIfEnabled()
         }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRandomStubs(symbols: symbols, interner: interner)
         registerSyntheticCollectionStubs(
             symbols: symbols,
             types: types,
@@ -1200,7 +1204,6 @@ extension DataFlowSemaPhase {
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
@@ -1237,8 +1240,6 @@ extension DataFlowSemaPhase {
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         registerLateListIndexedMembers(

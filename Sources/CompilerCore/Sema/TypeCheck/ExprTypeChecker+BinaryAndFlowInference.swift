@@ -136,12 +136,8 @@ extension ExprTypeChecker {
             // For lists and plain collection exprs: fall back only when no operator candidates exist.
             // For sequences: also fall back when candidates exist but none accepts the RHS type
             // (e.g. `seq + element` where only `plus(Sequence<Any>)` is registered).
-            // For list minus with a collection RHS (list - listOf(...)): always fall back so that
-            // kk_list_minus_collection is used, even when element-minus stubs exist as candidates.
-            let rhsIsCollectionExpr = sema.bindings.isCollectionExpr(rhsID)
             let shouldFallBack = (isListLhs || isCollExpr) && operatorCandidates.isEmpty
                 || isSeqLhs && operatorCandidates.isEmpty
-                || isListLhs && op == .subtract && rhsIsCollectionExpr
             if shouldFallBack {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)
@@ -408,7 +404,10 @@ extension ExprTypeChecker {
             if lhs == sema.types.doubleType || rhs == sema.types.doubleType ||
                 lhs == sema.types.floatType || rhs == sema.types.floatType
             {
-                sema.bindings.markFloatingPointRangeExpr(id)
+                let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
+                    ? sema.types.floatType
+                    : sema.types.doubleType
+                sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
             }
             // Detect CharRange: if either operand is Char, mark as char range (STDLIB-290)
             if lhs == sema.types.charType || rhs == sema.types.charType {

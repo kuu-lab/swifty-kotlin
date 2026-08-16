@@ -96,6 +96,14 @@ extension DataFlowSemaPhase {
                 if record.isOpenClass {
                     flags.insert(.openType)
                 }
+                switch record.modality {
+                case .abstract:
+                    flags.insert(.abstractType)
+                case .open:
+                    flags.insert(.openType)
+                case .final:
+                    break
+                }
                 if record.isSealedClass {
                     flags.insert(.sealedType)
                 }
@@ -300,6 +308,79 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Normalizes imported member signatures after synthetic bundled anchors
+    /// have been registered. Those anchors may provide the consumer's actual
+    /// owner type-parameter symbols, which are not available during the
+    /// initial library-record pass.
+    func normalizeImportedLibraryMemberSignatures(
+        _ work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let cache = LibraryMetadataCache()
+        for binding in work.importedBindings {
+            switch binding.record.kind {
+            case .function, .constructor:
+                guard let signature = symbols.functionSignature(for: binding.symbol) else {
+                    continue
+                }
+                let normalize: (TypeID) -> TypeID = { type in
+                    self.normalizeImportedOwnerTypeParameters(
+                        type,
+                        record: binding.record,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        metadataPath: binding.metadataPath,
+                        cache: cache,
+                        allowPlaceholders: binding.isStdlibArtifact
+                    )
+                }
+                let ownerTypeParameters = symbols.parentSymbol(for: binding.symbol)
+                    .map { types.nominalTypeParameterSymbols(for: $0) } ?? []
+                let ownerCount = min(signature.classTypeParameterCount, ownerTypeParameters.count)
+                let normalizedTypeParameterSymbols = ownerCount == 0
+                    ? signature.typeParameterSymbols
+                    : Array(ownerTypeParameters.prefix(ownerCount))
+                        + signature.typeParameterSymbols.dropFirst(ownerCount)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: signature.receiverType.map(normalize),
+                        parameterTypes: signature.parameterTypes.map(normalize),
+                        returnType: normalize(signature.returnType),
+                        isSuspend: signature.isSuspend,
+                        canThrow: signature.canThrow,
+                        valueParameterSymbols: signature.valueParameterSymbols,
+                        valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                        valueParameterIsVararg: signature.valueParameterIsVararg,
+                        typeParameterSymbols: normalizedTypeParameterSymbols,
+                        reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                        typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList.map { $0.map(normalize) },
+                        classTypeParameterCount: signature.classTypeParameterCount
+                    ),
+                    for: binding.symbol
+                )
+            case .property, .field:
+                let propertyType = importedPropertyType(
+                    record: binding.record,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    metadataPath: binding.metadataPath,
+                    cache: cache,
+                    allowPlaceholders: binding.isStdlibArtifact
+                )
+                symbols.setPropertyType(propertyType, for: binding.symbol)
+            default:
+                continue
+            }
+        }
+    }
+
     /// Restores the generic shape of an imported nominal type: its own type
     /// parameters (with declared variance) and the type arguments it passes to
     /// each generic supertype. Without them a `class Sub<T> : Base<T>` read back
@@ -471,6 +552,7 @@ extension DataFlowSemaPhase {
         let isOperator: Bool
         let isOverride: Bool
         let valueParameterIsVararg: [Bool]
+        let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         let canThrow: Bool
         let valueParameterNames: [String]
@@ -493,6 +575,7 @@ extension DataFlowSemaPhase {
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
+        let modality: MetadataModality
         let isSealedClass: Bool
         let isFunInterface: Bool
         let isValueClass: Bool
@@ -507,6 +590,10 @@ extension DataFlowSemaPhase {
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
         let nominalTypeParametersSignature: String?
+        /// Generic self-signature of the nominal owner, when this record is a
+        /// member. It lets imported member types replace metadata placeholders
+        /// with the owner's actual type-parameter symbols.
+        let ownerNominalTypeParametersSignature: String?
         let nominalSupertypeSignatures: [String]
         let constValueLiteral: String?
         /// Declaration-order type parameters of a nominal type, encoded as
@@ -523,6 +610,7 @@ extension DataFlowSemaPhase {
             isOperator: Bool = false,
             isOverride: Bool = false,
             valueParameterIsVararg: [Bool] = [],
+            valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
@@ -545,6 +633,7 @@ extension DataFlowSemaPhase {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
             isValueClass: Bool = false,
@@ -558,8 +647,9 @@ extension DataFlowSemaPhase {
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
-            nominalTypeParametersSignature: String? = nil,
-            nominalSupertypeSignatures: [String] = [],
+        nominalTypeParametersSignature: String? = nil,
+        ownerNominalTypeParametersSignature: String? = nil,
+        nominalSupertypeSignatures: [String] = [],
             constValueLiteral: String? = nil,
             nominalTypeParameters: String? = nil
         ) {
@@ -572,6 +662,7 @@ extension DataFlowSemaPhase {
             self.isOperator = isOperator
             self.isOverride = isOverride
             self.valueParameterIsVararg = valueParameterIsVararg
+            self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
@@ -594,6 +685,7 @@ extension DataFlowSemaPhase {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
             self.isValueClass = isValueClass
@@ -607,7 +699,8 @@ extension DataFlowSemaPhase {
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable
-            self.nominalTypeParametersSignature = nominalTypeParametersSignature
+        self.nominalTypeParametersSignature = nominalTypeParametersSignature
+        self.ownerNominalTypeParametersSignature = ownerNominalTypeParametersSignature
             self.nominalSupertypeSignatures = nominalSupertypeSignatures
             self.constValueLiteral = constValueLiteral
             self.nominalTypeParameters = nominalTypeParameters
