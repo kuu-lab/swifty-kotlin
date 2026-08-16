@@ -246,6 +246,25 @@ final class RuntimeRuntimeExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeKotlinNothingValueExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.KotlinNothingValueException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.KotlinNothingValueException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("KotlinNothingValueException", message)
+    }
+}
+
 final class RuntimeErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.Error"
@@ -485,6 +504,16 @@ func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
 /// Allocates a `RuntimeException` with the given message.
 func runtimeAllocateRuntimeException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeRuntimeExceptionBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates a `KotlinNothingValueException` with the given message.
+func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -833,6 +862,32 @@ public func kk_runtime_exception_new_message_cause(_ messageRaw: Int, _ causeRaw
 @_cdecl("__kk_runtime_exception_new_cause")
 public func kk_runtime_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateRuntimeException(
+        message: nil,
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new")
+public func kk_kotlin_nothing_value_exception_new() -> Int {
+    runtimeAllocateKotlinNothingValueException(message: nil)
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new_message")
+public func kk_kotlin_nothing_value_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateKotlinNothingValueException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new_message_cause")
+public func kk_kotlin_nothing_value_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateKotlinNothingValueException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_kotlin_nothing_value_exception_new_cause")
+public func kk_kotlin_nothing_value_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateKotlinNothingValueException(
         message: nil,
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
