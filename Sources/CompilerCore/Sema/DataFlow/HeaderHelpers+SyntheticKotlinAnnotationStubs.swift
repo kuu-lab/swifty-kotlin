@@ -24,13 +24,6 @@ extension DataFlowSemaPhase {
 
         // Suppress, Deprecated, ReplaceWith, and DeprecatedSinceKotlin are provided by bundled Kotlin source
         // (Sources/CompilerCore/Stdlib/kotlin/Suppress.kt, Deprecated.kt, and DeprecatedSinceKotlin.kt).
-        registerSyntheticDeprecationLevelEnum(
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
 
         registerSyntheticAnnotationClass(
             named: "WasExperimental",
