@@ -18,7 +18,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        allowDefaultStdlibLibrary: false
     )
     let ctx = CompilationContext(
         options: options,
@@ -68,10 +69,23 @@ struct CodegenBackendExperimentalTimeEdgeCasesTests {
     @Test
     func codegenCompilesTestTimeSource() throws {
         let source = """
+        import kotlin.time.AbstractDoubleTimeSource
         import kotlin.time.Duration.Companion.milliseconds
+        import kotlin.time.Duration.Companion.microseconds
         import kotlin.time.Duration.Companion.nanoseconds
+        import kotlin.time.DurationUnit
         import kotlin.time.ExperimentalTime
         import kotlin.time.TestTimeSource
+
+        class DoubleProbe : AbstractDoubleTimeSource(DurationUnit.MILLISECONDS) {
+            private var reading = 0.0
+
+            protected override fun read(): Double = reading
+
+            fun advance(delta: Double) {
+                reading += delta
+            }
+        }
 
         @OptIn(ExperimentalTime::class)
         fun main() {
@@ -97,6 +111,38 @@ struct CodegenBackendExperimentalTimeEdgeCasesTests {
             source += 500.nanoseconds
             val mark4 = source.markNow()
             println((mark4 - mark3).inWholeNanoseconds)
+
+            // Negative advances and source-backed mark arithmetic
+            source += (-250L).microseconds
+            val negativeMark = source.markNow()
+            println((negativeMark - mark4).inWholeNanoseconds)
+
+            // Both finite-boundary overflow directions must throw
+            val positiveOverflow = TestTimeSource()
+            positiveOverflow += (Long.MAX_VALUE - 1L).nanoseconds
+            positiveOverflow += 1.nanoseconds
+            try {
+                positiveOverflow += 1.nanoseconds
+                println("missing-positive-overflow")
+            } catch (e: IllegalStateException) {
+                println("positive-overflow")
+            }
+
+            val negativeOverflow = TestTimeSource()
+            negativeOverflow += (-9223372036854775807L).nanoseconds
+            negativeOverflow += (-1L).nanoseconds
+            try {
+                negativeOverflow += (-1L).nanoseconds
+                println("missing-negative-overflow")
+            } catch (e: IllegalStateException) {
+                println("negative-overflow")
+            }
+
+            val doubleSource = DoubleProbe()
+            val doubleMark1 = doubleSource.markNow()
+            doubleSource.advance(1.25)
+            val doubleMark2 = doubleSource.markNow()
+            println((doubleMark2 - doubleMark1).inWholeNanoseconds)
         }
         """
 
@@ -111,6 +157,10 @@ struct CodegenBackendExperimentalTimeEdgeCasesTests {
                 true
                 true
                 500
+                -250000
+                positive-overflow
+                negative-overflow
+                1250000
                 """
                 + "\n"
         )
